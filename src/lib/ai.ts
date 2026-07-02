@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
+import { z } from "zod";
 import {
   AssistantResponseSchema,
   WeekPlanSchema,
@@ -9,15 +10,31 @@ import {
   type WeekPlan,
 } from "./types";
 
-const MODEL = process.env.CLAUDE_MODEL ?? "claude-opus-4-8";
+// ---------------------------------------------------------------------------
+// Provider resolution
+//
+// AI_PROVIDER=local  → an OpenAI-compatible local server (LM Studio, Ollama)
+// AI_PROVIDER=claude → the Claude API (requires ANTHROPIC_API_KEY)
+// unset              → claude if a key exists, otherwise demo mode
+// ---------------------------------------------------------------------------
 
-export function hasApiKey(): boolean {
-  return Boolean(process.env.ANTHROPIC_API_KEY);
+export type Provider = "claude" | "local" | "demo";
+
+export function resolveProvider(): Provider {
+  const p = process.env.AI_PROVIDER?.toLowerCase();
+  if (p === "local") return "local";
+  return process.env.ANTHROPIC_API_KEY ? "claude" : "demo";
 }
 
-function getClient(): Anthropic {
-  return new Anthropic();
-}
+const CLAUDE_MODEL = process.env.CLAUDE_MODEL ?? "claude-opus-4-8";
+const LOCAL_AI_URL = process.env.LOCAL_AI_URL ?? "http://localhost:1234/v1";
+const LOCAL_AI_MODEL = process.env.LOCAL_AI_MODEL ?? "local-model";
+// Optional: for OpenAI-compatible endpoints that require auth (e.g. OpenRouter)
+const LOCAL_AI_API_KEY = process.env.LOCAL_AI_API_KEY;
+
+// ---------------------------------------------------------------------------
+// Shared prompts
+// ---------------------------------------------------------------------------
 
 function profileDescription(profile: UserProfile): string {
   const goals: Record<UserProfile["goal"], string> = {
@@ -44,28 +61,155 @@ const PLAN_RULES = `Rules for the plan:
 - Give honest calorie and macro estimates per meal.
 - Ingredient quantities should be concrete (e.g. "200 g", "1 tbsp", "2 pieces").`;
 
-export async function generatePlan(profile: UserProfile): Promise<WeekPlan> {
-  const client = getClient();
+function planSystemPrompt(): string {
+  return (
+    "You are a professional nutritionist creating personalized weekly meal plans. " +
+    PLAN_RULES
+  );
+}
+
+function planUserPrompt(profile: UserProfile): string {
+  return `Create a 7-day meal plan for this person:\n\n${profileDescription(profile)}\n\nIn weekSummary, write 1-2 friendly sentences about the week's plan and its approximate daily calories.`;
+}
+
+function assistantSystemPrompt(profile: UserProfile, plan: WeekPlan): string {
+  return (
+    "You are the meal-plan assistant inside a meal planning app. The user has a current weekly plan and asks you to adjust it (swap meals, make a day vegetarian, make it cheaper, etc.) or asks questions about it.\n" +
+    "Always return the FULL updated week plan. If the user's message doesn't require changing the plan, return the plan unchanged and set planChanged to false.\n" +
+    "When you change meals, keep them consistent with the user's profile below and recalculate calories/macros honestly.\n" +
+    PLAN_RULES +
+    `\n\nUser profile:\n${profileDescription(profile)}\n\nCurrent week plan (JSON):\n${JSON.stringify(plan)}`
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Claude provider
+// ---------------------------------------------------------------------------
+
+async function claudeGeneratePlan(profile: UserProfile): Promise<WeekPlan> {
+  const client = new Anthropic();
   const response = await client.messages.parse({
-    model: MODEL,
+    model: CLAUDE_MODEL,
     max_tokens: 16000,
     thinking: { type: "adaptive" },
-    system:
-      "You are a professional nutritionist creating personalized weekly meal plans. " +
-      PLAN_RULES,
-    messages: [
-      {
-        role: "user",
-        content: `Create a 7-day meal plan for this person:\n\n${profileDescription(profile)}\n\nIn weekSummary, write 1-2 friendly sentences about the week's plan and its approximate daily calories.`,
-      },
-    ],
+    system: planSystemPrompt(),
+    messages: [{ role: "user", content: planUserPrompt(profile) }],
     output_config: { format: zodOutputFormat(WeekPlanSchema) },
   });
   const plan = response.parsed_output;
-  if (!plan) {
-    throw new Error("The AI response could not be parsed into a meal plan.");
-  }
+  if (!plan) throw new Error("The AI response could not be parsed into a meal plan.");
   return plan;
+}
+
+async function claudeRunAssistant(
+  profile: UserProfile,
+  plan: WeekPlan,
+  history: ChatMessage[],
+): Promise<AssistantResponse> {
+  const client = new Anthropic();
+  const response = await client.messages.parse({
+    model: CLAUDE_MODEL,
+    max_tokens: 16000,
+    thinking: { type: "adaptive" },
+    system: assistantSystemPrompt(profile, plan),
+    messages: history.map((m) => ({ role: m.role, content: m.text })),
+    output_config: { format: zodOutputFormat(AssistantResponseSchema) },
+  });
+  const result = response.parsed_output;
+  if (!result) throw new Error("The AI response could not be parsed.");
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Local provider (OpenAI-compatible: LM Studio on :1234, Ollama on :11434)
+// ---------------------------------------------------------------------------
+
+interface LocalChatMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
+
+async function localStructuredChat<T>(
+  schema: z.ZodType<T>,
+  schemaName: string,
+  messages: LocalChatMessage[],
+): Promise<T> {
+  const jsonSchema = z.toJSONSchema(schema);
+  let res: Response;
+  try {
+    res = await fetch(`${LOCAL_AI_URL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(LOCAL_AI_API_KEY ? { Authorization: `Bearer ${LOCAL_AI_API_KEY}` } : {}),
+      },
+      body: JSON.stringify({
+        model: LOCAL_AI_MODEL,
+        messages,
+        max_tokens: 8000,
+        response_format: {
+          type: "json_schema",
+          json_schema: { name: schemaName, strict: true, schema: jsonSchema },
+        },
+      }),
+    });
+  } catch {
+    throw new Error(
+      `Could not reach the local AI server at ${LOCAL_AI_URL}. Is LM Studio (or Ollama) running with its server enabled?`,
+    );
+  }
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(
+      `Local AI server error (${res.status}): ${body.slice(0, 300) || "no details"}`,
+    );
+  }
+  const data = (await res.json()) as {
+    choices?: { message?: { content?: string } }[];
+  };
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) throw new Error("The local AI returned an empty response.");
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    throw new Error("The local AI returned invalid JSON. Try a larger model or lower temperature.");
+  }
+  const validated = schema.safeParse(parsed);
+  if (!validated.success) {
+    throw new Error(
+      "The local AI's answer didn't match the expected format. A larger model usually fixes this.",
+    );
+  }
+  return validated.data;
+}
+
+async function localGeneratePlan(profile: UserProfile): Promise<WeekPlan> {
+  return localStructuredChat(WeekPlanSchema, "week_plan", [
+    { role: "system", content: planSystemPrompt() },
+    { role: "user", content: planUserPrompt(profile) },
+  ]);
+}
+
+async function localRunAssistant(
+  profile: UserProfile,
+  plan: WeekPlan,
+  history: ChatMessage[],
+): Promise<AssistantResponse> {
+  return localStructuredChat(AssistantResponseSchema, "assistant_response", [
+    { role: "system", content: assistantSystemPrompt(profile, plan) },
+    ...history.map((m) => ({ role: m.role, content: m.text })),
+  ]);
+}
+
+// ---------------------------------------------------------------------------
+// Public API — dispatches to the resolved provider
+// ---------------------------------------------------------------------------
+
+export async function generatePlan(profile: UserProfile): Promise<WeekPlan> {
+  return resolveProvider() === "local"
+    ? localGeneratePlan(profile)
+    : claudeGeneratePlan(profile);
 }
 
 export async function runAssistant(
@@ -73,28 +217,7 @@ export async function runAssistant(
   plan: WeekPlan,
   history: ChatMessage[],
 ): Promise<AssistantResponse> {
-  const client = getClient();
-  const response = await client.messages.parse({
-    model: MODEL,
-    max_tokens: 16000,
-    thinking: { type: "adaptive" },
-    system:
-      "You are the meal-plan assistant inside a meal planning app. The user has a current weekly plan and asks you to adjust it (swap meals, make a day vegetarian, make it cheaper, etc.) or asks questions about it.\n" +
-      "Always return the FULL updated week plan. If the user's message doesn't require changing the plan, return the plan unchanged and set planChanged to false.\n" +
-      "When you change meals, keep them consistent with the user's profile below and recalculate calories/macros honestly.\n" +
-      PLAN_RULES +
-      `\n\nUser profile:\n${profileDescription(profile)}\n\nCurrent week plan (JSON):\n${JSON.stringify(plan)}`,
-    messages: history.map((m) => ({
-      role: m.role,
-      content: m.text,
-    })),
-    output_config: {
-      format: zodOutputFormat(AssistantResponseSchema),
-    },
-  });
-  const result = response.parsed_output;
-  if (!result) {
-    throw new Error("The AI response could not be parsed.");
-  }
-  return result;
+  return resolveProvider() === "local"
+    ? localRunAssistant(profile, plan, history)
+    : claudeRunAssistant(profile, plan, history);
 }

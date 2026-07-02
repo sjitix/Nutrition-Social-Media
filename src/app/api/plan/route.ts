@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { generatePlan, hasApiKey } from "@/lib/ai";
+import { generatePlan, resolveProvider } from "@/lib/ai";
 import { buildDemoPlan } from "@/lib/demo";
 import type { UserProfile } from "@/lib/types";
 
@@ -13,18 +13,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
 
-  if (!hasApiKey()) {
+  const provider = resolveProvider();
+  if (provider === "demo") {
     return NextResponse.json({ plan: buildDemoPlan(profile), demo: true });
   }
 
   try {
     const plan = await generatePlan(profile);
-    return NextResponse.json({ plan, demo: false });
+    return NextResponse.json({ plan, demo: false, provider });
   } catch (error) {
     console.error("Plan generation failed:", error);
-    return NextResponse.json(
-      { error: "Plan generation failed. Please try again." },
-      { status: 502 },
-    );
+    const message =
+      error instanceof Error && provider === "local"
+        ? error.message
+        : "Plan generation failed. Please try again.";
+    return NextResponse.json({ error: message }, { status: 502 });
   }
 }

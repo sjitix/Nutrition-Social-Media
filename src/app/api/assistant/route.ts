@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { hasApiKey, runAssistant } from "@/lib/ai";
+import { resolveProvider, runAssistant } from "@/lib/ai";
 import { DEMO_ASSISTANT_REPLY } from "@/lib/demo";
 import type { ChatMessage, UserProfile, WeekPlan } from "@/lib/types";
 
@@ -23,7 +23,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Missing fields." }, { status: 400 });
   }
 
-  if (!hasApiKey()) {
+  const provider = resolveProvider();
+  if (provider === "demo") {
     return NextResponse.json({
       reply: DEMO_ASSISTANT_REPLY,
       planChanged: false,
@@ -34,12 +35,13 @@ export async function POST(request: Request) {
 
   try {
     const result = await runAssistant(body.profile, body.plan, body.history);
-    return NextResponse.json({ ...result, demo: false });
+    return NextResponse.json({ ...result, demo: false, provider });
   } catch (error) {
     console.error("Assistant call failed:", error);
-    return NextResponse.json(
-      { error: "The assistant is unavailable right now. Please try again." },
-      { status: 502 },
-    );
+    const message =
+      error instanceof Error && provider === "local"
+        ? error.message
+        : "The assistant is unavailable right now. Please try again.";
+    return NextResponse.json({ error: message }, { status: 502 });
   }
 }
