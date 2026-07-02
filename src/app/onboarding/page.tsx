@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Wordmark } from "@/components/icons";
 import { saveChat, savePlan, saveProfile } from "@/lib/storage";
 import type { UserProfile } from "@/lib/types";
 
@@ -20,9 +21,9 @@ const DIETS: { value: UserProfile["diet"]; label: string }[] = [
 ];
 
 const BUDGETS: { value: UserProfile["budget"]; label: string }[] = [
-  { value: "low", label: "€ Tight" },
-  { value: "medium", label: "€€ Normal" },
-  { value: "high", label: "€€€ Flexible" },
+  { value: "low", label: "Tight" },
+  { value: "medium", label: "Normal" },
+  { value: "high", label: "Flexible" },
 ];
 
 export default function OnboardingPage() {
@@ -62,16 +63,17 @@ export default function OnboardingPage() {
   const optionClass = (selected: boolean) =>
     `cursor-pointer rounded-xl border-2 px-4 py-3 text-left transition ${
       selected
-        ? "border-leaf bg-leaf-soft font-semibold"
-        : "border-transparent bg-white hover:border-leaf/40"
+        ? "border-vio bg-lav font-semibold"
+        : "border-transparent bg-white hover:border-vio/40"
     }`;
 
   return (
-    <main className="mx-auto max-w-2xl px-6 py-12">
-      <h1 className="font-display text-4xl font-bold">Let&rsquo;s plan your week</h1>
-      <p className="mt-2 text-forest-light">
-        Six quick answers — then the AI builds your plan.
-      </p>
+    <main className="mx-auto max-w-2xl px-6 py-10">
+      <Wordmark />
+      <h1 className="font-display mt-8 text-4xl font-bold tracking-tight">
+        Let&rsquo;s plan your week
+      </h1>
+      <p className="mt-2 text-mut">Six quick answers — then the AI builds your plan.</p>
 
       <form onSubmit={handleSubmit} className="mt-10 space-y-10">
         <section>
@@ -80,7 +82,7 @@ export default function OnboardingPage() {
             {GOALS.map((g) => (
               <button type="button" key={g.value} onClick={() => setGoal(g.value)} className={optionClass(goal === g.value)}>
                 <div>{g.label}</div>
-                <div className="text-xs font-normal text-forest-light">{g.hint}</div>
+                <div className="text-xs font-normal text-mut">{g.hint}</div>
               </button>
             ))}
           </div>
@@ -103,17 +105,17 @@ export default function OnboardingPage() {
             value={allergies}
             onChange={(e) => setAllergies(e.target.value)}
             placeholder="e.g. peanuts, shellfish — leave empty if none"
-            className="w-full rounded-xl border-2 border-transparent bg-white px-4 py-3 outline-none focus:border-leaf"
+            className="w-full rounded-xl border-2 border-transparent bg-white px-4 py-3 outline-none focus:border-vio"
           />
         </section>
 
         <section>
-          <h2 className="mb-3 font-semibold">4. Foods you hate?</h2>
+          <h2 className="mb-3 font-semibold">4. Foods you dislike?</h2>
           <input
             value={dislikes}
             onChange={(e) => setDislikes(e.target.value)}
             placeholder="e.g. mushrooms, olives"
-            className="w-full rounded-xl border-2 border-transparent bg-white px-4 py-3 outline-none focus:border-leaf"
+            className="w-full rounded-xl border-2 border-transparent bg-white px-4 py-3 outline-none focus:border-vio"
           />
         </section>
 
@@ -146,9 +148,9 @@ export default function OnboardingPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-xl bg-forest px-8 py-4 text-lg font-semibold text-cream shadow-lg transition hover:bg-forest-light disabled:opacity-60"
+          className="w-full rounded-full bg-vio px-8 py-4 text-lg font-semibold text-white shadow-lg shadow-vio/30 transition hover:bg-vio-deep disabled:opacity-60"
         >
-          {loading ? "Planning your week… (can take up to a minute)" : "Generate my week →"}
+          {loading ? "Planning your week — this can take up to a minute" : "Generate my week"}
         </button>
       </form>
     </main>

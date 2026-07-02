@@ -2,7 +2,23 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { Wordmark } from "@/components/icons";
 import { loadPlan } from "@/lib/storage";
+
+const FEATURES: [string, string][] = [
+  [
+    "AI-planned week",
+    "Seven days of meals matched to your goals, allergies and budget — generated in under a minute.",
+  ],
+  [
+    "Chat to adjust",
+    "“Swap the salmon” or “make it cheaper” — the assistant rewrites your actual plan, not just its reply.",
+  ],
+  [
+    "Groceries, done",
+    "One consolidated shopping list for the whole week, built automatically from your meals.",
+  ],
+];
 
 export default function LandingPage() {
   const [hasPlan, setHasPlan] = useState(false);
@@ -12,49 +28,64 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center px-6 text-center">
-      <p className="mb-4 rounded-full bg-leaf-soft px-4 py-1 text-sm font-medium text-forest-light">
-        🥗 NutriFlow — early preview
-      </p>
-      <h1 className="font-display text-5xl leading-tight font-bold sm:text-6xl">
-        Your week of meals,
-        <br />
-        <span className="italic text-leaf">planned in one minute.</span>
-      </h1>
-      <p className="mt-6 max-w-xl text-lg text-forest-light">
-        Tell us your goal, diet and budget. The AI builds your whole week —
-        every meal, every macro, and the full grocery list. Want changes? Just
-        text the assistant: <em>&ldquo;make Tuesday vegetarian.&rdquo;</em>
-      </p>
-      <div className="mt-10 flex flex-col gap-3 sm:flex-row">
-        <Link
-          href="/onboarding"
-          className="rounded-xl bg-forest px-8 py-4 text-lg font-semibold text-cream shadow-lg transition hover:bg-forest-light"
-        >
-          {hasPlan ? "Create a new plan" : "Plan my week"}
-        </Link>
+    <main className="mx-auto max-w-5xl px-6 pb-24">
+      <nav className="flex items-center justify-between py-6">
+        <Wordmark />
         {hasPlan && (
           <Link
             href="/plan"
-            className="rounded-xl border-2 border-forest px-8 py-4 text-lg font-semibold text-forest transition hover:bg-leaf-soft"
+            className="rounded-full bg-plum px-5 py-2 text-sm font-semibold text-white transition hover:bg-plum-mid"
           >
-            Open my current plan
+            Open my plan
           </Link>
         )}
-      </div>
-      <div className="mt-16 grid gap-6 text-left sm:grid-cols-3">
-        {[
-          ["🧠", "AI-planned week", "7 days of meals matched to your goals, allergies and budget."],
-          ["💬", "Chat to adjust", "“Swap the salmon” or “make it cheaper” — the plan updates itself."],
-          ["🛒", "Instant groceries", "One shopping list for the whole week, built automatically."],
-        ].map(([icon, title, text]) => (
-          <div key={title} className="rounded-2xl bg-white p-6 shadow-sm">
-            <div className="text-2xl">{icon}</div>
-            <h3 className="mt-2 font-semibold">{title}</h3>
-            <p className="mt-1 text-sm text-forest-light">{text}</p>
+      </nav>
+
+      <section className="mt-10 grid items-center gap-12 lg:grid-cols-2">
+        <div>
+          <p className="text-xs font-bold tracking-widest text-vio-deep uppercase">
+            Early preview
+          </p>
+          <h1 className="font-display mt-3 text-5xl leading-tight font-bold tracking-tight">
+            Your week of meals, planned in one minute.
+          </h1>
+          <p className="mt-5 max-w-lg text-lg leading-relaxed text-mut">
+            Tell us your goal, diet and budget. The AI builds your whole week —
+            every meal, every macro, the full grocery list. Want changes? Just
+            tell the assistant.
+          </p>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Link
+              href="/onboarding"
+              className="rounded-full bg-vio px-8 py-4 text-base font-semibold text-white shadow-lg shadow-vio/30 transition hover:bg-vio-deep"
+            >
+              {hasPlan ? "Create a new plan" : "Plan my week"}
+            </Link>
+          </div>
+        </div>
+        <div className="relative hidden lg:block">
+          <div
+            className="h-105 rounded-3xl bg-cover bg-center card-shadow"
+            style={{ backgroundImage: "url(/food/bowl1.jpg)" }}
+          />
+          <div className="absolute -bottom-6 -left-6 rounded-2xl bg-white p-4 card-shadow">
+            <p className="text-xs font-bold tracking-wider text-mut uppercase">
+              Tonight
+            </p>
+            <p className="mt-1 font-semibold">Seared Salmon over Greens</p>
+            <p className="mt-0.5 text-sm text-mut">590 kcal · 38 g protein</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="mt-24 grid gap-6 sm:grid-cols-3">
+        {FEATURES.map(([title, text]) => (
+          <div key={title} className="rounded-2xl bg-white p-6 card-shadow">
+            <h3 className="font-semibold">{title}</h3>
+            <p className="mt-2 text-sm leading-relaxed text-mut">{text}</p>
           </div>
         ))}
-      </div>
+      </section>
     </main>
   );
 }
