@@ -1,0 +1,156 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { saveChat, savePlan, saveProfile } from "@/lib/storage";
+import type { UserProfile } from "@/lib/types";
+
+const GOALS: { value: UserProfile["goal"]; label: string; hint: string }[] = [
+  { value: "lose_weight", label: "Lose weight", hint: "Moderate calorie deficit" },
+  { value: "maintain", label: "Eat healthier", hint: "Balanced maintenance" },
+  { value: "build_muscle", label: "Build muscle", hint: "High protein surplus" },
+];
+
+const DIETS: { value: UserProfile["diet"]; label: string }[] = [
+  { value: "none", label: "No restrictions" },
+  { value: "vegetarian", label: "Vegetarian" },
+  { value: "vegan", label: "Vegan" },
+  { value: "keto", label: "Keto" },
+  { value: "mediterranean", label: "Mediterranean" },
+];
+
+const BUDGETS: { value: UserProfile["budget"]; label: string }[] = [
+  { value: "low", label: "€ Tight" },
+  { value: "medium", label: "€€ Normal" },
+  { value: "high", label: "€€€ Flexible" },
+];
+
+export default function OnboardingPage() {
+  const router = useRouter();
+  const [goal, setGoal] = useState<UserProfile["goal"]>("maintain");
+  const [diet, setDiet] = useState<UserProfile["diet"]>("none");
+  const [budget, setBudget] = useState<UserProfile["budget"]>("medium");
+  const [mealsPerDay, setMealsPerDay] = useState<3 | 4>(3);
+  const [allergies, setAllergies] = useState("");
+  const [dislikes, setDislikes] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    const profile: UserProfile = { goal, diet, allergies, dislikes, budget, mealsPerDay };
+    try {
+      const res = await fetch("/api/plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(profile),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Something went wrong.");
+      saveProfile(profile);
+      savePlan(data.plan);
+      saveChat([]);
+      router.push("/plan");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
+      setLoading(false);
+    }
+  }
+
+  const optionClass = (selected: boolean) =>
+    `cursor-pointer rounded-xl border-2 px-4 py-3 text-left transition ${
+      selected
+        ? "border-leaf bg-leaf-soft font-semibold"
+        : "border-transparent bg-white hover:border-leaf/40"
+    }`;
+
+  return (
+    <main className="mx-auto max-w-2xl px-6 py-12">
+      <h1 className="font-display text-4xl font-bold">Let&rsquo;s plan your week</h1>
+      <p className="mt-2 text-forest-light">
+        Six quick answers — then the AI builds your plan.
+      </p>
+
+      <form onSubmit={handleSubmit} className="mt-10 space-y-10">
+        <section>
+          <h2 className="mb-3 font-semibold">1. What&rsquo;s your goal?</h2>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {GOALS.map((g) => (
+              <button type="button" key={g.value} onClick={() => setGoal(g.value)} className={optionClass(goal === g.value)}>
+                <div>{g.label}</div>
+                <div className="text-xs font-normal text-forest-light">{g.hint}</div>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section>
+          <h2 className="mb-3 font-semibold">2. Any diet?</h2>
+          <div className="flex flex-wrap gap-3">
+            {DIETS.map((d) => (
+              <button type="button" key={d.value} onClick={() => setDiet(d.value)} className={optionClass(diet === d.value)}>
+                {d.label}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section>
+          <h2 className="mb-3 font-semibold">3. Allergies?</h2>
+          <input
+            value={allergies}
+            onChange={(e) => setAllergies(e.target.value)}
+            placeholder="e.g. peanuts, shellfish — leave empty if none"
+            className="w-full rounded-xl border-2 border-transparent bg-white px-4 py-3 outline-none focus:border-leaf"
+          />
+        </section>
+
+        <section>
+          <h2 className="mb-3 font-semibold">4. Foods you hate?</h2>
+          <input
+            value={dislikes}
+            onChange={(e) => setDislikes(e.target.value)}
+            placeholder="e.g. mushrooms, olives"
+            className="w-full rounded-xl border-2 border-transparent bg-white px-4 py-3 outline-none focus:border-leaf"
+          />
+        </section>
+
+        <section>
+          <h2 className="mb-3 font-semibold">5. Budget?</h2>
+          <div className="flex gap-3">
+            {BUDGETS.map((b) => (
+              <button type="button" key={b.value} onClick={() => setBudget(b.value)} className={optionClass(budget === b.value)}>
+                {b.label}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section>
+          <h2 className="mb-3 font-semibold">6. Meals per day?</h2>
+          <div className="flex gap-3">
+            {([3, 4] as const).map((n) => (
+              <button type="button" key={n} onClick={() => setMealsPerDay(n)} className={optionClass(mealsPerDay === n)}>
+                {n === 3 ? "3 meals" : "3 meals + snack"}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {error && (
+          <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
+        )}
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full rounded-xl bg-forest px-8 py-4 text-lg font-semibold text-cream shadow-lg transition hover:bg-forest-light disabled:opacity-60"
+        >
+          {loading ? "Planning your week… (can take up to a minute)" : "Generate my week →"}
+        </button>
+      </form>
+    </main>
+  );
+}

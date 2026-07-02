@@ -1,0 +1,20 @@
+@import "tailwindcss";
+
+@theme {
+  --color-cream: #faf7f0;
+  --color-forest: #1e3a2f;
+  --color-forest-light: #2d5443;
+  --color-leaf: #4a9d6e;
+  --color-leaf-soft: #e3f2e9;
+  --color-clay: #d97757;
+}
+
+body {
+  background-color: var(--color-cream);
+  color: var(--color-forest);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.font-display {
+  font-family: Georgia, "Times New Roman", serif;
+}
