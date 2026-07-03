@@ -35,7 +35,18 @@ export async function POST(request: Request) {
 
   try {
     const result = await runAssistant(body.profile, body.plan, body.history);
-    return NextResponse.json({ ...result, demo: false, provider });
+    const changed = new Map(result.changedDays.map((d) => [d.day, d]));
+    const mergedPlan = {
+      ...body.plan,
+      days: body.plan.days.map((d) => changed.get(d.day) ?? d),
+    };
+    return NextResponse.json({
+      reply: result.reply,
+      planChanged: changed.size > 0,
+      plan: mergedPlan,
+      demo: false,
+      provider,
+    });
   } catch (error) {
     console.error("Assistant call failed:", error);
     const message =

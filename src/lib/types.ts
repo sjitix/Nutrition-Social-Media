@@ -38,10 +38,11 @@ export const WeekPlanSchema = z.object({
   weekSummary: z.string(),
 });
 
+// The assistant returns only the days it modified (cheaper and far more
+// reliable than regenerating the whole week); the server merges them in.
 export const AssistantResponseSchema = z.object({
   reply: z.string(),
-  planChanged: z.boolean(),
-  plan: WeekPlanSchema,
+  changedDays: z.array(DayPlanSchema),
 });
 
 export type Ingredient = z.infer<typeof IngredientSchema>;

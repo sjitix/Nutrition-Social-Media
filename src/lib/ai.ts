@@ -3,6 +3,7 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import {
   AssistantResponseSchema,
+  MealSchema,
   WeekPlanSchema,
   type AssistantResponse,
   type ChatMessage,
@@ -54,7 +55,9 @@ function profileDescription(profile: UserProfile): string {
 
 const PLAN_RULES = `Rules for the plan:
 - Cover all 7 days, Monday through Sunday, with exactly the requested number of meals per day.
-- Meals must be realistic, tasty, and simple enough for a home cook; keep steps short (3-6 steps).
+- Meals must be realistic, tasty, and simple enough for a home cook.
+- The meal "type" field must be exactly one of: breakfast, lunch, dinner, snack (lowercase).
+- Keep it concise: description is one short sentence, steps are 2-4 short instructions.
 - Respect all allergies strictly — never include an allergen, even as a trace ingredient.
 - Respect the diet type and avoid disliked foods.
 - Reuse ingredients across the week where sensible so the grocery list stays affordable.
@@ -75,8 +78,8 @@ function planUserPrompt(profile: UserProfile): string {
 function assistantSystemPrompt(profile: UserProfile, plan: WeekPlan): string {
   return (
     "You are the meal-plan assistant inside a meal planning app. The user has a current weekly plan and asks you to adjust it (swap meals, make a day vegetarian, make it cheaper, etc.) or asks questions about it.\n" +
-    "Always return the FULL updated week plan. If the user's message doesn't require changing the plan, return the plan unchanged and set planChanged to false.\n" +
-    "When you change meals, keep them consistent with the user's profile below and recalculate calories/macros honestly.\n" +
+    "In changedDays, return ONLY the days you modified, each as a complete day object with ALL of that day's meals (changed and unchanged ones). If the user's message doesn't require changing the plan, return an empty changedDays array and just answer in reply.\n" +
+    "Keep reply short and friendly (1-3 sentences). When you change meals, keep them consistent with the user's profile below and recalculate calories/macros honestly.\n" +
     PLAN_RULES +
     `\n\nUser profile:\n${profileDescription(profile)}\n\nCurrent week plan (JSON):\n${JSON.stringify(plan)}`
   );
@@ -129,12 +132,72 @@ interface LocalChatMessage {
   content: string;
 }
 
+// Open models sometimes capitalize meal types ("Breakfast") — normalize any
+// "type" field whose lowercase form is a valid meal type, wherever it appears.
+const MEAL_TYPE_SET = new Set(["breakfast", "lunch", "dinner", "snack"]);
+
+function normalizeMealTypes(node: unknown): void {
+  if (Array.isArray(node)) {
+    for (const item of node) normalizeMealTypes(item);
+    return;
+  }
+  if (node && typeof node === "object") {
+    const obj = node as Record<string, unknown>;
+    if (typeof obj.type === "string" && MEAL_TYPE_SET.has(obj.type.toLowerCase())) {
+      obj.type = obj.type.toLowerCase();
+    }
+    for (const value of Object.values(obj)) normalizeMealTypes(value);
+  }
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// LOCAL_AI_MODEL may be a comma-separated fallback list; each model is tried
+// with retries/backoff on rate limits before moving to the next.
+function localModels(): string[] {
+  return LOCAL_AI_MODEL.split(",").map((m) => m.trim()).filter(Boolean);
+}
+
 async function localStructuredChat<T>(
   schema: z.ZodType<T>,
   schemaName: string,
   messages: LocalChatMessage[],
 ): Promise<T> {
+  let lastError: Error = new Error("No local AI model configured.");
+  for (const model of localModels()) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        return await localStructuredChatOnce(schema, schemaName, messages, model);
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        const retryable = /\(429\)|\(5\d\d\)|Could not reach/.test(lastError.message);
+        if (!retryable) break; // bad output shape → try the next model instead
+        await sleep(2000 * (attempt + 1));
+      }
+    }
+  }
+  throw lastError;
+}
+
+async function localStructuredChatOnce<T>(
+  schema: z.ZodType<T>,
+  schemaName: string,
+  messages: LocalChatMessage[],
+  model: string,
+): Promise<T> {
   const jsonSchema = z.toJSONSchema(schema);
+  // Belt and suspenders: response_format enforces the schema on providers that
+  // support it; the prompt instruction covers providers that silently ignore it.
+  const withSchemaHint = messages.map((m, i) =>
+    i === 0 && m.role === "system"
+      ? {
+          ...m,
+          content:
+            m.content +
+            `\n\nRespond with ONLY a valid JSON object matching this JSON schema — no prose, no markdown fences, no explanation:\n${JSON.stringify(jsonSchema)}`,
+        }
+      : m,
+  );
   let res: Response;
   try {
     res = await fetch(`${LOCAL_AI_URL}/chat/completions`, {
@@ -144,13 +207,22 @@ async function localStructuredChat<T>(
         ...(LOCAL_AI_API_KEY ? { Authorization: `Bearer ${LOCAL_AI_API_KEY}` } : {}),
       },
       body: JSON.stringify({
-        model: LOCAL_AI_MODEL,
-        messages,
-        max_tokens: 8000,
-        response_format: {
-          type: "json_schema",
-          json_schema: { name: schemaName, strict: true, schema: jsonSchema },
-        },
+        model,
+        messages: withSchemaHint,
+        // Generous budget: reasoning models spend tokens thinking before the JSON.
+        max_tokens: 16000,
+        // Strict schema mode works reliably on real local servers (LM Studio,
+        // Ollama) but several hosted free routes mishandle it and return empty
+        // content — for those (detected by the API key) the prompt instruction
+        // plus JSON extraction below does the job.
+        ...(LOCAL_AI_API_KEY
+          ? {}
+          : {
+              response_format: {
+                type: "json_schema",
+                json_schema: { name: schemaName, strict: true, schema: jsonSchema },
+              },
+            }),
       }),
     });
   } catch {
@@ -169,12 +241,22 @@ async function localStructuredChat<T>(
   };
   const content = data.choices?.[0]?.message?.content;
   if (!content) throw new Error("The local AI returned an empty response.");
+  // Models may wrap JSON in markdown fences or preface it with thinking text —
+  // extract the outermost JSON object before parsing.
+  const cleaned = content
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/, "");
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  const candidate = start >= 0 && end > start ? cleaned.slice(start, end + 1) : cleaned;
   let parsed: unknown;
   try {
-    parsed = JSON.parse(content);
+    parsed = JSON.parse(candidate);
   } catch {
     throw new Error("The local AI returned invalid JSON. Try a larger model or lower temperature.");
   }
+  normalizeMealTypes(parsed);
   const validated = schema.safeParse(parsed);
   if (!validated.success) {
     throw new Error(
@@ -184,11 +266,58 @@ async function localStructuredChat<T>(
   return validated.data;
 }
 
+// Free/hosted open-model routes are slow and unreliable on very long outputs,
+// so the local provider generates each day as a small parallel request and
+// assembles the week. Cuisine themes keep the days varied despite independence.
+const DAY_THEMES = [
+  "Mediterranean",
+  "Asian-inspired",
+  "Mexican-inspired",
+  "Italian-inspired",
+  "Middle Eastern",
+  "classic comfort food, lightened up",
+  "fresh and light",
+] as const;
+
+const DAY_NAMES = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+] as const;
+
+const DayMealsSchema = z.object({ meals: z.array(MealSchema) });
+
 async function localGeneratePlan(profile: UserProfile): Promise<WeekPlan> {
-  return localStructuredChat(WeekPlanSchema, "week_plan", [
-    { role: "system", content: planSystemPrompt() },
-    { role: "user", content: planUserPrompt(profile) },
-  ]);
+  // Two at a time: fast enough, and polite to rate-limited free routes.
+  const days: { day: (typeof DAY_NAMES)[number]; meals: z.infer<typeof MealSchema>[] }[] = [];
+  for (let i = 0; i < DAY_NAMES.length; i += 2) {
+    const chunk = await Promise.all(
+      DAY_NAMES.slice(i, i + 2).map(async (day, j) => {
+        const { meals } = await localStructuredChat(DayMealsSchema, "day_meals", [
+          { role: "system", content: planSystemPrompt() },
+          {
+            role: "user",
+            content: `Plan ${day}'s meals (exactly ${profile.mealsPerDay}: breakfast, lunch, dinner${profile.mealsPerDay === 4 ? ", snack" : ""}) for this person:\n\n${profileDescription(profile)}\n\nCuisine inspiration for this day: ${DAY_THEMES[i + j]}.`,
+          },
+        ]);
+        return { day, meals };
+      }),
+    );
+    days.push(...chunk);
+  }
+  const totalKcal = days.reduce(
+    (s, d) => s + d.meals.reduce((m, x) => m + x.calories, 0),
+    0,
+  );
+  const avg = Math.round(totalKcal / days.length);
+  return {
+    days,
+    weekSummary: `A varied week averaging about ${avg.toLocaleString()} kcal per day, tailored to your goals and preferences.`,
+  };
 }
 
 async function localRunAssistant(
