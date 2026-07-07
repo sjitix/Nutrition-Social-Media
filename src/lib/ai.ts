@@ -32,6 +32,13 @@ const LOCAL_AI_URL = process.env.LOCAL_AI_URL ?? "http://localhost:1234/v1";
 const LOCAL_AI_MODEL = process.env.LOCAL_AI_MODEL ?? "local-model";
 // Optional: for OpenAI-compatible endpoints that require auth (e.g. OpenRouter)
 const LOCAL_AI_API_KEY = process.env.LOCAL_AI_API_KEY;
+// How many day-requests to run at once. On a single local GPU, 1 (sequential)
+// is fastest — concurrent requests split the GPU and each runs slower. Raise it
+// for multi-GPU boxes or cloud endpoints that genuinely parallelize.
+const LOCAL_AI_CONCURRENCY = Math.max(
+  1,
+  parseInt(process.env.LOCAL_AI_CONCURRENCY ?? "1", 10) || 1,
+);
 
 // ---------------------------------------------------------------------------
 // Shared prompts
@@ -267,8 +274,8 @@ async function localStructuredChatOnce<T>(
 }
 
 // Free/hosted open-model routes are slow and unreliable on very long outputs,
-// so the local provider generates each day as a small parallel request and
-// assembles the week. Cuisine themes keep the days varied despite independence.
+// so the local provider generates the week one day per request and assembles
+// it. Cuisine themes keep the days varied despite independence.
 const DAY_THEMES = [
   "Mediterranean",
   "Asian-inspired",
@@ -291,23 +298,33 @@ const DAY_NAMES = [
 
 const DayMealsSchema = z.object({ meals: z.array(MealSchema) });
 
+async function localGenerateDay(
+  profile: UserProfile,
+  day: (typeof DAY_NAMES)[number],
+  theme: string,
+): Promise<{ day: (typeof DAY_NAMES)[number]; meals: z.infer<typeof MealSchema>[] }> {
+  const { meals } = await localStructuredChat(DayMealsSchema, "day_meals", [
+    { role: "system", content: planSystemPrompt() },
+    {
+      role: "user",
+      content: `Plan ${day}'s meals (exactly ${profile.mealsPerDay}: breakfast, lunch, dinner${profile.mealsPerDay === 4 ? ", snack" : ""}) for this person:\n\n${profileDescription(profile)}\n\nCuisine inspiration for this day: ${theme}.`,
+    },
+  ]);
+  console.log(`[plan] ${day} generated (${meals.length} meals)`);
+  return { day, meals };
+}
+
 async function localGeneratePlan(profile: UserProfile): Promise<WeekPlan> {
-  // Two at a time: fast enough, and polite to rate-limited free routes.
+  // Generate in batches of LOCAL_AI_CONCURRENCY (default 1 = sequential, which
+  // is fastest on a single GPU and gentlest on rate-limited free routes).
   const days: { day: (typeof DAY_NAMES)[number]; meals: z.infer<typeof MealSchema>[] }[] = [];
-  for (let i = 0; i < DAY_NAMES.length; i += 2) {
-    const chunk = await Promise.all(
-      DAY_NAMES.slice(i, i + 2).map(async (day, j) => {
-        const { meals } = await localStructuredChat(DayMealsSchema, "day_meals", [
-          { role: "system", content: planSystemPrompt() },
-          {
-            role: "user",
-            content: `Plan ${day}'s meals (exactly ${profile.mealsPerDay}: breakfast, lunch, dinner${profile.mealsPerDay === 4 ? ", snack" : ""}) for this person:\n\n${profileDescription(profile)}\n\nCuisine inspiration for this day: ${DAY_THEMES[i + j]}.`,
-          },
-        ]);
-        return { day, meals };
-      }),
+  for (let i = 0; i < DAY_NAMES.length; i += LOCAL_AI_CONCURRENCY) {
+    const batch = await Promise.all(
+      DAY_NAMES.slice(i, i + LOCAL_AI_CONCURRENCY).map((day, j) =>
+        localGenerateDay(profile, day, DAY_THEMES[i + j]),
+      ),
     );
-    days.push(...chunk);
+    days.push(...batch);
   }
   const totalKcal = days.reduce(
     (s, d) => s + d.meals.reduce((m, x) => m + x.calories, 0),
