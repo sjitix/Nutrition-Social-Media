@@ -88,7 +88,7 @@ function renderSystemPrompt(profile, plan) {
     "You are the meal-plan assistant. Read the user's message and the recent conversation, then output JSON: a natural 'reply' plus a list of 'operations' (tool calls) the app runs in order. Use the conversation to resolve references ('do that', 'only Tuesday', 'make it 1500').\n\n" +
     "TOOLS — each operation has a 'tool' and only the fields that tool needs (leave the rest null, excludeFoods []):\n" +
     "- update_profile: change a WEEK-WIDE setting and rebuild the week. Fields: diet, budget, excludeFoods, targetCalories, targetProtein, targetCarbs, targetFat, targetFiber, maxCookTime, cuisine. The plan re-solves to hit any macro target you set.\n" +
-    "- regenerate_week: rebuild the whole week (optional cuisine, targetFiber).\n" +
+    "- regenerate_week: rebuild the whole week (optional cuisine, targetFiber, useIngredients — on-hand foods to prefer).\n" +
     "- regenerate_day: rebuild ONE day; requires day. Optional diet, targetCalories, cuisine, targetFiber apply to THAT day only (not saved).\n" +
     "- swap_meal: replace one meal with a specific dish; requires day, mealType, dish. By DEFAULT the app keeps that day on the user's macro targets by adjusting the other meals' portions — automatic, you don't ask for it. Set preserveMacros:false ONLY when the user signals a treat ('cheat day', 'treat', 'don't care about macros'). Never compute macros yourself.\n" +
     "- answer: no change; just answering a question.\n\n" +
@@ -129,6 +129,7 @@ const OP = (o) => ({
   diet: o.diet ?? null,
   budget: o.budget ?? null,
   excludeFoods: o.excludeFoods ?? [],
+  ...(o.useIngredients ? { useIngredients: o.useIngredients } : {}),
   targetCalories: o.targetCalories ?? null,
   targetProtein: o.targetProtein ?? null,
   targetCarbs: o.targetCarbs ?? null,
@@ -214,6 +215,15 @@ for (let i = 0; i < 14; i++) { const day = rand(DAYS); const mt = rand(MEALS); c
 
 // regenerate week
 for (const m of ["give me a whole new plan", "start over", "regenerate everything", "this is boring, redo it", "new week please", "shuffle it up", "i want different meals"]) push([u(m)], "Fresh week coming up — I've rebuilt the whole plan.", [OP({ tool: "regenerate_week" })]);
+
+// "use what's in my fridge" — bias selection toward on-hand ingredients
+const FRIDGE = ["chicken", "salmon", "rice", "broccoli", "eggs", "sweet potato", "spinach", "chickpeas", "tofu", "ground turkey", "black beans", "quinoa"];
+for (let i = 0; i < 18; i++) {
+  const a = rand(FRIDGE); let b = rand(FRIDGE); if (b === a) b = rand(FRIDGE);
+  const items = [a, b];
+  push([u(rand([`i have ${a} and ${b} to use up`, `use the ${a} and ${b} in my fridge`, `build the week around ${a} and ${b}`, `i've got ${a} and ${b}, plan around that`, `${a} and ${b} need using, work them in`]))], `Nice — I've built the week around your ${a} and ${b}.`, [OP({ tool: "regenerate_week", useIngredients: items })]);
+}
+for (let i = 0; i < 6; i++) { const day = rand(DAYS); const a = rand(FRIDGE); push([u(rand([`use my ${a} on ${day}`, `${day} should use up the ${a} i have`]))], `Done — ${day} now uses your ${a}.`, [OP({ tool: "regenerate_day", day, useIngredients: [a] })]); }
 
 // regenerate one day
 for (let i = 0; i < 8; i++) { const day = rand(DAYS); push([u(rand([`redo ${day}`, `i don't like ${day}, change it`, `give me different meals for ${day}`, `${day} again please`]))], `Done — ${day} has fresh meals.`, [OP({ tool: "regenerate_day", day })]); }

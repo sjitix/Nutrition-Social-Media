@@ -2072,6 +2072,7 @@ interface PickContext {
   usedNames: Set<string>;
   dayCuisines: Set<string>;
   usedIngredients: Set<string>;
+  fridge?: Set<string>; // on-hand ingredients to prefer ("use what's in my fridge")
   preferFiber?: boolean;
 }
 
@@ -2091,6 +2092,12 @@ function chooseRecipe(candidates: Recipe[], ctx: PickContext): Recipe | null {
   const newCuisine = pool.filter((r) => !ctx.dayCuisines.has(r.cuisine));
   if (newCuisine.length) pool = newCuisine;
 
+  // "Use what's in my fridge" — strongly prefer recipes built on on-hand items.
+  const fridgeMatch = ctx.fridge
+    ? pool.filter((r) => r.ingredients.some((i) => ctx.fridge!.has(i.name.trim().toLowerCase())))
+    : [];
+  if (fridgeMatch.length) pool = fridgeMatch;
+
   const sorted = [...pool].sort(
     (a, b) => Math.abs(a.calories - ctx.target) - Math.abs(b.calories - ctx.target),
   );
@@ -2109,7 +2116,10 @@ function chooseRecipe(candidates: Recipe[], ctx: PickContext): Recipe | null {
     r.ingredients.filter((i) => ctx.usedIngredients.has(i.name.trim().toLowerCase())).length -
     r.approxCost +
     (ctx.preferFiber ? (r.fiberGrams ?? 0) * 0.5 : 0) -
-    (targetDensity > 0 ? Math.max(0, targetDensity - r.proteinGrams / r.calories) * 60 : 0);
+    (targetDensity > 0 ? Math.max(0, targetDensity - r.proteinGrams / r.calories) * 60 : 0) +
+    (ctx.fridge
+      ? r.ingredients.filter((i) => ctx.fridge!.has(i.name.trim().toLowerCase())).length * 3
+      : 0);
   const maxScore = Math.max(...top.map(score));
   const best = top.filter((r) => score(r) >= maxScore - 0.5);
   return best[Math.floor(Math.random() * best.length)];
@@ -2155,6 +2165,7 @@ interface WeekCtx {
   usedIds: Set<string>;
   usedNames: Set<string>;
   usedIngredients: Set<string>;
+  fridge?: Set<string>; // on-hand ingredients to prefer across the week
 }
 
 function newCtx(): WeekCtx {
@@ -2206,6 +2217,7 @@ function pickMealsForDay(
       usedNames: ctx.usedNames,
       dayCuisines,
       usedIngredients: ctx.usedIngredients,
+      fridge: ctx.fridge,
       preferFiber,
     });
     if (pick) {
@@ -2225,11 +2237,14 @@ export function selectWeekFromDb(
   profile: UserProfile,
   cuisinePref?: Cuisine,
   preferFiber?: boolean,
+  seedIngredients?: string[],
 ): WeekPlan {
   const split = localSplit(profile.mealsPerDay);
   const cap = budgetCap(profile.budget);
   const tokens = exclusionTokens(profile);
   const ctx = newCtx();
+  if (seedIngredients?.length)
+    ctx.fridge = new Set(seedIngredients.map((s) => s.trim().toLowerCase()).filter(Boolean));
 
   const days = DAYS.map((day) => ({
     day,
@@ -2253,11 +2268,14 @@ export function selectDay(
   plan: WeekPlan,
   cuisinePref?: Cuisine,
   preferFiber?: boolean,
+  seedIngredients?: string[],
 ): DayPlan {
   const split = localSplit(profile.mealsPerDay);
   const cap = budgetCap(profile.budget);
   const tokens = exclusionTokens(profile);
   const ctx = newCtx();
+  if (seedIngredients?.length)
+    ctx.fridge = new Set(seedIngredients.map((s) => s.trim().toLowerCase()).filter(Boolean));
   for (const d of plan.days) {
     if (d.day === dayName) continue;
     for (const m of d.meals) {
@@ -2553,14 +2571,14 @@ export function applyOperations(
         // Re-solve every day onto the macro targets so the base plan actually hits
         // protein/calories, not just each meal's calorie share.
         curPlan = keepMacros(op)
-          ? rebalanceWeek(selectWeekFromDb(p, normalizeCuisine(op.cuisine), fiberOn(op)), p)
-          : selectWeekFromDb(p, normalizeCuisine(op.cuisine), fiberOn(op));
+          ? rebalanceWeek(selectWeekFromDb(p, normalizeCuisine(op.cuisine), fiberOn(op), op.useIngredients), p)
+          : selectWeekFromDb(p, normalizeCuisine(op.cuisine), fiberOn(op), op.useIngredients);
         break;
       }
       case "regenerate_week": {
         curPlan = keepMacros(op)
-          ? rebalanceWeek(selectWeekFromDb(p, normalizeCuisine(op.cuisine), fiberOn(op)), p)
-          : selectWeekFromDb(p, normalizeCuisine(op.cuisine), fiberOn(op));
+          ? rebalanceWeek(selectWeekFromDb(p, normalizeCuisine(op.cuisine), fiberOn(op), op.useIngredients), p)
+          : selectWeekFromDb(p, normalizeCuisine(op.cuisine), fiberOn(op), op.useIngredients);
         break;
       }
       case "regenerate_day": {
@@ -2570,7 +2588,7 @@ export function applyOperations(
         if (op.targetCalories && op.targetCalories > 0) tp.targetCalories = op.targetCalories;
         if (op.targetProtein && op.targetProtein > 0) tp.proteinGrams = op.targetProtein;
         if (op.excludeFoods.length) tp.dislikes = mergeDislikes(tp.dislikes, op.excludeFoods);
-        const newDay = selectDay(tp, op.day, curPlan, normalizeCuisine(op.cuisine), fiberOn(op));
+        const newDay = selectDay(tp, op.day, curPlan, normalizeCuisine(op.cuisine), fiberOn(op), op.useIngredients);
         const meals = keepMacros(op)
           ? rebalanceDay(newDay.meals, tp, undefined, namesOnOtherDays(curPlan, op.day))
           : newDay.meals;

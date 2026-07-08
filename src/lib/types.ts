@@ -67,6 +67,9 @@ export const OperationSchema = z.object({
   diet: z.enum(["none", "vegetarian", "vegan", "keto", "mediterranean"]).nullable(),
   budget: z.enum(["low", "medium", "high"]).nullable(),
   excludeFoods: z.array(z.string()),
+  // "I have chicken, rice and broccoli" → bias selection toward recipes that use
+  // these on-hand ingredients. Optional; omit/[] when not relevant.
+  useIngredients: z.array(z.string()).optional(),
   targetCalories: z.number().nullable(),
   targetProtein: z.number().nullable(), // grams/day; the plan re-solves to hit it
   targetCarbs: z.number().nullable(),
