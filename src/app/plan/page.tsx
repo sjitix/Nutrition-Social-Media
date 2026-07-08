@@ -2,28 +2,31 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarIcon,
   CartIcon,
   ChatIcon,
   CheckIcon,
+  ClockIcon,
   CompassIcon,
   HomeIcon,
   PlayIcon,
   PlusIcon,
+  RefreshIcon,
   SendIcon,
   Wordmark,
   XIcon,
   ZapIcon,
 } from "@/components/icons";
-import { EXPLORE_RECIPES, gradientForMeal, imageForMeal } from "@/lib/recipes";
+import { EXPLORE_RECIPES } from "@/lib/recipes";
 import {
   loadChat,
   loadPlan,
   loadProfile,
   saveChat,
   savePlan,
+  saveProfile,
 } from "@/lib/storage";
 import { DAYS, type ChatMessage, type Meal, type UserProfile, type WeekPlan } from "@/lib/types";
 
@@ -40,18 +43,50 @@ function greeting(): string {
   return "Good evening";
 }
 
-function MealPhoto({ meal, className }: { meal: Meal; className: string }) {
-  const img = imageForMeal(meal.name);
-  return (
-    <div
-      className={`bg-cover bg-center ${className}`}
-      style={
-        img
-          ? { backgroundImage: `url(${img})` }
-          : { background: gradientForMeal(meal.name) }
-      }
-    />
-  );
+// Rough per-ingredient weekly grocery cost, matched by keyword. Prices are the
+// cost of ONE weekly purchase of that ingredient — a pack of chicken or a bag of
+// rice covers several meals (leftovers/bulk), so cost is per-week, not per-use.
+// Pantry staples (oil, spices, sauces) are counted cheap. Estimates only.
+const PRICE_MAP: [RegExp, number][] = [
+  [/protein powder/, 2.5],
+  [/smoked salmon|smoked trout|smoked mackerel/, 3.5],
+  [/salmon|shrimp|prawn/, 4.5],
+  [/steak|beef/, 4],
+  [/cod|trout|mackerel|white fish/, 3.5],
+  [/chicken|turkey|pork|sausage/, 3.5],
+  [/tuna/, 1],
+  [/egg/, 1.8],
+  [/tofu|tempeh|edamame/, 1.5],
+  [/greek yogurt|yogurt|feta|parmesan|mozzarella|cheddar|ricotta|goat cheese|halloumi|cream cheese|cottage cheese/, 1.8],
+  [/milk/, 1],
+  [/chickpea|black bean|kidney bean|cannellini|lentil|\bbeans?\b|hummus|falafel/, 0.9],
+  [/quinoa/, 1.5],
+  [/oat|bulgur|couscous|rice|pasta|penne|orzo|noodle|soba|bread|bagel|tortilla|wrap|granola|muesli|panko|flour/, 1],
+  [/avocado/, 1.2],
+  [/berr|blueberr|raspberr|mango/, 2],
+  [/spinach|kale|broccoli|asparagus|cauliflower|brussels|bok choy|green bean|greens|cabbage|mushroom|eggplant|portobello|rocket|romaine/, 0.9],
+  [/pepper|zucchini|tomato|carrot|onion|cucumber|sweet potato|potato|corn|peas|beetroot|sprouts|lettuce|apple|banana/, 0.6],
+  [/lemon|lime|garlic|parsley|chives|ginger|cilantro|herb/, 0.3],
+  [/almond butter|peanut butter|almond|walnut|pecan|peanut|cashew|\bnut/, 1.5],
+  [/chia|flax|pumpkin seed|hemp|sesame/, 1],
+  [/tahini|pesto|miso|kimchi/, 1],
+  [/olive oil|sesame oil|avocado oil|\boil\b/, 0.3],
+  [/honey|maple/, 1],
+  [/soy|teriyaki|salsa|sriracha|harissa|enchilada|buffalo|horseradish|dressing|tikka|masala|curry|cajun|fajita|shawarma|taco|spice|paprika|cumin|cinnamon|turmeric|cocoa|matcha|salt|sauce/, 0.5],
+];
+
+function estimatePrice(name: string, occurrences: number): number {
+  const n = name.toLowerCase();
+  let base = 1;
+  for (const [re, price] of PRICE_MAP) {
+    if (re.test(n)) {
+      base = price;
+      break;
+    }
+  }
+  // One pack usually covers the week; only buy a second for very heavy use.
+  const packs = occurrences >= 7 ? 2 : 1;
+  return Math.round(base * packs * 2) / 2;
 }
 
 export default function PlanPage() {
@@ -67,6 +102,8 @@ export default function PlanPage() {
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
+  const [regenerating, setRegenerating] = useState(false);
+  const [regenError, setRegenError] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -98,8 +135,15 @@ export default function PlanPage() {
         }
       }
     }
-    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+    return [...map.values()]
+      .map((e) => ({ ...e, price: estimatePrice(e.name, e.quantities.length) }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [plan]);
+
+  const groceriesTotal = useMemo(
+    () => groceries.reduce((s, g) => s + g.price, 0),
+    [groceries],
+  );
 
   const weekStats = useMemo(() => {
     if (!plan || plan.days.length === 0) return { kcal: 0, protein: 0 };
@@ -131,6 +175,28 @@ export default function PlanPage() {
     setAdded(new Set(added).add(recipeName));
   }
 
+  async function regeneratePlan() {
+    if (!profile || regenerating) return;
+    setRegenError(null);
+    setRegenerating(true);
+    try {
+      const res = await fetch("/api/plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(profile),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Couldn't regenerate the plan.");
+      setPlan(data.plan);
+      savePlan(data.plan);
+      setChecked(new Set());
+    } catch (err) {
+      setRegenError(err instanceof Error ? err.message : "Couldn't regenerate the plan.");
+    } finally {
+      setRegenerating(false);
+    }
+  }
+
   async function sendMessage() {
     const text = input.trim();
     if (!text || thinking || !profile || !plan) return;
@@ -153,15 +219,27 @@ export default function PlanPage() {
       ];
       setChat(newChat);
       saveChat(newChat);
-      if (data.planChanged) {
+      if (data.plan) {
         setPlan(data.plan);
         savePlan(data.plan);
       }
+      if (data.profile) {
+        setProfile(data.profile);
+        saveProfile(data.profile);
+      }
+      if (data.planChanged) setChecked(new Set());
     } catch (err) {
       setChatError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setThinking(false);
     }
+  }
+
+  function resetChat() {
+    setChat([]);
+    saveChat([]);
+    setChatError(null);
+    setInput("");
   }
 
   if (!plan || !profile) {
@@ -175,7 +253,8 @@ export default function PlanPage() {
   const today = plan.days.find((d) => d.day === todayName()) ?? plan.days[0];
   const tonight =
     today?.meals.find((m) => m.type === "dinner") ?? today?.meals[0] ?? null;
-  const tonightImg = tonight ? imageForMeal(tonight.name) : null;
+  const todayKcal = today?.meals.reduce((s, m) => s + m.calories, 0) ?? 0;
+  const targetKcal = profile.targetCalories || 2000;
 
   const NAV: { key: View; label: string; icon: React.ReactNode }[] = [
     { key: "home", label: "Home", icon: <HomeIcon /> },
@@ -239,8 +318,8 @@ export default function PlanPage() {
       </nav>
 
       {/* ===== Main ===== */}
-      <main className="w-full pb-20 md:ml-56 md:pb-8">
-        <div className="mx-auto max-w-4xl px-5 py-8">
+      <main className="flex min-h-screen w-full flex-col pb-20 md:ml-56 md:pb-0">
+        <div className="mx-auto flex w-full max-w-[1800px] flex-1 flex-col px-6 py-8">
           {/* ---------- HOME ---------- */}
           {view === "home" && (
             <>
@@ -249,77 +328,123 @@ export default function PlanPage() {
               </h1>
               <p className="mt-1 text-sm text-mut">{plan.weekSummary}</p>
 
-              {tonight && (
-                <div
-                  className="relative mt-6 overflow-hidden rounded-3xl p-8 text-white card-shadow"
-                  style={{
-                    backgroundImage: `linear-gradient(100deg, rgba(28,22,54,.92) 30%, rgba(45,36,90,.65) 60%, rgba(45,36,90,.15) 100%)${
-                      tonightImg ? `, url(${tonightImg})` : ""
-                    }`,
-                    backgroundColor: "#2d2650",
-                    backgroundSize: "cover",
-                    backgroundPosition: "center 35%",
-                  }}
-                >
-                  <p className="text-[11px] font-bold tracking-widest text-white/70 uppercase">
-                    Tonight · {tonight.type}
-                  </p>
-                  <h2 className="font-display mt-2 text-3xl font-bold">
-                    {tonight.name}
-                  </h2>
-                  <p className="mt-1 max-w-md text-sm text-white/80">
-                    {tonight.calories} kcal · {tonight.proteinGrams} g protein
-                  </p>
-                  <div className="mt-5 flex flex-wrap gap-2">
-                    <button
-                      onClick={() => setDetail(tonight)}
-                      className="flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-bold text-plum transition hover:bg-lav"
-                    >
-                      <PlayIcon className="h-3.5 w-3.5" /> Start cooking
-                    </button>
-                    <button
-                      onClick={() => {
-                        setView("assistant");
-                        setInput(`Swap tonight's ${tonight.name} for something else`);
-                      }}
-                      className="rounded-full bg-white/15 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/25"
-                    >
-                      Swap meal
-                    </button>
+              {today && (
+                <div className="mt-6 grid gap-5 lg:grid-cols-[1.5fr_1fr]">
+                  {/* Today agenda */}
+                  <div className="rounded-3xl bg-white p-6 card-shadow">
+                    <div className="flex items-start justify-between">
+                      <p className="text-[11px] font-bold tracking-widest text-vio-deep uppercase">
+                        Today · {today.day}
+                      </p>
+                      {tonight && (
+                        <button
+                          onClick={() => setDetail(tonight)}
+                          className="flex items-center gap-1.5 rounded-full bg-vio px-3.5 py-1.5 text-xs font-bold text-white transition hover:bg-vio-deep"
+                        >
+                          <PlayIcon className="h-3 w-3" /> Start cooking
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="mt-5 flex items-center gap-5">
+                      <svg viewBox="0 0 100 100" className="h-24 w-24 flex-none">
+                        <circle cx="50" cy="50" r="42" fill="none" stroke="var(--color-lav)" strokeWidth="9" />
+                        <circle
+                          cx="50"
+                          cy="50"
+                          r="42"
+                          fill="none"
+                          stroke="var(--color-vio)"
+                          strokeWidth="9"
+                          strokeLinecap="round"
+                          strokeDasharray={2 * Math.PI * 42}
+                          strokeDashoffset={2 * Math.PI * 42 * (1 - Math.min(1, todayKcal / targetKcal))}
+                          transform="rotate(-90 50 50)"
+                        />
+                      </svg>
+                      <div>
+                        <p className="font-display text-3xl font-bold tabular-nums">
+                          {todayKcal.toLocaleString()}
+                        </p>
+                        <p className="text-xs text-mut">
+                          of {targetKcal.toLocaleString()} kcal target
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 border-t border-line">
+                      {today.meals.map((meal, i) => (
+                        <button
+                          key={i}
+                          onClick={() => setDetail(meal)}
+                          className="flex w-full items-center justify-between gap-4 border-b border-line py-3.5 text-left transition hover:opacity-70"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-[9px] font-bold tracking-wider text-vio-deep uppercase">
+                              {meal.type}
+                            </p>
+                            <p className="mt-0.5 text-sm font-semibold leading-snug">{meal.name}</p>
+                            <p className="mt-1 text-[11px] text-mut tabular-nums">
+                              P {meal.proteinGrams} · C {meal.carbsGrams} · F {meal.fatGrams}
+                            </p>
+                          </div>
+                          <div className="flex-none text-right">
+                            <p className="text-sm font-bold text-vio-deep tabular-nums">
+                              {meal.calories} kcal
+                            </p>
+                            {meal.timeMinutes ? (
+                              <p className="mt-0.5 flex items-center justify-end gap-1 text-[11px] text-mut tabular-nums">
+                                <ClockIcon className="h-3 w-3" /> {meal.timeMinutes} min
+                              </p>
+                            ) : null}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Week rail */}
+                  <div className="rounded-3xl bg-white p-4 card-shadow">
+                    <div className="flex items-baseline justify-between px-2 pb-3">
+                      <h3 className="font-semibold">This week</h3>
+                      <span className="text-xs text-mut">
+                        avg {weekStats.kcal.toLocaleString()} kcal
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      {plan.days.map((d) => {
+                        const k = d.meals.reduce((s, m) => s + m.calories, 0);
+                        const isToday = d.day === today.day;
+                        return (
+                          <button
+                            key={d.day}
+                            onClick={() => setView("week")}
+                            className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition ${
+                              isToday ? "bg-lav" : "hover:bg-bgsoft"
+                            }`}
+                          >
+                            <span className="w-9 flex-none text-sm font-bold">
+                              {d.day.slice(0, 3)}
+                            </span>
+                            <span className="flex-1 truncate text-xs text-mut">
+                              {d.meals.map((m) => m.name).join(" · ")}
+                            </span>
+                            <span className="flex-none text-xs font-bold tabular-nums">
+                              {k.toLocaleString()}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               )}
-
-              <div className="mt-8 flex items-baseline justify-between">
-                <h3 className="font-semibold">Today · {today?.day}</h3>
-                <span className="text-xs text-mut">
-                  week avg {weekStats.kcal} kcal · {weekStats.protein} g protein / day
-                </span>
-              </div>
-              <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                {today?.meals.map((meal, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setDetail(meal)}
-                    className="flex items-center gap-3 overflow-hidden rounded-xl bg-white text-left transition card-shadow hover:-translate-y-0.5"
-                  >
-                    <MealPhoto meal={meal} className="h-14 w-14 flex-none" />
-                    <div className="min-w-0 py-2 pr-3">
-                      <p className="text-[10px] font-bold tracking-wider text-vio-deep uppercase">
-                        {meal.type}
-                      </p>
-                      <p className="truncate text-sm font-semibold">{meal.name}</p>
-                      <p className="text-xs text-mut">{meal.calories} kcal</p>
-                    </div>
-                  </button>
-                ))}
-              </div>
             </>
           )}
 
           {/* ---------- WEEK (The Board) ---------- */}
           {view === "week" && (
-            <>
+            <div className="flex min-h-0 flex-1 flex-col">
               <div className="flex items-center justify-between">
                 <h1 className="font-display text-3xl font-bold tracking-tight">
                   Your week
@@ -331,46 +456,123 @@ export default function PlanPage() {
                   <ZapIcon className="h-3.5 w-3.5" /> Ask AI to edit
                 </button>
               </div>
-              <div className="mt-6 overflow-x-auto pb-4">
-                <div className="flex gap-3" style={{ minWidth: "980px" }}>
+              <div className="mt-6 flex min-h-0 flex-col gap-4 lg:h-[calc(100vh-10rem)] lg:flex-row">
+                {/* Timetable — fills space; scrolls when narrow */}
+                <div className="min-h-0 flex-1 overflow-x-auto overflow-y-hidden">
+                  <div
+                    className="grid h-full min-w-[900px] gap-2"
+                  style={{
+                    gridTemplateColumns: "80px repeat(7, minmax(140px, 1fr))",
+                    gridTemplateRows: `auto repeat(${
+                      (["breakfast", "lunch", "dinner", "snack"] as const).filter((t) =>
+                        plan.days.some((d) => d.meals.some((m) => m.type === t)),
+                      ).length
+                    }, minmax(0, 1fr))`,
+                  }}
+                >
+                  {/* header row */}
+                  <div />
                   {plan.days.map((day) => {
                     const kcal = day.meals.reduce((s, m) => s + m.calories, 0);
+                    const isToday = day.day === todayName();
                     return (
-                      <div key={day.day} className="w-36 flex-none">
-                        <div className="flex items-baseline justify-between px-1 pb-2">
-                          <span className="text-sm font-bold">{day.day.slice(0, 3)}</span>
-                          <span className="text-[11px] text-mut tabular-nums">
-                            {kcal.toLocaleString()} kcal
-                          </span>
+                      <div key={day.day} className="px-1 pb-1">
+                        <div
+                          className={`text-sm font-bold ${isToday ? "text-vio-deep" : ""}`}
+                        >
+                          {day.day.slice(0, 3)}
                         </div>
-                        <div className="space-y-2">
-                          {day.meals.map((meal, i) => (
-                            <button
-                              key={i}
-                              onClick={() => setDetail(meal)}
-                              className="w-full overflow-hidden rounded-xl bg-white text-left transition card-shadow hover:-translate-y-0.5"
-                            >
-                              <MealPhoto meal={meal} className="h-16 w-full" />
-                              <div className="p-2.5">
-                                <p className="text-[9px] font-bold tracking-wider text-vio-deep uppercase">
-                                  {meal.type}
-                                </p>
-                                <p className="mt-0.5 line-clamp-2 text-xs font-semibold">
-                                  {meal.name}
-                                </p>
-                                <p className="mt-1 text-[11px] text-mut">
-                                  {meal.calories} kcal
-                                </p>
-                              </div>
-                            </button>
-                          ))}
+                        <div className="text-[11px] text-mut tabular-nums">
+                          {kcal.toLocaleString()} kcal
                         </div>
                       </div>
                     );
                   })}
+
+                  {/* one row per meal type present in the week */}
+                  {(["breakfast", "lunch", "dinner", "snack"] as const)
+                    .filter((t) => plan.days.some((d) => d.meals.some((m) => m.type === t)))
+                    .map((type) => (
+                      <Fragment key={type}>
+                        <div className="flex items-center text-[10px] font-bold tracking-wide text-mut uppercase">
+                          {type}
+                        </div>
+                        {plan.days.map((day) => {
+                          const meal = day.meals.find((m) => m.type === type);
+                          if (!meal) {
+                            return (
+                              <div
+                                key={day.day}
+                                className="rounded-xl border border-dashed border-line"
+                              />
+                            );
+                          }
+                          return (
+                            <button
+                              key={day.day}
+                              onClick={() => setDetail(meal)}
+                              className="flex flex-col overflow-hidden rounded-xl bg-white p-3 text-left transition card-shadow hover:-translate-y-0.5"
+                            >
+                              <p className="line-clamp-2 text-sm font-semibold leading-snug">
+                                {meal.name}
+                              </p>
+                              <p className="mt-2 flex items-center gap-1 text-[11px] text-mut tabular-nums">
+                                <span className="font-bold text-vio-deep">{meal.calories}</span>{" "}
+                                kcal
+                                {meal.timeMinutes ? (
+                                  <>
+                                    <span className="mx-0.5">·</span>
+                                    <ClockIcon className="h-3 w-3" /> {meal.timeMinutes}m
+                                  </>
+                                ) : null}
+                              </p>
+                              <p className="mt-auto pt-2 text-[11px] text-mut tabular-nums">
+                                P {meal.proteinGrams} · C {meal.carbsGrams} · F {meal.fatGrams}
+                              </p>
+                            </button>
+                          );
+                        })}
+                      </Fragment>
+                    ))}
+                  </div>
                 </div>
+
+                {/* Whole-week shopping list + estimated cost + regenerate */}
+                <aside className="flex flex-none flex-col overflow-hidden rounded-2xl bg-white p-4 card-shadow lg:w-[440px]">
+                  <button
+                    onClick={() => void regeneratePlan()}
+                    disabled={regenerating}
+                    className="flex items-center justify-center gap-2 rounded-full bg-vio px-4 py-2.5 text-sm font-bold text-white transition hover:bg-vio-deep disabled:opacity-60"
+                  >
+                    <RefreshIcon className={`h-3.5 w-3.5 ${regenerating ? "animate-spin" : ""}`} />
+                    {regenerating ? "Regenerating…" : "Regenerate plan"}
+                  </button>
+                  {regenError && <p className="mt-2 text-xs text-red-600">{regenError}</p>}
+
+                  <div className="mt-4 flex items-baseline justify-between">
+                    <h3 className="font-semibold">Shopping list</h3>
+                    <span className="text-xs text-mut">{groceries.length} items</span>
+                  </div>
+                  <div className="mt-2 min-h-0 flex-1 columns-2 gap-x-6 overflow-y-auto pr-1">
+                    {groceries.map((g) => (
+                      <div
+                        key={g.name}
+                        className="flex break-inside-avoid items-center justify-between gap-2 py-0.5 text-sm"
+                      >
+                        <span className="truncate">{g.name}</span>
+                        <span className="flex-none text-mut tabular-nums">${g.price.toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3 flex items-center justify-between border-t border-line pt-3">
+                    <span className="text-sm font-bold">Estimated total</span>
+                    <span className="font-display text-lg font-bold text-vio-deep tabular-nums">
+                      ${groceriesTotal.toFixed(2)}
+                    </span>
+                  </div>
+                </aside>
               </div>
-            </>
+            </div>
           )}
 
           {/* ---------- EXPLORE (The Wall) ---------- */}
@@ -480,11 +682,23 @@ export default function PlanPage() {
           {/* ---------- ASSISTANT ---------- */}
           {view === "assistant" && (
             <>
-              <h1 className="font-display text-3xl font-bold tracking-tight">Assistant</h1>
-              <p className="mt-1 text-sm text-mut">
-                Ask for changes — the plan updates itself.
-              </p>
-              <div className="mt-6 flex h-[62vh] flex-col rounded-2xl bg-white card-shadow">
+              <div className="flex max-w-3xl items-start justify-between">
+                <div>
+                  <h1 className="font-display text-3xl font-bold tracking-tight">Assistant</h1>
+                  <p className="mt-1 text-sm text-mut">
+                    Ask for changes — the plan updates itself.
+                  </p>
+                </div>
+                {chat.length > 0 && (
+                  <button
+                    onClick={resetChat}
+                    className="mt-1 flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-xs font-semibold text-mut transition hover:border-vio hover:text-vio-deep"
+                  >
+                    <RefreshIcon className="h-3 w-3" /> Clear chat
+                  </button>
+                )}
+              </div>
+              <div className="mt-6 flex h-[62vh] max-w-3xl flex-col rounded-2xl bg-white card-shadow">
                 <div className="flex-1 space-y-4 overflow-y-auto p-6">
                   {chat.length === 0 && (
                     <div className="text-sm text-mut">
@@ -573,7 +787,7 @@ export default function PlanPage() {
             onClick={() => setDetail(null)}
           />
           <aside className="fixed inset-y-0 right-0 z-40 w-full max-w-md overflow-y-auto bg-white shadow-2xl">
-            <MealPhoto meal={detail} className="h-52 w-full" />
+            <div className="h-20 w-full bg-gradient-to-r from-vio to-vio-deep" />
             <button
               onClick={() => setDetail(null)}
               className="absolute top-4 right-4 rounded-full bg-white/90 p-2 text-plum shadow"
@@ -587,12 +801,13 @@ export default function PlanPage() {
               </p>
               <h2 className="font-display mt-1 text-2xl font-bold">{detail.name}</h2>
               <p className="mt-2 text-sm leading-relaxed text-mut">{detail.description}</p>
-              <div className="mt-4 grid grid-cols-4 gap-2 text-center">
+              <div className="mt-4 grid grid-cols-5 gap-2 text-center">
                 {[
                   [detail.calories, "kcal"],
                   [detail.proteinGrams, "protein g"],
                   [detail.carbsGrams, "carbs g"],
                   [detail.fatGrams, "fat g"],
+                  [detail.timeMinutes ?? "—", "min"],
                 ].map(([v, l]) => (
                   <div key={l} className="rounded-xl bg-bgsoft py-2.5">
                     <p className="font-display text-lg font-bold tabular-nums">{v}</p>

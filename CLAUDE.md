@@ -2,7 +2,9 @@
 
 AI-powered weekly meal planner (Phase 1 is built and working), evolving toward a
 social platform where recipe and workout videos convert into your actual meal or
-training plan with one tap. This file is the handoff/context doc — read it first.
+training plan with one tap. This file is the handoff/context doc — read it first. See **VISION.md** for the
+product north star: the meal-plan quality bar and the constraint model (conditions →
+macros → conversational adaptation) that every phase must satisfy.
 
 ## What it is (vision + roadmap)
 

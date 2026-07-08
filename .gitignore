@@ -23,3 +23,6 @@ npm-debug.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# runtime training logs (collected per-machine; aggregated later for fine-tuning)
+/data/

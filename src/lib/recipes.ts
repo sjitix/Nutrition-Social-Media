@@ -10,7 +10,9 @@ export interface ExploreRecipe {
   height: number; // masonry photo height
 }
 
-export const EXPLORE_RECIPES: ExploreRecipe[] = [
+type RawRecipe = Omit<ExploreRecipe, "meal"> & { meal: Omit<Meal, "timeMinutes"> };
+
+const RAW_EXPLORE: RawRecipe[] = [
   {
     image: "/food/salad1.jpg",
     height: 190,
@@ -206,6 +208,12 @@ export const EXPLORE_RECIPES: ExploreRecipe[] = [
     },
   },
 ];
+
+// Explore recipes are curated demos; give each a sensible default cook time.
+export const EXPLORE_RECIPES: ExploreRecipe[] = RAW_EXPLORE.map((r) => ({
+  ...r,
+  meal: { ...r.meal, timeMinutes: 20 },
+}));
 
 // Maps a meal to a bundled photo by keyword; falls back to a gradient.
 const IMAGE_RULES: [RegExp, string][] = [

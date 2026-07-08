@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NutriFlow — Week view design directions</title>
+<style>
+  :root {
+    --ground:#f3f1fb; --surface:#ffffff; --ink:#372f55; --ink-soft:#5b5480;
+    --mut:#8781ad; --accent:#7a6ff0; --accent-deep:#5d51d6; --lav:#efecfb;
+    --mint:#2e9e6e; --mint-soft:#e2f3ea; --line:#edeaf8;
+    --shadow:0 4px 18px rgba(93,81,214,.08);
+    --radius:16px;
+  }
+  :root[data-theme="dark"] {
+    --ground:#181231; --surface:#241d43; --ink:#efecfb; --ink-soft:#c8c2e6;
+    --mut:#948dbd; --accent:#8f85f5; --accent-deep:#a99ff8; --lav:#312a52;
+    --mint:#54c491; --mint-soft:#22392f; --line:#372f57;
+    --shadow:0 8px 26px rgba(0,0,0,.4);
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--ground); color:var(--ink);
+    font-family:"Segoe UI", ui-sans-serif, system-ui, -apple-system, sans-serif;
+    line-height:1.5; -webkit-font-smoothing:antialiased;
+  }
+  .display { font-family:"Trebuchet MS","Segoe UI",sans-serif; letter-spacing:-.01em; }
+  .wrap { max-width:1120px; margin:0 auto; padding:40px 24px 96px; }
+
+  .topbar { display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; }
+  .masthead { display:flex; align-items:baseline; gap:12px; }
+  .dot { width:9px; height:9px; border-radius:50%; background:var(--accent); display:inline-block; transform:translateY(-2px); }
+  h1.title { font-size:34px; font-weight:700; margin:0; }
+  .themebtn { border:1px solid var(--line); background:var(--surface); color:var(--ink-soft);
+    font-size:12.5px; font-weight:600; padding:8px 14px; border-radius:999px; cursor:pointer; }
+  .themebtn:hover { border-color:var(--accent); color:var(--accent-deep); }
+  .lede { color:var(--mut); max-width:60ch; margin:14px 0 0; font-size:15px; }
+  .toc { display:flex; gap:8px; flex-wrap:wrap; margin-top:22px; }
+  .toc a { text-decoration:none; color:var(--ink-soft); font-size:12.5px; font-weight:600;
+    border:1px solid var(--line); background:var(--surface); padding:7px 12px; border-radius:999px; transition:.15s; }
+  .toc a:hover { border-color:var(--accent); color:var(--accent-deep); }
+
+  .dir { margin-top:52px; }
+  .eyebrow { display:flex; align-items:center; gap:10px; }
+  .num { font-size:12px; font-weight:800; letter-spacing:.14em; color:var(--accent-deep); text-transform:uppercase; }
+  .rule { flex:1; height:1px; background:var(--line); }
+  h2.dname { font-size:22px; font-weight:700; margin:8px 0 2px; }
+  .dsub { color:var(--mut); font-size:14px; margin:0 0 18px; max-width:66ch; }
+  .frame { background:var(--ground); border:1px solid var(--line); border-radius:var(--radius);
+    padding:18px; box-shadow:var(--shadow); overflow:hidden; }
+  .scroll { overflow-x:auto; }
+  .tradeoff { margin-top:12px; font-size:13px; color:var(--ink-soft); display:flex; gap:8px; align-items:flex-start; }
+  .tradeoff b { color:var(--ink); }
+  .pill-good { color:var(--mint); font-weight:700; white-space:nowrap; }
+
+  .surface { background:var(--surface); border:1px solid var(--line); border-radius:14px; }
+  .type-chip { font-size:9px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:var(--accent-deep); }
+  .kcal { font-variant-numeric:tabular-nums; }
+  .macro { font-size:10.5px; color:var(--mut); font-variant-numeric:tabular-nums; margin-top:2px; }
+  .dishname { font-size:12.5px; font-weight:600; line-height:1.25; color:var(--ink); }
+
+  .matrix { display:grid; gap:8px; min-width:820px; grid-template-columns:74px repeat(7, minmax(112px,1fr)); }
+  .mx-h { padding:2px 4px 6px; border-bottom:2px solid var(--line); }
+  .mx-day { font-weight:700; font-size:13px; }
+  .mx-tot { font-size:11px; color:var(--mut); font-variant-numeric:tabular-nums; }
+  .mx-rowlabel { display:flex; align-items:center; font-size:10px; font-weight:800; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--mut); }
+  .mx-cell { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:9px 10px; }
+  .mx-cell .kcal { display:block; font-size:11px; font-weight:700; color:var(--accent-deep); margin-top:5px; }
+
+  .cols { display:grid; gap:12px; grid-template-columns:repeat(7,1fr); min-width:860px; }
+  .col-card { padding:12px; }
+  .col-head { display:flex; align-items:baseline; justify-content:space-between; }
+  .col-day { font-weight:700; font-size:13px; }
+  .col-tot { font-size:11px; color:var(--mut); font-variant-numeric:tabular-nums; }
+  .bar { height:4px; border-radius:3px; background:var(--lav); margin:8px 0 12px; overflow:hidden; }
+  .bar > span { display:block; height:100%; background:linear-gradient(90deg,var(--accent),var(--accent-deep)); }
+  .meal-row { padding:9px 0; border-top:1px solid var(--line); }
+  .meal-row:first-child { border-top:0; }
+
+  .agenda { display:grid; grid-template-columns:1.35fr 1fr; gap:16px; min-width:720px; }
+  .today { padding:20px; }
+  .today-eye { font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--accent-deep); }
+  .ring-wrap { display:flex; gap:18px; align-items:center; margin:12px 0 18px; }
+  .ring { width:96px; height:96px; flex:none; }
+  .ring-num { font-size:22px; font-weight:800; }
+  .ring-cap { font-size:11px; color:var(--mut); }
+  .today-meal { display:flex; justify-content:space-between; gap:12px; padding:12px 0; border-top:1px solid var(--line); }
+  .today-meal:first-of-type { border-top:0; }
+  .wk-list { padding:12px; }
+  .wk-row { display:flex; align-items:center; gap:10px; padding:10px 8px; border-radius:10px; }
+  .wk-row.on { background:var(--lav); }
+  .wk-d { width:34px; font-weight:700; font-size:12.5px; }
+  .wk-meals { flex:1; font-size:11.5px; color:var(--mut); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .wk-k { font-size:11.5px; font-weight:700; color:var(--ink-soft); font-variant-numeric:tabular-nums; }
+
+  .kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; min-width:560px; }
+  .kpi { padding:14px 16px; }
+  .kpi-l { font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--mut); }
+  .kpi-v { font-size:26px; font-weight:800; margin-top:4px; font-variant-numeric:tabular-nums; }
+  .kpi-s { font-size:11px; color:var(--mint); font-weight:700; margin-top:2px; }
+  .spark { display:flex; gap:3px; align-items:flex-end; height:26px; margin-top:10px; }
+  .spark span { flex:1; background:var(--accent); border-radius:2px 2px 0 0; opacity:.85; }
+  .strip { display:grid; grid-template-columns:repeat(7,1fr); gap:10px; margin-top:12px; min-width:640px; }
+  .strip-col { padding:10px; text-align:center; }
+  .strip-d { font-weight:700; font-size:12px; }
+  .strip-k { font-size:11px; color:var(--mut); font-variant-numeric:tabular-nums; margin-bottom:8px; }
+  .strip-meal { font-size:10px; color:var(--ink-soft); padding:5px 4px; background:var(--lav); border-radius:6px; margin-top:5px; line-height:1.2; }
+
+  .foot { margin-top:64px; padding:22px 24px; background:var(--surface); border:1px solid var(--line);
+    border-radius:var(--radius); box-shadow:var(--shadow); }
+  .foot b { color:var(--accent-deep); }
+  @media (max-width:640px){ .agenda{ grid-template-columns:1fr; } h1.title{ font-size:27px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="topbar">
+      <div class="masthead"><h1 class="title display">NutriFlow · week view</h1><span class="dot"></span></div>
+      <button class="themebtn" id="themeToggle" type="button">Toggle light / dark</button>
+    </div>
+    <p class="lede">Four ways to lay out the same seven days. Every mockup below uses your real plan
+      and your real palette — no stretched cards, no filler. Skim them, then tell me a number and I'll
+      build that one for real in the app.</p>
+    <nav class="toc">
+      <a href="#d1">01 · Timetable</a>
+      <a href="#d2">02 · Refined columns</a>
+      <a href="#d3">03 · Today agenda</a>
+      <a href="#d4">04 · Dashboard</a>
+    </nav>
+  </header>
+
+  <section class="dir" id="d1">
+    <div class="eyebrow"><span class="num">Direction 01</span><span class="rule"></span></div>
+    <h2 class="dname display">Timetable</h2>
+    <p class="dsub">Meal types as rows, days as columns — the way a real weekly plan is read.
+      Scan one row to see every lunch this week; scan one column to see a full day. Dense, aligned, calm.</p>
+    <div class="frame scroll"><div class="matrix" id="mx"></div></div>
+    <p class="tradeoff"><span class="pill-good">Best for</span>
+      <span><b>at-a-glance scanning &amp; comparing.</b> Nothing is stretched — the grid gives structure, so it fills the width without voids. My recommendation for the primary week view.</span></p>
+  </section>
+
+  <section class="dir" id="d2">
+    <div class="eyebrow"><span class="num">Direction 02</span><span class="rule"></span></div>
+    <h2 class="dname display">Refined columns</h2>
+    <p class="dsub">The column idea done right: cards sized to their content, a slim calorie bar toward
+      your daily target, tidy meal rows. Familiar, warm, and it breathes without gaping holes.</p>
+    <div class="frame scroll"><div class="cols" id="cols"></div></div>
+    <p class="tradeoff"><span class="pill-good">Best for</span>
+      <span><b>a friendly, planner-like feel.</b> Each day reads as a little agenda. Content-sized cards fix the empty-space problem the current version has.</span></p>
+  </section>
+
+  <section class="dir" id="d3">
+    <div class="eyebrow"><span class="num">Direction 03</span><span class="rule"></span></div>
+    <h2 class="dname display">Today agenda</h2>
+    <p class="dsub">Puts the day you actually cook front and center — full detail plus a calorie ring
+      against target — with the rest of the week as a quiet rail beside it.</p>
+    <div class="frame scroll"><div class="agenda">
+      <div class="today surface" id="today"></div>
+      <div class="wk-list surface" id="wklist"></div>
+    </div></div>
+    <p class="tradeoff"><span class="pill-good">Best for</span>
+      <span><b>daily use &amp; the "what do I make now" moment.</b> Great as the Home screen; pair it with 01 or 02 for the full-week view.</span></p>
+  </section>
+
+  <section class="dir" id="d4">
+    <div class="eyebrow"><span class="num">Direction 04</span><span class="rule"></span></div>
+    <h2 class="dname display">Dashboard</h2>
+    <p class="dsub">Leads with the numbers that matter — average calories, protein, adherence to target —
+      then a condensed week strip. For when hitting macros is the whole point.</p>
+    <div class="frame">
+      <div class="scroll"><div class="kpis" id="kpis"></div></div>
+      <div class="scroll"><div class="strip" id="strip"></div></div>
+    </div>
+    <p class="tradeoff"><span class="pill-good">Best for</span>
+      <span><b>the macro-tracking phase</b> from your roadmap. Surfaces targets-vs-actual up top — the data-forward option once macro enforcement lands.</span></p>
+  </section>
+
+  <div class="foot">
+    <p style="margin:0; font-size:15px;">Tell me a <b>number (01–04)</b> — or mix them (e.g. “03 for Home, 01 for My week”).
+    I'll rebuild the real view to match, then we keep refining spacing and type from there.</p>
+  </div>
+</div>
+
+<script>
+  // theme toggle (defaults to OS preference)
+  (function(){
+    const root = document.documentElement;
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) root.setAttribute('data-theme','dark');
+    document.getElementById('themeToggle').addEventListener('click', function(){
+      root.setAttribute('data-theme', root.getAttribute('data-theme')==='dark' ? 'light' : 'dark');
+    });
+  })();
+
+  const TARGET = 2000;
+  const WEEK = [
+    {day:'Mon', meals:[
+      {t:'Breakfast', n:'Greek yogurt parfait', k:590, p:24, c:58, f:13},
+      {t:'Lunch', n:'Grilled chicken & vegetable skewers', k:710, p:35, c:60, f:25},
+      {t:'Dinner', n:'Mediterranean quinoa salad', k:690, p:21, c:75, f:23}]},
+    {day:'Tue', meals:[
+      {t:'Breakfast', n:'Grilled salmon with steamed broccoli', k:620, p:45, c:32, f:22},
+      {t:'Lunch', n:'Beef stir-fry with brown rice', k:740, p:37, c:82, f:33},
+      {t:'Dinner', n:'Vegetable curry with chickpeas', k:750, p:26, c:92, f:43}]},
+    {day:'Wed', meals:[
+      {t:'Breakfast', n:'Avocado & egg burrito', k:619, p:24, c:38, f:37},
+      {t:'Lunch', n:'Black bean & corn salad', k:718, p:21, c:65, f:30},
+      {t:'Dinner', n:'Grilled chicken tacos', k:741, p:35, c:28, f:38}]},
+    {day:'Thu', meals:[
+      {t:'Breakfast', n:'Eggs & avocado toast', k:600, p:25, c:37, f:38},
+      {t:'Lunch', n:'Pesto pasta salad', k:700, p:26, c:58, f:34},
+      {t:'Dinner', n:'Caprese salad & grilled chicken', k:700, p:46, c:38, f:28}]},
+    {day:'Fri', meals:[
+      {t:'Breakfast', n:'Grilled chicken & quinoa bowl', k:610, p:35, c:42, f:23},
+      {t:'Lunch', n:'Roasted vegetable & halloumi salad', k:720, p:18, c:65, f:43},
+      {t:'Dinner', n:'Chicken & lentil tagine', k:710, p:32, c:68, f:35}]},
+    {day:'Sat', meals:[
+      {t:'Breakfast', n:'Greek yogurt parfait', k:600, p:35, c:45, f:12},
+      {t:'Lunch', n:'Turkey & avocado wrap', k:700, p:32, c:65, f:18},
+      {t:'Dinner', n:'Baked salmon with asparagus', k:700, p:42, c:15, f:35}]},
+    {day:'Sun', meals:[
+      {t:'Breakfast', n:'Avocado & spinach toast', k:630, p:25, c:80, f:40},
+      {t:'Lunch', n:'Grilled chicken & quinoa salad', k:710, p:45, c:40, f:20},
+      {t:'Dinner', n:'Baked salmon & asparagus', k:690, p:40, c:15, f:50}]},
+  ];
+  const ROWS = ['Breakfast','Lunch','Dinner'];
+  const total = d => d.meals.reduce((s,m)=>s+m.k,0);
+  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+
+  (function(){
+    let h = '<div></div>';
+    WEEK.forEach(d => h += `<div class="mx-h"><div class="mx-day">${d.day}</div><div class="mx-tot kcal">${total(d).toLocaleString()} kcal</div></div>`);
+    ROWS.forEach((r,ri) => {
+      h += `<div class="mx-rowlabel">${r}</div>`;
+      WEEK.forEach(d => { const m = d.meals[ri];
+        h += `<div class="mx-cell"><span class="dishname">${esc(m.n)}</span><span class="kcal">${m.k} kcal</span></div>`; });
+    });
+    document.getElementById('mx').innerHTML = h;
+  })();
+
+  (function(){
+    let h = '';
+    WEEK.forEach(d => {
+      const tot = total(d), pct = Math.min(100, Math.round(tot/TARGET*100));
+      let rows = '';
+      d.meals.forEach(m => {
+        rows += `<div class="meal-row"><div class="type-chip">${m.t}</div>
+          <div class="dishname" style="margin:2px 0 3px">${esc(m.n)}</div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline">
+            <span class="kcal" style="font-size:12px;font-weight:700;color:var(--accent-deep)">${m.k} kcal</span>
+            <span class="macro">P${m.p} · C${m.c} · F${m.f}</span></div></div>`;
+      });
+      h += `<div class="col-card surface"><div class="col-head"><span class="col-day">${d.day}</span>
+        <span class="col-tot kcal">${tot.toLocaleString()}</span></div>
+        <div class="bar"><span style="width:${pct}%"></span></div>${rows}</div>`;
+    });
+    document.getElementById('cols').innerHTML = h;
+  })();
+
+  (function(){
+    const d = WEEK[0], tot = total(d), pct = Math.min(1, tot/TARGET), C = 2*Math.PI*42;
+    let meals = '';
+    d.meals.forEach(m => {
+      meals += `<div class="today-meal"><div><div class="type-chip">${m.t}</div>
+        <div class="dishname" style="font-size:14px;margin-top:3px">${esc(m.n)}</div>
+        <div class="macro" style="font-size:11px">P${m.p} · C${m.c} · F${m.f}</div></div>
+        <div class="kcal" style="font-weight:800;color:var(--accent-deep);white-space:nowrap">${m.k} kcal</div></div>`;
+    });
+    document.getElementById('today').innerHTML =
+      `<div class="today-eye">Today · Monday</div>
+       <div class="ring-wrap">
+         <svg class="ring" viewBox="0 0 100 100" aria-hidden="true">
+           <circle cx="50" cy="50" r="42" fill="none" stroke="var(--lav)" stroke-width="9"/>
+           <circle cx="50" cy="50" r="42" fill="none" stroke="var(--accent)" stroke-width="9"
+             stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C*(1-pct)}"
+             transform="rotate(-90 50 50)"/></svg>
+         <div><div class="ring-num kcal">${tot.toLocaleString()}</div>
+           <div class="ring-cap">of ${TARGET.toLocaleString()} kcal target</div></div>
+       </div>${meals}`;
+    let list = '';
+    WEEK.forEach((d,i) => {
+      list += `<div class="wk-row ${i===0?'on':''}"><span class="wk-d">${d.day}</span>
+        <span class="wk-meals">${esc(d.meals.map(m=>m.n).join(' · '))}</span>
+        <span class="wk-k kcal">${total(d).toLocaleString()}</span></div>`;
+    });
+    document.getElementById('wklist').innerHTML = list;
+  })();
+
+  (function(){
+    const days = WEEK.length;
+    const avgK = Math.round(WEEK.reduce((s,d)=>s+total(d),0)/days);
+    const avgP = Math.round(WEEK.reduce((s,d)=>s+d.meals.reduce((a,m)=>a+m.p,0),0)/days);
+    const within = WEEK.filter(d=>Math.abs(total(d)-TARGET)<=TARGET*0.1).length;
+    const kpis = [
+      {l:'Avg calories', v:avgK.toLocaleString(), s:`≈ target ${TARGET.toLocaleString()}`},
+      {l:'Avg protein', v:avgP+' g', s:'across 3 meals'},
+      {l:'On target', v:within+'/'+days, s:'days within 10%'},
+      {l:'Meals planned', v:(days*3)+'', s:'full week'},
+    ];
+    const max = Math.max(...WEEK.map(total));
+    const spark = WEEK.map(d=>`<span style="height:${Math.round(total(d)/max*100)}%"></span>`).join('');
+    let h='';
+    kpis.forEach((k,i)=>{
+      h += `<div class="kpi surface"><div class="kpi-l">${k.l}</div><div class="kpi-v">${k.v}</div>
+        <div class="kpi-s">${k.s}</div>${i===0?`<div class="spark">${spark}</div>`:''}</div>`;
+    });
+    document.getElementById('kpis').innerHTML = h;
+    let strip='';
+    WEEK.forEach(d=>{
+      strip += `<div class="strip-col surface"><div class="strip-d">${d.day}</div>
+        <div class="strip-k">${total(d).toLocaleString()}</div>
+        ${d.meals.map(m=>`<div class="strip-meal">${esc(m.n)}</div>`).join('')}</div>`;
+    });
+    document.getElementById('strip').innerHTML = strip;
+  })();
+</script>
+</body>
+</html>

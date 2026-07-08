@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Wordmark } from "@/components/icons";
 import { saveChat, savePlan, saveProfile } from "@/lib/storage";
-import type { UserProfile } from "@/lib/types";
+import { DEFAULT_TARGETS, type UserProfile } from "@/lib/types";
 
 const GOALS: { value: UserProfile["goal"]; label: string; hint: string }[] = [
   { value: "lose_weight", label: "Lose weight", hint: "Moderate calorie deficit" },
@@ -34,6 +34,12 @@ export default function OnboardingPage() {
   const [mealsPerDay, setMealsPerDay] = useState<3 | 4>(3);
   const [allergies, setAllergies] = useState("");
   const [dislikes, setDislikes] = useState("");
+  const [targetCalories, setTargetCalories] = useState<number>(DEFAULT_TARGETS.targetCalories);
+  const [proteinGrams, setProteinGrams] = useState<number>(DEFAULT_TARGETS.proteinGrams);
+  const [carbsGrams, setCarbsGrams] = useState<number>(DEFAULT_TARGETS.carbsGrams);
+  const [fatGrams, setFatGrams] = useState<number>(DEFAULT_TARGETS.fatGrams);
+  const [maxCookTime, setMaxCookTime] = useState<number>(DEFAULT_TARGETS.maxCookTime);
+  const [maxIngredients, setMaxIngredients] = useState<number>(DEFAULT_TARGETS.maxIngredients);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,7 +47,20 @@ export default function OnboardingPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const profile: UserProfile = { goal, diet, allergies, dislikes, budget, mealsPerDay };
+    const profile: UserProfile = {
+      goal,
+      diet,
+      allergies,
+      dislikes,
+      budget,
+      mealsPerDay,
+      targetCalories,
+      proteinGrams,
+      carbsGrams,
+      fatGrams,
+      maxCookTime,
+      maxIngredients,
+    };
     try {
       const res = await fetch("/api/plan", {
         method: "POST",
@@ -73,7 +92,7 @@ export default function OnboardingPage() {
       <h1 className="font-display mt-8 text-4xl font-bold tracking-tight">
         Let&rsquo;s plan your week
       </h1>
-      <p className="mt-2 text-mut">Six quick answers — then the AI builds your plan.</p>
+      <p className="mt-2 text-mut">A few quick answers — then the AI builds your plan.</p>
 
       <form onSubmit={handleSubmit} className="mt-10 space-y-10">
         <section>
@@ -137,6 +156,67 @@ export default function OnboardingPage() {
               <button type="button" key={n} onClick={() => setMealsPerDay(n)} className={optionClass(mealsPerDay === n)}>
                 {n === 3 ? "3 meals" : "3 meals + snack"}
               </button>
+            ))}
+          </div>
+        </section>
+
+        <section>
+          <h2 className="mb-1 font-semibold">7. Daily targets</h2>
+          <p className="mb-3 text-sm text-mut">
+            Pre-filled with sensible defaults — the plan will aim to hit these each day.
+            Adjust any time.
+          </p>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            {(
+              [
+                { label: "Calories", unit: "kcal", value: targetCalories, set: setTargetCalories, step: 50 },
+                { label: "Protein", unit: "g", value: proteinGrams, set: setProteinGrams, step: 5 },
+                { label: "Carbs", unit: "g", value: carbsGrams, set: setCarbsGrams, step: 5 },
+                { label: "Fat", unit: "g", value: fatGrams, set: setFatGrams, step: 5 },
+              ] as const
+            ).map((f) => (
+              <label key={f.label} className="block">
+                <span className="mb-1 block text-sm font-medium">
+                  {f.label} <span className="font-normal text-mut">({f.unit})</span>
+                </span>
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={f.value}
+                  onChange={(e) => f.set(Math.max(0, Number(e.target.value)))}
+                  className="w-full rounded-xl border-2 border-transparent bg-white px-4 py-3 outline-none focus:border-vio"
+                />
+              </label>
+            ))}
+          </div>
+        </section>
+
+        <section>
+          <h2 className="mb-1 font-semibold">8. Time &amp; simplicity</h2>
+          <p className="mb-3 text-sm text-mut">
+            Keep meals quick and easy — the plan won&rsquo;t exceed these.
+          </p>
+          <div className="grid grid-cols-2 gap-4">
+            {(
+              [
+                { label: "Max cook time", unit: "min / meal", value: maxCookTime, set: setMaxCookTime, step: 5 },
+                { label: "Max ingredients", unit: "per meal", value: maxIngredients, set: setMaxIngredients, step: 1 },
+              ] as const
+            ).map((f) => (
+              <label key={f.label} className="block">
+                <span className="mb-1 block text-sm font-medium">
+                  {f.label} <span className="font-normal text-mut">({f.unit})</span>
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={f.value}
+                  onChange={(e) => f.set(Math.max(1, Number(e.target.value)))}
+                  className="w-full rounded-xl border-2 border-transparent bg-white px-4 py-3 outline-none focus:border-vio"
+                />
+              </label>
             ))}
           </div>
         </section>

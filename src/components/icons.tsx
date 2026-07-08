@@ -72,6 +72,20 @@ export const PlayIcon = ({ className }: IconProps) => (
   </svg>
 );
 
+export const ClockIcon = ({ className }: IconProps) => (
+  <svg {...base(className)}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3 2" />
+  </svg>
+);
+
+export const RefreshIcon = ({ className }: IconProps) => (
+  <svg {...base(className)}>
+    <path d="M23 4v6h-6M1 20v-6h6" />
+    <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
+  </svg>
+);
+
 export const SendIcon = ({ className }: IconProps) => (
   <svg {...base(className)}>
     <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />

@@ -1,15 +1,122 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
+import { selectWeekFromDb } from "./recipeDb";
 import {
   AssistantResponseSchema,
+  DEFAULT_TARGETS,
+  EditIntentSchema,
+  MEAL_TYPES,
   MealSchema,
   WeekPlanSchema,
   type AssistantResponse,
   type ChatMessage,
+  type EditIntent,
+  type Meal,
   type UserProfile,
   type WeekPlan,
 } from "./types";
+
+type MealType = (typeof MEAL_TYPES)[number];
+
+// Fill in target fields for any profile that predates them (older saved profiles)
+// or arrives with zeros, so generation always has concrete numbers to hit.
+export function withTargetDefaults(profile: UserProfile): UserProfile {
+  return {
+    ...profile,
+    targetCalories: profile.targetCalories || DEFAULT_TARGETS.targetCalories,
+    proteinGrams: profile.proteinGrams || DEFAULT_TARGETS.proteinGrams,
+    carbsGrams: profile.carbsGrams || DEFAULT_TARGETS.carbsGrams,
+    fatGrams: profile.fatGrams || DEFAULT_TARGETS.fatGrams,
+    maxCookTime: profile.maxCookTime || DEFAULT_TARGETS.maxCookTime,
+    maxIngredients: profile.maxIngredients || DEFAULT_TARGETS.maxIngredients,
+  };
+}
+
+// How the day's calories are split across meals, so plans come out balanced
+// instead of one huge meal next to a near-empty one. Shares sum to 1.
+const MEAL_SPLITS: Record<number, { type: MealType; share: number }[]> = {
+  3: [
+    { type: "breakfast", share: 0.3 },
+    { type: "lunch", share: 0.35 },
+    { type: "dinner", share: 0.35 },
+  ],
+  4: [
+    { type: "breakfast", share: 0.27 },
+    { type: "lunch", share: 0.31 },
+    { type: "dinner", share: 0.31 },
+    { type: "snack", share: 0.11 },
+  ],
+};
+
+function mealSplit(profile: UserProfile) {
+  return MEAL_SPLITS[profile.mealsPerDay] ?? MEAL_SPLITS[3];
+}
+
+// --- Variety: keep the week from collapsing into "chicken every day" ---------
+
+// Heuristic main-protein detection from a meal's name + ingredients. Each day is
+// generated independently, so the model defaults to its highest-probability
+// protein (chicken) every time; tracking proteins lets us push it to vary.
+const PROTEIN_KEYWORDS: [string, RegExp][] = [
+  ["chicken", /chicken/i],
+  ["turkey", /turkey/i],
+  ["beef", /beef|steak|ground meat|mince/i],
+  ["pork", /pork|bacon|ham|sausage/i],
+  ["lamb", /lamb/i],
+  ["salmon", /salmon/i],
+  ["tuna", /tuna/i],
+  ["white fish", /cod|haddock|tilapia|pollock|sea bass|trout|white fish/i],
+  ["shrimp", /shrimp|prawn/i],
+  ["eggs", /\beggs?\b|omelette|frittata/i],
+  ["tofu", /tofu|tempeh|edamame/i],
+  ["legumes", /lentil|chickpea|black beans?|kidney beans?|\bbeans?\b|hummus|falafel/i],
+  ["dairy", /greek yogurt|cottage cheese|halloumi|paneer/i],
+];
+
+function detectProteins(meal: Meal): string[] {
+  const hay = `${meal.name} ${meal.ingredients.map((i) => i.name).join(" ")}`.toLowerCase();
+  const found: string[] = [];
+  for (const [label, re] of PROTEIN_KEYWORDS) if (re.test(hay)) found.push(label);
+  return found;
+}
+
+interface VarietyContext {
+  proteinDays: Record<string, number>; // days each protein has appeared so far
+  usedNames: string[]; // dish names already placed in the week
+}
+
+// Prompt guidance derived from what earlier days already used.
+function varietyPromptText(v: VarietyContext): string {
+  const used = Object.keys(v.proteinDays);
+  if (used.length === 0 && v.usedNames.length === 0) return "";
+  const overused = Object.entries(v.proteinDays)
+    .filter(([, n]) => n >= 2)
+    .map(([p]) => p);
+  const lines: string[] = [];
+  if (used.length) {
+    lines.push(
+      `Main proteins already used this week: ${used.join(", ")}. Choose a DIFFERENT main protein today for variety${
+        overused.length ? ` — do NOT use ${overused.join(" or ")}` : ""
+      }.`,
+    );
+  }
+  if (v.usedNames.length) lines.push(`Do not repeat any of these dishes: ${v.usedNames.join("; ")}.`);
+  return lines.join("\n");
+}
+
+// Cook-time + ingredient-count limits (interim, until recipes come from the DB).
+function prefsPromptText(profile: UserProfile): string {
+  return `Each meal must be preparable in about ${profile.maxCookTime} minutes or less and use at most ${profile.maxIngredients} ingredients. Keep steps short and easy.`;
+}
+
+function shuffle<T>(arr: T[]): T[] {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
 
 // ---------------------------------------------------------------------------
 // Provider resolution
@@ -32,13 +139,6 @@ const LOCAL_AI_URL = process.env.LOCAL_AI_URL ?? "http://localhost:1234/v1";
 const LOCAL_AI_MODEL = process.env.LOCAL_AI_MODEL ?? "local-model";
 // Optional: for OpenAI-compatible endpoints that require auth (e.g. OpenRouter)
 const LOCAL_AI_API_KEY = process.env.LOCAL_AI_API_KEY;
-// How many day-requests to run at once. On a single local GPU, 1 (sequential)
-// is fastest — concurrent requests split the GPU and each runs slower. Raise it
-// for multi-GPU boxes or cloud endpoints that genuinely parallelize.
-const LOCAL_AI_CONCURRENCY = Math.max(
-  1,
-  parseInt(process.env.LOCAL_AI_CONCURRENCY ?? "1", 10) || 1,
-);
 
 // ---------------------------------------------------------------------------
 // Shared prompts
@@ -60,15 +160,35 @@ function profileDescription(profile: UserProfile): string {
   ].join("\n");
 }
 
+// Concrete per-meal calorie budget so the model has a number to hit for each
+// meal — the single biggest lever against wildly unbalanced days.
+function macroTargetText(profile: UserProfile): string {
+  const split = mealSplit(profile);
+  const perMeal = split
+    .map((s) => `  - ${s.type}: ~${Math.round(profile.targetCalories * s.share)} kcal`)
+    .join("\n");
+  return (
+    `Daily targets to hit: ~${profile.targetCalories} kcal, ${profile.proteinGrams} g protein, ` +
+    `${profile.carbsGrams} g carbs, ${profile.fatGrams} g fat.\n` +
+    `Split the calories across the meals roughly like this (every meal substantial, none near-zero):\n${perMeal}`
+  );
+}
+
 const PLAN_RULES = `Rules for the plan:
 - Cover all 7 days, Monday through Sunday, with exactly the requested number of meals per day.
+- Every meal must be a real, complete dish and substantial — NEVER a near-zero-calorie or empty meal, and the day's meals should be balanced (no single meal dominating the whole day).
+- Meal "name" must be a real, specific dish name (e.g. "Grilled Chicken & Quinoa Bowl"). Never use placeholders, question marks, ellipses ("..."), or truncated/garbled text.
 - Meals must be realistic, tasty, and simple enough for a home cook.
 - The meal "type" field must be exactly one of: breakfast, lunch, dinner, snack (lowercase).
-- Keep it concise: description is one short sentence, steps are 2-4 short instructions.
+- "description" is one short, appetizing sentence.
+- "steps" are 3-6 clear, numbered-style instructions a beginner can follow — plain and easy, no jargon.
 - Respect all allergies strictly — never include an allergen, even as a trace ingredient.
 - Respect the diet type and avoid disliked foods.
 - Reuse ingredients across the week where sensible so the grocery list stays affordable.
-- Give honest calorie and macro estimates per meal.
+- Vary the main protein across the week — rotate between poultry, fish/seafood, red meat, eggs, tofu and legumes. Do NOT use the same main protein (e.g. chicken) on most days.
+- Keep every meal simple: respect the given cook-time and ingredient limits, and don't pile on ingredients.
+- Include a realistic "timeMinutes" for each meal (total prep + cooking time), within the cook-time limit.
+- Hit the daily calorie and macro targets as closely as you can, and give honest per-meal calorie/macro estimates that add up to the day's total.
 - Ingredient quantities should be concrete (e.g. "200 g", "1 tbsp", "2 pieces").`;
 
 function planSystemPrompt(): string {
@@ -88,7 +208,7 @@ function assistantSystemPrompt(profile: UserProfile, plan: WeekPlan): string {
     "In changedDays, return ONLY the days you modified, each as a complete day object with ALL of that day's meals (changed and unchanged ones). If the user's message doesn't require changing the plan, return an empty changedDays array and just answer in reply.\n" +
     "Keep reply short and friendly (1-3 sentences). When you change meals, keep them consistent with the user's profile below and recalculate calories/macros honestly.\n" +
     PLAN_RULES +
-    `\n\nUser profile:\n${profileDescription(profile)}\n\nCurrent week plan (JSON):\n${JSON.stringify(plan)}`
+    `\n\nUser profile:\n${profileDescription(profile)}\n\n${macroTargetText(profile)}\n${prefsPromptText(profile)}\n\nCurrent week plan (JSON):\n${JSON.stringify(plan)}`
   );
 }
 
@@ -298,38 +418,170 @@ const DAY_NAMES = [
 
 const DayMealsSchema = z.object({ meals: z.array(MealSchema) });
 
+function isCleanName(name: string): boolean {
+  const n = name.trim();
+  if (n.length < 3 || n.length > 90) return false;
+  if (/\?{2,}|\.{3,}/.test(n)) return false; // "??????" or "..."
+  return /[a-zA-Z]{3,}/.test(n); // must contain a real word
+}
+
+// Deterministic quality gate. The model can't be trusted to self-police, so code
+// decides whether a day is acceptable and, if not, states exactly what to fix.
+// (See VISION.md: correctness lives in code, not in the model.)
+function dayQualityIssues(meals: Meal[], profile: UserProfile): string[] {
+  const issues: string[] = [];
+  const split = mealSplit(profile);
+
+  if (meals.length !== profile.mealsPerDay) {
+    issues.push(
+      `Return exactly ${profile.mealsPerDay} meals (${split
+        .map((s) => s.type)
+        .join(", ")}); you returned ${meals.length}.`,
+    );
+  }
+  for (const s of split) {
+    if (!meals.some((m) => m.type === s.type)) issues.push(`Add the missing ${s.type} meal.`);
+  }
+
+  const dayTotal = meals.reduce((sum, m) => sum + (m.calories || 0), 0);
+  if (dayTotal < profile.targetCalories * 0.8) {
+    issues.push(
+      `The day totals only ${Math.round(dayTotal)} kcal; it must be near ${profile.targetCalories} kcal — increase portions.`,
+    );
+  } else if (dayTotal > profile.targetCalories * 1.2) {
+    issues.push(
+      `The day totals ${Math.round(dayTotal)} kcal; it must be near ${profile.targetCalories} kcal — reduce portions.`,
+    );
+  }
+
+  for (const m of meals) {
+    const share = split.find((s) => s.type === m.type)?.share ?? 1 / profile.mealsPerDay;
+    const mealTarget = Math.round(profile.targetCalories * share);
+    if ((m.calories || 0) < mealTarget * 0.5) {
+      issues.push(
+        `"${m.name || m.type}" has only ${Math.round(m.calories || 0)} kcal; a ${m.type} should be around ${mealTarget} kcal.`,
+      );
+    }
+    if (!isCleanName(m.name)) issues.push(`Give the ${m.type} a real dish name (got "${m.name}").`);
+    if (m.steps.length < 2) issues.push(`"${m.name || m.type}" needs at least 2 clear steps.`);
+    if (m.ingredients.length < 1) issues.push(`"${m.name || m.type}" needs a list of ingredients.`);
+    if (m.ingredients.length > profile.maxIngredients + 1) {
+      issues.push(
+        `"${m.name || m.type}" uses ${m.ingredients.length} ingredients; keep it to about ${profile.maxIngredients}.`,
+      );
+    }
+    if (m.timeMinutes && m.timeMinutes > profile.maxCookTime + 5) {
+      issues.push(
+        `"${m.name || m.type}" takes ${m.timeMinutes} min; keep it within ${profile.maxCookTime} min (±5).`,
+      );
+    }
+  }
+  return issues;
+}
+
+// Last-resort safety net if the model still won't balance a day after all
+// retries: scale calories/macros proportionally so the UI never shows a broken
+// day (e.g. a 10-kcal Friday). Only kicks in when the day is wildly off.
+function normalizeDayCalories(meals: Meal[], profile: UserProfile): Meal[] {
+  const total = meals.reduce((s, m) => s + (m.calories || 0), 0);
+  if (meals.length === 0 || total <= 0) return meals;
+  const factor = profile.targetCalories / total;
+  if (factor > 0.7 && factor < 1.3) return meals; // close enough — keep honest values
+  return meals.map((m) => ({
+    ...m,
+    calories: Math.round((m.calories || 0) * factor),
+    proteinGrams: Math.round((m.proteinGrams || 0) * factor),
+    carbsGrams: Math.round((m.carbsGrams || 0) * factor),
+    fatGrams: Math.round((m.fatGrams || 0) * factor),
+  }));
+}
+
+function dayUserPrompt(
+  profile: UserProfile,
+  day: string,
+  theme: string,
+  variety: VarietyContext,
+): string {
+  const types = mealSplit(profile)
+    .map((s) => s.type)
+    .join(", ");
+  return [
+    `Plan ${day}'s meals (exactly ${profile.mealsPerDay}: ${types}) for this person:`,
+    profileDescription(profile),
+    macroTargetText(profile),
+    prefsPromptText(profile),
+    varietyPromptText(variety),
+    `Cuisine inspiration for this day: ${theme}.`,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
 async function localGenerateDay(
   profile: UserProfile,
   day: (typeof DAY_NAMES)[number],
   theme: string,
-): Promise<{ day: (typeof DAY_NAMES)[number]; meals: z.infer<typeof MealSchema>[] }> {
-  const { meals } = await localStructuredChat(DayMealsSchema, "day_meals", [
-    { role: "system", content: planSystemPrompt() },
-    {
-      role: "user",
-      content: `Plan ${day}'s meals (exactly ${profile.mealsPerDay}: breakfast, lunch, dinner${profile.mealsPerDay === 4 ? ", snack" : ""}) for this person:\n\n${profileDescription(profile)}\n\nCuisine inspiration for this day: ${theme}.`,
-    },
-  ]);
-  console.log(`[plan] ${day} generated (${meals.length} meals)`);
+  variety: VarietyContext,
+): Promise<{ day: (typeof DAY_NAMES)[number]; meals: Meal[] }> {
+  const basePrompt = dayUserPrompt(profile, day, theme, variety);
+  let best: Meal[] = [];
+  let bestCount = Infinity;
+  let feedback = "";
+
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const { meals } = await localStructuredChat(DayMealsSchema, "day_meals", [
+      { role: "system", content: planSystemPrompt() },
+      { role: "user", content: basePrompt + feedback },
+    ]);
+    const issues = dayQualityIssues(meals, profile);
+    // Cross-day diversity: reject a day that leans only on already-common proteins.
+    const proteins = [...new Set(meals.flatMap(detectProteins))];
+    const bringsFreshProtein = proteins.some((p) => (variety.proteinDays[p] ?? 0) < 2);
+    if (proteins.length > 0 && !bringsFreshProtein) {
+      issues.push(
+        `This day only reuses proteins already common this week (${proteins.join(", ")}); switch the main protein.`,
+      );
+    }
+    if (issues.length === 0) {
+      console.log(`[plan] ${day} generated (${meals.length} meals) OK`);
+      return { day, meals };
+    }
+    if (issues.length < bestCount) {
+      best = meals;
+      bestCount = issues.length;
+    }
+    feedback = `\n\nYour previous attempt had these problems — fix ALL of them and return the complete corrected day:\n${issues
+      .map((i) => `• ${i}`)
+      .join("\n")}`;
+    console.log(`[plan] ${day} attempt ${attempt + 1}: ${issues.length} issue(s) — retrying`);
+  }
+
+  const meals = normalizeDayCalories(best, profile);
+  console.log(
+    `[plan] ${day} best-effort after retries (${meals.length} meals, ${bestCount} residual issue(s))`,
+  );
   return { day, meals };
 }
 
 async function localGeneratePlan(profile: UserProfile): Promise<WeekPlan> {
-  // Generate in batches of LOCAL_AI_CONCURRENCY (default 1 = sequential, which
-  // is fastest on a single GPU and gentlest on rate-limited free routes).
-  const days: { day: (typeof DAY_NAMES)[number]; meals: z.infer<typeof MealSchema>[] }[] = [];
-  for (let i = 0; i < DAY_NAMES.length; i += LOCAL_AI_CONCURRENCY) {
-    const batch = await Promise.all(
-      DAY_NAMES.slice(i, i + LOCAL_AI_CONCURRENCY).map((day, j) =>
-        localGenerateDay(profile, day, DAY_THEMES[i + j]),
-      ),
-    );
-    days.push(...batch);
+  // Sequential by design: each day sees which proteins/dishes earlier days used,
+  // so the week stays varied instead of collapsing to the model's default pick.
+  // Shuffling the cuisine themes also makes "generate again" produce a fresh week.
+  const themes = shuffle([...DAY_THEMES]);
+  const variety: VarietyContext = { proteinDays: {}, usedNames: [] };
+  const days: { day: (typeof DAY_NAMES)[number]; meals: Meal[] }[] = [];
+
+  for (let i = 0; i < DAY_NAMES.length; i++) {
+    const result = await localGenerateDay(profile, DAY_NAMES[i], themes[i % themes.length], variety);
+    days.push(result);
+    // Fold this day into the running variety context for the next day.
+    for (const p of new Set(result.meals.flatMap(detectProteins))) {
+      variety.proteinDays[p] = (variety.proteinDays[p] ?? 0) + 1;
+    }
+    for (const m of result.meals) variety.usedNames.push(m.name);
   }
-  const totalKcal = days.reduce(
-    (s, d) => s + d.meals.reduce((m, x) => m + x.calories, 0),
-    0,
-  );
+
+  const totalKcal = days.reduce((s, d) => s + d.meals.reduce((m, x) => m + x.calories, 0), 0);
   const avg = Math.round(totalKcal / days.length);
   return {
     days,
@@ -353,9 +605,12 @@ async function localRunAssistant(
 // ---------------------------------------------------------------------------
 
 export async function generatePlan(profile: UserProfile): Promise<WeekPlan> {
-  return resolveProvider() === "local"
-    ? localGeneratePlan(profile)
-    : claudeGeneratePlan(profile);
+  const p = withTargetDefaults(profile);
+  // Opt-in DB engine (Phase A): select from the curated recipe library instead
+  // of generating with the LLM. Off unless PLAN_ENGINE=db, so the live path is
+  // unchanged. This is the direction the app moves toward (see VISION.md).
+  if (process.env.PLAN_ENGINE === "db") return selectWeekFromDb(p);
+  return resolveProvider() === "local" ? localGeneratePlan(p) : claudeGeneratePlan(p);
 }
 
 export async function runAssistant(
@@ -363,7 +618,102 @@ export async function runAssistant(
   plan: WeekPlan,
   history: ChatMessage[],
 ): Promise<AssistantResponse> {
+  const p = withTargetDefaults(profile);
   return resolveProvider() === "local"
-    ? localRunAssistant(profile, plan, history)
-    : claudeRunAssistant(profile, plan, history);
+    ? localRunAssistant(p, plan, history)
+    : claudeRunAssistant(p, plan, history);
+}
+
+// ---------------------------------------------------------------------------
+// Conversational edits: the LLM only INTERPRETS the message into a structured
+// EditIntent; the database (applyEdit in recipeDb) executes it. This keeps
+// plans accurate/cheap while letting the user talk naturally.
+// ---------------------------------------------------------------------------
+
+function editIntentSystemPrompt(profile: UserProfile, plan: WeekPlan): string {
+  const stats = plan.days.map((d) => ({
+    day: d.day,
+    kcal: d.meals.reduce((s, m) => s + m.calories, 0),
+    protein: d.meals.reduce((s, m) => s + m.proteinGrams, 0),
+    fiber: d.meals.reduce((s, m) => s + (m.fiberGrams ?? 0), 0),
+    meals: d.meals,
+  }));
+  const n = stats.length || 1;
+  const avgKcal = Math.round(stats.reduce((s, d) => s + d.kcal, 0) / n);
+  const avgProtein = Math.round(stats.reduce((s, d) => s + d.protein, 0) / n);
+  const avgFiber = Math.round(stats.reduce((s, d) => s + d.fiber, 0) / n);
+  const planText = stats
+    .map((d) => {
+      const meals = d.meals
+        .map(
+          (m) =>
+            `${m.type} ${m.name} (${m.calories} kcal, ${m.proteinGrams}g P, ${m.fiberGrams ?? 0}g fiber, ${m.timeMinutes}min)`,
+        )
+        .join("; ");
+      return `${d.day} — day total ${d.kcal} kcal, ${d.protein}g protein, ${d.fiber}g fiber: ${meals}`;
+    })
+    .join("\n");
+  return (
+    "You turn a user's chat message into a structured edit for their weekly meal plan. Fill EVERY field of the JSON.\n" +
+    "You are given the recent conversation — use it to resolve references like 'do that', 'only Tuesday', or 'make it 1500'. The JSON must reflect what the user ultimately wants right now.\n" +
+    "- If the user is only asking a question (no change requested), set changePlan=false, answer in reply, and leave other fields null (excludeFoods []).\n" +
+    "- Otherwise set changePlan=true and fill the fields the request implies; leave the rest null.\n" +
+    "- scope: 'day' if the request targets ONE weekday (also set day); otherwise 'week'. A request about a PER-DAY AVERAGE (calories/protein/fiber per day) applies to the whole week → scope=week.\n" +
+    "- cuisine: e.g. asian, italian, mexican, indian, mediterranean, middle eastern, american — or null.\n" +
+    "- mealType: breakfast/lunch/dinner/snack if the request targets ONE meal; null otherwise.\n" +
+    "- swapToDish: the specific dish the user names to swap in (e.g. 'cottage cheese pancakes'); null otherwise. When set, ALSO set day, mealType and scope=day.\n" +
+    "- diet: vegetarian/vegan/keto/mediterranean/none — set ONLY for a diet change, else null.\n" +
+    "- excludeFoods: foods to avoid, e.g. ['onions','dairy']; [] if none.\n" +
+    "- budget: 'low' for cheaper, 'high' for fancier; null if unmentioned.\n" +
+    "- maxCookTime: minutes if they want quicker/slower meals; null otherwise.\n" +
+    "- targetCalories: number if they want to change daily calories; null otherwise.\n" +
+    "- targetFiber: grams of fiber PER DAY if they want more/specific fiber; null otherwise.\n" +
+    "- reply: one short, friendly sentence. For factual questions (calories, protein, fiber, cook time, what's on a day) use the EXACT numbers below — the AVERAGES line already gives per-day averages, so never sum days for an average and never guess.\n\n" +
+    `Weekly AVERAGES per day: ${avgKcal} kcal, ${avgProtein}g protein, ${avgFiber}g fiber.\n` +
+    `Current plan:\n${planText}\n\n` +
+    `Profile: diet=${profile.diet}, budget=${profile.budget}, ~${profile.targetCalories} kcal/day, dislikes=${profile.dislikes || "none"}.\n\n` +
+    "Examples:\n" +
+    "'make it cheaper' → changePlan=true, scope=week, budget=low.\n" +
+    "'no onions this week' → changePlan=true, scope=week, excludeFoods=['onions'].\n" +
+    "'make Tuesday vegetarian' → changePlan=true, scope=day, day=Tuesday, diet=vegetarian.\n" +
+    "'give Monday an Asian theme' → changePlan=true, scope=day, day=Monday, cuisine=asian.\n" +
+    "'change Tuesday to 1500 calories' → changePlan=true, scope=day, day=Tuesday, targetCalories=1500.\n" +
+    "'swap Monday's breakfast for cottage cheese pancakes' → changePlan=true, scope=day, day=Monday, mealType=breakfast, swapToDish='cottage cheese pancakes'.\n" +
+    "'I have no oven, swap the baked meals' → changePlan=true, scope=week, excludeFoods=['bake','roast','oven'] (use word stems so 'bake' also matches 'baked'/'baking').\n" +
+    "'I want at least 30g fiber a day' → changePlan=true, scope=week, targetFiber=30.\n" +
+    "'what is my average fiber?' → changePlan=false, reply gives the AVERAGES fiber number."
+  );
+}
+
+type Turn = { role: "user" | "assistant"; content: string };
+
+async function claudeParseEditIntent(profile: UserProfile, plan: WeekPlan, turns: Turn[]) {
+  const client = new Anthropic();
+  const response = await client.messages.parse({
+    model: CLAUDE_MODEL,
+    max_tokens: 2000,
+    system: editIntentSystemPrompt(profile, plan),
+    messages: turns,
+    output_config: { format: zodOutputFormat(EditIntentSchema) },
+  });
+  const parsed = response.parsed_output;
+  if (!parsed) throw new Error("The assistant could not understand that edit.");
+  return parsed;
+}
+
+export async function parseEditIntent(
+  profile: UserProfile,
+  plan: WeekPlan,
+  history: ChatMessage[],
+): Promise<EditIntent> {
+  const p = withTargetDefaults(profile);
+  // Feed the recent conversation so follow-ups ("only Tuesday", "do that") resolve.
+  const turns: Turn[] = history.slice(-8).map((m) => ({ role: m.role, content: m.text }));
+  if (resolveProvider() === "local") {
+    return localStructuredChat(EditIntentSchema, "edit_intent", [
+      { role: "system", content: editIntentSystemPrompt(p, plan) },
+      ...turns,
+    ]);
+  }
+  return claudeParseEditIntent(p, plan, turns);
 }

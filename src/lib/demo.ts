@@ -3,7 +3,7 @@ import { DAYS, type Meal, type UserProfile, type WeekPlan } from "./types";
 // Demo mode: used when no ANTHROPIC_API_KEY is configured, so the app can be
 // demoed end-to-end without AI costs. Meals rotate from a small pool.
 
-const BREAKFASTS: Meal[] = [
+const BREAKFASTS: Omit<Meal, "timeMinutes">[] = [
   {
     name: "Greek Yogurt Bowl",
     type: "breakfast",
@@ -68,7 +68,7 @@ const BREAKFASTS: Meal[] = [
   },
 ];
 
-const LUNCHES: Meal[] = [
+const LUNCHES: Omit<Meal, "timeMinutes">[] = [
   {
     name: "Chicken Rice Bowl",
     type: "lunch",
@@ -134,7 +134,7 @@ const LUNCHES: Meal[] = [
   },
 ];
 
-const DINNERS: Meal[] = [
+const DINNERS: Omit<Meal, "timeMinutes">[] = [
   {
     name: "Baked Salmon & Potatoes",
     type: "dinner",
@@ -200,7 +200,7 @@ const DINNERS: Meal[] = [
   },
 ];
 
-const SNACKS: Meal[] = [
+const SNACKS: Omit<Meal, "timeMinutes">[] = [
   {
     name: "Apple & Almonds",
     type: "snack",
@@ -234,12 +234,12 @@ const SNACKS: Meal[] = [
 export function buildDemoPlan(profile: UserProfile): WeekPlan {
   const days = DAYS.map((day, i) => {
     const meals: Meal[] = [
-      BREAKFASTS[i % BREAKFASTS.length],
-      LUNCHES[i % LUNCHES.length],
-      DINNERS[i % DINNERS.length],
+      { ...BREAKFASTS[i % BREAKFASTS.length], timeMinutes: 10 },
+      { ...LUNCHES[i % LUNCHES.length], timeMinutes: 20 },
+      { ...DINNERS[i % DINNERS.length], timeMinutes: 30 },
     ];
     if (profile.mealsPerDay === 4) {
-      meals.push(SNACKS[i % SNACKS.length]);
+      meals.push({ ...SNACKS[i % SNACKS.length], timeMinutes: 5 });
     }
     return { day, meals };
   });
