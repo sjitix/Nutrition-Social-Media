@@ -630,7 +630,7 @@ export async function runAssistant(
 // plans accurate/cheap while letting the user talk naturally.
 // ---------------------------------------------------------------------------
 
-function assistantTurnSystemPrompt(profile: UserProfile, plan: WeekPlan): string {
+export function assistantTurnSystemPrompt(profile: UserProfile, plan: WeekPlan): string {
   const stats = plan.days.map((d) => ({
     day: d.day,
     kcal: d.meals.reduce((s, m) => s + m.calories, 0),

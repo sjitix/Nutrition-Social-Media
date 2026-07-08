@@ -1,7 +1,12 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
-import { parseAssistantTurn, resolveProvider, withTargetDefaults } from "@/lib/ai";
+import {
+  assistantTurnSystemPrompt,
+  parseAssistantTurn,
+  resolveProvider,
+  withTargetDefaults,
+} from "@/lib/ai";
 import { applyOperations } from "@/lib/recipeDb";
 import { DEMO_ASSISTANT_REPLY } from "@/lib/demo";
 import type { ChatMessage, UserProfile, WeekPlan } from "@/lib/types";
@@ -14,13 +19,14 @@ interface AssistantRequest {
   history: ChatMessage[];
 }
 
-// Best-effort append of each request to a JSONL file — the automatic training set:
-// {message, the tool calls it produced}. Never fails a request.
-async function logTurn(message: string, turn: unknown): Promise<void> {
+// Best-effort append of a COMPLETE training example per line — exactly what the
+// model saw (systemPrompt + conversation) and what it should output (completion).
+// This is the fine-tuning dataset; prep-finetune.mjs turns it into training data.
+async function logTurn(record: Record<string, unknown>): Promise<void> {
   try {
     const dir = path.join(process.cwd(), "data");
     await fs.mkdir(dir, { recursive: true });
-    const line = JSON.stringify({ ts: new Date().toISOString(), message, turn }) + "\n";
+    const line = JSON.stringify({ ts: new Date().toISOString(), ...record }) + "\n";
     await fs.appendFile(path.join(dir, "edit-log.jsonl"), line, "utf8");
   } catch {
     /* logging is best-effort */
@@ -59,8 +65,14 @@ export async function POST(request: Request) {
     // 1) The LLM interprets the conversation into a reply + a list of tool calls.
     const profile = withTargetDefaults(body.profile);
     const turn = await parseAssistantTurn(profile, body.plan, body.history);
-    // 2) Log it (message -> tool calls) as the fine-tuning dataset.
-    await logTurn(message, turn);
+    // 2) Log a complete training example: the exact model input (system prompt +
+    //    conversation) and the target output (the tool-call JSON).
+    await logTurn({
+      message,
+      systemPrompt: assistantTurnSystemPrompt(profile, body.plan),
+      history: body.history,
+      completion: turn,
+    });
     // 3) The database executes the tool calls — accurate, cheap, real recipes.
     const { plan, profile: newProfile } = applyOperations(profile, body.plan, turn.operations);
 
