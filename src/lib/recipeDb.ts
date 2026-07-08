@@ -3,8 +3,8 @@
 import {
   DAYS,
   type DayPlan,
-  type EditIntent,
   type Meal,
+  type Operation,
   type UserProfile,
   type WeekPlan,
 } from "./types";
@@ -2281,57 +2281,75 @@ function normalizeCuisine(input: string | null): Cuisine | undefined {
   return undefined;
 }
 
-// Apply a parsed edit: merge constraint changes into the profile, then re-select
-// from the database for the affected scope. Returns the new plan + profile.
-export function applyEdit(
+function mergeDislikes(current: string, add: string[]): string {
+  const existing = current ? current.split(",").map((s) => s.trim()).filter(Boolean) : [];
+  return [...new Set([...existing, ...add.map((s) => s.trim().toLowerCase())])]
+    .filter(Boolean)
+    .join(", ");
+}
+
+const fiberOn = (op: Operation) => op.targetFiber != null && op.targetFiber > 0;
+
+// Execute a list of tool-call operations against the plan + profile, in order.
+// `update_profile` changes persist to the profile; per-day overrides don't. This
+// is the general executor the tool-calling assistant drives — no per-phrase rules,
+// and multiple ops compose ("cheaper and vegetarian and no onions").
+export function applyOperations(
   profile: UserProfile,
   plan: WeekPlan,
-  intent: EditIntent,
+  operations: Operation[],
 ): { plan: WeekPlan; profile: UserProfile } {
   const p: UserProfile = { ...profile };
-  if (intent.diet) p.diet = intent.diet;
-  if (intent.budget) p.budget = intent.budget;
-  if (intent.maxCookTime && intent.maxCookTime > 0) p.maxCookTime = intent.maxCookTime;
-  if (intent.targetCalories && intent.targetCalories > 0) p.targetCalories = intent.targetCalories;
-  if (intent.excludeFoods.length) {
-    const existing = p.dislikes
-      ? p.dislikes.split(",").map((s) => s.trim()).filter(Boolean)
-      : [];
-    const merged = [
-      ...new Set([...existing, ...intent.excludeFoods.map((s) => s.trim().toLowerCase())]),
-    ].filter(Boolean);
-    p.dislikes = merged.join(", ");
-  }
+  let curPlan = plan;
+  let profileChanged = false;
 
-  // Questions and single-day edits don't persist profile changes; only
-  // week-wide edits stick ("make it all vegetarian" vs "make Tuesday vegetarian").
-  if (!intent.changePlan) return { plan, profile };
-
-  // Specific dish swap: "swap Monday's breakfast with cottage cheese pancakes".
-  if (intent.swapToDish && intent.day) {
-    const match = findRecipe(intent.swapToDish, intent.mealType ?? undefined, p);
-    if (match) {
-      const split = localSplit(p.mealsPerDay);
-      const share = split.find((s) => s[0] === match.type)?.[1] ?? 1 / p.mealsPerDay;
-      const meal = toMeal(scaleRecipeToTarget(match, Math.round(p.targetCalories * share)));
-      const days = plan.days.map((d) =>
-        d.day === intent.day
-          ? { ...d, meals: d.meals.map((m) => (m.type === match.type ? meal : m)) }
-          : d,
-      );
-      return { plan: { ...plan, days }, profile };
+  for (const op of operations) {
+    switch (op.tool) {
+      case "update_profile": {
+        if (op.diet) p.diet = op.diet;
+        if (op.budget) p.budget = op.budget;
+        if (op.maxCookTime && op.maxCookTime > 0) p.maxCookTime = op.maxCookTime;
+        if (op.targetCalories && op.targetCalories > 0) p.targetCalories = op.targetCalories;
+        if (op.excludeFoods.length) p.dislikes = mergeDislikes(p.dislikes, op.excludeFoods);
+        profileChanged = true;
+        curPlan = selectWeekFromDb(p, normalizeCuisine(op.cuisine), fiberOn(op));
+        break;
+      }
+      case "regenerate_week": {
+        curPlan = selectWeekFromDb(p, normalizeCuisine(op.cuisine), fiberOn(op));
+        break;
+      }
+      case "regenerate_day": {
+        if (!op.day) break;
+        const tp: UserProfile = { ...p }; // per-day overrides — not persisted
+        if (op.diet) tp.diet = op.diet;
+        if (op.targetCalories && op.targetCalories > 0) tp.targetCalories = op.targetCalories;
+        if (op.excludeFoods.length) tp.dislikes = mergeDislikes(tp.dislikes, op.excludeFoods);
+        const newDay = selectDay(tp, op.day, curPlan, normalizeCuisine(op.cuisine), fiberOn(op));
+        curPlan = { ...curPlan, days: curPlan.days.map((d) => (d.day === op.day ? newDay : d)) };
+        break;
+      }
+      case "swap_meal": {
+        if (!op.day || !op.dish) break;
+        const match = findRecipe(op.dish, op.mealType ?? undefined, p);
+        if (!match) break;
+        const share =
+          localSplit(p.mealsPerDay).find((s) => s[0] === match.type)?.[1] ?? 1 / p.mealsPerDay;
+        const meal = toMeal(scaleRecipeToTarget(match, Math.round(p.targetCalories * share)));
+        curPlan = {
+          ...curPlan,
+          days: curPlan.days.map((d) =>
+            d.day === op.day
+              ? { ...d, meals: d.meals.map((m) => (m.type === match.type ? meal : m)) }
+              : d,
+          ),
+        };
+        break;
+      }
+      case "answer":
+        break;
     }
-    // no match found → fall through to a normal regeneration
   }
 
-  const cuisine = normalizeCuisine(intent.cuisine);
-  const preferFiber = intent.targetFiber != null && intent.targetFiber > 0;
-  if (intent.scope === "day" && intent.day) {
-    const newDay = selectDay(p, intent.day, plan, cuisine, preferFiber);
-    return {
-      plan: { ...plan, days: plan.days.map((d) => (d.day === intent.day ? newDay : d)) },
-      profile,
-    };
-  }
-  return { plan: selectWeekFromDb(p, cuisine, preferFiber), profile: p };
+  return { plan: curPlan, profile: profileChanged ? p : profile };
 }

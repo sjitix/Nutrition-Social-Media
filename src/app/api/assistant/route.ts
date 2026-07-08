@@ -1,8 +1,8 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
-import { parseEditIntent, resolveProvider, withTargetDefaults } from "@/lib/ai";
-import { applyEdit } from "@/lib/recipeDb";
+import { parseAssistantTurn, resolveProvider, withTargetDefaults } from "@/lib/ai";
+import { applyOperations } from "@/lib/recipeDb";
 import { DEMO_ASSISTANT_REPLY } from "@/lib/demo";
 import type { ChatMessage, UserProfile, WeekPlan } from "@/lib/types";
 
@@ -14,13 +14,13 @@ interface AssistantRequest {
   history: ChatMessage[];
 }
 
-// Best-effort append of each request to a JSONL file — this is the automatic
-// training-data collection: {message, interpreted intent}. Never fails a request.
-async function logEdit(message: string, intent: unknown): Promise<void> {
+// Best-effort append of each request to a JSONL file — the automatic training set:
+// {message, the tool calls it produced}. Never fails a request.
+async function logTurn(message: string, turn: unknown): Promise<void> {
   try {
     const dir = path.join(process.cwd(), "data");
     await fs.mkdir(dir, { recursive: true });
-    const line = JSON.stringify({ ts: new Date().toISOString(), message, intent }) + "\n";
+    const line = JSON.stringify({ ts: new Date().toISOString(), message, turn }) + "\n";
     await fs.appendFile(path.join(dir, "edit-log.jsonl"), line, "utf8");
   } catch {
     /* logging is best-effort */
@@ -56,57 +56,18 @@ export async function POST(request: Request) {
   }
 
   try {
-    // 1) LLM interprets the message into a structured edit.
+    // 1) The LLM interprets the conversation into a reply + a list of tool calls.
     const profile = withTargetDefaults(body.profile);
-    const intent = await parseEditIntent(profile, body.plan, body.history);
-    // 2) Log the raw model output (automatic dataset — captures its mistakes too).
-    await logEdit(message, intent);
+    const turn = await parseAssistantTurn(profile, body.plan, body.history);
+    // 2) Log it (message -> tool calls) as the fine-tuning dataset.
+    await logTurn(message, turn);
+    // 3) The database executes the tool calls — accurate, cheap, real recipes.
+    const { plan, profile: newProfile } = applyOperations(profile, body.plan, turn.operations);
 
-    // Deterministic safety net: the small model sometimes misses "no oven"-style
-    // method exclusions, so catch them straight from the message.
-    const lower = message.toLowerCase();
-    if (
-      /(baked|baking|\bbake\b|roast|\boven\b)/.test(lower) &&
-      /(no |without|don'?t have|do not have|avoid|swap|remove|replace|can'?t use|cannot use|get rid)/.test(
-        lower,
-      )
-    ) {
-      intent.changePlan = true;
-      if (intent.scope !== "day") intent.scope = "week";
-      intent.excludeFoods = [...new Set([...intent.excludeFoods, "bake", "roast", "oven"])];
-    }
-
-    // 3) Database executes the edit — accurate, cheap, real recipes.
-    const { plan, profile: newProfile } = applyEdit(profile, body.plan, intent);
-
-    // For a change, compose the confirmation from what ACTUALLY happened (never
-    // from the LLM's narration, which can invent meals). Questions keep the
-    // LLM's reply (the prompt already fed it the correct numbers).
-    let reply = intent.reply?.trim() || "Happy to help.";
-    if (intent.changePlan) {
-      if (intent.scope === "day" && intent.day) {
-        const d = plan.days.find((x) => x.day === intent.day);
-        const dk = d ? d.meals.reduce((s, m) => s + m.calories, 0) : 0;
-        const df = d ? d.meals.reduce((s, m) => s + (m.fiberGrams ?? 0), 0) : 0;
-        reply = `Done — updated ${intent.day}: now ${dk} kcal and ${df}g fiber for the day.`;
-      } else {
-        const n = plan.days.length || 1;
-        const k = Math.round(
-          plan.days.reduce((s, d) => s + d.meals.reduce((a, m) => a + m.calories, 0), 0) / n,
-        );
-        const pr = Math.round(
-          plan.days.reduce((s, d) => s + d.meals.reduce((a, m) => a + m.proteinGrams, 0), 0) / n,
-        );
-        const fi = Math.round(
-          plan.days.reduce((s, d) => s + d.meals.reduce((a, m) => a + (m.fiberGrams ?? 0), 0), 0) / n,
-        );
-        reply = `Done — your week now averages ${k} kcal, ${pr}g protein and ${fi}g fiber per day.`;
-      }
-    }
-
+    const planChanged = turn.operations.some((o) => o.tool !== "answer");
     return NextResponse.json({
-      reply,
-      planChanged: intent.changePlan,
+      reply: turn.reply?.trim() || (planChanged ? "Done — I updated your plan." : "Happy to help."),
+      planChanged,
       plan,
       profile: newProfile,
       provider,

@@ -4,14 +4,14 @@ import { z } from "zod";
 import { selectWeekFromDb } from "./recipeDb";
 import {
   AssistantResponseSchema,
+  AssistantTurnSchema,
   DEFAULT_TARGETS,
-  EditIntentSchema,
   MEAL_TYPES,
   MealSchema,
   WeekPlanSchema,
   type AssistantResponse,
+  type AssistantTurn,
   type ChatMessage,
-  type EditIntent,
   type Meal,
   type UserProfile,
   type WeekPlan,
@@ -630,7 +630,7 @@ export async function runAssistant(
 // plans accurate/cheap while letting the user talk naturally.
 // ---------------------------------------------------------------------------
 
-function editIntentSystemPrompt(profile: UserProfile, plan: WeekPlan): string {
+function assistantTurnSystemPrompt(profile: UserProfile, plan: WeekPlan): string {
   const stats = plan.days.map((d) => ({
     day: d.day,
     kcal: d.meals.reduce((s, m) => s + m.calories, 0),
@@ -654,66 +654,62 @@ function editIntentSystemPrompt(profile: UserProfile, plan: WeekPlan): string {
     })
     .join("\n");
   return (
-    "You turn a user's chat message into a structured edit for their weekly meal plan. Fill EVERY field of the JSON.\n" +
-    "You are given the recent conversation — use it to resolve references like 'do that', 'only Tuesday', or 'make it 1500'. The JSON must reflect what the user ultimately wants right now.\n" +
-    "- If the user is only asking a question (no change requested), set changePlan=false, answer in reply, and leave other fields null (excludeFoods []).\n" +
-    "- Otherwise set changePlan=true and fill the fields the request implies; leave the rest null.\n" +
-    "- scope: 'day' if the request targets ONE weekday (also set day); otherwise 'week'. A request about a PER-DAY AVERAGE (calories/protein/fiber per day) applies to the whole week → scope=week.\n" +
-    "- cuisine: e.g. asian, italian, mexican, indian, mediterranean, middle eastern, american — or null.\n" +
-    "- mealType: breakfast/lunch/dinner/snack if the request targets ONE meal; null otherwise.\n" +
-    "- swapToDish: the specific dish the user names to swap in (e.g. 'cottage cheese pancakes'); null otherwise. When set, ALSO set day, mealType and scope=day.\n" +
-    "- diet: vegetarian/vegan/keto/mediterranean/none — set ONLY for a diet change, else null.\n" +
-    "- excludeFoods: foods to avoid, e.g. ['onions','dairy']; [] if none.\n" +
-    "- budget: 'low' for cheaper, 'high' for fancier; null if unmentioned.\n" +
-    "- maxCookTime: minutes if they want quicker/slower meals; null otherwise.\n" +
-    "- targetCalories: number if they want to change daily calories; null otherwise.\n" +
-    "- targetFiber: grams of fiber PER DAY if they want more/specific fiber; null otherwise.\n" +
-    "- reply: one short, friendly sentence. For factual questions (calories, protein, fiber, cook time, what's on a day) use the EXACT numbers below — the AVERAGES line already gives per-day averages, so never sum days for an average and never guess.\n\n" +
+    "You are the meal-plan assistant. Read the user's message and the recent conversation, then output JSON: a natural 'reply' plus a list of 'operations' (tool calls) the app runs in order. Use the conversation to resolve references ('do that', 'only Tuesday', 'make it 1500').\n\n" +
+    "TOOLS — each operation has a 'tool' and only the fields that tool needs (leave the rest null, excludeFoods []):\n" +
+    "- update_profile: change a WEEK-WIDE setting and rebuild the week. Fields: diet, budget, excludeFoods, targetCalories, targetFiber, maxCookTime, cuisine. Use for 'make it cheaper', 'go vegetarian', 'no onions', 'no oven' (excludeFoods:['bake','roast','oven']), '2000 calories a day', '30g fiber a day'.\n" +
+    "- regenerate_week: rebuild the whole week (optional cuisine, targetFiber). Use for 'give me a new plan', 'make the week Italian'.\n" +
+    "- regenerate_day: rebuild ONE day; requires day. Optional diet, targetCalories, cuisine, targetFiber apply to THAT day only (not saved). Use for 'make Tuesday vegetarian', 'change Monday to 1500', 'make Friday Asian'.\n" +
+    "- swap_meal: replace one meal with a specific dish; requires day, mealType, dish. Use for 'swap Monday breakfast for cottage cheese pancakes'.\n" +
+    "- answer: no change; just answering a question.\n\n" +
+    "Rules:\n" +
+    "- Only a question → operations: []. Put the answer in reply. For facts (calories/protein/fiber/time) use the EXACT numbers below; the AVERAGES line is already per-day, so never sum days for an average and never guess.\n" +
+    "- Compound requests → SEVERAL operations, or one update_profile with several fields.\n" +
+    "- Use word stems in excludeFoods so 'bake' also matches 'baked'/'baking'.\n" +
+    "- reply: natural and friendly — say what you did or answer the question.\n\n" +
     `Weekly AVERAGES per day: ${avgKcal} kcal, ${avgProtein}g protein, ${avgFiber}g fiber.\n` +
     `Current plan:\n${planText}\n\n` +
     `Profile: diet=${profile.diet}, budget=${profile.budget}, ~${profile.targetCalories} kcal/day, dislikes=${profile.dislikes || "none"}.\n\n` +
-    "Examples:\n" +
-    "'make it cheaper' → changePlan=true, scope=week, budget=low.\n" +
-    "'no onions this week' → changePlan=true, scope=week, excludeFoods=['onions'].\n" +
-    "'make Tuesday vegetarian' → changePlan=true, scope=day, day=Tuesday, diet=vegetarian.\n" +
-    "'give Monday an Asian theme' → changePlan=true, scope=day, day=Monday, cuisine=asian.\n" +
-    "'change Tuesday to 1500 calories' → changePlan=true, scope=day, day=Tuesday, targetCalories=1500.\n" +
-    "'swap Monday's breakfast for cottage cheese pancakes' → changePlan=true, scope=day, day=Monday, mealType=breakfast, swapToDish='cottage cheese pancakes'.\n" +
-    "'I have no oven, swap the baked meals' → changePlan=true, scope=week, excludeFoods=['bake','roast','oven'] (use word stems so 'bake' also matches 'baked'/'baking').\n" +
-    "'I want at least 30g fiber a day' → changePlan=true, scope=week, targetFiber=30.\n" +
-    "'what is my average fiber?' → changePlan=false, reply gives the AVERAGES fiber number."
+    "Examples (operations shown):\n" +
+    "'make it cheaper and vegetarian, no onions' → [{tool:update_profile, budget:low, diet:vegetarian, excludeFoods:['onions']}]\n" +
+    "'make Tuesday vegetarian' → [{tool:regenerate_day, day:Tuesday, diet:vegetarian}]\n" +
+    "'change Monday to 1500 calories' → [{tool:regenerate_day, day:Monday, targetCalories:1500}]\n" +
+    "'swap Monday breakfast for cottage cheese pancakes' → [{tool:swap_meal, day:Monday, mealType:breakfast, dish:'cottage cheese pancakes'}]\n" +
+    "'I have no oven' → [{tool:update_profile, excludeFoods:['bake','roast','oven']}]\n" +
+    "'give Friday an Asian theme' → [{tool:regenerate_day, day:Friday, cuisine:'asian'}]\n" +
+    "'I want 30g fiber a day' → [{tool:update_profile, targetFiber:30}]\n" +
+    "'what is my average fiber?' → operations:[], reply gives the AVERAGES fiber number."
   );
 }
 
 type Turn = { role: "user" | "assistant"; content: string };
 
-async function claudeParseEditIntent(profile: UserProfile, plan: WeekPlan, turns: Turn[]) {
+async function claudeParseAssistantTurn(profile: UserProfile, plan: WeekPlan, turns: Turn[]) {
   const client = new Anthropic();
   const response = await client.messages.parse({
     model: CLAUDE_MODEL,
     max_tokens: 2000,
-    system: editIntentSystemPrompt(profile, plan),
+    system: assistantTurnSystemPrompt(profile, plan),
     messages: turns,
-    output_config: { format: zodOutputFormat(EditIntentSchema) },
+    output_config: { format: zodOutputFormat(AssistantTurnSchema) },
   });
   const parsed = response.parsed_output;
-  if (!parsed) throw new Error("The assistant could not understand that edit.");
+  if (!parsed) throw new Error("The assistant could not understand that.");
   return parsed;
 }
 
-export async function parseEditIntent(
+export async function parseAssistantTurn(
   profile: UserProfile,
   plan: WeekPlan,
   history: ChatMessage[],
-): Promise<EditIntent> {
+): Promise<AssistantTurn> {
   const p = withTargetDefaults(profile);
   // Feed the recent conversation so follow-ups ("only Tuesday", "do that") resolve.
   const turns: Turn[] = history.slice(-8).map((m) => ({ role: m.role, content: m.text }));
   if (resolveProvider() === "local") {
-    return localStructuredChat(EditIntentSchema, "edit_intent", [
-      { role: "system", content: editIntentSystemPrompt(p, plan) },
+    return localStructuredChat(AssistantTurnSchema, "assistant_turn", [
+      { role: "system", content: assistantTurnSystemPrompt(p, plan) },
       ...turns,
     ]);
   }
-  return claudeParseEditIntent(p, plan, turns);
+  return claudeParseAssistantTurn(p, plan, turns);
 }

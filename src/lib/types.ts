@@ -47,23 +47,34 @@ export const AssistantResponseSchema = z.object({
   changedDays: z.array(DayPlanSchema),
 });
 
-// The LLM parses a chat message into this structured edit; the database then
-// executes it (re-selecting recipes). Keeps plans accurate/cheap while letting
-// the user talk naturally. Every field is filled (nullable where not relevant).
-export const EditIntentSchema = z.object({
-  reply: z.string(), // short friendly confirmation/answer to show the user
-  changePlan: z.boolean(), // false = just answering a question
-  scope: z.enum(["week", "day"]).nullable(), // whole week or a single day
-  day: z.enum(DAYS).nullable(), // set when scope is "day"
-  mealType: z.enum(MEAL_TYPES).nullable(), // set when swapping one meal
-  swapToDish: z.string().nullable(), // a specific dish the user wants, e.g. "cottage cheese pancakes"
-  cuisine: z.string().nullable(), // e.g. "asian", "italian" — or null
+// The assistant is tool-calling: the LLM emits a REPLY plus a list of OPERATIONS
+// (tool calls) that the database executes. This composes any request ("cheaper and
+// vegetarian and no onions" = one turn, several ops) and keeps the LLM general —
+// no hardcoded phrase rules. Every field is present (nullable where a given tool
+// doesn't use it) so the JSON schema stays strict for the local model.
+export const OperationSchema = z.object({
+  tool: z.enum([
+    "update_profile", // persist week-wide settings, then rebuild the week
+    "regenerate_week", // rebuild the whole week (optional cuisine / fiber bias)
+    "regenerate_day", // rebuild ONE day with optional per-day diet/calories/cuisine (not persisted)
+    "swap_meal", // replace one meal with a specific named dish
+    "answer", // no change — just answering a question
+  ]),
+  day: z.enum(DAYS).nullable(),
+  mealType: z.enum(MEAL_TYPES).nullable(),
+  dish: z.string().nullable(), // for swap_meal, e.g. "cottage cheese pancakes"
+  cuisine: z.string().nullable(),
   diet: z.enum(["none", "vegetarian", "vegan", "keto", "mediterranean"]).nullable(),
-  excludeFoods: z.array(z.string()), // foods to avoid, e.g. ["onions"]
   budget: z.enum(["low", "medium", "high"]).nullable(),
-  maxCookTime: z.number().nullable(), // minutes
+  excludeFoods: z.array(z.string()),
   targetCalories: z.number().nullable(),
-  targetFiber: z.number().nullable(), // grams per day (average)
+  targetFiber: z.number().nullable(),
+  maxCookTime: z.number().nullable(),
+});
+
+export const AssistantTurnSchema = z.object({
+  reply: z.string(), // natural, friendly message shown to the user
+  operations: z.array(OperationSchema),
 });
 
 export type Ingredient = z.infer<typeof IngredientSchema>;
@@ -71,7 +82,8 @@ export type Meal = z.infer<typeof MealSchema>;
 export type DayPlan = z.infer<typeof DayPlanSchema>;
 export type WeekPlan = z.infer<typeof WeekPlanSchema>;
 export type AssistantResponse = z.infer<typeof AssistantResponseSchema>;
-export type EditIntent = z.infer<typeof EditIntentSchema>;
+export type Operation = z.infer<typeof OperationSchema>;
+export type AssistantTurn = z.infer<typeof AssistantTurnSchema>;
 
 export interface UserProfile {
   goal: "lose_weight" | "maintain" | "build_muscle";
