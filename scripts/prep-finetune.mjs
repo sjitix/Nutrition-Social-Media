@@ -15,15 +15,22 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const IN = join(root, "data", "edit-log.jsonl");
 const OUT = join(root, "data", "finetune.jsonl");
 
-if (!existsSync(IN)) {
-  console.error(`No log found at ${IN}. Use the assistant chat first to collect data.`);
+// Real usage log + synthetic seed (same record shape); either may be absent.
+const INPUTS = ["edit-log.jsonl", "synthetic-log.jsonl"]
+  .map((f) => join(root, "data", f))
+  .filter((f) => existsSync(f));
+
+if (INPUTS.length === 0) {
+  console.error(
+    "No data found. Use the assistant chat (data/edit-log.jsonl) and/or run" +
+      " scripts/gen-synthetic.mjs (data/synthetic-log.jsonl) first.",
+  );
   process.exit(1);
 }
 
-const lines = readFileSync(IN, "utf8").split("\n").filter((l) => l.trim());
+const lines = INPUTS.flatMap((f) => readFileSync(f, "utf8").split("\n")).filter((l) => l.trim());
 const seen = new Set();
 const out = [];
 let skipped = 0;

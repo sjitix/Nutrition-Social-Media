@@ -12,21 +12,29 @@ Every assistant message is logged to `data/edit-log.jsonl` as a **complete train
 example**: the exact system prompt the model saw + the conversation + the tool-call JSON it
 should output. `data/` is gitignored (per-machine); aggregate across machines when training.
 
-Turn the log into training data:
+Bootstrap a diverse synthetic seed (correct, hand-authored labels — not the small
+model's guesses) covering compound requests, terse/rambling/vague messages, chit-chat,
+typos, multi-turn, and grounded questions:
+
+```bash
+node scripts/gen-synthetic.mjs 450   # -> data/synthetic-log.jsonl
+```
+
+Then turn everything (real usage log + synthetic seed) into training data:
 
 ```bash
 node scripts/prep-finetune.mjs
-# reads  data/edit-log.jsonl
-# writes data/finetune.jsonl   (chat JSONL: { "messages": [system, ...turns, assistant] })
+# reads  data/edit-log.jsonl  +  data/synthetic-log.jsonl
+# writes data/finetune.jsonl  (chat JSONL: { "messages": [system, ...turns, assistant] })
 ```
 
 Each example teaches: *given system prompt + conversation → output the tool-call JSON*.
 
 ## Prerequisites before training
-1. **Data volume** — aim for **~300–1,000+** examples. Collect them by using the assistant
-   (and by exercising varied/compound phrasings). If real usage is slow, bootstrap synthetic
-   examples with a stronger model (e.g. Claude) — generate `{message → tool calls}` pairs and
-   append them to the log in the same shape.
+1. **Data volume** — aim for **~300–1,000+** examples. `gen-synthetic.mjs` already produces a
+   ~450-example seed; grow it with real usage (`data/edit-log.jsonl`) and by expanding the
+   generator's phrasings, or by generating more `{message → tool calls}` pairs with a stronger
+   model (e.g. Claude) in the same record shape.
 2. **Hardware** — an **8 GB card cannot fine-tune a 7B**. Options:
    - A **24 GB GPU** (RTX 3090/4090) → QLoRA a 7B comfortably.
    - **Cloud** for a one-off run: RunPod / Vast.ai, ~$0.30–0.60/hr, a few hours ≈ a few $.
