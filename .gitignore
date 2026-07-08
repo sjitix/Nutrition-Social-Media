@@ -26,3 +26,8 @@ next-env.d.ts
 
 # runtime training logs (collected per-machine; aggregated later for fine-tuning)
 /data/
+
+# fine-tuning: local venv, downloaded bases, adapters, merged/GGUF outputs
+/.venv-ft/
+/models/
+/llama.cpp/

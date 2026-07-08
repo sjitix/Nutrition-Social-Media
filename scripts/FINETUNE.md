@@ -30,16 +30,27 @@ node scripts/prep-finetune.mjs
 
 Each example teaches: *given system prompt + conversation → output the tool-call JSON*.
 
+## Where to train (this desktop CANNOT — train in the cloud, free)
+**Do NOT run GPU training on this desktop.** Sustained full-GPU load bugchecks it
+(`0x1E` / `0xC0000096` — an NVIDIA-driver kernel fault; two Kernel-Power 41 reboots were
+logged during a training attempt on 2026-07-08, alongside a months-long history of
+`0x9F`/`0xD1`/`0x139` driver/power bugchecks). The mining board + PCIe risers + old RTX 2070
++ HDD-only system is not stable for hours of compute. Local **inference** (LM Studio) is
+light and safe — only *training* crashes it.
+
+**Primary path — free Colab T4 ($0):** open `scripts/nutriflow_finetune_colab.ipynb` in
+Google Colab, set runtime to **T4 GPU**, Run all, upload `data/finetune.jsonl`, and it
+trains + exports a **GGUF** you download and load in LM Studio. Big enough to fine-tune the
+**7B** (or switch to 3B in the config cell). Kaggle (free T4 ×2) works the same way.
+
 ## Prerequisites before training
 1. **Data volume** — aim for **~300–1,000+** examples. `gen-synthetic.mjs` already produces a
    ~450-example seed; grow it with real usage (`data/edit-log.jsonl`) and by expanding the
    generator's phrasings, or by generating more `{message → tool calls}` pairs with a stronger
    model (e.g. Claude) in the same record shape.
-2. **Hardware** — an **8 GB card cannot fine-tune a 7B**. Options:
-   - A **24 GB GPU** (RTX 3090/4090) → QLoRA a 7B comfortably.
-   - **Cloud** for a one-off run: RunPod / Vast.ai, ~$0.30–0.60/hr, a few hours ≈ a few $.
-   - Or fine-tune a **smaller base** (1.5–3B, e.g. Qwen2.5-1.5B/3B-Instruct) which trains on
-     less VRAM and still handles this narrow task well.
+2. **A GPU that survives sustained load** — free cloud (above) is the answer here. A local
+   **24 GB GPU** (RTX 3090/4090) on a *stable* machine could QLoRA a 7B directly via
+   `scripts/train_lora.py`; that script is kept for that case, but it must not run on this desktop.
 
 ## Recommended recipe (Unsloth QLoRA — simplest)
 ```bash
