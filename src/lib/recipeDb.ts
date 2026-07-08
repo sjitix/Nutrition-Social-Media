@@ -2545,6 +2545,9 @@ export function applyOperations(
         if (op.budget) p.budget = op.budget;
         if (op.maxCookTime && op.maxCookTime > 0) p.maxCookTime = op.maxCookTime;
         if (op.targetCalories && op.targetCalories > 0) p.targetCalories = op.targetCalories;
+        if (op.targetProtein && op.targetProtein > 0) p.proteinGrams = op.targetProtein;
+        if (op.targetCarbs && op.targetCarbs > 0) p.carbsGrams = op.targetCarbs;
+        if (op.targetFat && op.targetFat > 0) p.fatGrams = op.targetFat;
         if (op.excludeFoods.length) p.dislikes = mergeDislikes(p.dislikes, op.excludeFoods);
         profileChanged = true;
         // Re-solve every day onto the macro targets so the base plan actually hits
@@ -2565,6 +2568,7 @@ export function applyOperations(
         const tp: UserProfile = { ...p }; // per-day overrides — not persisted
         if (op.diet) tp.diet = op.diet;
         if (op.targetCalories && op.targetCalories > 0) tp.targetCalories = op.targetCalories;
+        if (op.targetProtein && op.targetProtein > 0) tp.proteinGrams = op.targetProtein;
         if (op.excludeFoods.length) tp.dislikes = mergeDislikes(tp.dislikes, op.excludeFoods);
         const newDay = selectDay(tp, op.day, curPlan, normalizeCuisine(op.cuisine), fiberOn(op));
         const meals = keepMacros(op)

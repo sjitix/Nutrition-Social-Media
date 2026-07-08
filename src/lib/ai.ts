@@ -635,28 +635,32 @@ export function assistantTurnSystemPrompt(profile: UserProfile, plan: WeekPlan):
     day: d.day,
     kcal: d.meals.reduce((s, m) => s + m.calories, 0),
     protein: d.meals.reduce((s, m) => s + m.proteinGrams, 0),
+    carbs: d.meals.reduce((s, m) => s + m.carbsGrams, 0),
+    fat: d.meals.reduce((s, m) => s + m.fatGrams, 0),
     fiber: d.meals.reduce((s, m) => s + (m.fiberGrams ?? 0), 0),
     meals: d.meals,
   }));
   const n = stats.length || 1;
-  const avgKcal = Math.round(stats.reduce((s, d) => s + d.kcal, 0) / n);
-  const avgProtein = Math.round(stats.reduce((s, d) => s + d.protein, 0) / n);
-  const avgFiber = Math.round(stats.reduce((s, d) => s + d.fiber, 0) / n);
+  const avg = (k: "kcal" | "protein" | "carbs" | "fat" | "fiber") =>
+    Math.round(stats.reduce((s, d) => s + d[k], 0) / n);
+  const avgKcal = avg("kcal");
+  const avgProtein = avg("protein");
+  const avgFiber = avg("fiber");
   const planText = stats
     .map((d) => {
       const meals = d.meals
         .map(
           (m) =>
-            `${m.type} ${m.name} (${m.calories} kcal, ${m.proteinGrams}g P, ${m.fiberGrams ?? 0}g fiber, ${m.timeMinutes}min)`,
+            `${m.type} ${m.name} (${m.calories} kcal, ${m.proteinGrams}g P, ${m.carbsGrams}g C, ${m.fatGrams}g F, ${m.fiberGrams ?? 0}g fiber, ${m.timeMinutes}min)`,
         )
         .join("; ");
-      return `${d.day} — day total ${d.kcal} kcal, ${d.protein}g protein, ${d.fiber}g fiber: ${meals}`;
+      return `${d.day} — day total ${d.kcal} kcal, ${d.protein}g protein, ${d.carbs}g carbs, ${d.fat}g fat, ${d.fiber}g fiber: ${meals}`;
     })
     .join("\n");
   return (
     "You are the meal-plan assistant. Read the user's message and the recent conversation, then output JSON: a natural 'reply' plus a list of 'operations' (tool calls) the app runs in order. Use the conversation to resolve references ('do that', 'only Tuesday', 'make it 1500').\n\n" +
     "TOOLS — each operation has a 'tool' and only the fields that tool needs (leave the rest null, excludeFoods []):\n" +
-    "- update_profile: change a WEEK-WIDE setting and rebuild the week. Fields: diet, budget, excludeFoods, targetCalories, targetFiber, maxCookTime, cuisine. Use for 'make it cheaper', 'go vegetarian', 'no onions', 'no oven' (excludeFoods:['bake','roast','oven']), '2000 calories a day', '30g fiber a day'.\n" +
+    "- update_profile: change a WEEK-WIDE setting and rebuild the week. Fields: diet, budget, excludeFoods, targetCalories, targetProtein, targetCarbs, targetFat, targetFiber, maxCookTime, cuisine. The plan re-solves to hit any macro target you set. Use for 'make it cheaper', 'go vegetarian', 'no onions', 'no oven' (excludeFoods:['bake','roast','oven']), '2000 calories a day', 'set my protein to 180', '30g fiber a day'.\n" +
     "- regenerate_week: rebuild the whole week (optional cuisine, targetFiber). Use for 'give me a new plan', 'make the week Italian'.\n" +
     "- regenerate_day: rebuild ONE day; requires day. Optional diet, targetCalories, cuisine, targetFiber apply to THAT day only (not saved). Use for 'make Tuesday vegetarian', 'change Monday to 1500', 'make Friday Asian'.\n" +
     "- swap_meal: replace one meal with a specific dish; requires day, mealType, dish. Use for 'swap Monday breakfast for cottage cheese pancakes'. By DEFAULT the app keeps that day on the user's macro targets by adjusting the other meals' portions (like a nutritionist fitting a treat in) — you don't ask for that, it's automatic. Set preserveMacros:false ONLY when the user signals they don't care this time ('cheat day', 'treat', 'whatever, I don't care about macros'). You never need to compute macros — the app does the math.\n" +
@@ -680,6 +684,8 @@ export function assistantTurnSystemPrompt(profile: UserProfile, plan: WeekPlan):
     "'I have no oven' → [{tool:update_profile, excludeFoods:['bake','roast','oven']}]\n" +
     "'give Friday an Asian theme' → [{tool:regenerate_day, day:Friday, cuisine:'asian'}]\n" +
     "'I want 30g fiber a day' → [{tool:update_profile, targetFiber:30}]\n" +
+    "'bump my protein to 180g' → [{tool:update_profile, targetProtein:180}]\n" +
+    "'make Monday high protein' → [{tool:regenerate_day, day:Monday, targetProtein:200}]\n" +
     "'what is my average fiber?' → operations:[], reply gives the AVERAGES fiber number."
   );
 }

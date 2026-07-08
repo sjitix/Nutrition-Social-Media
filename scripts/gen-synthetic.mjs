@@ -64,6 +64,8 @@ function renderSystemPrompt(profile, plan) {
     day: d.day,
     kcal: d.meals.reduce((s, m) => s + m.calories, 0),
     protein: d.meals.reduce((s, m) => s + m.proteinGrams, 0),
+    carbs: d.meals.reduce((s, m) => s + m.carbsGrams, 0),
+    fat: d.meals.reduce((s, m) => s + m.fatGrams, 0),
     fiber: d.meals.reduce((s, m) => s + (m.fiberGrams ?? 0), 0),
     meals: d.meals,
   }));
@@ -76,16 +78,16 @@ function renderSystemPrompt(profile, plan) {
       const meals = d.meals
         .map(
           (m) =>
-            `${m.type} ${m.name} (${m.calories} kcal, ${m.proteinGrams}g P, ${m.fiberGrams ?? 0}g fiber, ${m.timeMinutes}min)`,
+            `${m.type} ${m.name} (${m.calories} kcal, ${m.proteinGrams}g P, ${m.carbsGrams}g C, ${m.fatGrams}g F, ${m.fiberGrams ?? 0}g fiber, ${m.timeMinutes}min)`,
         )
         .join("; ");
-      return `${d.day} — day total ${d.kcal} kcal, ${d.protein}g protein, ${d.fiber}g fiber: ${meals}`;
+      return `${d.day} — day total ${d.kcal} kcal, ${d.protein}g protein, ${d.carbs}g carbs, ${d.fat}g fat, ${d.fiber}g fiber: ${meals}`;
     })
     .join("\n");
   return (
     "You are the meal-plan assistant. Read the user's message and the recent conversation, then output JSON: a natural 'reply' plus a list of 'operations' (tool calls) the app runs in order. Use the conversation to resolve references ('do that', 'only Tuesday', 'make it 1500').\n\n" +
     "TOOLS — each operation has a 'tool' and only the fields that tool needs (leave the rest null, excludeFoods []):\n" +
-    "- update_profile: change a WEEK-WIDE setting and rebuild the week. Fields: diet, budget, excludeFoods, targetCalories, targetFiber, maxCookTime, cuisine.\n" +
+    "- update_profile: change a WEEK-WIDE setting and rebuild the week. Fields: diet, budget, excludeFoods, targetCalories, targetProtein, targetCarbs, targetFat, targetFiber, maxCookTime, cuisine. The plan re-solves to hit any macro target you set.\n" +
     "- regenerate_week: rebuild the whole week (optional cuisine, targetFiber).\n" +
     "- regenerate_day: rebuild ONE day; requires day. Optional diet, targetCalories, cuisine, targetFiber apply to THAT day only (not saved).\n" +
     "- swap_meal: replace one meal with a specific dish; requires day, mealType, dish. By DEFAULT the app keeps that day on the user's macro targets by adjusting the other meals' portions — automatic, you don't ask for it. Set preserveMacros:false ONLY when the user signals a treat ('cheat day', 'treat', 'don't care about macros'). Never compute macros yourself.\n" +
@@ -128,6 +130,9 @@ const OP = (o) => ({
   budget: o.budget ?? null,
   excludeFoods: o.excludeFoods ?? [],
   targetCalories: o.targetCalories ?? null,
+  targetProtein: o.targetProtein ?? null,
+  targetCarbs: o.targetCarbs ?? null,
+  targetFat: o.targetFat ?? null,
   targetFiber: o.targetFiber ?? null,
   maxCookTime: o.maxCookTime ?? null,
   // Only emitted for swaps where the user wants to go off-plan (a treat). Omitted
@@ -175,6 +180,16 @@ for (let i = 0; i < 8; i++) { const day = rand(DAYS); const c = rand([1200, 1500
 
 // fiber
 for (const m of ["more fiber please", "i want at least 30g fiber a day", "add more fiber", "high fiber plan", "can you get me to 35g fiber daily", "not enough fiber, increase it"]) { const g = /(\d+)/.exec(m)?.[1]; push([u(m)], `Sure — I've prioritized higher-fiber meals${g ? ` to hit about ${g}g a day` : ""}.`, [OP({ tool: "update_profile", targetFiber: g ? Number(g) : 30 })]); }
+
+// protein target (week) — the plan re-solves to hit it
+for (let i = 0; i < 14; i++) { const g = rand([120, 140, 150, 160, 180, 200, 220]); push([u(rand([`set my protein to ${g}g`, `i want ${g}g protein a day`, `bump protein to ${g}`, `${g} grams of protein daily`, `hit ${g}g protein`, `more protein, like ${g}g`]))], `Done — I've re-solved your week to hit about ${g}g protein a day.`, [OP({ tool: "update_profile", targetProtein: g })]); }
+// vague "more protein" with no number → sensible bump
+for (const m of ["i need more protein", "add more protein", "high protein plan please", "protein is too low, raise it"]) push([u(m)], "Sure — I've rebuilt the week around higher-protein meals.", [OP({ tool: "update_profile", targetProtein: 180 })]);
+// protein target (single day)
+for (let i = 0; i < 6; i++) { const day = rand(DAYS); const g = rand([180, 200, 220]); push([u(rand([`make ${day} high protein`, `${day} needs ${g}g protein`, `more protein on ${day}`]))], `Got it — ${day} is now built around ~${g}g protein.`, [OP({ tool: "regenerate_day", day, targetProtein: g })]); }
+// carbs / fat targets
+for (let i = 0; i < 6; i++) { const g = rand([120, 150, 180, 220]); push([u(rand([`set carbs to ${g}g`, `i want ${g}g carbs a day`, `${g} grams carbs daily`]))], `Done — targeting about ${g}g carbs a day.`, [OP({ tool: "update_profile", targetCarbs: g })]); }
+for (let i = 0; i < 6; i++) { const g = rand([50, 60, 70, 80]); push([u(rand([`keep fat around ${g}g`, `${g}g fat a day`, `limit fat to ${g} grams`]))], `Got it — holding fat near ${g}g a day.`, [OP({ tool: "update_profile", targetFat: g })]); }
 
 // cook time
 for (const m of ["quick meals only", "nothing over 20 minutes", "i'm busy, 15 min meals max", "keep cooking short", "fast recipes please, 25 min tops"]) { const t = /(\d+)/.exec(m)?.[1]; push([u(m)], `Done — I've kept everything quick${t ? ` (under ~${t} min)` : ""}.`, [OP({ tool: "update_profile", maxCookTime: t ? Number(t) : 20 })]); }

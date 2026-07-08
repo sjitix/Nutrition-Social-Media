@@ -68,6 +68,9 @@ export const OperationSchema = z.object({
   budget: z.enum(["low", "medium", "high"]).nullable(),
   excludeFoods: z.array(z.string()),
   targetCalories: z.number().nullable(),
+  targetProtein: z.number().nullable(), // grams/day; the plan re-solves to hit it
+  targetCarbs: z.number().nullable(),
+  targetFat: z.number().nullable(),
   targetFiber: z.number().nullable(),
   maxCookTime: z.number().nullable(),
   // LLM-controlled intent: when swapping/regenerating, should the day stay on the
