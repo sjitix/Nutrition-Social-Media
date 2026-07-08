@@ -131,27 +131,93 @@ Note: "no decision trees" does NOT mean "no code" — the tools ARE code; the *L
 which to call. And all **facts/math** (calories, fiber, averages) are computed in code and
 fed to the model, never guessed by it.
 
-**Current state:** `EditIntent` (a single-shot, baby version of tool-calling) + a DB
-executor (`applyEdit`) + code-computed facts. A hardcoded "no oven" phrase catch exists
-as a TEMPORARY crutch — to be removed when tool-calling lands.
+**Current state (built):** real tool-calling is live — the LLM emits `reply` + a list of
+`operations` and the DB executor (`applyOperations`) runs them; all facts/math are computed
+in code and fed to the model. Tools today: `update_profile`, `regenerate_week`,
+`regenerate_day`, `swap_meal`, `answer`. The old `EditIntent` and the hardcoded "no oven"
+phrase crutch are **removed.** Every turn is logged as a complete training example
+(`data/edit-log.jsonl`), and a synthetic generator (`scripts/gen-synthetic.mjs`) produces a
+~450-example seed → `data/finetune.jsonl`.
 
-**Roadmap (all consistent with the vision):**
-1. **Refactor to real tool-calling** — the LLM outputs a list of operations (tool calls);
-   the app executes them in order. Remove hardcoded phrase rules. General tools like
-   `regenerate(scope, constraints)`, `swap_meal(day, mealType, description)`,
-   `set_target(field, value)`, `exclude(foods)`, `set_diet(...)`, `answer(question)`.
-2. **Automatic data collection** — every message + the tool calls it should produce is
-   appended to `data/edit-log.jsonl`; the training set builds itself from real usage.
-3. **Fine-tune a small local model** (LoRA/QLoRA) on that data → a fast, local, $0-at-
-   inference LLM that is reliable at THIS task's tool-use without hardcoded phrases. This
-   is the "general language model, trained specifically for this task, but still an LLM."
+**Roadmap status:**
+1. ✅ **Real tool-calling** — done (general tools, no phrase rules).
+2. ✅ **Automatic data collection** — done (usage logs + synthetic seed).
+3. **Fine-tune the small model** — pipeline built (`scripts/train_lora.py`,
+   `scripts/nutriflow_finetune_colab.ipynb`). **Trains in a free Colab T4 ($0)**, not
+   locally: sustained GPU training **bugchecks this desktop** (see hardware reality below).
+   The result is a GGUF that runs locally in LM Studio for inference (light and stable).
 
-**Constraints / reality:** keep $0 + local for inference. Fine-tuning needs more VRAM
-(~a 3090) or a cheap one-off cloud run — do it once data + hardware are ready. Interim:
-prompt-engineered tool-calling on the local 7B (more general, less reliable until fine-
-tuned); a stronger model can be used temporarily during development. Why not just use a
-big model? It breaks $0 (hosted) or is slow (30B offloaded on 8 GB). Fine-tuning a small
-model is the fit for the constraints.
+**Hardware reality — training is cloud-only for this machine.** The mining-board + PCIe-riser
++ RTX 2070 + HDD rig cannot sustain full-GPU training without kernel-panicking (NVIDIA-driver
+fault `0x1E`/`0xC0000096`, repeated Kernel-Power 41 reboots, plus a months-long history of
+driver/power bugchecks). **Local inference is fine; local training is ruled out.** Fine-tune
+on free cloud (Colab/Kaggle T4, $0); train locally only on a future *stable* 24 GB machine.
+Bigger models later → **rent a cloud GPU on demand** (a few $ per run), never this rig. More
+GPUs add VRAM/capacity, not stability — they would make the crashes worse, not fix them.
+
+## The app replaces a nutritionist — the macro-preservation engine (core role, decided direction)
+
+A **core role of this app is to replace a human nutritionist.** The test that defines it:
+if you told a good nutritionist *"I want pancakes for breakfast this week,"* they wouldn't
+say no — they'd **find a way to fit the pancakes in while keeping every one of your goals
+intact** (calories, protein, carbs, fat, fiber; later vitamins and other micros), adjusting
+portions or the other meals so nothing about your targets slips. The assistant must do
+exactly this, automatically, for **any** change the user asks for.
+
+**The rule: every edit re-solves the plan so the full set of goals still holds.** A change
+is never a naive find-and-replace. When the user swaps, excludes, or regenerates anything,
+the system **re-balances whatever else it must** so the day's/week's macro targets are still
+met. "Make a change" always implies "…and keep me on track."
+
+**Two layers, and which one owns what (this is the whole design):**
+- **Intent — the LLM.** Understands the request and **infers implied constraints from the
+  user's settings.** On a high-protein diet, "swap breakfast for pancakes" means "find a
+  protein-forward pancake, as high-protein as the meal it replaces" — the user should never
+  have to say "protein." The model emits a tool call with the right parameters/intent. It
+  does **no math.**
+- **Correctness — a deterministic macro engine in code.** Guarantees the numbers. This is
+  the non-negotiable substrate: the nutrition equivalent of a compiler + test suite.
+
+**The nutritionist loop (all deterministic once intent is known):**
+1. **Slot target.** Each meal slot has a target macro profile derived from the daily goals
+   (breakfast = its share of calories/protein/carbs/fat/fiber).
+2. **Macro-aware candidate selection.** Pick the recipe that best fits the slot's macro
+   profile *and* the diet setting — so "pancakes" resolves to the protein-forward pancake on
+   a high-protein plan, automatically.
+3. **Scale to fit.** Adjust the new dish's portion toward the slot target.
+4. **Rebalance the rest.** Distribute any remaining macro gap across the day's other meals by
+   nudging their quantities within realistic bounds, so the day's totals re-hit every target.
+5. **Report honestly.** Tell the user what was adjusted ("bumped your lunch chicken 20g to
+   hold protein at 150g").
+
+**Rebalancing strategy (default):** a blend — scale the new dish within realistic portion
+limits first, then spread whatever remains across the day's other meals so no single portion
+looks absurd. **Never sacrifice a hard condition** (diet, allergy, exclusion) to hit a macro;
+if a target is genuinely unreachable within the constraints, **say so** rather than break a
+rule or fake the numbers.
+
+**The macro vector is first-class and extensible.** Everything carries
+`{calories, protein, carbs, fat, fiber}` today; **micros (vitamins, minerals, …) are added
+later as more axes on the same vector** — the solver generalizes, it just needs richer
+per-ingredient data (**USDA FoodData Central**). Adding micros is a **data** problem, not a
+model problem.
+
+**Why this settles "would a bigger model be better?" — permanently:**
+- Claude Code is reliable at coding because of its **deterministic substrate** (files,
+  compiler, tests), not because the model is huge. This is identical: reliability comes from
+  the **macro engine**, not the parameter count.
+- Model size helps only **language understanding** — a narrow fine-tune already covers that;
+  if it ever falls short, the fix is **more training examples, not more parameters.**
+- Model size is **irrelevant to numeric correctness, forever.** We already saw the failure
+  mode: when the model did macro math it hallucinated (fiber 64g→9g). **Code owns the math;
+  the model never touches it.** A bigger brain would just hallucinate more fluently.
+
+**Build milestones:**
+1. **Macro-aware `swap_meal`** — select the candidate by macro-distance + diet fit, then
+   rebalance the day so all macros still hold.
+2. **Generalize the rebalancer to every operation** (swap, regenerate-day, exclusions) and
+   make the `{cal,protein,carb,fat,fiber}` macro vector first-class end to end.
+3. **Micros later** — extend the vector + ingredient data (USDA); no architecture change.
 
 ## The north star
 
@@ -176,10 +242,12 @@ growing set of simultaneous constraints.** Planned layers, in order of when we a
 1. **Conditions / preferences (now → next):** diet type, allergies, dislikes,
    exclusions ("no onions"), cuisine preferences, cooking effort/time. These are hard
    filters — the plan must never violate them.
-2. **Macros (later):** the user sets targets (calories, protein, carbs, fat). The plan
-   must **respect the macro targets while still honoring every condition above.** This
-   is the harder constraint because it's numeric and cumulative across the day/week, not
-   just a yes/no filter. Expect this to need per-meal macro estimates that sum to target.
+2. **Macros (now the core role):** the user sets targets (calories, protein, carbs, fat,
+   fiber; micros later). The plan must **respect the macro targets while still honoring every
+   condition above**, and **every edit must re-solve so the targets still hold** — rebalancing
+   portions/other meals as needed. Numeric and cumulative across the day/week, so it is owned
+   by the deterministic macro engine, not the model (see "The app replaces a nutritionist —
+   the macro-preservation engine").
 3. **Conversational adaptation (later — the big one):** an AI assistant the user talks
    to. The user says something in plain language — e.g. *"I don't want onions this
    week"* — and the assistant **adapts the whole plan** to that instruction **while
@@ -193,11 +261,12 @@ vegetarian," "no onions this week," and "hit 150g protein" all have to hold toge
 
 ## What this means for technical decisions
 
-- **Model choice** is judged against this: can it (a) produce realistic, varied meals,
-  (b) never violate hard filters, and (c) later, hit numeric macro targets? Simple
-  exclusions a small model handles well. Numeric macro-balancing and multi-constraint
-  chat edits are the parts that may need a stronger model — or code-side validation that
-  checks constraints and re-prompts on violation.
+- **Model choice** is judged against this: can it (a) interpret the request and infer
+  implied intent, and (b) emit the right tool call? That's a *language* job a fine-tuned
+  small model handles well. **Numeric macro-balancing is NOT a model job at all** — it is
+  owned by the deterministic macro engine (see "The app replaces a nutritionist"). A bigger
+  model never improves correctness; it only improves language fluency, and even that is
+  better bought with more training data than more parameters.
 - **Validation is a feature, not a safety net.** Because constraints are hard rules, the
   system should *verify* a generated plan against the active constraints (and later,
   macro sums) and reject/repair violations — not trust the model to self-police. The
