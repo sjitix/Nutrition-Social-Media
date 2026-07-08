@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
-import { selectWeekFromDb } from "./recipeDb";
+import { selectWeekFromDb, rebalanceWeek } from "./recipeDb";
 import {
   AssistantResponseSchema,
   AssistantTurnSchema,
@@ -609,7 +609,7 @@ export async function generatePlan(profile: UserProfile): Promise<WeekPlan> {
   // Opt-in DB engine (Phase A): select from the curated recipe library instead
   // of generating with the LLM. Off unless PLAN_ENGINE=db, so the live path is
   // unchanged. This is the direction the app moves toward (see VISION.md).
-  if (process.env.PLAN_ENGINE === "db") return selectWeekFromDb(p);
+  if (process.env.PLAN_ENGINE === "db") return rebalanceWeek(selectWeekFromDb(p), p);
   return resolveProvider() === "local" ? localGeneratePlan(p) : claudeGeneratePlan(p);
 }
 
@@ -659,12 +659,13 @@ export function assistantTurnSystemPrompt(profile: UserProfile, plan: WeekPlan):
     "- update_profile: change a WEEK-WIDE setting and rebuild the week. Fields: diet, budget, excludeFoods, targetCalories, targetFiber, maxCookTime, cuisine. Use for 'make it cheaper', 'go vegetarian', 'no onions', 'no oven' (excludeFoods:['bake','roast','oven']), '2000 calories a day', '30g fiber a day'.\n" +
     "- regenerate_week: rebuild the whole week (optional cuisine, targetFiber). Use for 'give me a new plan', 'make the week Italian'.\n" +
     "- regenerate_day: rebuild ONE day; requires day. Optional diet, targetCalories, cuisine, targetFiber apply to THAT day only (not saved). Use for 'make Tuesday vegetarian', 'change Monday to 1500', 'make Friday Asian'.\n" +
-    "- swap_meal: replace one meal with a specific dish; requires day, mealType, dish. Use for 'swap Monday breakfast for cottage cheese pancakes'.\n" +
+    "- swap_meal: replace one meal with a specific dish; requires day, mealType, dish. Use for 'swap Monday breakfast for cottage cheese pancakes'. By DEFAULT the app keeps that day on the user's macro targets by adjusting the other meals' portions (like a nutritionist fitting a treat in) — you don't ask for that, it's automatic. Set preserveMacros:false ONLY when the user signals they don't care this time ('cheat day', 'treat', 'whatever, I don't care about macros'). You never need to compute macros — the app does the math.\n" +
     "- answer: no change; just answering a question.\n\n" +
     "Rules:\n" +
     "- Only a question → operations: []. Put the answer in reply. For facts (calories/protein/fiber/time) use the EXACT numbers below; the AVERAGES line is already per-day, so never sum days for an average and never guess.\n" +
     "- Compound requests → SEVERAL operations, or one update_profile with several fields.\n" +
     "- Use word stems in excludeFoods so 'bake' also matches 'baked'/'baking'.\n" +
+    "- Macros are kept on target automatically. Only think about preserveMacros:false when the user explicitly wants to go off-plan for a treat.\n" +
     "- reply: natural and friendly — say what you did or answer the question.\n\n" +
     `Weekly AVERAGES per day: ${avgKcal} kcal, ${avgProtein}g protein, ${avgFiber}g fiber.\n` +
     `Current plan:\n${planText}\n\n` +
@@ -673,7 +674,9 @@ export function assistantTurnSystemPrompt(profile: UserProfile, plan: WeekPlan):
     "'make it cheaper and vegetarian, no onions' → [{tool:update_profile, budget:low, diet:vegetarian, excludeFoods:['onions']}]\n" +
     "'make Tuesday vegetarian' → [{tool:regenerate_day, day:Tuesday, diet:vegetarian}]\n" +
     "'change Monday to 1500 calories' → [{tool:regenerate_day, day:Monday, targetCalories:1500}]\n" +
-    "'swap Monday breakfast for cottage cheese pancakes' → [{tool:swap_meal, day:Monday, mealType:breakfast, dish:'cottage cheese pancakes'}]\n" +
+    "'swap Monday breakfast for cottage cheese pancakes' → [{tool:swap_meal, day:Monday, mealType:breakfast, dish:'cottage cheese pancakes'}] (macros kept on target automatically)\n" +
+    "'I want pancakes Tuesday but I'm staying lean' → [{tool:swap_meal, day:Tuesday, mealType:breakfast, dish:'protein pancakes'}] (app holds protein/calories; you just pick the dish)\n" +
+    "'it's my cheat day — swap Saturday dinner for pizza' → [{tool:swap_meal, day:Saturday, mealType:dinner, dish:'pizza', preserveMacros:false}]\n" +
     "'I have no oven' → [{tool:update_profile, excludeFoods:['bake','roast','oven']}]\n" +
     "'give Friday an Asian theme' → [{tool:regenerate_day, day:Friday, cuisine:'asian'}]\n" +
     "'I want 30g fiber a day' → [{tool:update_profile, targetFiber:30}]\n" +

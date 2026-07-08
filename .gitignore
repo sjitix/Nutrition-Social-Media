@@ -31,3 +31,6 @@ next-env.d.ts
 /.venv-ft/
 /models/
 /llama.cpp/
+
+# personal Claude Code permission overrides (per-machine)
+/.claude/settings.local.json

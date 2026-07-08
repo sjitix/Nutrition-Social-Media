@@ -213,11 +213,25 @@ model problem.
   the model never touches it.** A bigger brain would just hallucinate more fluently.
 
 **Build milestones:**
-1. **Macro-aware `swap_meal`** — select the candidate by macro-distance + diet fit, then
-   rebalance the day so all macros still hold.
-2. **Generalize the rebalancer to every operation** (swap, regenerate-day, exclusions) and
-   make the `{cal,protein,carb,fat,fiber}` macro vector first-class end to end.
-3. **Micros later** — extend the vector + ingredient data (USDA); no architecture change.
+1. ✅ **Macro-aware `swap_meal`** — selects the candidate by dish match, tie-broken toward
+   the slot's macro profile (protein-forward pancake on a high-protein plan), then holds the
+   day on target.
+2. ✅ **Two-lever day solver** (`rebalanceDay` in `recipeDb.ts`), wired into swap, regenerate-day,
+   and week/profile changes:
+   - **Lever 1 — portion scaling:** gradient descent on per-meal scale factors matches the
+     day's `{cal,protein,carb,fat,fiber}` vector (protein weighted highest), within realistic
+     0.6–1.8× limits.
+   - **Lever 2 — protein re-selection:** when scaling can't raise protein at fixed calories,
+     upgrade the weakest non-locked meal to a higher-protein same-type recipe ("bumped your
+     lunch to make room"), avoiding cross-day repeats.
+   - The swapped-in dish is **locked**; only the other meals move. Verified: initial week holds
+     every day ~2000 kcal / ~145g protein; a low-protein swap recovers protein and holds calories.
+3. ✅ **LLM-controlled intent** — `preserveMacros` (default on = nutritionist default). The model
+   sets it false only for an explicit treat ("cheat day"), so behaviour is the model's decision,
+   not a keyword trigger. **Honest reporting:** the engine returns the resulting kcal/protein +
+   what it upgraded, which the route appends to the LLM's reply (the LLM does no math).
+4. **Micros later** — extend the macro vector + ingredient data (USDA FoodData Central); the
+   same solver balances the new axes, no architecture change.
 
 ## The north star
 

@@ -70,6 +70,12 @@ export const OperationSchema = z.object({
   targetCalories: z.number().nullable(),
   targetFiber: z.number().nullable(),
   maxCookTime: z.number().nullable(),
+  // LLM-controlled intent: when swapping/regenerating, should the day stay on the
+  // user's macro targets (the engine rebalances the other meals to hold protein/
+  // calories/etc.)? Default = yes (the nutritionist default). The model sets this
+  // false only when the user signals a treat / "don't care about macros this time".
+  // Omitted/null = default (preserve) — keeps the small model's job simple.
+  preserveMacros: z.boolean().nullable().optional(),
 });
 
 export const AssistantTurnSchema = z.object({

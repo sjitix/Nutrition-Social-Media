@@ -88,12 +88,13 @@ function renderSystemPrompt(profile, plan) {
     "- update_profile: change a WEEK-WIDE setting and rebuild the week. Fields: diet, budget, excludeFoods, targetCalories, targetFiber, maxCookTime, cuisine.\n" +
     "- regenerate_week: rebuild the whole week (optional cuisine, targetFiber).\n" +
     "- regenerate_day: rebuild ONE day; requires day. Optional diet, targetCalories, cuisine, targetFiber apply to THAT day only (not saved).\n" +
-    "- swap_meal: replace one meal with a specific dish; requires day, mealType, dish.\n" +
+    "- swap_meal: replace one meal with a specific dish; requires day, mealType, dish. By DEFAULT the app keeps that day on the user's macro targets by adjusting the other meals' portions — automatic, you don't ask for it. Set preserveMacros:false ONLY when the user signals a treat ('cheat day', 'treat', 'don't care about macros'). Never compute macros yourself.\n" +
     "- answer: no change; just answering a question.\n\n" +
     "Rules:\n" +
     "- Only a question -> operations: []. Put the answer in reply. For facts use the EXACT numbers below; the AVERAGES line is already per-day.\n" +
     "- Compound requests -> SEVERAL operations, or one update_profile with several fields.\n" +
     "- Use word stems in excludeFoods so 'bake' also matches 'baked'/'baking'.\n" +
+    "- Macros are kept on target automatically; only use preserveMacros:false for an explicit treat.\n" +
     "- reply: natural and friendly.\n\n" +
     `Weekly AVERAGES per day: ${avgKcal} kcal, ${avgProtein}g protein, ${avgFiber}g fiber.\n` +
     `Current plan:\n${planText}\n\n` +
@@ -129,6 +130,9 @@ const OP = (o) => ({
   targetCalories: o.targetCalories ?? null,
   targetFiber: o.targetFiber ?? null,
   maxCookTime: o.maxCookTime ?? null,
+  // Only emitted for swaps where the user wants to go off-plan (a treat). Omitted
+  // otherwise so the model learns the nutritionist default (keep macros on target).
+  ...(o.preserveMacros != null ? { preserveMacros: o.preserveMacros } : {}),
 });
 
 // ---- vocabulary --------------------------------------------------------------
@@ -182,6 +186,16 @@ for (let i = 0; i < 12; i++) { const day = rand(DAYS); const c = rand(CUISINES);
 
 // swap specific dish
 for (let i = 0; i < 26; i++) { const day = rand(DAYS); const mt = rand(MEALS); const dish = rand(DISHES); push([u(rand([`swap ${day} ${mt} for ${dish}`, `change ${day}'s ${mt} to ${dish}`, `i want ${dish} for ${mt} on ${day}`, `replace ${day} ${mt} with ${dish}`]))], `Swapped ${day}'s ${mt} for ${dish}.`, [OP({ tool: "swap_meal", day, mealType: mt, dish })]); }
+
+// swap while watching macros — the app keeps the day on target automatically; the
+// model just picks the dish and talks like a nutritionist (default: preserve macros).
+const LEAN = ["but i'm cutting", "i'm trying to stay lean", "keep me on my macros", "but keep my protein up", "without wrecking my diet", "i'm on a high protein plan"];
+for (let i = 0; i < 16; i++) { const day = rand(DAYS); const mt = rand(MEALS); const dish = rand(DISHES); const lean = rand(LEAN); push([u(rand([`i want ${dish} for ${mt} on ${day} ${lean}`, `can i have ${dish} ${day} ${mt}? ${lean}`, `${day} ${mt} ${dish}, ${lean}`]))], `Done — ${dish} for ${day} ${mt}, and I balanced the rest of the day so your macros stay on target.`, [OP({ tool: "swap_meal", day, mealType: mt, dish })]); }
+
+// treat / cheat day — user explicitly going off-plan → preserveMacros:false
+const TREATS = ["pizza", "a burger", "ice cream", "fried chicken", "mac and cheese", "a big bowl of pasta", "nachos"];
+const CHEAT = ["it's my cheat day", "treat day today", "i don't care about macros today", "screw the diet today", "cheat meal time"];
+for (let i = 0; i < 14; i++) { const day = rand(DAYS); const mt = rand(MEALS); const dish = rand(TREATS); const cheat = rand(CHEAT); push([u(rand([`${cheat}, swap ${day} ${mt} for ${dish}`, `${cheat} — give me ${dish} for ${mt} on ${day}`, `${day} ${mt} should be ${dish}, ${cheat}`]))], `You got it — ${dish} for ${day} ${mt}. Enjoy the treat; I left the rest of your day as-is.`, [OP({ tool: "swap_meal", day, mealType: mt, dish, preserveMacros: false })]); }
 
 // regenerate week
 for (const m of ["give me a whole new plan", "start over", "regenerate everything", "this is boring, redo it", "new week please", "shuffle it up", "i want different meals"]) push([u(m)], "Fresh week coming up — I've rebuilt the whole plan.", [OP({ tool: "regenerate_week" })]);

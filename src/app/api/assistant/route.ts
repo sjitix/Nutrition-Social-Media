@@ -74,11 +74,16 @@ export async function POST(request: Request) {
       completion: turn,
     });
     // 3) The database executes the tool calls — accurate, cheap, real recipes.
-    const { plan, profile: newProfile } = applyOperations(profile, body.plan, turn.operations);
+    const { plan, profile: newProfile, notes } = applyOperations(profile, body.plan, turn.operations);
 
     const planChanged = turn.operations.some((o) => o.tool !== "answer");
+    // The LLM writes the natural reply; the engine appends the factual macro notes
+    // it can't compute itself (what got rebalanced, the resulting kcal/protein).
+    const baseReply =
+      turn.reply?.trim() || (planChanged ? "Done — I updated your plan." : "Happy to help.");
+    const reply = [baseReply, ...notes].filter(Boolean).join(" ");
     return NextResponse.json({
-      reply: turn.reply?.trim() || (planChanged ? "Done — I updated your plan." : "Happy to help."),
+      reply,
       planChanged,
       plan,
       profile: newProfile,

@@ -2066,6 +2066,7 @@ export function findRecipe(
 
 interface PickContext {
   target: number;
+  proteinTarget?: number; // grams of protein this slot should aim for
   proteinDays: Record<string, number>;
   usedIds: Set<string>;
   usedNames: Set<string>;
@@ -2098,12 +2099,17 @@ function chooseRecipe(candidates: Recipe[], ctx: PickContext): Recipe | null {
   // a cheaper, simpler shop. A little randomness keeps "generate again" fresh.
   const top = sorted.slice(0, Math.min(6, sorted.length));
   // Score rewards reusing the week's ingredients and picking cheaper recipes —
-  // both keep the shop affordable and accessible. Randomness among the best keeps
-  // "generate again" fresh.
+  // both keep the shop affordable and accessible. It also penalizes recipes whose
+  // protein DENSITY falls short of the slot's target density, so the plan actually
+  // respects the protein macro (scaling later can't fix a low-protein-per-calorie
+  // pick). Randomness among the best keeps "generate again" fresh.
+  const targetDensity =
+    ctx.proteinTarget && ctx.target > 0 ? ctx.proteinTarget / ctx.target : 0;
   const score = (r: Recipe) =>
     r.ingredients.filter((i) => ctx.usedIngredients.has(i.name.trim().toLowerCase())).length -
     r.approxCost +
-    (ctx.preferFiber ? (r.fiberGrams ?? 0) * 0.5 : 0);
+    (ctx.preferFiber ? (r.fiberGrams ?? 0) * 0.5 : 0) -
+    (targetDensity > 0 ? Math.max(0, targetDensity - r.proteinGrams / r.calories) * 60 : 0);
   const maxScore = Math.max(...top.map(score));
   const best = top.filter((r) => score(r) >= maxScore - 0.5);
   return best[Math.floor(Math.random() * best.length)];
@@ -2194,6 +2200,7 @@ function pickMealsForDay(
     }
     const pick = chooseRecipe(candidates, {
       target,
+      proteinTarget: Math.round(profile.proteinGrams * share),
       proteinDays: ctx.proteinDays,
       usedIds: ctx.usedIds,
       usedNames: ctx.usedNames,
@@ -2290,6 +2297,231 @@ function mergeDislikes(current: string, add: string[]): string {
 
 const fiberOn = (op: Operation) => op.targetFiber != null && op.targetFiber > 0;
 
+// The nutritionist default: keep the day on its macro targets. The LLM only turns
+// this off (preserveMacros === false) when the user signals a treat / doesn't care
+// about macros this time. Omitted/null → default on.
+const keepMacros = (op: Operation) => op.preserveMacros !== false;
+
+// --- Macro engine (the nutritionist substrate) -----------------------------
+// The LLM decides WHAT to do (swap this, regenerate that) and WHETHER to stay on
+// the macro targets; this code just does the math reliably once asked. After an
+// edit we RE-SOLVE the day so its totals still hit the user's macros — portion-
+// scaling is the lever (each meal scales within realistic limits), and a small
+// gradient descent picks the scale factors that best match the day's
+// {calories, protein, carbs, fat, fiber} targets. Add an axis (a vitamin, later)
+// and the same solver balances it — no architecture change.
+
+interface Macros {
+  cal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number;
+}
+
+const MACRO_AXES = ["cal", "protein", "carbs", "fat", "fiber"] as const;
+// How hard we try to hit each axis. Protein is weighted highest — it's what users
+// care about most and the axis a careless swap breaks first.
+const MACRO_WEIGHTS: Macros = { cal: 2, protein: 3, carbs: 1, fat: 1, fiber: 0.5 };
+const DAY_FIBER_TARGET = 30; // g/day (no per-user field yet; sensible default)
+const SCALE_LO = 0.6;
+const SCALE_HI = 1.8; // keep portions realistic (matches scaleRecipeToTarget)
+const clampScale = (f: number) => Math.max(SCALE_LO, Math.min(SCALE_HI, f));
+
+function recipeMacros(r: Recipe): Macros {
+  return { cal: r.calories, protein: r.proteinGrams, carbs: r.carbsGrams, fat: r.fatGrams, fiber: r.fiberGrams ?? 0 };
+}
+function mealMacros(m: Meal): Macros {
+  return { cal: m.calories, protein: m.proteinGrams, carbs: m.carbsGrams, fat: m.fatGrams, fiber: m.fiberGrams ?? 0 };
+}
+function dayTargetMacros(p: UserProfile): Macros {
+  return { cal: p.targetCalories, protein: p.proteinGrams, carbs: p.carbsGrams, fat: p.fatGrams, fiber: DAY_FIBER_TARGET };
+}
+function slotShare(p: UserProfile, type: Recipe["type"]): number {
+  return localSplit(p.mealsPerDay).find((s) => s[0] === type)?.[1] ?? 1 / p.mealsPerDay;
+}
+function slotTargetMacros(p: UserProfile, type: Recipe["type"]): Macros {
+  const t = dayTargetMacros(p);
+  const s = slotShare(p, type);
+  return { cal: t.cal * s, protein: t.protein * s, carbs: t.carbs * s, fat: t.fat * s, fiber: t.fiber * s };
+}
+// Scale-free weighted distance between a meal/recipe's macros and a target.
+function macroDistance(m: Macros, target: Macros): number {
+  let d = 0;
+  for (const a of MACRO_AXES) {
+    const rel = (m[a] - target[a]) / Math.max(target[a], 1);
+    d += MACRO_WEIGHTS[a] * rel * rel;
+  }
+  return d;
+}
+
+const recipeByName = new Map(RECIPES.map((r) => [r.name.toLowerCase(), r]));
+const baseRecipeOf = (m: Meal): Recipe | undefined => recipeByName.get(m.name.toLowerCase());
+
+// LEVER 1 — portion scaling. Re-solve the adjustable meals' portions so the day's
+// totals hit the macro targets. `lockedType` (the meal the user just asked to swap
+// in) keeps its chosen portion; the OTHER meals absorb the difference. Only meals
+// traceable to a library recipe are rescaled; anything else is left untouched.
+function scaleToTargets(meals: Meal[], profile: UserProfile, lockedType?: Recipe["type"]): Meal[] {
+  const target = dayTargetMacros(profile);
+  const adj = meals
+    .map((m) => ({ m, base: baseRecipeOf(m) }))
+    .filter((x): x is { m: Meal; base: Recipe } => !!x.base && x.m.type !== lockedType)
+    .map((x) => ({ m: x.m, base: x.base, g: clampScale(x.m.calories / x.base.calories) }));
+  if (adj.length === 0) return meals;
+
+  // Fixed contribution: meals we won't rescale (the locked meal + any without a base).
+  const fixed: Macros = { cal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 };
+  for (const m of meals) {
+    if (adj.some((a) => a.m === m)) continue;
+    const mm = mealMacros(m);
+    for (const a of MACRO_AXES) fixed[a] += mm[a];
+  }
+
+  // Gradient descent on the scale factors (scale-free weighted squared error).
+  const LR = 0.05;
+  for (let iter = 0; iter < 300; iter++) {
+    const total: Macros = { ...fixed };
+    for (const it of adj) {
+      const b = recipeMacros(it.base);
+      for (const a of MACRO_AXES) total[a] += b[a] * it.g;
+    }
+    for (const it of adj) {
+      const b = recipeMacros(it.base);
+      let grad = 0;
+      for (const a of MACRO_AXES) {
+        const denom = Math.max(target[a], 1);
+        grad += MACRO_WEIGHTS[a] * 2 * ((total[a] - target[a]) / (denom * denom)) * b[a];
+      }
+      it.g = clampScale(it.g - LR * grad);
+    }
+  }
+
+  const scaled = new Map<Meal, Meal>();
+  for (const it of adj) scaled.set(it.m, toMeal(scaleRecipeToTarget(it.base, Math.round(it.base.calories * it.g))));
+  return meals.map((m) => scaled.get(m) ?? m);
+}
+
+const dayProtein = (meals: Meal[]) => meals.reduce((s, m) => s + m.proteinGrams, 0);
+const PROTEIN_SLACK = 8; // g/day we'll tolerate before reaching for lever 2
+
+// Re-solve one day onto the macro targets. Two levers, in order — exactly what a
+// nutritionist does:
+//  1) SCALE the meals' portions to hold calories + macros.
+//  2) if the day is still protein-short (scaling can't raise protein at fixed
+//     calories), UPGRADE the weakest eligible meal to a higher-protein same-type
+//     recipe to "make room" — then scale again.
+// `lockedType` protects the meal the user just swapped in (never rescaled/upgraded).
+// `avoidNames` are dishes used elsewhere in the week, so an upgrade doesn't create a
+// cross-day repeat.
+function rebalanceDay(
+  meals: Meal[],
+  profile: UserProfile,
+  lockedType?: Recipe["type"],
+  avoidNames?: Set<string>,
+): Meal[] {
+  let work = meals;
+  const split = localSplit(profile.mealsPerDay);
+  const cap = budgetCap(profile.budget);
+  const tokens = exclusionTokens(profile);
+  // At most two upgrades so we change as few meals as needed.
+  for (let pass = 0; pass < 2; pass++) {
+    const scaled = scaleToTargets(work, profile, lockedType);
+    const gap = profile.proteinGrams - dayProtein(scaled);
+    if (gap <= PROTEIN_SLACK) {
+      work = scaled;
+      break;
+    }
+    let best: { i: number; r: Recipe; calTarget: number; gap: number } | null = null;
+    for (let i = 0; i < work.length; i++) {
+      const cur = work[i];
+      if (cur.type === lockedType || !baseRecipeOf(cur)) continue;
+      const share = split.find((s) => s[0] === cur.type)?.[1] ?? 1 / profile.mealsPerDay;
+      const calTarget = Math.round(profile.targetCalories * share);
+      const usedElsewhere = new Set([
+        ...work.filter((_, j) => j !== i).map((x) => x.name.toLowerCase()),
+        ...(avoidNames ?? []),
+      ]);
+      for (const r of RECIPES) {
+        if (
+          r.type !== cur.type ||
+          !passesDiet(r, profile.diet) ||
+          blockedByExclusions(r, tokens) ||
+          r.approxCost > cap ||
+          r.timeMinutes > profile.maxCookTime + 5 ||
+          r.ingredients.length > profile.maxIngredients + 1 ||
+          usedElsewhere.has(r.name.toLowerCase())
+        )
+          continue;
+        const trial = work.map((x, j) => (j === i ? toMeal(scaleRecipeToTarget(r, calTarget)) : x));
+        const trialGap = Math.abs(profile.proteinGrams - dayProtein(scaleToTargets(trial, profile, lockedType)));
+        if (best === null || trialGap < best.gap) best = { i, r, calTarget, gap: trialGap };
+      }
+    }
+    // Stop if the best available upgrade doesn't meaningfully close the gap.
+    if (!best || best.gap >= Math.abs(gap) - 2) {
+      work = scaled;
+      break;
+    }
+    work = work.map((x, j) => (j === best!.i ? toMeal(scaleRecipeToTarget(best!.r, best!.calTarget)) : x));
+  }
+  return scaleToTargets(work, profile, lockedType);
+}
+
+// Re-solve every day of a week onto the macro targets. Used for the initial plan
+// and after a week/profile change so the plan the user sees respects their macros
+// from the start. Threads a running set of used dish names so a protein upgrade on
+// one day never introduces a dish already on another day.
+export const rebalanceWeek = (plan: WeekPlan, profile: UserProfile): WeekPlan => {
+  const used = new Set(plan.days.flatMap((d) => d.meals.map((m) => m.name.toLowerCase())));
+  const days = plan.days.map((d) => {
+    const own = new Set(d.meals.map((m) => m.name.toLowerCase()));
+    const avoid = new Set([...used].filter((n) => !own.has(n)));
+    const meals = rebalanceDay(d.meals, profile, undefined, avoid);
+    for (const m of meals) used.add(m.name.toLowerCase());
+    return { ...d, meals };
+  });
+  return { ...plan, days };
+};
+
+// Macro-aware swap: among the recipes that match the requested dish name, pick the
+// one whose macro profile best fits the slot — so "pancakes" on a high-protein plan
+// auto-selects the protein-forward pancake (the user never has to say "protein").
+// Dish match wins first; macro fit only breaks ties between equally-matching dishes.
+function findRecipeForSwap(
+  query: string,
+  type: Recipe["type"] | undefined,
+  profile: UserProfile,
+): Recipe | null {
+  const words = query.toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 2);
+  if (words.length === 0) return null;
+  const cap = budgetCap(profile.budget);
+  const tokens = exclusionTokens(profile);
+  const scored: { r: Recipe; kw: number }[] = [];
+  for (const r of RECIPES) {
+    if (type && r.type !== type) continue;
+    if (!passesDiet(r, profile.diet) || blockedByExclusions(r, tokens) || r.approxCost > cap) continue;
+    const hay = `${r.name} ${r.description} ${r.ingredients.map((i) => i.name).join(" ")}`.toLowerCase();
+    let kw = 0;
+    for (const w of words) if (hay.includes(w)) kw++;
+    if (kw > 0) scored.push({ r, kw });
+  }
+  if (scored.length === 0) return null;
+  const maxKw = Math.max(...scored.map((s) => s.kw));
+  const top = scored.filter((s) => s.kw === maxKw).map((s) => s.r);
+  if (top.length === 1) return top[0];
+  const st = slotTargetMacros(profile, type ?? top[0].type);
+  return top.slice().sort((a, b) => macroDistance(recipeMacros(a), st) - macroDistance(recipeMacros(b), st))[0];
+}
+
+// Dish names used on days OTHER than `day` — so a single-day rebalance/upgrade
+// doesn't introduce a dish already on the plate elsewhere in the week.
+function namesOnOtherDays(plan: WeekPlan, day: DayPlan["day"]): Set<string> {
+  return new Set(
+    plan.days.filter((d) => d.day !== day).flatMap((d) => d.meals.map((m) => m.name.toLowerCase())),
+  );
+}
+
 // Execute a list of tool-call operations against the plan + profile, in order.
 // `update_profile` changes persist to the profile; per-day overrides don't. This
 // is the general executor the tool-calling assistant drives — no per-phrase rules,
@@ -2298,10 +2530,13 @@ export function applyOperations(
   profile: UserProfile,
   plan: WeekPlan,
   operations: Operation[],
-): { plan: WeekPlan; profile: UserProfile } {
+): { plan: WeekPlan; profile: UserProfile; notes: string[] } {
   const p: UserProfile = { ...profile };
   let curPlan = plan;
   let profileChanged = false;
+  // Factual macro notes the LLM can't produce (it does no math) — the route appends
+  // these so the assistant reports honestly what the engine did.
+  const notes: string[] = [];
 
   for (const op of operations) {
     switch (op.tool) {
@@ -2312,11 +2547,17 @@ export function applyOperations(
         if (op.targetCalories && op.targetCalories > 0) p.targetCalories = op.targetCalories;
         if (op.excludeFoods.length) p.dislikes = mergeDislikes(p.dislikes, op.excludeFoods);
         profileChanged = true;
-        curPlan = selectWeekFromDb(p, normalizeCuisine(op.cuisine), fiberOn(op));
+        // Re-solve every day onto the macro targets so the base plan actually hits
+        // protein/calories, not just each meal's calorie share.
+        curPlan = keepMacros(op)
+          ? rebalanceWeek(selectWeekFromDb(p, normalizeCuisine(op.cuisine), fiberOn(op)), p)
+          : selectWeekFromDb(p, normalizeCuisine(op.cuisine), fiberOn(op));
         break;
       }
       case "regenerate_week": {
-        curPlan = selectWeekFromDb(p, normalizeCuisine(op.cuisine), fiberOn(op));
+        curPlan = keepMacros(op)
+          ? rebalanceWeek(selectWeekFromDb(p, normalizeCuisine(op.cuisine), fiberOn(op)), p)
+          : selectWeekFromDb(p, normalizeCuisine(op.cuisine), fiberOn(op));
         break;
       }
       case "regenerate_day": {
@@ -2326,24 +2567,47 @@ export function applyOperations(
         if (op.targetCalories && op.targetCalories > 0) tp.targetCalories = op.targetCalories;
         if (op.excludeFoods.length) tp.dislikes = mergeDislikes(tp.dislikes, op.excludeFoods);
         const newDay = selectDay(tp, op.day, curPlan, normalizeCuisine(op.cuisine), fiberOn(op));
-        curPlan = { ...curPlan, days: curPlan.days.map((d) => (d.day === op.day ? newDay : d)) };
+        const meals = keepMacros(op)
+          ? rebalanceDay(newDay.meals, tp, undefined, namesOnOtherDays(curPlan, op.day))
+          : newDay.meals;
+        curPlan = { ...curPlan, days: curPlan.days.map((d) => (d.day === op.day ? { ...newDay, meals } : d)) };
         break;
       }
       case "swap_meal": {
         if (!op.day || !op.dish) break;
-        const match = findRecipe(op.dish, op.mealType ?? undefined, p);
-        if (!match) break;
+        // Macro-aware pick: matches the requested dish, tie-broken toward the slot's
+        // macro profile (e.g. the protein-forward pancake on a high-protein plan).
+        const match = findRecipeForSwap(op.dish, op.mealType ?? undefined, p);
+        const origDay = curPlan.days.find((d) => d.day === op.day);
+        if (!match || !origDay) break;
         const share =
           localSplit(p.mealsPerDay).find((s) => s[0] === match.type)?.[1] ?? 1 / p.mealsPerDay;
         const meal = toMeal(scaleRecipeToTarget(match, Math.round(p.targetCalories * share)));
+        const swapped = origDay.meals.map((m) => (m.type === match.type ? meal : m));
+        // Keep the day on its macro targets by rebalancing the OTHER meals — the
+        // swapped-in dish stays as the user requested (locked).
+        const newMeals = keepMacros(op)
+          ? rebalanceDay(swapped, p, match.type, namesOnOtherDays(curPlan, op.day))
+          : swapped;
         curPlan = {
           ...curPlan,
-          days: curPlan.days.map((d) =>
-            d.day === op.day
-              ? { ...d, meals: d.meals.map((m) => (m.type === match.type ? meal : m)) }
-              : d,
-          ),
+          days: curPlan.days.map((d) => (d.day === op.day ? { ...d, meals: newMeals } : d)),
         };
+        if (keepMacros(op)) {
+          const kcal = newMeals.reduce((s, m) => s + m.calories, 0);
+          const protein = newMeals.reduce((s, m) => s + m.proteinGrams, 0);
+          // Meals the engine upgraded (a non-locked dish whose name changed) to fit
+          // the requested dish in while holding macros.
+          const bumped = newMeals.filter(
+            (nm) =>
+              nm.type !== match.type &&
+              !origDay.meals.some((om) => om.type === nm.type && om.name === nm.name),
+          );
+          let note = `Kept ${op.day} on target — about ${kcal} kcal and ${protein}g protein.`;
+          if (bumped.length)
+            note += ` I bumped your ${bumped.map((b) => `${b.type} to ${b.name}`).join(" and ")} to make room.`;
+          notes.push(note);
+        }
         break;
       }
       case "answer":
@@ -2351,5 +2615,5 @@ export function applyOperations(
     }
   }
 
-  return { plan: curPlan, profile: profileChanged ? p : profile };
+  return { plan: curPlan, profile: profileChanged ? p : profile, notes };
 }
