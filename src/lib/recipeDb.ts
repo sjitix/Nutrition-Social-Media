@@ -11,6 +11,7 @@ import {
 import { haystackBlocked, parseExclusionTokens, dietTagConflicts, wordMatches } from "./exclusions";
 import { computeTargets, explainTargets } from "./targets";
 import { SUBSTITUTES, INGREDIENT_ALIASES } from "./substitutions";
+import { SYMPTOMS, URGENT_FLAGS, CRISIS_FLAGS } from "./symptoms";
 import { NUTRIENT_TABLE } from "./nutrientTable.generated";
 import {
   microsForIngredients,
@@ -2930,6 +2931,82 @@ function upgradeForNutrient(profile: UserProfile, plan: WeekPlan, key: MicroKey)
 }
 
 /**
+ * "I'm always tired." The only defensible thing an app can do here is refuse to guess.
+ *
+ * It does not diagnose: it names what the symptom is nutritionally ASSOCIATED with, then checks
+ * those nutrients against what the user is actually eating this week, and reports which are low.
+ * That is a claim about their food, which we can support, and never about their body, which we
+ * cannot. It recommends no supplement and no dose. It sends them to a doctor, because for every
+ * symptom in the table the medically correct answer is "get it looked at".
+ *
+ * Red-flag symptoms short-circuit the whole thing. Chest pain is not a magnesium problem, and an
+ * app that answers it with a meal plan is dangerous.
+ */
+function symptomNote(plan: WeekPlan, p: UserProfile, reported: string): { text: string; override: boolean } {
+  const said = reported.trim().toLowerCase();
+  if (!said) return { text: "What have you been noticing?", override: false };
+
+  // Match a phrase as an unordered WORD SET, with the same stemmer the allergen filter uses.
+  // "my nails are brittle and my hair is thinning" must find "brittle nails" and "hair thinning";
+  // "retired" must never find "tired".
+  const words = said.split(/[^a-z']+/).filter(Boolean);
+  const hasWord = (t: string) => words.some((w) => w === t || wordMatches(w, t) || wordMatches(t, w));
+  const phraseIn = (phrase: string) => phrase.split(/\s+/).every(hasWord);
+
+  // Crisis first. Nothing else in this function runs.
+  // `override` means: the model's own words are DISCARDED and this text is the entire reply. A
+  // 1.5B must not be able to prepend "sounds like low iron!" to a chest-pain warning.
+  if (CRISIS_FLAGS.some(phraseIn))
+    return {
+      text: "I'm not the right help for this, and I don't want to talk to you about food right now. Please contact your local emergency number or a crisis line straight away — in the US and Canada you can call or text 988, in the UK call 116 123. If you're in danger, call emergency services.",
+      override: true,
+    };
+
+  if (URGENT_FLAGS.some(phraseIn))
+    return {
+      text: "That isn't something I should be answering with food. Please contact a doctor or urgent care now — I'll look at your nutrition once you've had it seen to.",
+      override: true,
+    };
+
+  const hit = SYMPTOMS.find((sym) => sym.triggers.some(phraseIn));
+  if (!hit)
+    return {
+      text: "I don't have a nutritional angle on that, and I'd rather say so than invent one. If it's bothering you, a doctor is the right person to ask.",
+      override: false,
+    };
+
+  const low: string[] = [];
+  const fine: string[] = [];
+  const unmeasured: string[] = [];
+  const lowKeys: MicroKey[] = [];
+  for (const k of hit.nutrients) {
+    const { amount, coverage } = weekMicroAverage(plan, k);
+    if (coverage < 0.6) { unmeasured.push(MICRO_LABEL[k]); continue; }
+    const pct = Math.round((amount / DAILY_REFERENCE[k]) * 100);
+    if (pct < 80) { low.push(`${MICRO_LABEL[k]} (${pct}% of the daily reference)`); lowKeys.push(k); }
+    else fine.push(`${MICRO_LABEL[k]} (${pct}%)`);
+  }
+
+  const parts = [
+    `${cap(hit.label)} can have many causes and most of them aren't dietary — I can't diagnose it, and if it's persisted you should see a doctor.`,
+    `What I can do is check the nutrients it's classically associated with — ${listPhrase(hit.nutrients.map((k) => MICRO_LABEL[k]))} — against what you're actually eating.`,
+  ];
+
+  if (low.length) {
+    parts.push(`In your current week, ${listPhrase(low)} ${low.length > 1 ? "are" : "is"} below the reference.`);
+    const fixable = lowKeys.filter((k) => nutrientReachable(p, k));
+    const stuck = lowKeys.filter((k) => !nutrientReachable(p, k));
+    if (fixable.length) parts.push(`I can rebuild your week around ${listPhrase(fixable.map((k) => MICRO_LABEL[k]))} if you'd like.`);
+    if (stuck.length)
+      parts.push(`No food that fits your ${p.diet !== "none" ? p.diet + " " : ""}rules carries enough ${listPhrase(stuck.map((k) => MICRO_LABEL[k]))} — that's worth raising with a doctor or dietitian rather than something I can fix with recipes.`);
+  } else if (fine.length) {
+    parts.push(`In your current week they all look adequate — ${listPhrase(fine)} — so your food probably isn't the explanation. That's a reason to see a doctor, not to ignore it.`);
+  }
+  if (unmeasured.length) parts.push(`(I can't measure ${listPhrase(unmeasured)} reliably from these ingredients.)`);
+  return { text: parts.join(" "), override: false };
+}
+
+/**
  * "I've run out of Greek yogurt." A substitution has to clear three bars, in this order:
  *
  *  1. SAFETY. It must not be something they're allergic to, dislike, or that breaks their diet.
@@ -3324,10 +3401,13 @@ export function applyOperations(
   profile: UserProfile,
   plan: WeekPlan,
   operations: Operation[],
-): { plan: WeekPlan; profile: UserProfile; notes: string[] } {
+): { plan: WeekPlan; profile: UserProfile; notes: string[]; replyOverride?: string } {
   const p: UserProfile = { ...profile };
   let curPlan = plan;
   let profileChanged = false;
+  // Set when the engine must own the ENTIRE reply and the model's words are discarded — a
+  // crisis or an urgent medical symptom. Nothing the LLM writes may sit in front of it.
+  let replyOverride: string | undefined;
   // Factual macro notes the LLM can't produce (it does no math) — the route appends
   // these so the assistant reports honestly what the engine did.
   const notes: string[] = [];
@@ -3562,6 +3642,13 @@ export function applyOperations(
         curPlan = eatingOut(p, curPlan, op.day, op.mealType, op.estimatedCalories ?? undefined, notes);
         break;
       }
+      case "symptom_check": {
+        // Read-only, and deliberately so: a symptom never silently rewrites someone's food.
+        const res = symptomNote(curPlan, p, op.symptom ?? op.dish ?? "");
+        notes.push(res.text);
+        if (res.override) replyOverride = res.text;
+        break;
+      }
       case "substitute_ingredient": {
         // Read-only advice: the user is at the counter, not asking for a new plan.
         notes.push(
@@ -3588,5 +3675,5 @@ export function applyOperations(
     }
   }
 
-  return { plan: curPlan, profile: profileChanged ? p : profile, notes };
+  return { plan: curPlan, profile: profileChanged ? p : profile, notes, replyOverride };
 }

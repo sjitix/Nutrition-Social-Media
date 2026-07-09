@@ -74,16 +74,21 @@ export async function POST(request: Request) {
       completion: turn,
     });
     // 3) The database executes the tool calls — accurate, cheap, real recipes.
-    const { plan, profile: newProfile, notes } = applyOperations(profile, body.plan, turn.operations);
+    const { plan, profile: newProfile, notes, replyOverride } = applyOperations(profile, body.plan, turn.operations);
 
     // Read-only tools must not flag the plan as changed, or the UI re-renders for nothing.
-    const READ_ONLY = new Set(["answer", "weekly_report", "explain_meal", "substitute_ingredient"]);
+    const READ_ONLY = new Set([
+      "answer", "weekly_report", "explain_meal", "substitute_ingredient", "symptom_check",
+    ]);
     const planChanged = turn.operations.some((o) => !READ_ONLY.has(o.tool));
     // The LLM writes the natural reply; the engine appends the factual macro notes
     // it can't compute itself (what got rebalanced, the resulting kcal/protein).
+    // On a crisis or an urgent medical symptom the engine's text IS the reply — the model's
+    // words are thrown away rather than prepended. "Happy to help!" must never introduce a
+    // chest-pain warning.
     const baseReply =
-      turn.reply?.trim() || (planChanged ? "Done — I updated your plan." : "Happy to help.");
-    const reply = [baseReply, ...notes].filter(Boolean).join(" ");
+      turn.reply?.trim() || (notes.length ? "" : planChanged ? "Done — I updated your plan." : "Happy to help.");
+    const reply = replyOverride ?? [baseReply, ...notes].filter(Boolean).join(" ");
     return NextResponse.json({
       reply,
       planChanged,

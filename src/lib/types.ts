@@ -74,6 +74,7 @@ export const OperationSchema = z.object({
     "eating_out", // "I'm out for dinner Friday" -> reserve calories, lighten the rest of the day
     "explain_meal", // "why is this in my plan?" -> computed reasons, no change
     "substitute_ingredient", // "I have no greek yogurt" -> safe swaps + the macro cost, no change
+    "symptom_check", // "I'm always tired" -> check the associated nutrients against THEIR week
     "answer", // no change — just answering a question
   ]),
   day: z.enum(DAYS).nullable().optional(),
@@ -115,6 +116,9 @@ export const OperationSchema = z.object({
   estimatedCalories: z.number().nullable().optional(),
   // substitute_ingredient: the ingredient the user has run out of, as they said it.
   ingredient: z.string().nullable().optional(),
+  // symptom_check: what the user reported, in their own words. The engine matches it; the
+  // model must never map a symptom to a nutrient itself.
+  symptom: z.string().nullable().optional(),
   // LLM-controlled intent: when swapping/regenerating, should the day stay on the
   // user's macro targets (the engine rebalances the other meals to hold protein/
   // calories/etc.)? Default = yes (the nutritionist default). The model sets this

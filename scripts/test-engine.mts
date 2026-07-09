@@ -55,6 +55,16 @@ const prot = (d: DayPlan) => d.meals.reduce((s, m) => s + m.proteinGrams, 0);
 const names = (d: DayPlan) => d.meals.map((m) => m.name).join(" | ");
 const freshWeek = (p: UserProfile) => rebalanceWeek(selectWeekFromDb(p), p);
 
+
+// Recompute a week's average for one micronutrient, so tests never trust the engine's own note.
+function weekMicroAverage2(plan: WeekPlan, key: (typeof MICRO_KEYS)[number]): number {
+  let total = 0;
+  for (const d of plan.days)
+    for (const m of d.meals)
+      total += microsForIngredients(m.ingredients).micros[key] / Math.max(1, m.servings ?? 1);
+  return total / (plan.days.length || 1);
+}
+
 // ---------------------------------------------------------------- invariants
 const recipeByName = new Map(RECIPES.map((r) => [r.name.toLowerCase(), r]));
 
@@ -833,6 +843,67 @@ console.log("--- SUBSTITUTE INGREDIENT (safe first, honest about the cost) ---")
         check("substitute_ingredient's calorie delta is computed from the real portion", eggNote.includes(`${Math.abs(dCal)} `), `expected ${Math.abs(dCal)}`);
     }
   }
+}
+
+
+// ---------------------------------------------------------------- symptom_check
+console.log("");
+console.log("--- SYMPTOM CHECK (never diagnose, never dose, always the doctor) ---");
+{
+  const plan = freshWeek(BASE);
+  const sym = (msg: string, prof: UserProfile = BASE, pl = plan) =>
+    applyOperations(prof, pl, [op({ tool: "symptom_check", symptom: msg })]);
+
+  const tired = sym("i'm always tired");
+  const tiredNote = tired.notes.join(" ");
+  check("symptom_check changes nothing", JSON.stringify(tired.plan) === JSON.stringify(plan));
+  check("symptom_check refuses to diagnose", /can't diagnose/i.test(tiredNote));
+  check("symptom_check sends them to a doctor", /see a doctor/i.test(tiredNote));
+  check("symptom_check names the associated nutrients", /iron.*B12.*folate/i.test(tiredNote));
+
+  // It must never prescribe. No dose, no supplement recommendation, ever.
+  const allNotes = ["i'm always tired", "muscle cramps", "brittle nails", "i keep getting sick", "pins and needles", "low mood", "can't sleep", "bone pain", "i look pale", "slow healing"]
+    .map((m) => sym(m).notes.join(" "))
+    .join(" ");
+  check("symptom_check never states a dose", !/\d+\s?(mg|mcg|µg|iu)\b/i.test(allNotes));
+  check("symptom_check never tells anyone to take a supplement", !/take (a |an )?(supplement|tablet|pill)/i.test(allNotes));
+
+  // Its numbers come from the user's week, not from anywhere else.
+  const vd = weekMicroAverage2(plan, "vitD");
+  const claimed = /vitamin D \((\d+)% of the daily reference\)/.exec(tiredNote)?.[1];
+  if (claimed) check("symptom_check's percentages come from the real plan", Math.abs(Number(claimed) - Math.round((vd / DAILY_REFERENCE.vitD) * 100)) <= 1, `claimed ${claimed}%`);
+
+  // A symptom it doesn't know is a refusal, not a guess.
+  check("symptom_check refuses what it doesn't know", /rather say so than invent/i.test(sym("my left knee clicks").notes.join(" ")));
+  check("symptom_check doesn't match a word inside another word", /rather say so than invent/i.test(sym("i just retired and feel great").notes.join(" ")));
+
+  // Word order and filler must not defeat a match.
+  check("symptom_check matches an unordered phrase", /brittle hair or nails/i.test(sym("my nails are brittle and my hair is thinning").notes.join(" ")));
+
+  // RED FLAGS. These are the tests that actually matter.
+  const chest = sym("i have chest pain").notes.join(" ");
+  check("chest pain is never answered with food", /doctor or urgent care/i.test(chest) && !/vitamin|iron|magnesium/i.test(chest), chest.slice(0, 60));
+  const mixed = sym("i'm really tired and i've got chest pain").notes.join(" ");
+  check("a red flag beats a matching symptom", /urgent care/i.test(mixed) && !/vitamin|magnesium/i.test(mixed));
+  const crisis = sym("i want to kill myself").notes.join(" ");
+  check("self-harm gets a crisis line, not a doctor's appointment", /crisis line|988|116 123/i.test(crisis));
+  check("self-harm answer contains no nutrition talk", !/vitamin|iron|magnesium|nutrient/i.test(crisis));
+  check("self-harm is not treated as an urgent medical flag", !/urgent care/i.test(crisis));
+
+  // Honesty when food can't fix it.
+  const vegan = sym("i'm exhausted all the time", { ...BASE, diet: "vegan" }, freshWeek({ ...BASE, diet: "vegan" })).notes.join(" ");
+  check("symptom_check admits when no compliant food carries the nutrient", /no food that fits your vegan rules/i.test(vegan), vegan.slice(-110));
+
+  check("symptom_check asks when told nothing", /what have you been noticing/i.test(sym("").notes.join(" ")));
+
+  // The route joins the MODEL's reply in front of the engine's notes. On a crisis that would let a
+  // 1.5B write "sounds like low iron!" above a suicide hotline. The engine takes the whole reply.
+  const crisisRes = applyOperations(BASE, plan, [op({ tool: "symptom_check", symptom: "i want to kill myself" })]);
+  check("a crisis makes the engine own the entire reply", !!crisisRes.replyOverride && /crisis line/i.test(crisisRes.replyOverride));
+  const urgentRes = applyOperations(BASE, plan, [op({ tool: "symptom_check", symptom: "i have chest pain" })]);
+  check("an urgent symptom makes the engine own the entire reply", !!urgentRes.replyOverride);
+  const normalRes = applyOperations(BASE, plan, [op({ tool: "symptom_check", symptom: "i'm always tired" })]);
+  check("an ordinary symptom leaves the model's reply alone", normalRes.replyOverride === undefined);
 }
 
 // ---------------------------------------------------------------- 3. fuzz

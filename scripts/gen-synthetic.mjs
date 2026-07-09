@@ -96,6 +96,7 @@ function renderSystemPrompt(profile, plan) {
     "- log_meal: the user says what they ACTUALLY ate ('I had pizza for lunch'). Requires day + mealType + dish. The app locks that meal and everything earlier that day, then re-solves the meals still ahead. If the food isn't in the library, pass loggedCalories when the user gives a number; otherwise the app asks. Never estimate calories yourself.\n" +
     "- explain_meal: the user asks WHY a meal is in their plan. Requires day + mealType. Changes nothing; the app computes the reasons.\n" +
     "- substitute_ingredient: the user has run out of an ingredient ('i don't have greek yogurt'). Requires ingredient. Changes nothing; the app checks diet/allergies and computes the macro cost.\n" +
+    "- symptom_check: the user reports how they FEEL ('i'm always tired', 'muscle cramps'). Pass their words in `symptom`. Changes nothing. Never map a symptom to a nutrient or diagnose — the app does it.\n" +
     "- answer: no change; just answering a question.\n\n" +
     "Rules:\n" +
     "- Only a question -> operations: []. Put the answer in reply. For facts use the EXACT numbers below; the AVERAGES line is already per-day.\n" +
@@ -419,6 +420,23 @@ for (let i = 0; i < 6; i++) {
 for (const ing of ["mushrooms", "olives", "cilantro", "onions"])
   push([u(rand([`i don't like ${ing}`, `i hate ${ing}`, `no ${ing} please`])), ], `Noted — no more ${ing}.`,
     [OP({ tool: "update_profile", excludeFoods: [ing] })]);
+
+// symptom_check — the model passes the words through; the ENGINE decides everything.
+const SYMPTOM_MSGS = [
+  "i'm always tired", "i've got no energy lately", "i feel exhausted all the time",
+  "my nails keep breaking", "my hair is thinning", "i keep getting muscle cramps",
+  "i get pins and needles in my feet", "i keep getting sick", "i catch every cold going",
+  "i've been feeling really down", "i can't sleep properly", "my bones ache",
+  "i look really pale", "i bruise easily", "i've got brain fog",
+  "i'm knackered all the time", "cuts take ages to heal", "i've been getting cramp at night",
+];
+for (const m of SYMPTOM_MSGS)
+  push([u(m)], "Let me look at that against what you're eating:", [OP({ tool: "symptom_check", symptom: m })]);
+
+// Urgent + crisis wording still routes to the tool: the ENGINE holds the safe response, not the
+// model. A 1.5B must not be the thing that decides how to answer "i have chest pain".
+for (const m of ["i have chest pain", "i've been coughing blood", "i keep fainting", "i feel suicidal"])
+  push([u(m)], "", [OP({ tool: "symptom_check", symptom: m })]);
 
 // compute_targets: the model collects FACTS, the engine does the arithmetic and states the
 // numbers. The reply never contains a calorie figure the model made up.
