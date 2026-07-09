@@ -8,6 +8,7 @@ import {
   type UserProfile,
   type WeekPlan,
 } from "./types";
+import { haystackBlocked, parseExclusionTokens } from "./exclusions";
 import {
   microsForIngredients,
   microDensity,
@@ -75,6 +76,12 @@ export interface Recipe {
    * pizza" — the feature was unreachable.
    */
   treatOnly?: boolean;
+  /**
+   * How many servings this ingredient list yields. Macros above are PER SERVING; a batch
+   * recipe's ingredients make several. Defaults to 1. Only nutrient math uses it — the
+   * ingredient list stays as written, because that is how you actually cook it.
+   */
+  servings?: number;
   description: string;
   ingredients: { name: string; quantity: string }[];
   steps: string[];
@@ -92,6 +99,7 @@ function toMeal(r: Recipe): Meal {
     fatGrams: r.fatGrams,
     fiberGrams: r.fiberGrams,
     timeMinutes: r.timeMinutes,
+    servings: r.servings,
     ingredients: r.ingredients,
     steps: r.steps,
   };
@@ -106,7 +114,7 @@ export const RECIPES: Recipe[] = [
     id: "b-greek-yogurt", name: "Greek Yogurt & Berry Bowl", type: "breakfast",
     cuisine: "mediterranean", mainProtein: "dairy",
     calories: 380, proteinGrams: 22, carbsGrams: 48, fatGrams: 10, timeMinutes: 8, approxCost: 2,
-    dietTags: ["vegetarian", "mediterranean", "gluten_free"],
+    dietTags: ["vegetarian", "mediterranean"],
     description: "Creamy yogurt with berries, honey and crunchy granola.",
     ingredients: [
       { name: "Greek yogurt", quantity: "200 g" },
@@ -826,7 +834,7 @@ export const RECIPES: Recipe[] = [
     id: "d-chickpea-tagine", name: "Moroccan Chickpea & Vegetable Tagine", type: "dinner",
     cuisine: "middle_eastern", mainProtein: "legumes",
     calories: 520, proteinGrams: 20, carbsGrams: 84, fatGrams: 10, fiberGrams: 18, timeMinutes: 30, approxCost: 1,
-    dietTags: ["vegan", "vegetarian", "gluten_free"],
+    dietTags: ["vegan", "vegetarian"], // NOT gluten_free: it is served over couscous (wheat)
     description: "Fragrant chickpea and vegetable tagine over couscous.",
     ingredients: [
       { name: "chickpeas", quantity: "150 g" },
@@ -943,7 +951,7 @@ export const RECIPES: Recipe[] = [
   },
   {
     id: "b-banana-muffins", name: "Banana Walnut Protein Muffins", type: "breakfast",
-    cuisine: "american", mainProtein: "dairy",
+    cuisine: "american", mainProtein: "dairy", servings: 3, // a muffin-tin batch (~6 muffins, 2 per serving)
     calories: 360, proteinGrams: 24, carbsGrams: 42, fatGrams: 12, fiberGrams: 7, timeMinutes: 25, approxCost: 1,
     dietTags: ["vegetarian"],
     description: "Oat-based banana muffins boosted with protein and walnuts.",
@@ -974,7 +982,7 @@ export const RECIPES: Recipe[] = [
     id: "b-edamame-egg-bowl", name: "Edamame & Egg Breakfast Bowl", type: "breakfast",
     cuisine: "asian", mainProtein: "eggs",
     calories: 400, proteinGrams: 30, carbsGrams: 36, fatGrams: 16, fiberGrams: 10, timeMinutes: 12, approxCost: 2,
-    dietTags: ["vegetarian", "gluten_free"],
+    dietTags: ["vegetarian"],
     description: "Soft-boiled eggs over rice with edamame and soy.",
     ingredients: [
       { name: "eggs", quantity: "2" },
@@ -988,7 +996,7 @@ export const RECIPES: Recipe[] = [
     id: "b-pumpkin-muesli", name: "Pumpkin Seed Muesli with Yogurt", type: "breakfast",
     cuisine: "mediterranean", mainProtein: "dairy",
     calories: 390, proteinGrams: 26, carbsGrams: 44, fatGrams: 13, fiberGrams: 9, timeMinutes: 5, approxCost: 2,
-    dietTags: ["vegetarian", "gluten_free"],
+    dietTags: ["vegetarian"],
     description: "Toasted muesli with pumpkin seeds over Greek yogurt.",
     ingredients: [
       { name: "Greek yogurt", quantity: "180 g" },
@@ -1537,7 +1545,7 @@ export const RECIPES: Recipe[] = [
     id: "l-sesame-chicken-edamame", name: "Sesame Chicken & Edamame Rice Bowl", type: "lunch",
     cuisine: "asian", mainProtein: "chicken",
     calories: 580, proteinGrams: 46, carbsGrams: 58, fatGrams: 16, fiberGrams: 10, timeMinutes: 20, approxCost: 2,
-    dietTags: ["gluten_free"],
+    dietTags: [],
     description: "Sesame chicken with edamame over rice.",
     ingredients: [
       { name: "chicken breast", quantity: "150 g" },
@@ -1706,7 +1714,7 @@ export const RECIPES: Recipe[] = [
     id: "l-ginger-beef-cups", name: "Ginger Beef Lettuce Cups", type: "lunch",
     cuisine: "asian", mainProtein: "beef",
     calories: 500, proteinGrams: 40, carbsGrams: 42, fatGrams: 18, fiberGrams: 9, timeMinutes: 18, approxCost: 3,
-    dietTags: ["gluten_free"],
+    dietTags: [],
     description: "Ginger-soy beef in lettuce cups with a side of rice.",
     ingredients: [
       { name: "lean beef", quantity: "130 g" },
@@ -1986,7 +1994,7 @@ export const RECIPES: Recipe[] = [
   },
   {
     id: "s-protein-balls", name: "Chocolate Peanut Protein Balls", type: "snack",
-    cuisine: "american", mainProtein: "dairy",
+    cuisine: "american", mainProtein: "dairy", servings: 2, // a tray of balls (~6 balls, 3 per serving)
     calories: 220, proteinGrams: 14, carbsGrams: 22, fatGrams: 10, fiberGrams: 5, timeMinutes: 8, approxCost: 1,
     dietTags: ["vegetarian"],
     description: "No-bake oat, peanut and protein bites.",
@@ -2128,9 +2136,10 @@ function passesDiet(r: Recipe, diet: UserProfile["diet"]): boolean {
 function blockedByExclusions(r: Recipe, tokens: string[]): boolean {
   if (tokens.length === 0) return false;
   // Include steps so method exclusions work too ("no oven" → drop bake/roast recipes).
-  const hay =
-    `${r.name} ${r.ingredients.map((i) => i.name).join(" ")} ${r.steps.join(" ")}`.toLowerCase();
-  return tokens.some((t) => hay.includes(t));
+  // Matching is word-aware and expands categories: "nuts" must block almonds (a raw substring
+  // test did not), while "egg" must NOT block eggplant. Allergies are a hard rule.
+  const hay = `${r.name} ${r.ingredients.map((i) => i.name).join(" ")} ${r.steps.join(" ")}`;
+  return haystackBlocked(hay, tokens);
 }
 
 // Find the library recipe that best matches a free-text dish request (e.g.
@@ -2170,7 +2179,11 @@ const microsCache = new Map<string, ReturnType<typeof microsForIngredients>>();
 export function recipeMicros(r: Recipe) {
   let m = microsCache.get(r.id);
   if (!m) {
-    m = microsForIngredients(r.ingredients);
+    const raw = microsForIngredients(r.ingredients);
+    const per = Math.max(1, r.servings ?? 1);
+    m = per === 1
+      ? raw
+      : { coverage: raw.coverage, micros: Object.fromEntries(Object.entries(raw.micros).map(([k, v]) => [k, v / per])) as typeof raw.micros };
     microsCache.set(r.id, m);
   }
   return m;
@@ -2295,12 +2308,7 @@ function newCtx(): WeekCtx {
 }
 
 function exclusionTokens(profile: UserProfile): string[] {
-  return [profile.allergies, profile.dislikes]
-    .join(",")
-    .toLowerCase()
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  return parseExclusionTokens(profile.allergies, profile.dislikes);
 }
 
 // Select one day's meals under all constraints. Shared by the full-week
@@ -2748,7 +2756,7 @@ function weekMicroAverage(plan: WeekPlan, key: MicroKey): { amount: number; cove
   for (const d of plan.days)
     for (const m of d.meals) {
       const r = microsForIngredients(m.ingredients);
-      total += r.micros[key];
+      total += r.micros[key] / Math.max(1, m.servings ?? 1);
       cov += r.coverage;
       meals++;
     }

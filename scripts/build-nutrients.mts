@@ -156,6 +156,9 @@ for (const r of RECIPES) {
     for (const k of MACROS) got[k] += ((n[k] ?? 0) * g) / 100;
   }
   if (!covered) continue;
+  // A batch recipe's ingredients make several servings; its macros are per serving.
+  const per = Math.max(1, (r as { servings?: number }).servings ?? 1);
+  if (per !== 1) for (const k of MACROS) got[k] /= per;
   fullyCovered++;
   const want = { cal: r.calories, protein: r.proteinGrams, carbs: r.carbsGrams, fat: r.fatGrams };
   const err = Math.abs(got.cal - want.cal) / Math.max(want.cal, 1);

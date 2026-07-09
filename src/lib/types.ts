@@ -26,6 +26,11 @@ export const MealSchema = z.object({
   fatGrams: z.number(),
   fiberGrams: z.number().optional(),
   timeMinutes: z.number(),
+  // How many servings this ingredient list makes. Macros are per SERVING, but a batch
+  // recipe's ingredients (a muffin tin, a tray of protein balls) make several. Nutrients
+  // derived from the ingredients must be divided by this or a single muffin claims the
+  // iron of the whole tin.
+  servings: z.number().optional(),
   ingredients: z.array(IngredientSchema),
   steps: z.array(z.string()),
 });

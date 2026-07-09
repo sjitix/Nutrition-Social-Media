@@ -12,9 +12,10 @@
  * (diet, allergies, exclusions, cook time) are rules, not suggestions — a violation
  * is a bug, and this file is where we find it before a user does.
  */
-import { selectWeekFromDb, rebalanceWeek, applyOperations, RECIPES } from "@/lib/recipeDb";
+import { selectWeekFromDb, rebalanceWeek, applyOperations, RECIPES, recipeMicros } from "@/lib/recipeDb";
 import type { UserProfile, Operation, DayPlan, WeekPlan, Meal } from "@/lib/types";
 import { microsForIngredients } from "@/lib/nutrients";
+import { haystackBlocked, dietTagConflicts } from "@/lib/exclusions";
 
 // ---------------------------------------------------------------- harness
 let pass = 0;
@@ -253,6 +254,20 @@ console.log("\n--- MICRONUTRIENTS (USDA-derived) ---");
   // A count-based quantity must convert: "2" eggs = 100 g, not 2 g.
   const eggs = microsForIngredients([{ name: "eggs", quantity: "2" }]).micros;
   check("bare counts convert to grams (2 eggs -> B12 present)", eggs.b12 > 0.5, `B12=${eggs.b12.toFixed(2)}ug`);
+
+  // A batch recipe's ingredients make several servings. Without dividing, one muffin claims
+  // the iron of the whole tin.
+  const batch = RECIPES.find((r) => r.servings && r.servings > 1);
+  if (batch) {
+    const raw = microsForIngredients(batch.ingredients).micros.iron;
+    const perServing = recipeMicros(batch).micros.iron;
+    const expected = raw / batch.servings!;
+    check(
+      `batch recipe nutrients are PER SERVING (${batch.name}, x${batch.servings})`,
+      Math.abs(perServing - expected) < 0.01 && perServing < raw,
+      `batch=${raw.toFixed(2)}mg perServing=${perServing.toFixed(2)}mg`,
+    );
+  } else check("a batch recipe exists to test servings division", false);
 }
 {
   // "I'm low on iron" must raise iron WITHOUT breaking calories/protein.
@@ -277,6 +292,61 @@ console.log("\n--- MICRONUTRIENTS (USDA-derived) ---");
   const wk = freshWeek(BASE);
   const r = applyOperations(BASE, wk, [op({ tool: "regenerate_week", boostNutrient: "iron" })]);
   check("boost emits an honest iron note", r.notes.some((n) => /iron/.test(n)), r.notes.find((n) => /iron/.test(n)) ?? "(none)");
+}
+
+// ---------------------------------------------------------------- 1b2. allergens & data integrity
+console.log("\n--- ALLERGENS & DATA INTEGRITY (hard rules) ---");
+{
+  // The naive substring test served almonds to a "nuts" allergy. Never again.
+  const nutAllergy: UserProfile = { ...BASE, allergies: "nuts" };
+  const wk = freshWeek(nutAllergy);
+  const nutHits: string[] = [];
+  for (const d of wk.days)
+    for (const m of d.meals)
+      if (/\b(almond|walnut|pecan|cashew|hazelnut|pistachio|peanut)/i.test(mealHay(m))) nutHits.push(m.name);
+  check("allergy 'nuts' blocks almonds/pecans/cashews, not just 'walnuts'", nutHits.length === 0, nutHits.slice(0, 3).join(", ") || "clean");
+
+  const dairyAllergy: UserProfile = { ...BASE, allergies: "dairy" };
+  const dw = freshWeek(dairyAllergy);
+  const dairyHits: string[] = [];
+  for (const d of dw.days)
+    for (const m of d.meals)
+      if (/\b(milk|cheese|yogurt|butter|feta|mozzarella|cheddar|parmesan|ricotta|halloumi)/i.test(mealHay(m))) dairyHits.push(m.name);
+  check("allergy 'dairy' blocks cheese/yogurt/milk/butter", dairyHits.length === 0, dairyHits.slice(0, 3).join(", ") || "clean");
+}
+{
+  // ...but it must not over-block: "egg" is not "eggplant", "oat" is not "goat cheese".
+  const noEgg: UserProfile = { ...BASE, dislikes: "egg" };
+  check("'egg' does not block eggplant", haystackBlocked("Eggplant Parmesan eggplant", ["egg"]) === false);
+  check("'egg' still blocks eggs", haystackBlocked("Veggie Omelette eggs", ["egg"]) === true);
+  check("'oat' does not block goat cheese", haystackBlocked("Mushroom & Goat Cheese Frittata goat cheese", ["oat"]) === false);
+  check("'oat' still blocks rolled oats", haystackBlocked("Peanut Banana Oatmeal rolled oats", ["oat"]) === true);
+  check("'no oven' still blocks baked/roasted", haystackBlocked("Bake at 180C; roasted veg", ["bake", "roast"]) === true);
+  // and a one-letter dislike must not wipe out the plan
+  const silly: UserProfile = { ...BASE, dislikes: "a" };
+  const sw = freshWeek(silly);
+  check("a 1-char dislike is ignored (does not empty the plan)", sw.days.every((d) => d.meals.length === 3), `[${sw.days.map((d) => d.meals.length)}]`);
+  void noEgg;
+}
+{
+  // DATA INTEGRITY: dietTags must not lie. The fuzzer trusts them, so a wrong tag makes every
+  // invariant pass while a coeliac is served couscous. This is how that bug got in.
+  const lies: string[] = [];
+  for (const r of RECIPES) {
+    const names = r.ingredients.map((i) => i.name);
+    for (const tag of ["gluten_free", "vegan", "vegetarian"]) {
+      if (!r.dietTags.includes(tag as never)) continue;
+      const bad = dietTagConflicts(tag, names);
+      if (bad.length) lies.push(`${r.id} [${tag}] <- ${bad.join(", ")}`);
+    }
+  }
+  check("no recipe's dietTags contradict its ingredients", lies.length === 0, lies.length ? `${lies.length} lies` : "clean");
+  if (lies.length) for (const l of lies) console.log("        " + l);
+
+  const ids = RECIPES.map((r) => r.id);
+  const nms = RECIPES.map((r) => r.name.toLowerCase());
+  check("no duplicate recipe ids", new Set(ids).size === ids.length);
+  check("no duplicate recipe names", new Set(nms).size === nms.length);
 }
 
 // ---------------------------------------------------------------- 1c. treats
