@@ -483,6 +483,75 @@ for (const ing of ["feta", "quinoa", "spinach", "olive oil"]) {
   push([u(`i can't stand ${ing}`)], `Noted — no more ${ing}.`, [OP({ tool: "update_profile", excludeFoods: [ing] })]);
 }
 
+// ---------------------------------------------------------------------------
+// v5 eval failures. Each block is here because the model got a specific case wrong.
+// ---------------------------------------------------------------------------
+
+// v5 emitted activity:"desk_job" — not a value in the enum. The enum is fixed; map every way a
+// person describes their week onto it.
+const ACTIVITY = [
+  ["sedentary", ["desk job", "office job, no exercise", "i sit all day", "i don't exercise", "no exercise at all", "mostly sedentary", "i barely move", "desk job and no gym"]],
+  ["light", ["i walk a bit", "light exercise once a week", "i walk the dog daily", "i'm on my feet a bit", "gym once a week"]],
+  ["moderate", ["i train 3 times a week", "gym 3x a week", "i run a couple of times a week", "moderately active"]],
+  ["active", ["i train 4 times a week", "gym 5 days a week", "i lift 4x a week", "i'm quite active", "i run most days"]],
+  ["very_active", ["i train twice a day", "i'm an athlete", "manual job and i train daily", "i train 6 days a week"]],
+];
+for (const [value, phrases] of ACTIVITY)
+  for (const phrase of phrases) {
+    const age = rand([22, 27, 30, 35, 41, 48]);
+    const h = rand([160, 165, 172, 178, 183]);
+    const w = rand([55, 62, 70, 78, 85, 95]);
+    const sex = rand(["male", "female"]);
+    const goal = rand(["lose_weight", "maintain", "build_muscle"]);
+    const goalText = goal === "lose_weight" ? "i want to lose fat" : goal === "build_muscle" ? "i want to build muscle" : "i want to maintain";
+    push([u(`i'm ${age}, ${h}cm, ${w}kg, ${sex}, ${phrase}, ${goalText}`)],
+      "I've worked out your targets and rebuilt the week around them.",
+      [OP({ tool: "compute_targets", age, heightCm: h, weightKg: w, sex, activity: value, goal })]);
+  }
+
+// v5 put the calories INSIDE the dish name: dish:"a takeaway with about 900 calories in it".
+// The dish is a short name. The number goes in loggedCalories. Always.
+const OUTFOOD = ["takeaway", "leftovers", "a curry", "a sandwich", "my mum's lasagna", "a kebab", "a burrito", "street food", "a pastry"];
+for (let i = 0; i < 20; i++) {
+  const day = rand(DAYS); const mt = rand(MEALS); const cal = rand([380, 450, 600, 750, 900, 1100, 1300]);
+  const food = rand(OUTFOOD);
+  push([u(rand([
+    `had ${food} for ${mt}, roughly ${cal} kcal`,
+    `had ${food} for ${mt}, roughly ${cal} calories`,
+    `i ate ${food} for ${mt}, about ${cal} calories`,
+    `${mt} was ${food}, maybe ${cal} kcal`,
+    `${food} for ${mt}, i reckon ${cal} calories`,
+  ]))], "Logged — I've adjusted the rest of your day.",
+    [OP({ tool: "log_meal", day, mealType: mt, dish: food, loggedCalories: cal })]);
+}
+
+// v5 read a bare "1500" as a day's calorie target and rebuilt Tuesday. A number with no unit and
+// no scope is ambiguous, full stop.
+for (const n of ["1500", "1800", "2000", "2200", "2500", "180", "120", "90", "3000"])
+  push([u(n)], "What's that — calories a day, grams of protein, something else? And for the whole week or one day?", []);
+for (const m of ["make it 1500", "set it to 2000", "change it to 1800"])
+  push([u(m)], "Happy to — calories per day for the whole week, or just one day?", []);
+// ...but WITH a unit and a scope it is not ambiguous, and the model must still act.
+for (let i = 0; i < 8; i++) {
+  const c = rand([1500, 1800, 2000, 2200, 2500]);
+  push([u(rand([`${c} calories a day`, `set my daily calories to ${c}`, `i want ${c} kcal per day`])),],
+    `Updated your daily target to ${c} kcal.`, [OP({ tool: "update_profile", targetCalories: c })]);
+}
+
+// v5 invented a tool called "swap_ingredient". The name is `substitute_ingredient` and nothing
+// else. More surface area on the phrasings that trigger it.
+for (const m of ["i don't have any greek yogurt", "we're out of chicken breast, what can i use?",
+  "no feta in the shop, alternatives?", "what's a good replacement for quinoa?",
+  "i haven't got any spinach", "can i use something else instead of salmon?",
+  "the shop had no tofu", "i'm out of eggs", "no olive oil left", "what else works instead of rice?"]) {
+  const ing = ["greek yogurt", "chicken breast", "feta", "quinoa", "spinach", "salmon", "tofu", "eggs", "olive oil", "rice"][
+    ["i don't have any greek yogurt", "we're out of chicken breast, what can i use?", "no feta in the shop, alternatives?",
+     "what's a good replacement for quinoa?", "i haven't got any spinach", "can i use something else instead of salmon?",
+     "the shop had no tofu", "i'm out of eggs", "no olive oil left", "what else works instead of rice?"].indexOf(m)
+  ];
+  push([u(m)], "Here's what I'd use instead:", [OP({ tool: "substitute_ingredient", ingredient: ing })]);
+}
+
 // compute_targets: the model collects FACTS, the engine does the arithmetic and states the
 // numbers. The reply never contains a calorie figure the model made up.
 const ACT = [
