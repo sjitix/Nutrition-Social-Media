@@ -1,0 +1,12 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+[transformers] `torch_dtype` is deprecated! Use `dtype` instead!
+Base model : Qwen/Qwen2.5-1.5B-Instruct
+Dataset    : C:\Users\Sigma1\Desktop\j\Nutrition-Social-Media-main\data\finetune.jsonl
+Max length : 2048   Epochs: 3.0
+CUDA       : True NVIDIA GeForce RTX 2070
+Training examples: 655  (skipped 3)
+Loading weights:   0%|          | 0/338 [00:00<?, ?it/s]Loading weights:   0%|          | 1/338 [00:00<01:01,  5.52it/s]Loading weights:   5%|4         | 16/338 [00:00<00:04, 66.55it/s]Loading weights:  15%|#5        | 51/338 [00:00<00:01, 168.93it/s]Loading weights:  24%|##3       | 81/338 [00:00<00:01, 213.97it/s]Loading weights:  33%|###3      | 112/338 [00:00<00:00, 242.34it/s]Loading weights:  43%|####3     | 147/338 [00:00<00:00, 272.94it/s]Loading weights:  52%|#####2    | 176/338 [00:00<00:00, 276.42it/s]Loading weights:  61%|######1   | 207/338 [00:00<00:00, 282.27it/s]Loading weights:  70%|######9   | 236/338 [00:01<00:00, 283.66it/s]Loading weights:  79%|#######8  | 267/338 [00:01<00:00, 288.87it/s]Loading weights:  88%|########7 | 297/338 [00:01<00:00, 286.97it/s]Loading weights:  97%|#########7| 328/338 [00:01<00:00, 286.91it/s]Loading weights: 100%|##########| 338/338 [00:01<00:00, 249.95it/s]
+[transformers] warmup_ratio is deprecated and will be removed in v5.2. Use `warmup_steps` instead.
+trainable params: 18,464,768 || all params: 1,562,179,072 || trainable%: 1.1820
+Resuming from checkpoint: False
+  0%|          | 0/246 [00:00<?, ?it/s]

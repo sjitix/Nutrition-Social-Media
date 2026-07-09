@@ -285,6 +285,68 @@ for (const m of REVIEW)
 for (const m of ["how many calories is monday?", "what's for dinner on friday?", "how much protein is tuesday's lunch?", "what am i eating thursday?"])
   push([u(m)], "It's in your plan above — happy to change it if you'd like.", []);
 
+// ---------------------------------------------------------------------------
+// v4 eval failures, trained out. Each block below exists because the model got a
+// specific real case wrong; the comment says which.
+// ---------------------------------------------------------------------------
+
+// v4 said swap_meal for "i had a burger for dinner" — it CHANGED the plan when the user was
+// telling it what they'd already eaten. The signal is grammatical: past tense = log, imperative
+// = swap. Same dish, same day, same slot; only the tense differs.
+for (let i = 0; i < 30; i++) {
+  const day = rand(DAYS); const mt = rand(MEALS); const dish = rand(TREATS);
+  push([u(rand([`i had ${dish} for ${mt}`, `i ate ${dish} for ${mt} on ${day}`, `just had ${dish} for ${mt}`, `${dish} was my ${mt}`, `i already ate ${dish} for ${mt}`]))],
+    "Logged it — I've re-solved the rest of the day around it.",
+    [OP({ tool: "log_meal", day, mealType: mt, dish })]);
+  push([u(rand([`give me ${dish} for ${mt} on ${day}`, `swap ${day} ${mt} for ${dish}`, `i want ${dish} for ${mt} on ${day}`, `put ${dish} on ${day} ${mt}`]))],
+    `Done — ${dish} for ${day} ${mt}, and I balanced the rest of the day.`,
+    [OP({ tool: "swap_meal", day, mealType: mt, dish })]);
+}
+
+// v4 read "i ate pizza for lunch on monday" as mealType:dinner. The slot and the day are stated
+// in the sentence; copy them, never guess. Cover every day x every slot.
+for (const day of DAYS) for (const mt of MEALS) {
+  const dish = rand(ATE);
+  push([u(rand([`i ate ${dish} for ${mt} on ${day}`, `on ${day} i had ${dish} for ${mt}`, `${day}'s ${mt} was ${dish}, i already ate it`]))],
+    "Logged — I've adjusted the rest of that day.",
+    [OP({ tool: "log_meal", day, mealType: mt, dish })]);
+}
+
+// v4 emitted dish:"a takeaway with about 900 kcal of calories" and preserveMacros:false on a
+// log_meal. The dish is a SHORT name; the number goes in loggedCalories; log_meal never carries
+// preserveMacros.
+for (let i = 0; i < 14; i++) {
+  const day = rand(DAYS); const mt = rand(MEALS); const cal = rand([420, 550, 680, 900, 1100, 1250]);
+  const food = rand(["takeaway", "leftovers", "lasagna", "a sandwich", "a wrap", "a curry", "a kebab"]);
+  push([u(rand([`had ${food} for ${mt}, roughly ${cal} kcal`, `i ate ${food} for ${mt}, about ${cal} calories`, `${cal} calorie ${mt}, it was ${food}`]))],
+    "Logged — I've adjusted the rest of your day.",
+    [OP({ tool: "log_meal", day, mealType: mt, dish: food, loggedCalories: cal })]);
+}
+
+// v4 dropped preserveMacros:false on "it's my cheat day, swap saturday dinner for pizza".
+// More phrasings, and the cheat signal arriving in an EARLIER turn (the model must carry intent
+// across the conversation, not pattern-match one sentence).
+const CHEAT2 = ["it's my cheat day", "cheat day", "treat day today", "i don't care about macros today", "screw the diet today", "cheat meal time", "going off plan today", "forget the diet just this once", "i'm having a blowout today", "no macros today, i want to enjoy myself", "today doesn't count", "i'm treating myself"];
+for (let i = 0; i < 26; i++) {
+  const day = rand(DAYS); const mt = rand(MEALS); const dish = rand(TREATS); const cheat = rand(CHEAT2);
+  push([u(rand([`${cheat}, swap ${day} ${mt} for ${dish}`, `${cheat} — give me ${dish} for ${mt} on ${day}`, `${day} ${mt} should be ${dish}, ${cheat}`, `swap ${day} ${mt} for ${dish}. ${cheat}`]))],
+    `You got it — ${dish} for ${day} ${mt}. Enjoy the treat; I left the rest of your day as-is.`,
+    [OP({ tool: "swap_meal", day, mealType: mt, dish, preserveMacros: false })]);
+}
+for (let i = 0; i < 10; i++) {
+  const day = rand(DAYS); const mt = rand(MEALS); const dish = rand(TREATS);
+  push([u(rand(CHEAT2)), a("Sounds good — what would you like?"), u(`swap ${day} ${mt} for ${dish}`)],
+    `Enjoy — ${dish} for ${day} ${mt}, rest of the day untouched.`,
+    [OP({ tool: "swap_meal", day, mealType: mt, dish, preserveMacros: false })]);
+}
+
+// v4 answered a bare "1500" by editing the plan. A number with no unit and no scope is
+// ambiguous — ask. Same for "what should my macros be" (that needs their body stats).
+for (const m of ["1500", "2000", "180", "1800?", "make it 1500", "2200"])
+  push([u(m)], "Just to be sure — is that calories per day for the whole week, or for one day? And which day?", []);
+for (const m of ["what should my macros be", "what should my calories be", "how many calories do i need", "how much protein should i eat", "what's my ideal calorie intake"])
+  push([u(m)], "I can work that out — tell me your age, height, weight, sex, roughly how active you are, and whether you want to lose fat, maintain, or build muscle.", []);
+
 // compute_targets: the model collects FACTS, the engine does the arithmetic and states the
 // numbers. The reply never contains a calorie figure the model made up.
 const ACT = [
@@ -461,10 +523,14 @@ for (let i = 0; i < 10; i++) {
   examples.push({ history: [{ role: "user", text: QDAY[i % QDAY.length].replaceAll("{day}", day) }], completion: null, dayQ: day });
 }
 
-// expand to TARGET by repeating generator variety (fresh plans/phrasing each time)
+// Expand to TARGET by repeating generator variety (fresh plans/phrasing each time).
+// NEVER slice below examples.length: a plain slice(0, TARGET) silently deleted whole
+// categories once the hand-written tail (clarify, compound, multi-turn) grew past the cap,
+// and the model quietly lost the ability to ask a question instead of guessing.
 let pool = [...examples];
 while (pool.length < TARGET) pool = pool.concat(examples);
-pool = pool.slice(0, TARGET);
+pool = pool.slice(0, Math.max(TARGET, examples.length));
+if (examples.length > TARGET) console.warn(`note: ${examples.length} base examples exceeds TARGET ${TARGET}; keeping all of them.`);
 
 for (const ex of pool) {
   if (ex.dayQ) {
