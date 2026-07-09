@@ -107,9 +107,27 @@ stay in force regardless; removing them would be a regression.)
 
 ### Phase 2 — Micronutrient engine (USDA FoodData Central) ← *owner chose option (a)*
 The foundation for every health skill. VISION already predicted it: **same solver, more axes.**
-- Download **USDA FoodData Central** bulk CSV (public domain). **No invented numbers, ever.**
-- Build `ingredient → nutrient` table (auditable: store the FDC id + description we matched).
-- Unit → grams conversion table ("1 tbsp peanut butter" → 16 g) — the hard, honest part.
+- [x] Download **USDA FoodData Central SR Legacy** bulk CSV (public domain, 7,793 generic foods).
+- [x] Scope: **132 recipes, 174 distinct ingredients**. Units: `g` (305), *none* (84), `tbsp` (62),
+      `tsp` (26), `piece`, `can`, `scoop`, `clove`, `slice`.
+
+> **⚠️ Finding: auto-matching ingredients to USDA is UNSAFE and must not be shipped.**
+> Naive token-overlap gave `salmon fillet → "Vegetarian fillets"`, `eggs → "Eggs, scrambled,
+> frozen mixture"`, `brown rice → "Rice flour, brown"`, `greek yogurt → "Yogurt, Greek,
+> **strawberry**"`. Even after tuning the ranker, `eggs` still returns fish roe and
+> `salmon fillet` returns *Salmonberries*. Shipping that would mean **fabricated nutrition
+> presented as USDA data** — exactly the hallucination this engine exists to prevent.
+
+**Therefore:**
+- `scripts/usda-search.mjs` surfaces **candidates for human review**; its top-1 is never trusted.
+- `ingredient → fdc_id` is **hand-curated and committed**, so every nutrient value is traceable
+  to a real FDC record.
+- **Automatic accuracy gate:** each recipe already carries hand-authored macros. Recomputing its
+  macros from the mapped ingredients + gram conversions must land close to them. Large divergence
+  = a bad mapping or a bad unit conversion. This validates all 174 mappings without eyeballing them.
+- Unmapped ingredients must **not** silently contribute zero; coverage is reported, and micros are
+  only exposed once coverage is high.
+- Unit → grams uses USDA `food_portion.csv` (per-food household measures) with a curated fallback.
 - Extend the vector: `{cal, protein, carbs, fat, fiber, iron, calcium, vitD, B12, magnesium,
   potassium, folate, zinc, vitC}`. Recipe micros **computed from ingredients**, deterministically.
 - `targetNutrient` support: "boost my iron" → engine biases iron-rich foods **while macros hold**.
