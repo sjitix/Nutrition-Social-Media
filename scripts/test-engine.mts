@@ -655,6 +655,67 @@ console.log("\n--- WEEKLY REPORT (read-only, honest, keeps its promises) ---");
     !/NaN|undefined|Infinity/.test(note), note.slice(0, 80));
 }
 
+
+// ---------------------------------------------------------------- eating_out
+console.log("\n--- EATING OUT (reserve calories, never invent the meal) ---");
+{
+  const run = (o: Partial<Operation>, prof: UserProfile = BASE) => {
+    const plan = freshWeek(prof);
+    const r = applyOperations(prof, plan, [op({ tool: "eating_out", day: "Friday", mealType: "dinner", ...o })]);
+    const fri = r.plan.days.find((d) => d.day === "Friday")!;
+    return { note: r.notes.join(" "), fri, plan, out: r.plan,
+      cal: fri.meals.reduce((s, m) => s + m.calories, 0),
+      out_meal: fri.meals.find((m) => m.type === (o.mealType ?? "dinner"))! };
+  };
+
+  const d = run({});
+  check("eating_out reserves the slot", /out$/i.test(d.out_meal.name), d.out_meal.name);
+  check("eating_out reserves 40% of the day when not told", d.out_meal.calories === Math.round(BASE.targetCalories * 0.4), `${d.out_meal.calories} kcal`);
+  check("eating_out NEVER invents the restaurant meal's protein", d.out_meal.proteinGrams === 0);
+  check("eating_out says the reserve is an estimate", /not a measured number/i.test(d.note));
+  check("eating_out keeps the day on target", Math.abs(d.cal - BASE.targetCalories) <= BASE.targetCalories * 0.05, `${d.cal} kcal`);
+  check("eating_out does not rescale the reserved slot", d.out_meal.calories === Math.round(BASE.targetCalories * 0.4));
+
+  // The generic shortfall note would blame the recipe library for a protein gap WE created by
+  // booking zero protein for the restaurant. That is a false explanation.
+  check("eating_out never blames the recipes for the protein it deliberately didn't book",
+    !/these recipes allow|can't stretch/i.test(d.note), d.note.slice(0, 90));
+  check("eating_out tells the user what to ORDER", /order something with roughly \d+g/i.test(d.note), d.note.slice(0, 120));
+
+  // The user's own number is used verbatim — never second-guessed.
+  const e = run({ estimatedCalories: 1200 });
+  check("eating_out uses the user's estimate exactly", e.out_meal.calories === 1200);
+  check("eating_out doesn't call the user's own number an estimate", !/not a measured number/i.test(e.note));
+
+  // A reserve bigger than the whole day must be admitted, not silently absorbed.
+  const big = run({ estimatedCalories: 2500 });
+  check("eating_out admits an over-target day", /over target/i.test(big.note), big.note.slice(-90));
+  check("eating_out doesn't fake hitting target on an absurd reserve", big.cal > BASE.targetCalories * 1.2, `${big.cal} kcal`);
+
+  // Advice must be followable: 4 kcal/g means a small reserve cannot hold a big protein order.
+  const hp = run({ estimatedCalories: 300, mealType: "lunch" }, { ...BASE, proteinGrams: 260 });
+  check("eating_out won't order 90g of protein inside a 300 kcal salad",
+    !/order something with roughly/.test(hp.note) || /more than 300 kcal can physically hold/.test(hp.note), hp.note.slice(0, 150));
+
+  // Nothing else in the week may move.
+  const only = run({});
+  const others = only.out.days.filter((x) => x.day !== "Friday").map(names).join("||");
+  const before = only.plan.days.filter((x) => x.day !== "Friday").map(names).join("||");
+  check("eating_out changes only that day", others === before);
+
+  // Missing information -> ask, never guess a day.
+  const vague = applyOperations(BASE, freshWeek(BASE), [op({ tool: "eating_out", day: "Friday" })]);
+  check("eating_out asks which meal when not told", /which day and which meal/i.test(vague.notes.join(" ")));
+
+  // Hard constraints still hold on the meals it re-solved.
+  const veg = run({}, { ...BASE, diet: "vegan", allergies: "peanut" });
+  const vegBad = veg.fri.meals.filter((m) => m.type !== "dinner").some((m) => {
+    const b = recipeByName.get(m.name.toLowerCase());
+    return (b && !dietOk(b.dietTags, "vegan")) || mealHay(m).includes("peanut");
+  });
+  check("eating_out re-solves the rest of the day within diet + allergies", !vegBad);
+}
+
 // ---------------------------------------------------------------- 3. fuzz
 console.log("\n--- FUZZ (random op sequences, invariants after each) ---");
 const DAYS_L = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;

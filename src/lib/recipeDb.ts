@@ -2951,6 +2951,95 @@ function guaranteeBoost(
 }
 
 /**
+ * "I'm going out for dinner on Friday." The meal is in the FUTURE and its contents are unknown,
+ * which makes it the opposite of log_meal: nothing about it is a fact.
+ *
+ * A nutritionist does two things here. They set aside a realistic calorie budget for the meal —
+ * restaurant portions are large, and pretending otherwise is how a week quietly goes 3,000 kcal
+ * over — and they do NOT count on it for protein, because you cannot know what you'll order. So
+ * the reserved slot contributes calories and zero protein, and the rest of the day is re-solved
+ * to carry the full protein target within what calories are left.
+ *
+ * Every assumption here is disclosed to the user. An estimate presented as a measurement is a lie.
+ */
+const RESTAURANT_SHARE = 0.4; // a restaurant main is a big meal, not an average one
+
+function eatingOut(
+  p: UserProfile,
+  plan: WeekPlan,
+  day: DayPlan["day"],
+  mealType: Meal["type"],
+  estimated: number | undefined,
+  notes: string[],
+): WeekPlan {
+  const origDay = plan.days.find((d) => d.day === day);
+  if (!origDay) return plan;
+  const reserve = estimated ?? Math.round(p.targetCalories * Math.max(slotShare(p, mealType), RESTAURANT_SHARE));
+
+  const placeholder: Meal = {
+    name: `${mealType[0].toUpperCase()}${mealType.slice(1)} out`,
+    type: mealType,
+    description: "Eating out — calories reserved. Log what you actually had and I'll rebalance.",
+    calories: reserve,
+    proteinGrams: 0,
+    carbsGrams: 0,
+    fatGrams: 0,
+    timeMinutes: 0,
+    ingredients: [],
+    steps: ["Enjoy it. Tell me what you ate afterwards and I'll re-solve the rest of the week."],
+  };
+
+  const withReserve = origDay.meals.map((m) => (m.type === mealType ? placeholder : m));
+  const rest = withReserve.filter((m) => m.type !== mealType);
+  // Can the remaining meals even fit in what's left? At minimum portion (0.6x) they still cost
+  // something; if the reserve eats the whole day, say so instead of quietly blowing the target.
+  const restFloor = rest.reduce((sum, m) => {
+    const base = RECIPES.find((r) => r.name === m.name);
+    return sum + (base ? base.calories : m.calories) * SCALE_LO;
+  }, 0);
+
+  const meals = rebalanceDay(withReserve, p, new Set([mealType]), namesOnOtherDays(plan, day));
+  const total = meals.reduce((sum, m) => sum + m.calories, 0);
+  const pct = Math.round((reserve / p.targetCalories) * 100);
+
+  notes.push(
+    `I've set aside ${reserve} kcal for ${day} ${mealType} — about ${pct}% of your day — and made the other meals lighter.`,
+  );
+  if (!estimated)
+    notes.push(
+      `That ${reserve} is a typical restaurant main, not a measured number. Tell me what you actually ate and I'll rebalance.`,
+    );
+
+  // Turn the protein gap into an INSTRUCTION, not an apology. The generic shortfall note would
+  // say "these recipes can't reach 150g", which is false and unhelpful: the recipes are fine, we
+  // deliberately booked no protein for a meal we can't see. What the user needs is what to order.
+  const homeProtein = Math.round(meals.filter((m) => m.type !== mealType).reduce((sum, m) => sum + m.proteinGrams, 0));
+  const wantProtein = Math.round(dayTargetMacros(p).protein);
+  const gap = wantProtein - homeProtein;
+  // Protein has 4 kcal per gram, so a reserve can only physically hold so much of it. Telling
+  // someone to find 90g of protein inside a 300 kcal salad is advice that cannot be followed.
+  const proteinCal = gap * 4;
+  if (gap <= 10)
+    notes.push(`Your other meals already carry your ${wantProtein}g of protein, so order whatever you fancy.`);
+  else if (proteinCal > reserve)
+    notes.push(
+      `To finish on ${wantProtein}g you'd need about ${gap}g of protein from that meal, which is more than ${reserve} kcal can physically hold. Either it'll be a bigger meal than that, or you'll end the day around ${gap}g short — both are fine, just tell me which and I'll plan the week around it.`,
+    );
+  else
+    notes.push(
+      `Your other meals carry ${homeProtein}g of protein, so order something with roughly ${gap}g — a chicken, fish, steak or tofu main rather than a pasta or a pizza — and you'll finish the day on your ${wantProtein}g.`,
+    );
+
+  if (reserve + restFloor > p.targetCalories * 1.05)
+    notes.push(
+      `Heads up: even with everything else as light as I can make it, ${day} lands about ${Math.round(total - p.targetCalories)} kcal over target. I can pull the rest of your week down to absorb it — just say the word.`,
+    );
+  else notes.push(`${day} still comes to ${Math.round(total)} kcal, reserve included.`);
+
+  return { ...plan, days: plan.days.map((d) => (d.day === day ? { ...d, meals } : d)) };
+}
+
+/**
  * Can this nutrient actually be raised, given the user's diet and exclusions? Offering to
  * "rebuild the week around your B12" when no vegan food in the library carries any is a false
  * promise. A nutritionist would say plainly that food alone won't cover it.
@@ -3273,6 +3362,14 @@ export function applyOperations(
         if (pShort > PROTEIN_MISS)
           note += ` Protein lands at ${tot.protein}g against your ${p.proteinGrams}g target — what you ate didn't leave room to make it up.`;
         notes.push(note);
+        break;
+      }
+      case "eating_out": {
+        if (!op.day || !op.mealType) {
+          notes.push("Which day and which meal are you eating out for?");
+          break;
+        }
+        curPlan = eatingOut(p, curPlan, op.day, op.mealType, op.estimatedCalories ?? undefined, notes);
         break;
       }
       case "weekly_report": {

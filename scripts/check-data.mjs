@@ -24,11 +24,11 @@ const FIELDS = new Set([
   "tool", "day", "mealType", "dish", "cuisine", "diet", "budget", "excludeFoods",
   "useIngredients", "targetCalories", "targetProtein", "targetCarbs", "targetFat",
   "targetFiber", "boostNutrient", "maxCookTime", "age", "heightCm", "weightKg", "sex",
-  "activity", "goal", "loggedCalories", "loggedProtein", "preserveMacros",
+  "activity", "goal", "loggedCalories", "loggedProtein", "preserveMacros", "estimatedCalories",
 ]);
 const TOOLS = [
   "update_profile", "regenerate_week", "regenerate_day", "swap_meal",
-  "compute_targets", "log_meal", "weekly_report", "answer",
+  "compute_targets", "log_meal", "weekly_report", "eating_out", "answer",
 ];
 const MIN_PER_TOOL = 15;
 
@@ -52,6 +52,9 @@ for (const r of rows) {
     // The engine computes every number. A label that states one teaches the model to invent them.
     if (op.tool === "weekly_report" && Object.keys(op).length > 1)
       problems.push(`weekly_report takes no fields: ${r.message}`);
+    // A restaurant meal is in the future: it has no dish in our library and no logged calories.
+    if (op.tool === "eating_out" && ("dish" in op || "loggedCalories" in op))
+      problems.push(`eating_out must not carry dish/loggedCalories: ${r.message}`);
   }
 }
 

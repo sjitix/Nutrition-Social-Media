@@ -347,6 +347,38 @@ for (const m of ["1500", "2000", "180", "1800?", "make it 1500", "2200"])
 for (const m of ["what should my macros be", "what should my calories be", "how many calories do i need", "how much protein should i eat", "what's my ideal calorie intake"])
   push([u(m)], "I can work that out — tell me your age, height, weight, sex, roughly how active you are, and whether you want to lose fat, maintain, or build muscle.", []);
 
+// eating_out — FUTURE meal, unknown contents. The tense is the whole signal: "i'm going out for
+// dinner friday" (eating_out) vs "i went out for dinner" / "i had pizza" (log_meal). Minimal pairs.
+const VENUES = ["a restaurant", "an italian place", "sushi", "my parents'", "a work dinner", "a birthday dinner", "the pub", "a steakhouse", "a burger place"];
+for (let i = 0; i < 26; i++) {
+  const day = rand(DAYS); const mt = rand(MEALS); const v = rand(VENUES);
+  push([u(rand([
+    `i'm going out for ${mt} on ${day}`,
+    `i'm eating at ${v} on ${day} for ${mt}`,
+    `${day} ${mt} is at ${v}`,
+    `i have a ${mt} out on ${day}`,
+    `we're going to ${v} for ${mt} on ${day}`,
+  ]))], `Noted — I've set calories aside for ${day} ${mt} and lightened the rest of that day.`,
+    [OP({ tool: "eating_out", day, mealType: mt })]);
+  // same venue, PAST tense -> log_meal
+  push([u(rand([`i went out for ${mt} on ${day}`, `${day} ${mt} was at ${v}, i already ate`, `i ate out for ${mt} on ${day}`]))],
+    "Logged it — I've re-solved the rest of that day.",
+    [OP({ tool: "log_meal", day, mealType: mt, dish: "meal out" })]);
+}
+// they offer a number -> estimatedCalories
+for (let i = 0; i < 10; i++) {
+  const day = rand(DAYS); const mt = rand(MEALS); const cal = rand([600, 800, 1000, 1200, 1500]);
+  push([u(rand([
+    `i'm out for ${mt} on ${day}, probably around ${cal} calories`,
+    `${day} ${mt} out, budget ${cal} kcal for it`,
+    `restaurant ${mt} ${day}, reckon ${cal} calories`,
+  ]))], `Done — ${cal} kcal set aside for ${day} ${mt}, rest of the day adjusted.`,
+    [OP({ tool: "eating_out", day, mealType: mt, estimatedCalories: cal })]);
+}
+// missing slot -> ask
+for (const m of ["i'm eating out this week", "i've got a dinner thing coming up", "we're going to a restaurant"])
+  push([u(m)], "Which day, and which meal? I'll set calories aside and lighten the rest of that day.", []);
+
 // compute_targets: the model collects FACTS, the engine does the arithmetic and states the
 // numbers. The reply never contains a calorie figure the model made up.
 const ACT = [
