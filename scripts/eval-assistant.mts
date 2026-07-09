@@ -37,13 +37,14 @@ const env = envLocal();
 const BASE_URL = process.env.BASE_URL ?? env.LOCAL_AI_URL ?? "http://localhost:1234/v1";
 const MODEL = process.env.MODEL ?? env.LOCAL_AI_MODEL ?? "nutriflow-assistant";
 
-const TOOLS = new Set(["update_profile", "regenerate_week", "regenerate_day", "swap_meal", "compute_targets", "log_meal", "answer"]);
+const TOOLS = new Set(["update_profile", "regenerate_week", "regenerate_day", "swap_meal", "compute_targets",
+  "log_meal", "weekly_report", "eating_out", "explain_meal", "substitute_ingredient", "answer"]);
 const FIELDS = new Set([
   "tool", "day", "mealType", "dish", "cuisine", "diet", "budget", "excludeFoods",
   "targetCalories", "targetProtein", "targetCarbs", "targetFat", "targetFiber",
   "maxCookTime", "preserveMacros", "useIngredients", "boostNutrient",
   "age", "heightCm", "weightKg", "sex", "activity", "goal",
-  "loggedCalories", "loggedProtein",
+  "loggedCalories", "loggedProtein", "estimatedCalories", "ingredient",
 ]);
 
 interface Case {
@@ -89,6 +90,22 @@ const CASES: Case[] = [
   { msg: "i ate pizza for lunch on monday", tool: "log_meal", want: { day: "Monday", mealType: "lunch" } },
   { msg: "i had a burger for dinner", tool: "log_meal", want: { mealType: "dinner" } },
   { msg: "had a takeaway for lunch, roughly 900 kcal", tool: "log_meal", want: { mealType: "lunch", loggedCalories: 900 } },
+
+  // weekly_report: a read-only review. The engine computes; the model must not narrate numbers.
+  { msg: "how am i doing this week?", tool: "weekly_report" },
+  { msg: "am i hitting my protein?", tool: "weekly_report" },
+  { msg: "am i missing any vitamins?", tool: "weekly_report" },
+  // eating_out: a FUTURE meal. Tense is the whole signal — contrast with log_meal above.
+  { msg: "i'm going out for dinner on friday", tool: "eating_out", want: { day: "Friday", mealType: "dinner" } },
+  { msg: "we're eating at a restaurant saturday lunch", tool: "eating_out", want: { day: "Saturday", mealType: "lunch" } },
+  { msg: "i'm out for dinner tuesday, probably 1000 calories", tool: "eating_out", want: { day: "Tuesday", mealType: "dinner", estimatedCalories: 1000 } },
+  // explain_meal: justify, don't change
+  { msg: "why did you give me tuesday's dinner?", tool: "explain_meal", want: { day: "Tuesday", mealType: "dinner" } },
+  { msg: "why is that my breakfast on monday?", tool: "explain_meal", want: { day: "Monday", mealType: "breakfast" } },
+  // substitute_ingredient: ran out. Contrast with "i don't like X" -> a permanent exclusion.
+  { msg: "i don't have any greek yogurt", tool: "substitute_ingredient", want: { ingredient: "greek yogurt" } },
+  { msg: "i'm out of chicken breast, what can i use?", tool: "substitute_ingredient", want: { ingredient: "chicken breast" } },
+  { msg: "i don't like mushrooms", tool: "update_profile", expectExclude: "mushroom" },
 
   // questions / chit-chat -> must not change the plan
   { msg: "what's my average protein?" },
@@ -153,6 +170,8 @@ const RESPONSE_FORMAT = {
               goal: { type: ["string", "null"] },
               loggedCalories: { type: ["number", "null"] },
               loggedProtein: { type: ["number", "null"] },
+              estimatedCalories: { type: ["number", "null"] },
+              ingredient: { type: ["string", "null"] },
             },
             required: ["tool"],
           },
