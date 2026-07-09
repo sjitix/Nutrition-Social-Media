@@ -81,6 +81,7 @@ const compliantExists = (type: Meal["type"], diet: UserProfile["diet"], tokens: 
   RECIPES.some(
     (r) =>
       r.type === type &&
+      !r.treatOnly && // the planner is FORBIDDEN to use treats, so they are not alternatives
       dietOk(r.dietTags, diet) &&
       !tokens.some((t) => recipeHay(r).includes(t)) &&
       r.timeMinutes <= maxCook + 5,
@@ -276,6 +277,51 @@ console.log("\n--- MICRONUTRIENTS (USDA-derived) ---");
   const wk = freshWeek(BASE);
   const r = applyOperations(BASE, wk, [op({ tool: "regenerate_week", boostNutrient: "iron" })]);
   check("boost emits an honest iron note", r.notes.some((n) => /iron/.test(n)), r.notes.find((n) => /iron/.test(n)) ?? "(none)");
+}
+
+// ---------------------------------------------------------------- 1c. treats
+console.log("\n--- TREATS (only on request, never planned for you) ---");
+const TREAT_NAMES = new Set(RECIPES.filter((r) => r.treatOnly).map((r) => r.name.toLowerCase()));
+{
+  check("treat recipes exist (cheat day is reachable at all)", TREAT_NAMES.size >= 5, `${TREAT_NAMES.size} treats`);
+
+  // The planner must never slip a burger into a healthy week.
+  let leaked = 0;
+  for (let i = 0; i < 15; i++) {
+    const wk = freshWeek(BASE);
+    for (const d of wk.days) for (const m of d.meals) if (TREAT_NAMES.has(m.name.toLowerCase())) leaked++;
+  }
+  check("planner NEVER auto-selects a treat", leaked === 0, `${leaked} leaks over 15 weeks`);
+
+  // Protein re-selection (lever 2) must not "upgrade" a meal into fried chicken.
+  let upgraded = 0;
+  for (let i = 0; i < 15; i++) {
+    const wk = freshWeek(BASE);
+    const r = applyOperations(BASE, wk, [op({ tool: "swap_meal", day: "Monday", mealType: "breakfast", dish: "oatmeal" })]);
+    const d = r.plan.days.find((x) => x.day === "Monday")!;
+    for (const m of d.meals) if (TREAT_NAMES.has(m.name.toLowerCase())) upgraded++;
+  }
+  check("protein upgrade NEVER becomes a treat", upgraded === 0, `${upgraded} over 15 runs`);
+}
+{
+  // The cheat-day flow the probe found broken: it used to answer "I don't have pizza".
+  const wk = freshWeek(BASE);
+  const before = wk.days.find((x) => x.day === "Saturday")!;
+  const lunchB = before.meals.find((m) => m.type === "lunch")!.name;
+  const r = applyOperations(BASE, wk, [op({ tool: "swap_meal", day: "Saturday", mealType: "dinner", dish: "pizza", preserveMacros: false })]);
+  const d = r.plan.days.find((x) => x.day === "Saturday")!;
+  check("cheat day: 'pizza' is actually served", d.meals.some((m) => /pizza/i.test(m.name)), names(d));
+  check("cheat day: other meals untouched", d.meals.find((m) => m.type === "lunch")!.name === lunchB);
+  check("cheat day: no macro-rebalance note", !r.notes.some((n) => /on target/.test(n)), r.notes.join(" | ") || "(none)");
+}
+{
+  // Hard rules still beat a treat request: a vegan cannot be served a pepperoni pizza.
+  const vegan: UserProfile = { ...BASE, diet: "vegan" };
+  const wk = freshWeek(vegan);
+  const r = applyOperations(vegan, wk, [op({ tool: "swap_meal", day: "Saturday", mealType: "dinner", dish: "pizza", preserveMacros: false })]);
+  const d = r.plan.days.find((x) => x.day === "Saturday")!;
+  check("vegan + cheat day: pizza refused (diet is a HARD rule)", !d.meals.some((m) => /pizza/i.test(m.name)), names(d));
+  check("vegan + cheat day: engine explains the refusal", r.notes.length > 0, r.notes.join(" | ") || "(none)");
 }
 
 // ---------------------------------------------------------------- 2. adversarial

@@ -3654,6 +3654,90 @@ export const NUTRIENT_TABLE: Record<string, { fdcId: number; desc: string; per10
       "zinc": 4.7,
       "vitD": 0
     }
+  },
+  "burger bun": {
+    "fdcId": 172796,
+    "desc": "Rolls, hamburger or hotdog, plain",
+    "per100g": {
+      "b12": 0.2,
+      "folate": 94,
+      "fiber": 1.8,
+      "magnesium": 23,
+      "sodium": 494,
+      "protein": 9.77,
+      "calcium": 144,
+      "potassium": 122,
+      "zinc": 0.73,
+      "fat": 3.91,
+      "carbs": 50.12,
+      "cal": 279,
+      "iron": 3.43,
+      "vitC": 1.3,
+      "vitD": 0
+    }
+  },
+  "butter": {
+    "fdcId": 173410,
+    "desc": "Butter, salted",
+    "per100g": {
+      "fiber": 0,
+      "iron": 0.02,
+      "magnesium": 2,
+      "b12": 0.17,
+      "potassium": 24,
+      "zinc": 0.09,
+      "sodium": 643,
+      "folate": 3,
+      "cal": 717,
+      "vitD": 0,
+      "fat": 81.11,
+      "carbs": 0.06,
+      "vitC": 0,
+      "protein": 0.85,
+      "calcium": 24
+    }
+  },
+  "ice cream": {
+    "fdcId": 167575,
+    "desc": "Ice creams, vanilla",
+    "per100g": {
+      "fiber": 0.7,
+      "folate": 5,
+      "carbs": 23.6,
+      "vitD": 0.2,
+      "cal": 207,
+      "fat": 11,
+      "calcium": 128,
+      "potassium": 199,
+      "zinc": 0.69,
+      "protein": 3.5,
+      "iron": 0.09,
+      "magnesium": 14,
+      "sodium": 80,
+      "b12": 0.39,
+      "vitC": 0.6
+    }
+  },
+  "pizza base": {
+    "fdcId": 174924,
+    "desc": "Bread, white, commercially prepared (includes soft bread crumbs)",
+    "per100g": {
+      "fiber": 2.7,
+      "fat": 3.33,
+      "carbs": 49.42,
+      "cal": 266,
+      "calcium": 144,
+      "potassium": 126,
+      "zinc": 0.74,
+      "protein": 8.85,
+      "iron": 3.61,
+      "magnesium": 23,
+      "sodium": 490,
+      "vitD": 0,
+      "folate": 111,
+      "b12": 0,
+      "vitC": 0
+    }
   }
 };
 
@@ -3981,6 +4065,14 @@ export const UNIT_GRAMS: { default: Record<string, number>; perIngredient: Recor
     "parsley": {
       "tbsp": 4,
       "tsp": 1.3
+    },
+    "burger bun": {
+      "count": 52,
+      "piece": 52
+    },
+    "butter": {
+      "tbsp": 14.2,
+      "tsp": 4.7
     }
   }
 };

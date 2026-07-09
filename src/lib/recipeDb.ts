@@ -67,6 +67,14 @@ export interface Recipe {
   timeMinutes: number;
   approxCost: number; // 1 (cheap) – 3 (pricier) per serving
   dietTags: DietTag[];
+  /**
+   * Treat foods (pizza, burgers). The planner must NEVER select these on its own — a
+   * nutritionist does not quietly slip a burger into your week. They are reachable only when
+   * the user asks for them by name, which is exactly the cheat-day flow. Before these existed,
+   * "it's my cheat day, swap Saturday dinner for pizza" answered "I don't have anything like
+   * pizza" — the feature was unreachable.
+   */
+  treatOnly?: boolean;
   description: string;
   ingredients: { name: string; quantity: string }[];
   steps: string[];
@@ -1990,6 +1998,91 @@ export const RECIPES: Recipe[] = [
     ],
     steps: ["Mix everything into a dough.", "Roll into balls; chill 15 min."],
   },
+
+  // ---- Treats (treatOnly: never auto-selected; only via an explicit request) ----
+  {
+    id: "t-pizza", name: "Pepperoni & Mozzarella Pizza", type: "dinner",
+    cuisine: "italian", mainProtein: "dairy", treatOnly: true,
+    calories: 780, proteinGrams: 32, carbsGrams: 82, fatGrams: 34, fiberGrams: 4, timeMinutes: 20, approxCost: 2,
+    dietTags: [],
+    description: "Proper cheat-day pizza — crisp base, tomato, mozzarella.",
+    ingredients: [
+      { name: "pizza base", quantity: "150 g" },
+      { name: "tomato sauce", quantity: "80 g" },
+      { name: "mozzarella", quantity: "100 g" },
+      { name: "olive oil", quantity: "1 tsp" },
+    ],
+    steps: ["Heat the oven as hot as it goes.", "Top the base with sauce and mozzarella.", "Bake 10-12 min until blistered."],
+  },
+  {
+    id: "t-cheeseburger", name: "Cheeseburger & Fries", type: "dinner",
+    cuisine: "american", mainProtein: "beef", treatOnly: true,
+    calories: 850, proteinGrams: 40, carbsGrams: 70, fatGrams: 44, fiberGrams: 5, timeMinutes: 25, approxCost: 2,
+    dietTags: [],
+    description: "Beef patty, melted cheddar, soft bun and oven fries.",
+    ingredients: [
+      { name: "lean ground beef", quantity: "150 g" },
+      { name: "burger bun", quantity: "1" },
+      { name: "cheddar", quantity: "30 g" },
+      { name: "baby potatoes", quantity: "200 g" },
+    ],
+    steps: ["Roast the potato fries 20 min.", "Sear the patty 3 min a side; melt cheddar on top.", "Build the burger."],
+  },
+  {
+    id: "t-mac-cheese", name: "Baked Mac and Cheese", type: "dinner",
+    cuisine: "american", mainProtein: "dairy", treatOnly: true,
+    calories: 720, proteinGrams: 28, carbsGrams: 78, fatGrams: 32, fiberGrams: 4, timeMinutes: 30, approxCost: 1,
+    dietTags: ["vegetarian"],
+    description: "Molten cheddar sauce, baked until bubbling.",
+    ingredients: [
+      { name: "whole-wheat pasta", quantity: "90 g dry" },
+      { name: "cheddar", quantity: "70 g" },
+      { name: "milk", quantity: "200 ml" },
+      { name: "butter", quantity: "1 tbsp" },
+    ],
+    steps: ["Boil the pasta.", "Melt butter, milk and cheddar into a sauce.", "Combine and bake 15 min."],
+  },
+  {
+    id: "t-fried-chicken", name: "Crispy Fried Chicken", type: "dinner",
+    cuisine: "american", mainProtein: "chicken", treatOnly: true,
+    calories: 760, proteinGrams: 45, carbsGrams: 48, fatGrams: 42, fiberGrams: 3, timeMinutes: 30, approxCost: 2,
+    dietTags: [],
+    description: "Buttermilk-style crunch, unapologetically fried.",
+    ingredients: [
+      { name: "chicken thigh", quantity: "200 g" },
+      { name: "panko", quantity: "60 g" },
+      { name: "eggs", quantity: "1" },
+      { name: "olive oil", quantity: "2 tbsp" },
+    ],
+    steps: ["Egg-wash then coat the chicken in panko.", "Shallow-fry until deep golden and cooked through."],
+  },
+  {
+    id: "t-nachos", name: "Loaded Cheesy Nachos", type: "dinner",
+    cuisine: "mexican", mainProtein: "dairy", treatOnly: true,
+    calories: 700, proteinGrams: 24, carbsGrams: 68, fatGrams: 36, fiberGrams: 9, timeMinutes: 15, approxCost: 1,
+    dietTags: ["vegetarian"],
+    description: "Tortilla chips buried under cheddar, beans and salsa.",
+    ingredients: [
+      { name: "corn tortillas", quantity: "4 pieces" },
+      { name: "cheddar", quantity: "60 g" },
+      { name: "black beans", quantity: "100 g" },
+      { name: "salsa", quantity: "60 g" },
+    ],
+    steps: ["Cut and bake the tortillas into chips.", "Layer with beans and cheddar; bake until melted.", "Spoon over salsa."],
+  },
+  {
+    id: "t-ice-cream", name: "Chocolate Ice Cream Sundae", type: "snack",
+    cuisine: "american", mainProtein: "dairy", treatOnly: true,
+    calories: 420, proteinGrams: 7, carbsGrams: 52, fatGrams: 20, fiberGrams: 2, timeMinutes: 3, approxCost: 1,
+    dietTags: ["vegetarian"],
+    description: "Ice cream, chocolate sauce, done.",
+    ingredients: [
+      { name: "ice cream", quantity: "150 g" },
+      { name: "cocoa", quantity: "1 tbsp" },
+      { name: "peanuts", quantity: "15 g" },
+    ],
+    steps: ["Scoop the ice cream.", "Dust with cocoa and scatter peanuts."],
+  },
 ];
 
 // --- Selection engine ------------------------------------------------------
@@ -2227,7 +2320,11 @@ function pickMealsForDay(
     const target = Math.round(profile.targetCalories * share);
     // HARD rules — diet, allergies and exclusions are never relaxed.
     const hard = RECIPES.filter(
-      (r) => r.type === type && passesDiet(r, profile.diet) && !blockedByExclusions(r, tokens),
+      (r) =>
+        r.type === type &&
+        !r.treatOnly && // never plan a treat for someone; only serve it on request
+        passesDiet(r, profile.diet) &&
+        !blockedByExclusions(r, tokens),
     );
     // SOFT preferences — relax in stages rather than silently drop a meal from the day. A
     // pricier meal beats a missing one; a nutritionist would never leave you without dinner.
@@ -2548,6 +2645,7 @@ function rebalanceDay(
       for (const r of RECIPES) {
         if (
           r.type !== cur.type ||
+          r.treatOnly || // a protein upgrade must never become a burger
           !passesDiet(r, profile.diet) ||
           blockedByExclusions(r, tokens) ||
           r.approxCost > cap ||
