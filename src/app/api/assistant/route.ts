@@ -77,7 +77,7 @@ export async function POST(request: Request) {
     const { plan, profile: newProfile, notes } = applyOperations(profile, body.plan, turn.operations);
 
     // Read-only tools must not flag the plan as changed, or the UI re-renders for nothing.
-    const READ_ONLY = new Set(["answer", "weekly_report", "explain_meal"]);
+    const READ_ONLY = new Set(["answer", "weekly_report", "explain_meal", "substitute_ingredient"]);
     const planChanged = turn.operations.some((o) => !READ_ONLY.has(o.tool));
     // The LLM writes the natural reply; the engine appends the factual macro notes
     // it can't compute itself (what got rebalanced, the resulting kcal/protein).

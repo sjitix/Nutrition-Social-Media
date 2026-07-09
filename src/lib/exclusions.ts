@@ -35,7 +35,7 @@ const CATEGORY_TERMS: Record<string, string[]> = {
 };
 
 /** Suffixes that still mean "the same food/verb": almond->almonds, bake->baked/baking. */
-function wordMatches(word: string, term: string): boolean {
+export function wordMatches(word: string, term: string): boolean {
   if (word === term) return true;
   if (word.startsWith(term)) {
     const suffix = word.slice(term.length);

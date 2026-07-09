@@ -95,6 +95,7 @@ function renderSystemPrompt(profile, plan) {
     "- compute_targets: work out the user's calories/protein/carbs/fat from their body and goal, then rebuild the week. Needs age, heightCm, weightKg, sex (male|female), activity (sedentary|light|moderate|active|very_active) and goal (lose_weight|maintain|build_muscle). If any fact is missing, ASK for it (operations: []) — never guess someone's weight. The app does the arithmetic; you never compute.\n" +
     "- log_meal: the user says what they ACTUALLY ate ('I had pizza for lunch'). Requires day + mealType + dish. The app locks that meal and everything earlier that day, then re-solves the meals still ahead. If the food isn't in the library, pass loggedCalories when the user gives a number; otherwise the app asks. Never estimate calories yourself.\n" +
     "- explain_meal: the user asks WHY a meal is in their plan. Requires day + mealType. Changes nothing; the app computes the reasons.\n" +
+    "- substitute_ingredient: the user has run out of an ingredient ('i don't have greek yogurt'). Requires ingredient. Changes nothing; the app checks diet/allergies and computes the macro cost.\n" +
     "- answer: no change; just answering a question.\n\n" +
     "Rules:\n" +
     "- Only a question -> operations: []. Put the answer in reply. For facts use the EXACT numbers below; the AVERAGES line is already per-day.\n" +
@@ -394,6 +395,30 @@ for (let i = 0; i < 18; i++) {
 }
 for (const m of ["why is that there?", "why did you pick that", "explain that meal"])
   push([u(m)], "Happy to — which day, and which meal?", []);
+
+// substitute_ingredient — "i've run out of X". Read-only advice, checked against diet + allergies.
+const RANOUT = ["greek yogurt", "chicken breast", "quinoa", "eggs", "olive oil", "spinach", "feta", "black beans", "peanut butter", "brown rice", "tofu", "salmon", "cottage cheese", "almonds", "sweet potato"];
+for (let i = 0; i < 22; i++) {
+  const ing = rand(RANOUT);
+  push([u(rand([
+    `i don't have ${ing}`,
+    `i'm out of ${ing}`,
+    `no ${ing} in the house, what can i use?`,
+    `can i use something instead of ${ing}?`,
+    `what can i swap ${ing} for?`,
+    `ran out of ${ing}`,
+  ]))], "Here's what I'd use instead:", [OP({ tool: "substitute_ingredient", ingredient: ing })]);
+}
+// with a meal named
+for (let i = 0; i < 6; i++) {
+  const ing = rand(RANOUT); const day = rand(DAYS); const mt = rand(MEALS);
+  push([u(`i don't have ${ing} for ${day}'s ${mt}`)], "Here's what I'd use instead:",
+    [OP({ tool: "substitute_ingredient", ingredient: ing, day, mealType: mt })]);
+}
+// CONTRAST: "i don't like X" is a permanent preference -> update_profile, not a substitution.
+for (const ing of ["mushrooms", "olives", "cilantro", "onions"])
+  push([u(rand([`i don't like ${ing}`, `i hate ${ing}`, `no ${ing} please`])), ], `Noted — no more ${ing}.`,
+    [OP({ tool: "update_profile", excludeFoods: [ing] })]);
 
 // compute_targets: the model collects FACTS, the engine does the arithmetic and states the
 // numbers. The reply never contains a calorie figure the model made up.

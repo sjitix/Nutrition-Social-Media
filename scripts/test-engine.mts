@@ -17,6 +17,9 @@ import type { UserProfile, Operation, DayPlan, WeekPlan, Meal } from "@/lib/type
 import { microsForIngredients } from "@/lib/nutrients";
 import { haystackBlocked, dietTagConflicts } from "@/lib/exclusions";
 import { bmr, computeTargets } from "@/lib/targets";
+import { SUBSTITUTES } from "@/lib/substitutions";
+import { NUTRIENT_TABLE } from "@/lib/nutrientTable.generated";
+import { gramsFor } from "@/lib/nutrients";
 import { MICRO_KEYS, DAILY_REFERENCE, MICRO_LABEL } from "@/lib/nutrients";
 
 // ---------------------------------------------------------------- harness
@@ -763,6 +766,73 @@ console.log("--- EXPLAIN MEAL (justify the choice, claim only what the data says
 
   check("explain_meal asks when it doesn't know which meal", /which day/i.test(ex("Monday", "").notes.join(" ")) || /which meal/i.test(applyOperations(BASE, plan, [op({ tool: "explain_meal" })]).notes.join(" ")));
   check("explain_meal handles a slot that isn't in the plan", /don't have a snack/i.test(ex("Monday", "snack").notes.join(" ")));
+}
+
+
+// ---------------------------------------------------------------- substitute_ingredient
+console.log("");
+console.log("--- SUBSTITUTE INGREDIENT (safe first, honest about the cost) ---");
+{
+  const plan = freshWeek(BASE);
+  const sub = (ing: string, prof: UserProfile = BASE) =>
+    applyOperations(prof, plan, [op({ tool: "substitute_ingredient", ingredient: ing })]);
+
+  // A typo in the table would silently drop a substitution and no one would notice.
+  const missing: string[] = [];
+  for (const [k, vs] of Object.entries(SUBSTITUTES)) {
+    if (!NUTRIENT_TABLE[k]) missing.push(`key ${k}`);
+    for (const v of vs) if (!NUTRIENT_TABLE[v]) missing.push(`${k} -> ${v}`);
+  }
+  check("every substitution names a real USDA ingredient", missing.length === 0, missing.slice(0, 3).join("; "));
+  for (const [k, vs] of Object.entries(SUBSTITUTES))
+    if (vs.includes(k)) check(`substitution "${k}" doesn't suggest itself`, false);
+
+  const r = sub("greek yogurt");
+  check("substitute_ingredient changes nothing", JSON.stringify(r.plan) === JSON.stringify(plan));
+
+  // THE SAFETY SWEEP. Every ingredient, every restricted diet: nothing it suggests may break it.
+  const say = (n: string) => n.toLowerCase();
+  let unsafe = 0;
+  let firstUnsafe = "";
+  for (const key of Object.keys(SUBSTITUTES)) {
+    for (const [diet, allergies] of [["vegan", ""], ["vegetarian", ""], ["none", "nuts"], ["none", "dairy"]] as const) {
+      const prof: UserProfile = { ...BASE, diet: diet as UserProfile["diet"], allergies };
+      const note = sub(key, prof).notes.join(" ");
+      const m = /Use ([a-z\- ]+?) (?:instead|in place)/i.exec(note);
+      if (!m) continue; // it refused, which is always allowed
+      const suggested = say(m[1].trim());
+      const bad =
+        (diet !== "none" && dietTagConflicts(diet, [suggested]).length > 0) ||
+        (allergies && haystackBlocked(suggested, [allergies]));
+      if (bad) { unsafe++; if (!firstUnsafe) firstUnsafe = `${key} -> ${suggested} (${diet}/${allergies})`; }
+    }
+  }
+  check("substitute_ingredient NEVER suggests something that breaks the diet or an allergy", unsafe === 0, firstUnsafe || `${Object.keys(SUBSTITUTES).length * 4} combinations clean`);
+
+  check("substitute_ingredient refuses rather than inventing", /rather say so than invent/i.test(sub("unicorn tears").notes.join(" ")));
+  // NB: the refusal echoes the query back, and "unicorn" contains "corn" — so assert on the
+  // ABSENCE of a suggestion, not the absence of the substring. The first version of this check
+  // failed for exactly that reason: the test was wrong, the engine was right.
+  check("substitute_ingredient doesn't match a word inside another word",
+    !/Use .+ (instead|in place)/i.test(sub("unicorn tears").notes.join(" ")));
+  check("substitute_ingredient says no when every option is unsafe",
+    /won't suggest any of them/i.test(sub("greek yogurt", { ...BASE, diet: "vegan" }).notes.join(" ")));
+  check("substitute_ingredient understands plurals and spellings",
+    /egg whites/i.test(sub("egg").notes.join(" ")) && /cottage cheese|yogurt/i.test(sub("greek yoghurt").notes.join(" ")));
+  check("substitute_ingredient asks when told nothing", /which ingredient/i.test(sub("").notes.join(" ")));
+
+  // The macro delta must be arithmetic on the real portion, not a vibe.
+  const eggNote = sub("eggs").notes.join(" ");
+  const eggMeal = plan.days.flatMap((d) => d.meals).find((m) => m.ingredients.some((i) => /^eggs$/i.test(i.name.trim())));
+  if (eggMeal) {
+    const q = eggMeal.ingredients.find((i) => /^eggs$/i.test(i.name.trim()))!;
+    const g = gramsFor("eggs", q.quantity);
+    if (g) {
+      const dCal = Math.round((((NUTRIENT_TABLE["egg whites"].per100g.cal ?? 0) - (NUTRIENT_TABLE["eggs"].per100g.cal ?? 0)) * g) / 100);
+      if (Math.abs(dCal) >= 15)
+        check("substitute_ingredient's calorie delta is computed from the real portion", eggNote.includes(`${Math.abs(dCal)} `), `expected ${Math.abs(dCal)}`);
+    }
+  }
 }
 
 // ---------------------------------------------------------------- 3. fuzz

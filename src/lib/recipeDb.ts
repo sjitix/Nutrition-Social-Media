@@ -8,11 +8,14 @@ import {
   type UserProfile,
   type WeekPlan,
 } from "./types";
-import { haystackBlocked, parseExclusionTokens } from "./exclusions";
+import { haystackBlocked, parseExclusionTokens, dietTagConflicts, wordMatches } from "./exclusions";
 import { computeTargets, explainTargets } from "./targets";
+import { SUBSTITUTES, INGREDIENT_ALIASES } from "./substitutions";
+import { NUTRIENT_TABLE } from "./nutrientTable.generated";
 import {
   microsForIngredients,
   microDensity,
+  gramsFor,
   MICRO_KEYS,
   MICRO_LABEL,
   MICRO_UNIT,
@@ -2927,6 +2930,122 @@ function upgradeForNutrient(profile: UserProfile, plan: WeekPlan, key: MicroKey)
 }
 
 /**
+ * "I've run out of Greek yogurt." A substitution has to clear three bars, in this order:
+ *
+ *  1. SAFETY. It must not be something they're allergic to, dislike, or that breaks their diet.
+ *     Suggesting butter to a vegan, or almond butter to a nut-allergic user, is the single worst
+ *     thing this feature could do — so candidates are filtered before anything else is computed.
+ *  2. SENSE. Which foods stand in for which is curated (see substitutions.ts); a nutrient table
+ *     doesn't know that lentils don't belong where a chicken breast was.
+ *  3. HONESTY about the cost. The macro difference is computed from USDA data at the portion the
+ *     recipe actually calls for, and stated. "Basically the same" is a claim, not a courtesy.
+ */
+/**
+ * Substring matching once served almonds to a user allergic to nuts, because "nuts" is inside
+ * "almonds"... backwards. Here it made "unicorn tears" match corn. Ingredients match on WORD
+ * boundaries or not at all.
+ */
+function nameMatches(ingredientName: string, want: string): boolean {
+  const n = ingredientName.trim().toLowerCase();
+  if (n === want) return true;
+  // Compare word by word, with the same stemming the allergen filter uses, so "egg" finds "eggs"
+  // and "tortilla" finds "corn tortillas" — but "unicorn tears" never finds corn.
+  const nw = n.split(/[^a-z]+/).filter(Boolean);
+  const ww = want.split(/[^a-z]+/).filter(Boolean);
+  if (!ww.length) return false;
+  const covers = (hay: string[], needles: string[]) =>
+    needles.every((t) => hay.some((w) => wordMatches(w, t) || wordMatches(t, w)));
+  return covers(nw, ww) || covers(ww, nw);
+}
+
+/**
+ * "almond" must not resolve to "almond butter" just because that key is listed first. Among the
+ * keys that match, prefer the one that says the least beyond what the user said.
+ */
+function bestKey(want: string): string | undefined {
+  const alias = INGREDIENT_ALIASES[want];
+  if (alias && SUBSTITUTES[alias]) return alias;
+  const words = (x: string) => x.split(/[^a-z]+/).filter(Boolean).length;
+  return Object.keys(SUBSTITUTES)
+    .filter((k) => nameMatches(k, want))
+    .sort((a, b) => Math.abs(words(a) - words(want)) - Math.abs(words(b) - words(want)) || a.length - b.length)[0];
+}
+
+function substituteNote(
+  plan: WeekPlan,
+  p: UserProfile,
+  query: string,
+  day: DayPlan["day"] | undefined,
+  type: Meal["type"] | undefined,
+): string {
+  const raw = query.trim().toLowerCase();
+  if (!raw) return "Which ingredient have you run out of?";
+  const want = INGREDIENT_ALIASES[raw] ?? raw;
+
+  // Find where it appears in the plan, so the advice is about a real portion.
+  const scope = plan.days.filter((d) => !day || d.day === day);
+  let found: { day: string; meal: Meal; name: string; quantity: string } | null = null;
+  for (const d of scope)
+    for (const m of d.meals) {
+      if (type && m.type !== type) continue;
+      const hit = m.ingredients.find((i) => nameMatches(i.name, want));
+      if (hit && !found) found = { day: d.day, meal: m, name: hit.name.trim().toLowerCase(), quantity: hit.quantity };
+    }
+
+  const key = found?.name ?? want;
+  const candidates = SUBSTITUTES[key] ?? SUBSTITUTES[want] ?? SUBSTITUTES[bestKey(key) ?? bestKey(want) ?? ""] ?? [];
+  if (!candidates.length)
+    return found
+      ? `I don't have a substitution I trust for ${key}. Leaving it out of ${found.day}'s ${found.meal.type} is usually safer than guessing.`
+      : `I don't know what to swap for "${query}", and I'd rather say so than invent something.`;
+
+  // 1. SAFETY FIRST — diet, allergies, dislikes.
+  const tokens = exclusionTokens(p);
+  const dietTag = p.diet === "vegan" ? "vegan" : p.diet === "vegetarian" ? "vegetarian" : "";
+  const safe = candidates.filter((c: string) => {
+    if (haystackBlocked(c, tokens)) return false;
+    if (dietTag && dietTagConflicts(dietTag, [c]).length) return false;
+    return true;
+  });
+  if (!safe.length)
+    return `Everything I'd normally swap for ${key} breaks your ${p.diet !== "none" ? p.diet + " diet" : "restrictions"} or something you avoid, so I won't suggest any of them.`;
+
+  const best = safe[0];
+  const parts: string[] = [];
+
+  // 3. THE COST, computed. Only when we know both foods and the portion.
+  const grams = found ? gramsFor(found.name, found.quantity) : null;
+  const a = NUTRIENT_TABLE[key]?.per100g;
+  const b = NUTRIENT_TABLE[best]?.per100g;
+  if (found && grams && a && b) {
+    const f = grams / 100;
+    const dCal = Math.round(((b.cal ?? 0) - (a.cal ?? 0)) * f);
+    const dPro = Math.round(((b.protein ?? 0) - (a.protein ?? 0)) * f);
+    const cost: string[] = [];
+    if (Math.abs(dCal) >= 15) cost.push(`${Math.abs(dCal)} ${dCal > 0 ? "more" : "fewer"} kcal`);
+    if (Math.abs(dPro) >= 3) cost.push(`${Math.abs(dPro)}g ${dPro > 0 ? "more" : "less"} protein`);
+    parts.push(
+      `Use ${best} instead of the ${found.quantity} of ${key} in ${found.day}'s ${found.meal.type}` +
+        (cost.length ? ` — that's ${listPhrase(cost)} for that portion.` : ` — near enough identical for that portion.`),
+    );
+  } else if (found) {
+    parts.push(`Use ${best} instead of the ${found.quantity} of ${key} in ${found.day}'s ${found.meal.type}.`);
+    parts.push(`I can't put a number on the macro difference — I don't have full data for both.`);
+  } else {
+    parts.push(`Use ${best} in place of ${key}.`);
+    parts.push(`It isn't in this week's plan, so I'm speaking generally.`);
+  }
+
+  const others = safe.slice(1, 3);
+  if (others.length) parts.push(`${listPhrase(others.map(cap))} also work${others.length > 1 ? "" : "s"}.`);
+  const dropped = candidates.length - safe.length;
+  if (dropped) parts.push(`(I left out ${dropped} I'd normally suggest — ${dropped > 1 ? "they don't" : "it doesn't"} fit your diet or what you avoid.)`);
+  return parts.join(" ");
+}
+
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/**
  * "Why is this in my plan?" An assistant that cannot justify its own choices is a black box, and
  * a black box cannot replace a nutritionist. Every clause below is derived from the plan and the
  * USDA table — the model narrates it, it never invents it.
@@ -3441,6 +3560,13 @@ export function applyOperations(
           break;
         }
         curPlan = eatingOut(p, curPlan, op.day, op.mealType, op.estimatedCalories ?? undefined, notes);
+        break;
+      }
+      case "substitute_ingredient": {
+        // Read-only advice: the user is at the counter, not asking for a new plan.
+        notes.push(
+          substituteNote(curPlan, p, op.ingredient ?? op.dish ?? "", op.day ?? undefined, op.mealType ?? undefined),
+        );
         break;
       }
       case "explain_meal": {

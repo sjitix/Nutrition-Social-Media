@@ -25,10 +25,12 @@ const FIELDS = new Set([
   "useIngredients", "targetCalories", "targetProtein", "targetCarbs", "targetFat",
   "targetFiber", "boostNutrient", "maxCookTime", "age", "heightCm", "weightKg", "sex",
   "activity", "goal", "loggedCalories", "loggedProtein", "preserveMacros", "estimatedCalories",
+  "ingredient",
 ]);
 const TOOLS = [
   "update_profile", "regenerate_week", "regenerate_day", "swap_meal",
-  "compute_targets", "log_meal", "weekly_report", "eating_out", "explain_meal", "answer",
+  "compute_targets", "log_meal", "weekly_report", "eating_out", "explain_meal",
+  "substitute_ingredient", "answer",
 ];
 const MIN_PER_TOOL = 15;
 
