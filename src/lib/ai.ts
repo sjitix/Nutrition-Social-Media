@@ -659,7 +659,7 @@ export function assistantTurnSystemPrompt(profile: UserProfile, plan: WeekPlan):
     .join("\n");
   return (
     "You are the meal-plan assistant. Read the user's message and the recent conversation, then output JSON: a natural 'reply' plus a list of 'operations' (tool calls) the app runs in order. Use the conversation to resolve references ('do that', 'only Tuesday', 'make it 1500').\n\n" +
-    "TOOLS — each operation has a 'tool' and only the fields that tool needs (leave the rest null, excludeFoods []):\n" +
+    "TOOLS — each operation has a 'tool' and ONLY the fields that tool actually needs. OMIT every field you are not setting. Never write nulls, and never invent a value for a field the user did not mention.\n" +
     "- update_profile: change a WEEK-WIDE setting and rebuild the week. Fields: diet, budget, excludeFoods, targetCalories, targetProtein, targetCarbs, targetFat, targetFiber, maxCookTime, cuisine. The plan re-solves to hit any macro target you set. Use for 'make it cheaper', 'go vegetarian', 'no onions', 'no oven' (excludeFoods:['bake','roast','oven']), '2000 calories a day', 'set my protein to 180', '30g fiber a day'.\n" +
     "- regenerate_week: rebuild the whole week (optional cuisine, targetFiber, useIngredients, boostNutrient). Use for 'give me a new plan', 'make the week Italian', 'use up the chicken and rice I have' (useIngredients:['chicken','rice']).\n" +
     "- boostNutrient (on update_profile / regenerate_week / regenerate_day): favour foods rich in one nutrient — iron, calcium, magnesium, potassium, zinc, vitD, vitC, folate, b12. Use for 'I'm low on iron', 'I need more vitamin D', 'my doctor said my B12 is low'. The app computes the real amounts from USDA data and reports them; you never state a nutrient number yourself.\n" +
@@ -671,6 +671,7 @@ export function assistantTurnSystemPrompt(profile: UserProfile, plan: WeekPlan):
     "- Compound requests → SEVERAL operations, or one update_profile with several fields.\n" +
     "- Use word stems in excludeFoods so 'bake' also matches 'baked'/'baking'.\n" +
     "- Macros are kept on target automatically. Only think about preserveMacros:false when the user explicitly wants to go off-plan for a treat.\n" +
+    "- Emit ONLY the fields you mean. 'make Tuesday vegetarian' is exactly {tool:regenerate_day, day:Tuesday, diet:vegetarian} — nothing else.\n" +
     "- reply: natural and friendly — say what you did or answer the question.\n\n" +
     `Weekly AVERAGES per day: ${avgKcal} kcal, ${avgProtein}g protein, ${avgFiber}g fiber.\n` +
     `Current plan:\n${planText}\n\n` +

@@ -86,7 +86,7 @@ function renderSystemPrompt(profile, plan) {
     .join("\n");
   return (
     "You are the meal-plan assistant. Read the user's message and the recent conversation, then output JSON: a natural 'reply' plus a list of 'operations' (tool calls) the app runs in order. Use the conversation to resolve references ('do that', 'only Tuesday', 'make it 1500').\n\n" +
-    "TOOLS — each operation has a 'tool' and only the fields that tool needs (leave the rest null, excludeFoods []):\n" +
+    "TOOLS — each operation has a 'tool' and ONLY the fields that tool actually needs. OMIT every field you are not setting. Never write nulls, and never invent a value for a field the user did not mention.\n" +
     "- update_profile: change a WEEK-WIDE setting and rebuild the week. Fields: diet, budget, excludeFoods, targetCalories, targetProtein, targetCarbs, targetFat, targetFiber, maxCookTime, cuisine. The plan re-solves to hit any macro target you set.\n" +
     "- regenerate_week: rebuild the whole week (optional cuisine, targetFiber, useIngredients — on-hand foods to prefer, boostNutrient).\n" +
     "- boostNutrient (on update_profile / regenerate_week / regenerate_day): favour foods rich in one nutrient — iron, calcium, magnesium, potassium, zinc, vitD, vitC, folate, b12. The app computes the real amounts from USDA data; never state a nutrient number yourself.\n" +
@@ -98,6 +98,7 @@ function renderSystemPrompt(profile, plan) {
     "- Compound requests -> SEVERAL operations, or one update_profile with several fields.\n" +
     "- Use word stems in excludeFoods so 'bake' also matches 'baked'/'baking'.\n" +
     "- Macros are kept on target automatically; only use preserveMacros:false for an explicit treat.\n" +
+    "- Emit ONLY the fields you mean. 'make Tuesday vegetarian' is exactly {tool:regenerate_day, day:Tuesday, diet:vegetarian} — nothing else.\n" +
     "- reply: natural and friendly.\n\n" +
     `Weekly AVERAGES per day: ${avgKcal} kcal, ${avgProtein}g protein, ${avgFiber}g fiber.\n` +
     `Current plan:\n${planText}\n\n` +
@@ -121,27 +122,21 @@ const PROFILE = {
 };
 
 // Build one operation with all schema fields present.
-const OP = (o) => ({
-  tool: o.tool,
-  day: o.day ?? null,
-  mealType: o.mealType ?? null,
-  dish: o.dish ?? null,
-  cuisine: o.cuisine ?? null,
-  diet: o.diet ?? null,
-  budget: o.budget ?? null,
-  excludeFoods: o.excludeFoods ?? [],
-  ...(o.useIngredients ? { useIngredients: o.useIngredients } : {}),
-  ...(o.boostNutrient ? { boostNutrient: o.boostNutrient } : {}),
-  targetCalories: o.targetCalories ?? null,
-  targetProtein: o.targetProtein ?? null,
-  targetCarbs: o.targetCarbs ?? null,
-  targetFat: o.targetFat ?? null,
-  targetFiber: o.targetFiber ?? null,
-  maxCookTime: o.maxCookTime ?? null,
-  // Only emitted for swaps where the user wants to go off-plan (a treat). Omitted
-  // otherwise so the model learns the nutritionist default (keep macros on target).
-  ...(o.preserveMacros != null ? { preserveMacros: o.preserveMacros } : {}),
-});
+// Emit ONLY the fields this operation actually sets. Previously every field was written
+// (76% of emitted tokens were nulls) and the model leaked memorised values into slots it was
+// forced to fill: "make Tuesday vegetarian" came back with diet:null but targetFiber:30 and
+// excludeFoods:["bake","roast","oven"]. Omitting unused fields removes the opportunity.
+const OP = (o) => {
+  const op = { tool: o.tool };
+  for (const k of [
+    "day", "mealType", "dish", "cuisine", "diet", "budget",
+    "targetCalories", "targetProtein", "targetCarbs", "targetFat", "targetFiber",
+    "maxCookTime", "boostNutrient", "preserveMacros",
+  ]) if (o[k] !== undefined && o[k] !== null) op[k] = o[k];
+  if (o.excludeFoods && o.excludeFoods.length) op.excludeFoods = o.excludeFoods;
+  if (o.useIngredients && o.useIngredients.length) op.useIngredients = o.useIngredients;
+  return op;
+};
 
 // ---- vocabulary --------------------------------------------------------------
 const FOODS = ["onions", "mushrooms", "cilantro", "olives", "bell peppers", "tomatoes", "eggs", "tofu", "pork", "beef", "shrimp", "coconut", "chickpeas", "feta", "avocado"];
@@ -167,8 +162,8 @@ for (const m of ["splurge a little this week", "i got paid, make it fancier", "b
 const wkDiet = { vegetarian: ["make it vegetarian", "no meat please", "i want a veggie plan", "go vegetarian"], vegan: ["make it vegan", "plant based only", "no animal products"], keto: ["i want keto", "low carb keto plan", "put me on keto"], mediterranean: ["mediterranean diet please", "do a mediterranean week"] };
 for (const [d, ms] of Object.entries(wkDiet)) for (const m of ms) push([u(m)], `Done — your whole week is now ${d}.`, [OP({ tool: "update_profile", diet: d })]);
 
-// diet (single day)
-for (let i = 0; i < 14; i++) { const day = rand(DAYS); const d = rand(DIETS); push([u(rand([`make ${day} ${d}`, `${day} should be ${d}`, `can ${day} be ${d}`, d === "vegetarian" ? `meatless ${day}` : `${d} ${day}`]))], `Got it — ${day} is now ${d}, the rest of the week is unchanged.`, [OP({ tool: "regenerate_day", day, diet: d })]); }
+// diet (single day) — the model dropped `diet` here, so cover it harder
+for (let i = 0; i < 26; i++) { const day = rand(DAYS); const d = rand(DIETS); push([u(rand([`make ${day} ${d}`, `${day} should be ${d}`, `can ${day} be ${d}`, d === "vegetarian" ? `meatless ${day}` : `${d} ${day}`]))], `Got it — ${day} is now ${d}, the rest of the week is unchanged.`, [OP({ tool: "regenerate_day", day, diet: d })]); }
 
 // exclusions (foods)
 for (let i = 0; i < 22; i++) { const f = rand(FOODS); push([u(rand([`no ${f}`, `i hate ${f}`, `i don't like ${f}`, `can you remove ${f}`, `cut the ${f}`, `${f} makes me sick`, `please avoid ${f} this week`, `allergic to ${f}`]))], `No problem — I'll keep ${f} out of your week.`, [OP({ tool: "update_profile", excludeFoods: [f] })]); }

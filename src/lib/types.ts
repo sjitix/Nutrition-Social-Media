@@ -55,8 +55,13 @@ export const AssistantResponseSchema = z.object({
 // The assistant is tool-calling: the LLM emits a REPLY plus a list of OPERATIONS
 // (tool calls) that the database executes. This composes any request ("cheaper and
 // vegetarian and no onions" = one turn, several ops) and keeps the LLM general —
-// no hardcoded phrase rules. Every field is present (nullable where a given tool
-// doesn't use it) so the JSON schema stays strict for the local model.
+// no hardcoded phrase rules.
+//
+// EVERY FIELD IS OPTIONAL except `tool`. It used to be "present but nullable", which meant
+// 76% of the tokens the model emitted were nulls — and a 1.5B leaks memorised values into
+// slots it is forced to write. It answered "make Tuesday vegetarian" with diet:null but
+// targetFiber:30 and excludeFoods:["bake","roast","oven"]. Emitting only the fields you mean
+// removes the opportunity entirely. Missing == not requested.
 export const OperationSchema = z.object({
   tool: z.enum([
     "update_profile", // persist week-wide settings, then rebuild the week
@@ -65,28 +70,28 @@ export const OperationSchema = z.object({
     "swap_meal", // replace one meal with a specific named dish
     "answer", // no change — just answering a question
   ]),
-  day: z.enum(DAYS).nullable(),
-  mealType: z.enum(MEAL_TYPES).nullable(),
-  dish: z.string().nullable(), // for swap_meal, e.g. "cottage cheese pancakes"
-  cuisine: z.string().nullable(),
-  diet: z.enum(["none", "vegetarian", "vegan", "keto", "mediterranean"]).nullable(),
-  budget: z.enum(["low", "medium", "high"]).nullable(),
-  excludeFoods: z.array(z.string()),
+  day: z.enum(DAYS).nullable().optional(),
+  mealType: z.enum(MEAL_TYPES).nullable().optional(),
+  dish: z.string().nullable().optional(), // for swap_meal, e.g. "cottage cheese pancakes"
+  cuisine: z.string().nullable().optional(),
+  diet: z.enum(["none", "vegetarian", "vegan", "keto", "mediterranean"]).nullable().optional(),
+  budget: z.enum(["low", "medium", "high"]).nullable().optional(),
+  excludeFoods: z.array(z.string()).optional(),
   // "I have chicken, rice and broccoli" → bias selection toward recipes that use
   // these on-hand ingredients. Optional; omit/[] when not relevant.
   useIngredients: z.array(z.string()).optional(),
-  targetCalories: z.number().nullable(),
-  targetProtein: z.number().nullable(), // grams/day; the plan re-solves to hit it
-  targetCarbs: z.number().nullable(),
-  targetFat: z.number().nullable(),
-  targetFiber: z.number().nullable(),
+  targetCalories: z.number().nullable().optional(),
+  targetProtein: z.number().nullable().optional(), // grams/day; the plan re-solves to hit it
+  targetCarbs: z.number().nullable().optional(),
+  targetFat: z.number().nullable().optional(),
+  targetFiber: z.number().nullable().optional(),
   // "I'm low on iron" / "boost my vitamin D" → bias meal selection toward foods dense in
   // this nutrient, while the macro engine still holds calories and protein on target.
   boostNutrient: z
     .enum(["iron", "calcium", "magnesium", "potassium", "zinc", "vitD", "vitC", "folate", "b12"])
     .nullable()
     .optional(),
-  maxCookTime: z.number().nullable(),
+  maxCookTime: z.number().nullable().optional(),
   // LLM-controlled intent: when swapping/regenerating, should the day stay on the
   // user's macro targets (the engine rebalances the other meals to hold protein/
   // calories/etc.)? Default = yes (the nutritionist default). The model sets this

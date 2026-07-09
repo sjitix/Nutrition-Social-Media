@@ -2903,13 +2903,13 @@ export function applyOperations(
         if (op.targetProtein && op.targetProtein > 0) p.proteinGrams = op.targetProtein;
         if (op.targetCarbs && op.targetCarbs > 0) p.carbsGrams = op.targetCarbs;
         if (op.targetFat && op.targetFat > 0) p.fatGrams = op.targetFat;
-        if (op.excludeFoods.length) p.dislikes = mergeDislikes(p.dislikes, op.excludeFoods);
+        if (op.excludeFoods?.length) p.dislikes = mergeDislikes(p.dislikes, op.excludeFoods);
         profileChanged = true;
         // Re-solve every day onto the macro targets so the base plan actually hits
         // protein/calories, not just each meal's calorie share.
         {
           const rep = newReport();
-          const built = selectWeekFromDb(p, normalizeCuisine(op.cuisine), fiberOn(op), op.useIngredients, op.boostNutrient ?? undefined, rep);
+          const built = selectWeekFromDb(p, normalizeCuisine(op.cuisine ?? null), fiberOn(op), op.useIngredients, op.boostNutrient ?? undefined, rep);
           curPlan = keepMacros(op) ? rebalanceWeek(built, p) : built;
           notes.push(...reportNotes(rep, p));
           if (keepMacros(op)) notes.push(achievementNote("Your week now averages", weekAverages(curPlan), p));
@@ -2920,7 +2920,7 @@ export function applyOperations(
       case "regenerate_week": {
         {
           const rep = newReport();
-          const built = selectWeekFromDb(p, normalizeCuisine(op.cuisine), fiberOn(op), op.useIngredients, op.boostNutrient ?? undefined, rep);
+          const built = selectWeekFromDb(p, normalizeCuisine(op.cuisine ?? null), fiberOn(op), op.useIngredients, op.boostNutrient ?? undefined, rep);
           curPlan = keepMacros(op) ? rebalanceWeek(built, p) : built;
           notes.push(...reportNotes(rep, p));
           if (keepMacros(op)) notes.push(achievementNote("Your week now averages", weekAverages(curPlan), p));
@@ -2934,9 +2934,9 @@ export function applyOperations(
         if (op.diet) tp.diet = op.diet;
         if (op.targetCalories && op.targetCalories > 0) tp.targetCalories = op.targetCalories;
         if (op.targetProtein && op.targetProtein > 0) tp.proteinGrams = op.targetProtein;
-        if (op.excludeFoods.length) tp.dislikes = mergeDislikes(tp.dislikes, op.excludeFoods);
+        if (op.excludeFoods?.length) tp.dislikes = mergeDislikes(tp.dislikes, op.excludeFoods);
         const rep = newReport();
-        const newDay = selectDay(tp, op.day, curPlan, normalizeCuisine(op.cuisine), fiberOn(op), op.useIngredients, op.boostNutrient ?? undefined, rep);
+        const newDay = selectDay(tp, op.day, curPlan, normalizeCuisine(op.cuisine ?? null), fiberOn(op), op.useIngredients, op.boostNutrient ?? undefined, rep);
         notes.push(...reportNotes(rep, tp));
         const meals = keepMacros(op)
           ? rebalanceDay(newDay.meals, tp, undefined, namesOnOtherDays(curPlan, op.day))
