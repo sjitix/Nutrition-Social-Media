@@ -1,0 +1,180 @@
+/**
+ * Evaluate the assistant model against an OpenAI-compatible endpoint (LM Studio).
+ *
+ *   npm run eval:assistant
+ *   MODEL=qwen2.5-7b-instruct-1m npm run eval:assistant     # compare vs the prompted base
+ *
+ * It sends the REAL system prompt the app sends (imported, not copy-pasted), against a real
+ * generated week, so we measure what production actually does.
+ *
+ * Metrics, not vibes:
+ *   validJson        - parseable JSON at all
+ *   schemaOk         - matches AssistantTurn (reply + operations[])
+ *   noHallucination  - never invents a tool name or a field outside the schema
+ *   toolAccuracy     - correct tool chosen
+ *   fieldAccuracy    - correct key fields (day/mealType/diet/budget/targets/excludeFoods)
+ *   clarify/answer   - stays hands-off when the request is a question or ambiguous
+ */
+import { readFileSync, existsSync } from "node:fs";
+import { join } from "node:path";
+import { assistantTurnSystemPrompt } from "@/lib/ai";
+import { selectWeekFromDb, rebalanceWeek } from "@/lib/recipeDb";
+import type { UserProfile } from "@/lib/types";
+
+const ROOT = process.cwd();
+
+function envLocal(): Record<string, string> {
+  const p = join(ROOT, ".env.local");
+  if (!existsSync(p)) return {};
+  const out: Record<string, string> = {};
+  for (const line of readFileSync(p, "utf8").split("\n")) {
+    const m = line.match(/^\s*([A-Z_]+)\s*=\s*(.*?)\s*$/);
+    if (m) out[m[1]] = m[2];
+  }
+  return out;
+}
+const env = envLocal();
+const BASE_URL = process.env.BASE_URL ?? env.LOCAL_AI_URL ?? "http://localhost:1234/v1";
+const MODEL = process.env.MODEL ?? env.LOCAL_AI_MODEL ?? "nutriflow-assistant";
+
+const TOOLS = new Set(["update_profile", "regenerate_week", "regenerate_day", "swap_meal", "answer"]);
+const FIELDS = new Set([
+  "tool", "day", "mealType", "dish", "cuisine", "diet", "budget", "excludeFoods",
+  "targetCalories", "targetProtein", "targetCarbs", "targetFat", "targetFiber",
+  "maxCookTime", "preserveMacros", "useIngredients",
+]);
+
+interface Case {
+  msg: string;
+  tool?: string;              // expected tool; absent => must NOT change the plan
+  want?: Record<string, unknown>;
+  expectExcludeMethod?: boolean;
+  expectExclude?: string;
+  expectUseIngredients?: boolean;
+}
+
+const CASES: Case[] = [
+  { msg: "make it cheaper", tool: "update_profile", want: { budget: "low" } },
+  { msg: "go vegetarian", tool: "update_profile", want: { diet: "vegetarian" } },
+  { msg: "no onions please", tool: "update_profile", expectExclude: "onion" },
+  { msg: "i don't have an oven", tool: "update_profile", expectExcludeMethod: true },
+  { msg: "2200 calories a day", tool: "update_profile", want: { targetCalories: 2200 } },
+  { msg: "set my protein to 180g", tool: "update_profile", want: { targetProtein: 180 } },
+  { msg: "i want 30g of fiber daily", tool: "update_profile", want: { targetFiber: 30 } },
+  { msg: "nothing that takes more than 20 minutes", tool: "update_profile", want: { maxCookTime: 20 } },
+  { msg: "make tuesday vegetarian", tool: "regenerate_day", want: { day: "Tuesday", diet: "vegetarian" } },
+  { msg: "change monday to 1500 calories", tool: "regenerate_day", want: { day: "Monday", targetCalories: 1500 } },
+  { msg: "give friday an asian theme", tool: "regenerate_day", want: { day: "Friday", cuisine: "asian" } },
+  { msg: "redo saturday", tool: "regenerate_day", want: { day: "Saturday" } },
+  { msg: "give me a whole new plan", tool: "regenerate_week" },
+  { msg: "make the whole week italian", tool: "regenerate_week", want: { cuisine: "italian" } },
+  { msg: "i've got salmon and broccoli to use up", tool: "regenerate_week", expectUseIngredients: true },
+  { msg: "swap monday breakfast for cottage cheese pancakes", tool: "swap_meal", want: { day: "Monday", mealType: "breakfast" } },
+  { msg: "i want pancakes tuesday but i'm staying lean", tool: "swap_meal", want: { day: "Tuesday", mealType: "breakfast" } },
+  { msg: "it's my cheat day, swap saturday dinner for pizza", tool: "swap_meal", want: { day: "Saturday", mealType: "dinner", preserveMacros: false } },
+  { msg: "replace sunday lunch with grilled salmon", tool: "swap_meal", want: { day: "Sunday", mealType: "lunch" } },
+  { msg: "make it cheaper and vegetarian", tool: "update_profile", want: { budget: "low", diet: "vegetarian" } },
+  { msg: "mak it vegitarian pls", tool: "update_profile", want: { diet: "vegetarian" } },
+  { msg: "no mushroms they r gross", tool: "update_profile", expectExclude: "mushroom" },
+  // questions / chit-chat -> must not change the plan
+  { msg: "what's my average protein?" },
+  { msg: "how many calories do i eat per day?" },
+  { msg: "what's for dinner on friday?" },
+  { msg: "thanks!" },
+  { msg: "what can you do?" },
+  // ambiguous -> clarify, don't guess
+  { msg: "make it better" },
+  { msg: "change it" },
+  { msg: "1500" },
+];
+
+const PROFILE: UserProfile = {
+  goal: "maintain", diet: "none", allergies: "", dislikes: "", budget: "medium",
+  mealsPerDay: 3, targetCalories: 2000, proteinGrams: 150, carbsGrams: 200,
+  fatGrams: 65, maxCookTime: 30, maxIngredients: 8,
+};
+const PLAN = rebalanceWeek(selectWeekFromDb(PROFILE), PROFILE);
+const SYSTEM = assistantTurnSystemPrompt(PROFILE, PLAN);
+
+async function ask(message: string): Promise<string> {
+  const res = await fetch(`${BASE_URL}/chat/completions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: MODEL, temperature: 0, max_tokens: 400,
+      messages: [{ role: "system", content: SYSTEM }, { role: "user", content: message }],
+    }),
+  });
+  if (!res.ok) throw new Error(`${res.status} ${(await res.text()).slice(0, 120)}`);
+  const j = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+  return j.choices?.[0]?.message?.content ?? "";
+}
+
+const stat = { n: 0, validJson: 0, schemaOk: 0, noHalluc: 0, toolAcc: 0, fieldAcc: 0, handsOff: 0 };
+const handsOffTotal = CASES.filter((c) => !c.tool).length;
+const failures: string[] = [];
+
+for (const c of CASES) {
+  stat.n++;
+  let raw: string;
+  try {
+    raw = await ask(c.msg);
+  } catch (e) {
+    failures.push(`[${c.msg}] request failed: ${(e as Error).message}`);
+    continue;
+  }
+
+  const m = raw.match(/\{[\s\S]*\}/); // models sometimes wrap JSON in prose/fences
+  let turn: { reply?: unknown; operations?: unknown };
+  try {
+    turn = JSON.parse(m ? m[0] : raw);
+    stat.validJson++;
+  } catch {
+    failures.push(`[${c.msg}] invalid JSON: ${raw.slice(0, 100)}`);
+    continue;
+  }
+
+  const ops = Array.isArray(turn.operations) ? (turn.operations as Record<string, unknown>[]) : null;
+  if (typeof turn.reply === "string" && ops) stat.schemaOk++;
+  else {
+    failures.push(`[${c.msg}] bad schema: ${JSON.stringify(turn).slice(0, 100)}`);
+    continue;
+  }
+
+  const halluc = ops.some((o) => !TOOLS.has(String(o.tool))) || ops.some((o) => Object.keys(o).some((k) => !FIELDS.has(k)));
+  if (!halluc) stat.noHalluc++;
+  else failures.push(`[${c.msg}] hallucinated tool/field: ${JSON.stringify(ops).slice(0, 110)}`);
+
+  if (!c.tool) {
+    const acted = ops.some((o) => o.tool !== "answer");
+    if (!acted) { stat.handsOff++; stat.toolAcc++; stat.fieldAcc++; }
+    else failures.push(`[${c.msg}] acted when it should have answered: ${ops.map((o) => o.tool).join(",")}`);
+    continue;
+  }
+
+  const got = ops[0] ?? {};
+  if (got.tool === c.tool) stat.toolAcc++;
+  else failures.push(`[${c.msg}] tool "${got.tool}" != "${c.tool}"`);
+
+  let ok = true;
+  for (const [k, v] of Object.entries(c.want ?? {}))
+    if (String(got[k] ?? "").toLowerCase() !== String(v).toLowerCase()) ok = false;
+  if (c.expectExcludeMethod) ok = (got.excludeFoods as string[] | undefined ?? []).some((f) => /bake|roast|oven/i.test(f));
+  if (c.expectExclude) ok = (got.excludeFoods as string[] | undefined ?? []).some((f) => f.toLowerCase().includes(c.expectExclude!));
+  if (c.expectUseIngredients) ok = ((got.useIngredients as string[] | undefined) ?? []).length > 0;
+  if (ok) stat.fieldAcc++;
+  else failures.push(`[${c.msg}] fields off: ${JSON.stringify(got).slice(0, 130)}`);
+}
+
+const pct = (x: number) => `${((x / stat.n) * 100).toFixed(0)}%`.padStart(4);
+console.log(`\nmodel: ${MODEL}\nendpoint: ${BASE_URL}\ncases: ${stat.n}\n`);
+console.log(`validJson        ${pct(stat.validJson)}`);
+console.log(`schemaOk         ${pct(stat.schemaOk)}`);
+console.log(`noHallucination  ${pct(stat.noHalluc)}`);
+console.log(`toolAccuracy     ${pct(stat.toolAcc)}`);
+console.log(`fieldAccuracy    ${pct(stat.fieldAcc)}`);
+console.log(`clarify/answer   ${stat.handsOff}/${handsOffTotal}`);
+if (failures.length) {
+  console.log(`\n--- failures (${failures.length}) ---`);
+  for (const f of failures.slice(0, 25)) console.log("  " + f);
+}
