@@ -17,6 +17,7 @@ import type { UserProfile, Operation, DayPlan, WeekPlan, Meal } from "@/lib/type
 import { microsForIngredients } from "@/lib/nutrients";
 import { haystackBlocked, dietTagConflicts } from "@/lib/exclusions";
 import { bmr, computeTargets } from "@/lib/targets";
+import { composeReply, planWasChanged, READ_ONLY_TOOLS } from "@/lib/reply";
 import { SUBSTITUTES } from "@/lib/substitutions";
 import { NUTRIENT_TABLE } from "@/lib/nutrientTable.generated";
 import { gramsFor } from "@/lib/nutrients";
@@ -904,6 +905,40 @@ console.log("--- SYMPTOM CHECK (never diagnose, never dose, always the doctor) -
   check("an urgent symptom makes the engine own the entire reply", !!urgentRes.replyOverride);
   const normalRes = applyOperations(BASE, plan, [op({ tool: "symptom_check", symptom: "i'm always tired" })]);
   check("an ordinary symptom leaves the model's reply alone", normalRes.replyOverride === undefined);
+}
+
+
+// ---------------------------------------------------------------- reply composition
+console.log("");
+console.log("--- REPLY COMPOSITION (who gets the last word) ---");
+{
+  const CRISIS = "Please contact a crisis line straight away.";
+
+  check("a crisis reply discards the model's words entirely",
+    composeReply({ modelReply: "Sounds like low iron! Let me fix your week.", notes: [CRISIS], replyOverride: CRISIS, planChanged: false }) === CRISIS);
+
+  check("an ordinary turn keeps the model's reply and appends the engine's facts",
+    composeReply({ modelReply: "Done!", notes: ["Your week averages 2000 kcal."], planChanged: true }) === "Done! Your week averages 2000 kcal.");
+
+  check("filler never introduces the engine's facts",
+    composeReply({ modelReply: "", notes: ["You're low on vitamin D."], planChanged: false }) === "You're low on vitamin D.");
+
+  check("a silent model with nothing to report still says something",
+    composeReply({ modelReply: "", notes: [], planChanged: false }) === "Happy to help.");
+  check("a silent model that changed the plan says so",
+    composeReply({ modelReply: "", notes: [], planChanged: true }) === "Done — I updated your plan.");
+
+  // Read-only tools must not make the UI think the week was rewritten.
+  for (const t of ["answer", "weekly_report", "explain_meal", "substitute_ingredient", "symptom_check"])
+    check(`${t} does not flag the plan as changed`, !planWasChanged([op({ tool: t as Operation["tool"] })]));
+  for (const t of ["update_profile", "regenerate_week", "regenerate_day", "swap_meal", "compute_targets", "log_meal", "eating_out"])
+    check(`${t} flags the plan as changed`, planWasChanged([op({ tool: t as Operation["tool"] })]));
+
+  // Every tool in the schema must be classified deliberately, one way or the other.
+  const ALL = ["update_profile", "regenerate_week", "regenerate_day", "swap_meal", "compute_targets",
+    "log_meal", "weekly_report", "eating_out", "explain_meal", "substitute_ingredient", "symptom_check", "answer"];
+  const unclassified = ALL.filter((t) => !READ_ONLY_TOOLS.has(t) && !planWasChanged([op({ tool: t as Operation["tool"] })]));
+  check("no tool is left unclassified", unclassified.length === 0, unclassified.join(", "));
 }
 
 // ---------------------------------------------------------------- 3. fuzz

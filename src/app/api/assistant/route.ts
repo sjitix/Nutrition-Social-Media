@@ -8,6 +8,7 @@ import {
   withTargetDefaults,
 } from "@/lib/ai";
 import { applyOperations } from "@/lib/recipeDb";
+import { composeReply, planWasChanged } from "@/lib/reply";
 import { DEMO_ASSISTANT_REPLY } from "@/lib/demo";
 import type { ChatMessage, UserProfile, WeekPlan } from "@/lib/types";
 
@@ -76,19 +77,10 @@ export async function POST(request: Request) {
     // 3) The database executes the tool calls — accurate, cheap, real recipes.
     const { plan, profile: newProfile, notes, replyOverride } = applyOperations(profile, body.plan, turn.operations);
 
-    // Read-only tools must not flag the plan as changed, or the UI re-renders for nothing.
-    const READ_ONLY = new Set([
-      "answer", "weekly_report", "explain_meal", "substitute_ingredient", "symptom_check",
-    ]);
-    const planChanged = turn.operations.some((o) => !READ_ONLY.has(o.tool));
-    // The LLM writes the natural reply; the engine appends the factual macro notes
-    // it can't compute itself (what got rebalanced, the resulting kcal/protein).
-    // On a crisis or an urgent medical symptom the engine's text IS the reply — the model's
-    // words are thrown away rather than prepended. "Happy to help!" must never introduce a
-    // chest-pain warning.
-    const baseReply =
-      turn.reply?.trim() || (notes.length ? "" : planChanged ? "Done — I updated your plan." : "Happy to help.");
-    const reply = replyOverride ?? [baseReply, ...notes].filter(Boolean).join(" ");
+    // Read-only tools must not flag the plan as changed; the engine owns the reply outright on a
+    // crisis. Both rules live in lib/reply.ts, where tests can reach them.
+    const planChanged = planWasChanged(turn.operations);
+    const reply = composeReply({ modelReply: turn.reply, notes, replyOverride, planChanged });
     return NextResponse.json({
       reply,
       planChanged,
