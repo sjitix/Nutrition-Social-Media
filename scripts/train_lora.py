@@ -36,6 +36,8 @@ OUT = ROOT / "models" / "nutriflow-lora"
 BASE = os.environ.get("BASE_MODEL", "Qwen/Qwen2.5-1.5B-Instruct")
 MAX_LEN = int(os.environ.get("MAX_LEN", "2048"))
 EPOCHS = float(os.environ.get("EPOCHS", "3"))
+# Cap optimizer steps — used for a short stability smoke-test before a long run.
+MAX_STEPS = int(os.environ.get("MAX_STEPS", "-1"))
 
 print(f"Base model : {BASE}")
 print(f"Dataset    : {DATA}")
@@ -139,6 +141,7 @@ args = TrainingArguments(
     per_device_train_batch_size=1,
     gradient_accumulation_steps=8,
     num_train_epochs=EPOCHS,
+    max_steps=MAX_STEPS,
     learning_rate=2e-4,
     warmup_ratio=0.03,
     lr_scheduler_type="cosine",

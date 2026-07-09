@@ -2196,15 +2196,23 @@ function pickMealsForDay(
   const meals: Meal[] = [];
   for (const [type, share] of split) {
     const target = Math.round(profile.targetCalories * share);
-    let candidates = RECIPES.filter(
+    // HARD rules — diet, allergies and exclusions are never relaxed.
+    const hard = RECIPES.filter(
+      (r) => r.type === type && passesDiet(r, profile.diet) && !blockedByExclusions(r, tokens),
+    );
+    // SOFT preferences — relax in stages rather than silently drop a meal from the
+    // day. A slightly slower or pricier meal beats a missing one; a nutritionist
+    // would never just leave you without dinner.
+    let candidates = hard.filter(
       (r) =>
-        r.type === type &&
-        passesDiet(r, profile.diet) &&
-        !blockedByExclusions(r, tokens) &&
         r.timeMinutes <= profile.maxCookTime + 5 &&
         r.ingredients.length <= profile.maxIngredients + 1 &&
         r.approxCost <= cap,
     );
+    if (!candidates.length)
+      candidates = hard.filter((r) => r.timeMinutes <= profile.maxCookTime + 15 && r.approxCost <= cap);
+    if (!candidates.length) candidates = hard.filter((r) => r.approxCost <= cap);
+    if (!candidates.length) candidates = hard; // last resort: honour only the hard rules
     if (cuisinePref) {
       const pref = candidates.filter((r) => r.cuisine === cuisinePref);
       if (pref.length) candidates = pref;
@@ -2338,9 +2346,11 @@ interface Macros {
 }
 
 const MACRO_AXES = ["cal", "protein", "carbs", "fat", "fiber"] as const;
-// How hard we try to hit each axis. Protein is weighted highest — it's what users
-// care about most and the axis a careless swap breaks first.
-const MACRO_WEIGHTS: Macros = { cal: 2, protein: 3, carbs: 1, fat: 1, fiber: 0.5 };
+// How hard we try to hit each axis. Calories and protein are the two the user
+// actually set and notices; carbs/fat/fiber follow. Calories must out-weigh the
+// combined carb+fat+fiber pull, otherwise the solver trades calories away to keep
+// those three happy and days land short (observed: 1852 kcal vs a 2000 target).
+const MACRO_WEIGHTS: Macros = { cal: 4, protein: 3, carbs: 1, fat: 1, fiber: 0.5 };
 const DAY_FIBER_TARGET = 30; // g/day (no per-user field yet; sensible default)
 const SCALE_LO = 0.6;
 const SCALE_HI = 1.8; // keep portions realistic (matches scaleRecipeToTarget)
@@ -2375,6 +2385,24 @@ function macroDistance(m: Macros, target: Macros): number {
 
 const recipeByName = new Map(RECIPES.map((r) => [r.name.toLowerCase(), r]));
 const baseRecipeOf = (m: Meal): Recipe | undefined => recipeByName.get(m.name.toLowerCase());
+
+// Scale a recipe by an exact factor. Unlike scaleRecipeToTarget (which ignores any
+// change under 8% to avoid pointless re-portioning during generation), the rebalancer
+// needs its corrections applied verbatim — otherwise small, deliberate adjustments are
+// silently discarded and the day drifts off target.
+function scaleRecipeByFactor(r: Recipe, factor: number): Recipe {
+  const f = clampScale(factor);
+  if (Math.abs(f - 1) < 0.01) return r;
+  return {
+    ...r,
+    calories: Math.round(r.calories * f),
+    proteinGrams: Math.round(r.proteinGrams * f),
+    carbsGrams: Math.round(r.carbsGrams * f),
+    fatGrams: Math.round(r.fatGrams * f),
+    ...(r.fiberGrams != null ? { fiberGrams: Math.round(r.fiberGrams * f) } : {}),
+    ingredients: r.ingredients.map((i) => ({ ...i, quantity: scaleQuantity(i.quantity, f) })),
+  };
+}
 
 // LEVER 1 — portion scaling. Re-solve the adjustable meals' portions so the day's
 // totals hit the macro targets. `lockedType` (the meal the user just asked to swap
@@ -2415,8 +2443,23 @@ function scaleToTargets(meals: Meal[], profile: UserProfile, lockedType?: Recipe
     }
   }
 
+  // Calorie polish. The multi-axis descent balances five goals at once and can settle
+  // short on calories when carbs/fat/fiber pull the other way. Calories are the axis
+  // the user actually set, so close the remaining gap directly. Iterate: a single
+  // proportional correction undershoots when some meals hit the 1.8x clamp, so repeat
+  // to redistribute the remainder onto the meals that still have headroom.
+  const adjCal = () => adj.reduce((s, it) => s + recipeMacros(it.base).cal * it.g, 0);
+  const wanted = target.cal - fixed.cal;
+  for (let t = 0; t < 8 && wanted > 0; t++) {
+    const have = adjCal();
+    if (have <= 0) break;
+    const k = wanted / have;
+    if (Math.abs(k - 1) < 0.005) break; // close enough
+    for (const it of adj) it.g = clampScale(it.g * k);
+  }
+
   const scaled = new Map<Meal, Meal>();
-  for (const it of adj) scaled.set(it.m, toMeal(scaleRecipeToTarget(it.base, Math.round(it.base.calories * it.g))));
+  for (const it of adj) scaled.set(it.m, toMeal(scaleRecipeByFactor(it.base, it.g)));
   return meals.map((m) => scaled.get(m) ?? m);
 }
 
@@ -2506,10 +2549,14 @@ export const rebalanceWeek = (plan: WeekPlan, profile: UserProfile): WeekPlan =>
 // one whose macro profile best fits the slot — so "pancakes" on a high-protein plan
 // auto-selects the protein-forward pancake (the user never has to say "protein").
 // Dish match wins first; macro fit only breaks ties between equally-matching dishes.
+// `respectSoft` = also honour the user's cook-time / ingredient-count limits. We try
+// with them on first; if nothing fits we retry with them off purely to tell the user
+// WHY we couldn't do it ("that dahl takes 30 min, over your 15-min limit").
 function findRecipeForSwap(
   query: string,
   type: Recipe["type"] | undefined,
   profile: UserProfile,
+  respectSoft = true,
 ): Recipe | null {
   const words = query.toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 2);
   if (words.length === 0) return null;
@@ -2519,6 +2566,11 @@ function findRecipeForSwap(
   for (const r of RECIPES) {
     if (type && r.type !== type) continue;
     if (!passesDiet(r, profile.diet) || blockedByExclusions(r, tokens) || r.approxCost > cap) continue;
+    if (
+      respectSoft &&
+      (r.timeMinutes > profile.maxCookTime + 5 || r.ingredients.length > profile.maxIngredients + 1)
+    )
+      continue;
     const hay = `${r.name} ${r.description} ${r.ingredients.map((i) => i.name).join(" ")}`.toLowerCase();
     let kw = 0;
     for (const w of words) if (hay.includes(w)) kw++;
@@ -2601,10 +2653,29 @@ export function applyOperations(
         // macro profile (e.g. the protein-forward pancake on a high-protein plan).
         const match = findRecipeForSwap(op.dish, op.mealType ?? undefined, p);
         const origDay = curPlan.days.find((d) => d.day === op.day);
-        if (!match || !origDay) break;
+        if (!origDay) break;
+        if (!match) {
+          // Say WHY we couldn't. A silent no-op looks like the app ignored you.
+          const loose = findRecipeForSwap(op.dish, op.mealType ?? undefined, p, false);
+          notes.push(
+            loose
+              ? `${loose.name} takes ${loose.timeMinutes} min, over your ${p.maxCookTime}-min limit — I left ${op.day} as it is.`
+              : `I don't have anything like "${op.dish}" that fits your plan.`,
+          );
+          break;
+        }
         const share =
           localSplit(p.mealsPerDay).find((s) => s[0] === match.type)?.[1] ?? 1 / p.mealsPerDay;
         const meal = toMeal(scaleRecipeToTarget(match, Math.round(p.targetCalories * share)));
+        // Be honest when we substituted something other than what was asked for.
+        // "unicorn stew" matching "Cod & Smoky Bean Stew" is a reasonable guess, but
+        // the user must be told — a silent wrong swap is worse than no swap.
+        const asked = op.dish.toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 2);
+        const got = match.name.toLowerCase();
+        const unmatched = asked.filter((w) => !got.includes(w));
+        if (asked.length && unmatched.length)
+          notes.push(`I didn't have "${op.dish}" — I used ${match.name} instead.`);
+
         const swapped = origDay.meals.map((m) => (m.type === match.type ? meal : m));
         // Keep the day on its macro targets by rebalancing the OTHER meals — the
         // swapped-in dish stays as the user requested (locked).

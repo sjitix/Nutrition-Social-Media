@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:engine": "esbuild scripts/test-engine.mts --bundle --platform=node --format=esm --tsconfig=tsconfig.json --outfile=node_modules/.cache/test-engine.mjs --log-level=error && node node_modules/.cache/test-engine.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",
@@ -20,6 +21,7 @@
     "@types/node": "^26.1.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
+    "esbuild": "^0.28.1",
     "tailwindcss": "^4.3.2",
     "typescript": "^6.0.3"
   }
