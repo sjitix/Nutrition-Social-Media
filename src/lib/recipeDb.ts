@@ -13,6 +13,7 @@ import { computeTargets, explainTargets } from "./targets";
 import {
   microsForIngredients,
   microDensity,
+  MICRO_KEYS,
   MICRO_LABEL,
   MICRO_UNIT,
   DAILY_REFERENCE,
@@ -2876,6 +2877,142 @@ function achievementNote(label: string, got: { kcal: number; protein: number }, 
   return note;
 }
 
+
+/**
+ * A nutrient boost must be a GUARANTEE, not a bias. Scoring recipes higher for iron and then
+ * re-rolling a random week can hand the user LESS iron than they started with — which makes
+ * "I'll rebuild your week around iron" a lie. This pass only ever accepts a strict improvement,
+ * so the nutrient can go up or stay put, never down.
+ *
+ * Variety still matters: a nutritionist doesn't prescribe salmon seven nights running, so no
+ * recipe may appear more than twice a week, and never twice in one day.
+ */
+function upgradeForNutrient(profile: UserProfile, plan: WeekPlan, key: MicroKey): WeekPlan {
+  const tokens = exclusionTokens(profile);
+  const eligible = RECIPES.filter(
+    (r) =>
+      !r.treatOnly &&
+      passesDiet(r, profile.diet) &&
+      !blockedByExclusions(r, tokens) &&
+      r.timeMinutes <= profile.maxCookTime,
+  );
+  const density = new Map(eligible.map((r) => [r.id, recipeMicros(r).micros[key]] as const));
+  const uses = new Map<string, number>();
+  for (const d of plan.days) for (const m of d.meals) uses.set(m.name, (uses.get(m.name) ?? 0) + 1);
+
+  const days = plan.days.map((d) => ({ ...d, meals: [...d.meals] }));
+  for (const d of days) {
+    for (let i = 0; i < d.meals.length; i++) {
+      const cur = d.meals[i];
+      const curRecipe = RECIPES.find((r) => r.name === cur.name);
+      const curAmount = curRecipe ? recipeMicros(curRecipe).micros[key] : 0;
+      const inDay = new Set(d.meals.map((m) => m.name));
+      const best = eligible
+        .filter(
+          (r) =>
+            r.type === cur.type &&
+            !inDay.has(r.name) &&
+            (uses.get(r.name) ?? 0) < 2 &&
+            (density.get(r.id) ?? 0) > curAmount,
+        )
+        .sort((a, b) => (density.get(b.id) ?? 0) - (density.get(a.id) ?? 0))[0];
+      if (!best) continue; // nothing strictly better — keep what's there
+      const share = localSplit(profile.mealsPerDay).find((sp) => sp[0] === best.type)?.[1] ?? 1 / profile.mealsPerDay;
+      d.meals[i] = toMeal(scaleRecipeToTarget(best, Math.round(profile.targetCalories * share)));
+      uses.set(cur.name, Math.max(0, (uses.get(cur.name) ?? 1) - 1));
+      uses.set(best.name, (uses.get(best.name) ?? 0) + 1);
+    }
+  }
+  return rebalanceWeek({ ...plan, days }, profile);
+}
+
+/**
+ * The contract for a boost: the user ends up with MORE of the nutrient than they had. A fresh
+ * random week can easily be worse than the one it replaced, so we upgrade the new week, and if
+ * that still doesn't beat what the user already had, we upgrade their existing week instead —
+ * less disruption, and the promise holds either way.
+ */
+function guaranteeBoost(
+  profile: UserProfile,
+  prev: WeekPlan,
+  built: WeekPlan,
+  key: MicroKey,
+): { plan: WeekPlan; note?: string } {
+  const level = (pl: WeekPlan) => weekMicroAverage(pl, key).amount;
+  const before = level(prev);
+  const candidates = [upgradeForNutrient(profile, built, key), upgradeForNutrient(profile, prev, key)];
+  const best = candidates.reduce((a, b) => (level(b) > level(a) ? b : a));
+  // Portion rebalancing can claw back what the swaps gained, so the win is verified, not assumed.
+  if (level(best) > before) return { plan: best };
+  return {
+    plan: prev,
+    note: `I couldn't put more ${MICRO_LABEL[key]} into your week than it already has, so I left it alone.`,
+  };
+}
+
+/**
+ * Can this nutrient actually be raised, given the user's diet and exclusions? Offering to
+ * "rebuild the week around your B12" when no vegan food in the library carries any is a false
+ * promise. A nutritionist would say plainly that food alone won't cover it.
+ */
+function nutrientReachable(p: UserProfile, key: MicroKey): boolean {
+  const tokens = exclusionTokens(p);
+  // "Reachable" must mean the gap can actually be CLOSED, not that a trace exists. One meal
+  // carrying a quarter of the daily reference means three such meals get the week near target.
+  const meaningful = 0.25 * DAILY_REFERENCE[key];
+  return RECIPES.some(
+    (r) =>
+      !r.treatOnly &&
+      passesDiet(r, p.diet) &&
+      !blockedByExclusions(r, tokens) &&
+      recipeMicros(r).micros[key] > meaningful,
+  );
+}
+
+/**
+ * "How am I doing this week?" Every number here is COMPUTED — averages from the plan, micros
+ * from the USDA-mapped ingredients. The model never states a figure it did not get from here.
+ * Nutrients whose ingredient coverage is too thin are omitted rather than guessed at.
+ */
+function weeklyReportNote(plan: WeekPlan, p: UserProfile): string {
+  const n = plan.days.length || 1;
+  const sum = (f: (m: Meal) => number) => plan.days.reduce((s, d) => s + d.meals.reduce((a, m) => a + f(m), 0), 0);
+  const kcal = Math.round(sum((m) => m.calories) / n);
+  const protein = Math.round(sum((m) => m.proteinGrams) / n);
+  const carbs = Math.round(sum((m) => m.carbsGrams) / n);
+  const fat = Math.round(sum((m) => m.fatGrams) / n);
+  const fiber = Math.round(sum((m) => m.fiberGrams ?? 0) / n);
+
+  let s = `This week you average ${kcal} kcal a day (target ${p.targetCalories}), ${protein}g protein (target ${p.proteinGrams}g), ${carbs}g carbs, ${fat}g fat and ${fiber}g fiber.`;
+
+  const calOff = kcal - p.targetCalories;
+  if (Math.abs(calOff) > p.targetCalories * 0.1)
+    s += ` That's ${Math.abs(calOff)} kcal ${calOff > 0 ? "above" : "below"} your target.`;
+  const protOff = p.proteinGrams - protein;
+  if (protOff > PROTEIN_MISS) s += ` Protein is ${protOff}g short.`;
+
+  const fixable: string[] = [];
+  const unfixable: string[] = [];
+  let skipped = 0;
+  for (const k of MICRO_KEYS) {
+    const { amount, coverage } = weekMicroAverage(plan, k);
+    if (coverage < 0.6) { skipped++; continue; }
+    const pct = amount / DAILY_REFERENCE[k];
+    if (pct >= 0.8) continue;
+    const shown = `${MICRO_LABEL[k]} (${Math.round(pct * 100)}% of the daily reference)`;
+    (nutrientReachable(p, k) ? fixable : unfixable).push(shown);
+  }
+  if (fixable.length)
+    s += ` You're running low on ${fixable.join(", ")} — I can rebuild the week around ${fixable.length > 1 ? "any of them" : "it"}.`;
+  if (unfixable.length) {
+    const many = unfixable.length > 1;
+    s += ` ${fixable.length ? "You're also low on" : "You're running low on"} ${unfixable.join(", ")}, and no food that fits your ${p.diet !== "none" ? p.diet + " " : ""}rules carries enough of ${many ? "them" : "it"} — that normally needs a fortified food or a supplement, which is worth raising with a doctor or dietitian.`;
+  }
+  if (!fixable.length && !unfixable.length) s += ` Your micronutrients all look adequate against the daily reference.`;
+  if (skipped) s += ` (${skipped} nutrient${skipped > 1 ? "s" : ""} I can't measure reliably from these ingredients.)`;
+  return s;
+}
+
 // Dish names used on days OTHER than `day` — so a single-day rebalance/upgrade
 // doesn't introduce a dish already on the plate elsewhere in the week.
 function namesOnOtherDays(plan: WeekPlan, day: DayPlan["day"]): Set<string> {
@@ -2932,9 +3069,15 @@ export function applyOperations(
         // protein/calories, not just each meal's calorie share.
         {
           const rep = newReport();
+          const prev = curPlan;
           const built = selectWeekFromDb(p, normalizeCuisine(op.cuisine ?? null), fiberOn(op), op.useIngredients, op.boostNutrient ?? undefined, rep);
           curPlan = keepMacros(op) ? rebalanceWeek(built, p) : built;
           notes.push(...reportNotes(rep, p));
+          if (op.boostNutrient) {
+            const g = guaranteeBoost(p, prev, curPlan, op.boostNutrient);
+            curPlan = g.plan;
+            if (g.note) notes.push(g.note);
+          }
           if (keepMacros(op)) notes.push(achievementNote("Your week now averages", weekAverages(curPlan), p));
           if (op.boostNutrient) notes.push(microNote(curPlan, op.boostNutrient));
         }
@@ -2943,9 +3086,15 @@ export function applyOperations(
       case "regenerate_week": {
         {
           const rep = newReport();
+          const prev = curPlan;
           const built = selectWeekFromDb(p, normalizeCuisine(op.cuisine ?? null), fiberOn(op), op.useIngredients, op.boostNutrient ?? undefined, rep);
           curPlan = keepMacros(op) ? rebalanceWeek(built, p) : built;
           notes.push(...reportNotes(rep, p));
+          if (op.boostNutrient) {
+            const g = guaranteeBoost(p, prev, curPlan, op.boostNutrient);
+            curPlan = g.plan;
+            if (g.note) notes.push(g.note);
+          }
           if (keepMacros(op)) notes.push(achievementNote("Your week now averages", weekAverages(curPlan), p));
           if (op.boostNutrient) notes.push(microNote(curPlan, op.boostNutrient));
         }
@@ -3124,6 +3273,11 @@ export function applyOperations(
         if (pShort > PROTEIN_MISS)
           note += ` Protein lands at ${tot.protein}g against your ${p.proteinGrams}g target — what you ate didn't leave room to make it up.`;
         notes.push(note);
+        break;
+      }
+      case "weekly_report": {
+        // Read-only: report, never change. Facts computed here; the model narrates them.
+        notes.push(weeklyReportNote(curPlan, p));
         break;
       }
       case "answer":

@@ -264,6 +264,27 @@ for (let i = 0; i < 8; i++) {
 for (const m of ["i ate my nan's stew for dinner", "had something random for lunch"])
   push([u(m)], "Logged it — roughly how many calories was it, so I can balance the rest of your day?", [OP({ tool: "log_meal", day: "Monday", mealType: m.includes("dinner") ? "dinner" : "lunch", dish: "unknown meal" })]);
 
+// weekly_report — "how am I doing?" The engine computes; the model must NOT narrate numbers.
+const REVIEW = [
+  "how am I doing this week?", "how's my week looking?", "am i hitting my protein?",
+  "review my week", "give me a summary of the week", "am i missing any vitamins?",
+  "how are my macros overall?", "any nutrients i'm low on?", "is my plan actually healthy?",
+  "check my week for me", "am i short on anything?", "whats my weekly average",
+  "do i get enough iron?", "am i deficient in anything?", "how's my nutrition overall",
+  "score my week", "am i on track?", "break down my week for me",
+];
+for (const m of REVIEW)
+  push([u(m)], rand([
+    "Here's how your week is shaping up:",
+    "Let me look at the whole week:",
+    "Here's the picture across all seven days:",
+  ]), [OP({ tool: "weekly_report" })]);
+
+// CONTRAST: a fact about ONE day is already in the prompt -> answer, not a report.
+// Without these the model learns "any question about food = weekly_report".
+for (const m of ["how many calories is monday?", "what's for dinner on friday?", "how much protein is tuesday's lunch?", "what am i eating thursday?"])
+  push([u(m)], "It's in your plan above — happy to change it if you'd like.", []);
+
 // compute_targets: the model collects FACTS, the engine does the arithmetic and states the
 // numbers. The reply never contains a calorie figure the model made up.
 const ACT = [

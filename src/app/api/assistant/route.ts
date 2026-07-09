@@ -76,7 +76,9 @@ export async function POST(request: Request) {
     // 3) The database executes the tool calls — accurate, cheap, real recipes.
     const { plan, profile: newProfile, notes } = applyOperations(profile, body.plan, turn.operations);
 
-    const planChanged = turn.operations.some((o) => o.tool !== "answer");
+    // Read-only tools must not flag the plan as changed, or the UI re-renders for nothing.
+    const READ_ONLY = new Set(["answer", "weekly_report"]);
+    const planChanged = turn.operations.some((o) => !READ_ONLY.has(o.tool));
     // The LLM writes the natural reply; the engine appends the factual macro notes
     // it can't compute itself (what got rebalanced, the resulting kcal/protein).
     const baseReply =

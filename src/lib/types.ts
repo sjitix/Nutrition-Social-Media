@@ -70,6 +70,7 @@ export const OperationSchema = z.object({
     "swap_meal", // replace one meal with a specific named dish
     "compute_targets", // work out calories/protein/carbs/fat from body + goal, then rebuild
     "log_meal", // "I ate a burger for lunch" -> re-solve the REST of that day
+    "weekly_report", // "how am I doing?" -> computed macro + micronutrient summary, no change
     "answer", // no change — just answering a question
   ]),
   day: z.enum(DAYS).nullable().optional(),

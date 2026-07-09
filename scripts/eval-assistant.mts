@@ -37,11 +37,13 @@ const env = envLocal();
 const BASE_URL = process.env.BASE_URL ?? env.LOCAL_AI_URL ?? "http://localhost:1234/v1";
 const MODEL = process.env.MODEL ?? env.LOCAL_AI_MODEL ?? "nutriflow-assistant";
 
-const TOOLS = new Set(["update_profile", "regenerate_week", "regenerate_day", "swap_meal", "answer"]);
+const TOOLS = new Set(["update_profile", "regenerate_week", "regenerate_day", "swap_meal", "compute_targets", "log_meal", "answer"]);
 const FIELDS = new Set([
   "tool", "day", "mealType", "dish", "cuisine", "diet", "budget", "excludeFoods",
   "targetCalories", "targetProtein", "targetCarbs", "targetFat", "targetFiber",
-  "maxCookTime", "preserveMacros", "useIngredients",
+  "maxCookTime", "preserveMacros", "useIngredients", "boostNutrient",
+  "age", "heightCm", "weightKg", "sex", "activity", "goal",
+  "loggedCalories", "loggedProtein",
 ]);
 
 interface Case {
@@ -76,6 +78,18 @@ const CASES: Case[] = [
   { msg: "make it cheaper and vegetarian", tool: "update_profile", want: { budget: "low", diet: "vegetarian" } },
   { msg: "mak it vegitarian pls", tool: "update_profile", want: { diet: "vegetarian" } },
   { msg: "no mushroms they r gross", tool: "update_profile", expectExclude: "mushroom" },
+  // nutrient boost
+  { msg: "i'm low on iron", tool: "update_profile", want: { boostNutrient: "iron" } },
+  { msg: "my doctor says my vitamin d is low", tool: "update_profile", want: { boostNutrient: "vitD" } },
+  { msg: "i need more b12", tool: "update_profile", want: { boostNutrient: "b12" } },
+  // compute_targets: collect facts, never invent them
+  { msg: "i'm 30, 180cm, 80kg, male, i train 4 times a week, i want to lose fat", tool: "compute_targets", want: { age: 30, heightCm: 180, weightKg: 80, sex: "male", goal: "lose_weight" } },
+  { msg: "work out my macros: 27 years old, 165 cm, 60 kg, female, desk job no exercise, goal is to maintain", tool: "compute_targets", want: { age: 27, weightKg: 60, sex: "female", activity: "sedentary", goal: "maintain" } },
+  // log_meal: real life
+  { msg: "i ate pizza for lunch on monday", tool: "log_meal", want: { day: "Monday", mealType: "lunch" } },
+  { msg: "i had a burger for dinner", tool: "log_meal", want: { mealType: "dinner" } },
+  { msg: "had a takeaway for lunch, roughly 900 kcal", tool: "log_meal", want: { mealType: "lunch", loggedCalories: 900 } },
+
   // questions / chit-chat -> must not change the plan
   { msg: "what's my average protein?" },
   { msg: "how many calories do i eat per day?" },
@@ -86,6 +100,8 @@ const CASES: Case[] = [
   { msg: "make it better" },
   { msg: "change it" },
   { msg: "1500" },
+  { msg: "work out my calories" },
+  { msg: "what should my macros be" },
 ];
 
 const PROFILE: UserProfile = {
@@ -128,6 +144,15 @@ const RESPONSE_FORMAT = {
               maxCookTime: { type: ["number", "null"] },
               preserveMacros: { type: ["boolean", "null"] },
               useIngredients: { type: "array", items: { type: "string" } },
+              boostNutrient: { type: ["string", "null"] },
+              age: { type: ["number", "null"] },
+              heightCm: { type: ["number", "null"] },
+              weightKg: { type: ["number", "null"] },
+              sex: { type: ["string", "null"] },
+              activity: { type: ["string", "null"] },
+              goal: { type: ["string", "null"] },
+              loggedCalories: { type: ["number", "null"] },
+              loggedProtein: { type: ["number", "null"] },
             },
             required: ["tool"],
           },

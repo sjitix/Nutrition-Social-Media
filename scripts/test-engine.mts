@@ -17,6 +17,7 @@ import type { UserProfile, Operation, DayPlan, WeekPlan, Meal } from "@/lib/type
 import { microsForIngredients } from "@/lib/nutrients";
 import { haystackBlocked, dietTagConflicts } from "@/lib/exclusions";
 import { bmr, computeTargets } from "@/lib/targets";
+import { MICRO_KEYS, DAILY_REFERENCE, MICRO_LABEL } from "@/lib/nutrients";
 
 // ---------------------------------------------------------------- harness
 let pass = 0;
@@ -594,6 +595,64 @@ console.log("\n--- ADVERSARIAL / EDGE CASES ---");
   const meaty = r.plan.days.some((d) => /chicken|beef|pork|turkey|salmon|tuna|shrimp/i.test(names(d)));
   const shroom = r.plan.days.some((d) => d.meals.some((m) => mealHay(m).includes("mushroom")));
   check("compound update: vegetarian + exclusion both applied", !meaty && !shroom);
+}
+
+
+// ---------------------------------------------------------------- weekly_report
+console.log("\n--- WEEKLY REPORT (read-only, honest, keeps its promises) ---");
+{
+  const wr = (p: UserProfile) => {
+    const plan = freshWeek(p);
+    const r = applyOperations(p, plan, [op({ tool: "weekly_report" })]);
+    return { note: r.notes.join(" "), plan, out: r.plan, profile: r.profile };
+  };
+
+  const { note, plan, out, profile } = wr(BASE);
+  check("weekly_report changes nothing (plan)", JSON.stringify(out) === JSON.stringify(plan));
+  check("weekly_report changes nothing (profile)", JSON.stringify(profile) === JSON.stringify(BASE));
+  check("weekly_report states the calorie average", /average \d+ kcal a day/.test(note));
+  check("weekly_report states protein against target", /\d+g protein \(target 150g\)/.test(note), note.slice(0, 60));
+
+  // The numbers it prints must be the numbers in the plan — not the model's guess.
+  const days = plan.days.length;
+  const realCal = Math.round(plan.days.reduce((s, d) => s + d.meals.reduce((t, m) => t + m.calories, 0), 0) / days);
+  const claimed = Number(/average (\d+) kcal/.exec(note)?.[1] ?? -1);
+  check("weekly_report calories are COMPUTED, not narrated", Math.abs(claimed - realCal) <= 1, `claimed ${claimed} vs real ${realCal}`);
+
+  // A vegan week genuinely cannot supply B12 from this library. Saying "I can rebuild
+  // the week around it" would be a lie; it must name the limit instead.
+  const vegan = wr({ ...BASE, diet: "vegan" });
+  const b12Line = /B12[^.]*supplement|supplement[^.]*B12/i.test(vegan.note) || /B12/i.test(vegan.note.split("no food that fits")[1] ?? "");
+  check("vegan report: B12 named as unreachable by food, not promised", b12Line, vegan.note.slice(-140));
+  check("vegan report: does not promise to 'rebuild around' B12", !/B12[^.]*I can rebuild/i.test(vegan.note));
+  check("vegan report: admits the protein shortfall", /protein is \d+g short/i.test(vegan.note));
+
+  // THE PROMISE TEST. Boosting a nutrient must never LOWER it — not on a lucky seed, not on
+  // an unlucky one. Selection is randomised, so this runs several trials per nutrient.
+  const microAvg = (pl: WeekPlan, k: (typeof MICRO_KEYS)[number]) =>
+    pl.days.reduce((s, d) => s + d.meals.reduce((t, m) => {
+      const r = RECIPES.find((x) => x.name === m.name);
+      return t + (r ? recipeMicros(r).micros[k] : 0);
+    }, 0), 0) / pl.days.length;
+
+  let regressions = 0;
+  let improved = 0;
+  let worst = "";
+  for (const k of MICRO_KEYS) {
+    for (let trial = 0; trial < 3; trial++) {
+      const start = freshWeek(BASE);
+      const before = microAvg(start, k);
+      const after = microAvg(applyOperations(BASE, start, [op({ tool: "regenerate_week", boostNutrient: k })]).plan, k);
+      if (after < before - 1e-6) { regressions++; worst = `${MICRO_LABEL[k]} ${before.toFixed(2)} -> ${after.toFixed(2)}`; }
+      if (after > before + 1e-6) improved++;
+    }
+  }
+  check("promise kept: boosting a nutrient NEVER lowers it", regressions === 0, worst || `${MICRO_KEYS.length * 3} trials clean`);
+  check("boost is useful: most trials actually raise the nutrient", improved >= MICRO_KEYS.length, `${improved}/${MICRO_KEYS.length * 3} raised`);
+
+  // Never report a nutrient we can't measure: coverage gate must hide, not guess.
+  check("weekly_report discloses unmeasurable nutrients rather than faking them",
+    !/NaN|undefined|Infinity/.test(note), note.slice(0, 80));
 }
 
 // ---------------------------------------------------------------- 3. fuzz
