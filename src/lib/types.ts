@@ -69,6 +69,7 @@ export const OperationSchema = z.object({
     "regenerate_day", // rebuild ONE day with optional per-day diet/calories/cuisine (not persisted)
     "swap_meal", // replace one meal with a specific named dish
     "compute_targets", // work out calories/protein/carbs/fat from body + goal, then rebuild
+    "log_meal", // "I ate a burger for lunch" -> re-solve the REST of that day
     "answer", // no change — just answering a question
   ]),
   day: z.enum(DAYS).nullable().optional(),
@@ -101,6 +102,10 @@ export const OperationSchema = z.object({
   sex: z.enum(["male", "female"]).nullable().optional(),
   activity: z.enum(["sedentary", "light", "moderate", "active", "very_active"]).nullable().optional(),
   goal: z.enum(["lose_weight", "maintain", "build_muscle"]).nullable().optional(),
+  // log_meal: what the user ACTUALLY ate. If the dish isn't in the library they can tell us the
+  // calories; if they can't, we ask rather than guess.
+  loggedCalories: z.number().nullable().optional(),
+  loggedProtein: z.number().nullable().optional(),
   // LLM-controlled intent: when swapping/regenerating, should the day stay on the
   // user's macro targets (the engine rebalances the other meals to hold protein/
   // calories/etc.)? Default = yes (the nutritionist default). The model sets this

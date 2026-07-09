@@ -2562,6 +2562,7 @@ const MACRO_AXES = ["cal", "protein", "carbs", "fat", "fiber"] as const;
 // those three happy and days land short (observed: 1852 kcal vs a 2000 target).
 const MACRO_WEIGHTS: Macros = { cal: 4, protein: 3, carbs: 1, fat: 1, fiber: 0.5 };
 const DAY_FIBER_TARGET = 30; // g/day (no per-user field yet; sensible default)
+const SLOT_WEIGHT = 1.5; // how hard we keep each meal near its share of the day
 const SCALE_LO = 0.6;
 const SCALE_HI = 1.8; // keep portions realistic (matches scaleRecipeToTarget)
 const clampScale = (f: number) => Math.max(SCALE_LO, Math.min(SCALE_HI, f));
@@ -2615,14 +2616,16 @@ function scaleRecipeByFactor(r: Recipe, factor: number): Recipe {
 }
 
 // LEVER 1 — portion scaling. Re-solve the adjustable meals' portions so the day's
-// totals hit the macro targets. `lockedType` (the meal the user just asked to swap
+// totals hit the macro targets. `locked` (the meals the user swapped in, or already ate)
 // in) keeps its chosen portion; the OTHER meals absorb the difference. Only meals
 // traceable to a library recipe are rescaled; anything else is left untouched.
-function scaleToTargets(meals: Meal[], profile: UserProfile, lockedType?: Recipe["type"]): Meal[] {
+type LockedSlots = ReadonlySet<Recipe["type"]>;
+
+function scaleToTargets(meals: Meal[], profile: UserProfile, locked?: LockedSlots): Meal[] {
   const target = dayTargetMacros(profile);
   const adj = meals
     .map((m) => ({ m, base: baseRecipeOf(m) }))
-    .filter((x): x is { m: Meal; base: Recipe } => !!x.base && x.m.type !== lockedType)
+    .filter((x): x is { m: Meal; base: Recipe } => !!x.base && !locked?.has(x.m.type))
     .map((x) => ({ m: x.m, base: x.base, g: clampScale(x.m.calories / x.base.calories) }));
   if (adj.length === 0) return meals;
 
@@ -2649,6 +2652,13 @@ function scaleToTargets(meals: Meal[], profile: UserProfile, lockedType?: Recipe
         const denom = Math.max(target[a], 1);
         grad += MACRO_WEIGHTS[a] * 2 * ((total[a] - target[a]) / (denom * denom)) * b[a];
       }
+      // Keep meals a sensible SIZE. Hitting the day's macros by squashing breakfast to its 0.6x
+      // floor and inflating dinner to its 1.8x ceiling is arithmetically correct and useless as
+      // a meal plan (observed: a 265 kcal breakfast beside a 1084 kcal dinner). Pull each meal
+      // toward its slot's share of the day; the macro terms still dominate.
+      const want = target.cal * slotShare(profile, it.m.type);
+      const have = b.cal * it.g;
+      grad += SLOT_WEIGHT * 2 * ((have - want) / (want * want)) * b.cal;
       it.g = clampScale(it.g - LR * grad);
     }
   }
@@ -2680,6 +2690,17 @@ function scaleToTargets(meals: Meal[], profile: UserProfile, lockedType?: Recipe
   return meals.map((m) => scaled.get(m) ?? m);
 }
 
+
+/**
+ * Rough order of a day. Used by log_meal: once you've eaten lunch, breakfast and lunch are
+ * facts — only the meals still ahead of you can be adjusted.
+ */
+const MEAL_ORDER: Record<Recipe["type"], number> = { breakfast: 0, lunch: 1, snack: 2, dinner: 3 };
+
+/** Every slot at or before `type` — i.e. everything already eaten. */
+const slotsUpTo = (type: Recipe["type"]): Set<Recipe["type"]> =>
+  new Set((Object.keys(MEAL_ORDER) as Recipe["type"][]).filter((t) => MEAL_ORDER[t] <= MEAL_ORDER[type]));
+
 const dayProtein = (meals: Meal[]) => meals.reduce((s, m) => s + m.proteinGrams, 0);
 const PROTEIN_SLACK = 8; // g/day we'll tolerate before reaching for lever 2
 
@@ -2689,13 +2710,14 @@ const PROTEIN_SLACK = 8; // g/day we'll tolerate before reaching for lever 2
 //  2) if the day is still protein-short (scaling can't raise protein at fixed
 //     calories), UPGRADE the weakest eligible meal to a higher-protein same-type
 //     recipe to "make room" — then scale again.
-// `lockedType` protects the meal the user just swapped in (never rescaled/upgraded).
+// `locked` protects meals that must not move: the dish the user swapped in, or every meal
+// they have already EATEN today (log_meal). They are never rescaled or upgraded.
 // `avoidNames` are dishes used elsewhere in the week, so an upgrade doesn't create a
 // cross-day repeat.
 function rebalanceDay(
   meals: Meal[],
   profile: UserProfile,
-  lockedType?: Recipe["type"],
+  locked?: LockedSlots,
   avoidNames?: Set<string>,
 ): Meal[] {
   let work = meals;
@@ -2704,7 +2726,7 @@ function rebalanceDay(
   const tokens = exclusionTokens(profile);
   // At most two upgrades so we change as few meals as needed.
   for (let pass = 0; pass < 2; pass++) {
-    const scaled = scaleToTargets(work, profile, lockedType);
+    const scaled = scaleToTargets(work, profile, locked);
     const gap = profile.proteinGrams - dayProtein(scaled);
     if (gap <= PROTEIN_SLACK) {
       work = scaled;
@@ -2713,7 +2735,7 @@ function rebalanceDay(
     let best: { i: number; r: Recipe; calTarget: number; gap: number } | null = null;
     for (let i = 0; i < work.length; i++) {
       const cur = work[i];
-      if (cur.type === lockedType || !baseRecipeOf(cur)) continue;
+      if (locked?.has(cur.type) || !baseRecipeOf(cur)) continue;
       const share = split.find((s) => s[0] === cur.type)?.[1] ?? 1 / profile.mealsPerDay;
       const calTarget = Math.round(profile.targetCalories * share);
       const usedElsewhere = new Set([
@@ -2733,7 +2755,7 @@ function rebalanceDay(
         )
           continue;
         const trial = work.map((x, j) => (j === i ? toMeal(scaleRecipeToTarget(r, calTarget)) : x));
-        const trialGap = Math.abs(profile.proteinGrams - dayProtein(scaleToTargets(trial, profile, lockedType)));
+        const trialGap = Math.abs(profile.proteinGrams - dayProtein(scaleToTargets(trial, profile, locked)));
         if (best === null || trialGap < best.gap) best = { i, r, calTarget, gap: trialGap };
       }
     }
@@ -2744,7 +2766,7 @@ function rebalanceDay(
     }
     work = work.map((x, j) => (j === best!.i ? toMeal(scaleRecipeToTarget(best!.r, best!.calTarget)) : x));
   }
-  return scaleToTargets(work, profile, lockedType);
+  return scaleToTargets(work, profile, locked);
 }
 
 // Re-solve every day of a week onto the macro targets. Used for the initial plan
@@ -2979,7 +3001,7 @@ export function applyOperations(
         // Keep the day on its macro targets by rebalancing the OTHER meals — the
         // swapped-in dish stays as the user requested (locked).
         const newMeals = keepMacros(op)
-          ? rebalanceDay(swapped, p, match.type, namesOnOtherDays(curPlan, op.day))
+          ? rebalanceDay(swapped, p, new Set([match.type]), namesOnOtherDays(curPlan, op.day))
           : swapped;
         curPlan = {
           ...curPlan,
@@ -3042,6 +3064,66 @@ export function applyOperations(
         );
         notes.push(...reportNotes(rep, p));
         notes.push(achievementNote("Your week now averages", weekAverages(curPlan), p));
+        break;
+      }
+      case "log_meal": {
+        // "I ate a burger for lunch." Real life derails plans constantly; the plan should absorb
+        // it rather than pretend. What you ate is a FACT — it is locked, along with everything
+        // earlier in the day — and only the meals still ahead of you are re-solved.
+        if (!op.day || !op.mealType) break;
+        const origDay = curPlan.days.find((d) => d.day === op.day);
+        if (!origDay) break;
+
+        let eaten: Meal | null = null;
+        if (op.dish) {
+          // Search ALL slots, not just the logged one: pizza is a "dinner" recipe but people
+          // eat it at lunch. respectSoft=false because they already ate it — cook time and
+          // budget are irrelevant to a meal that is already in the past.
+          const match = findRecipeForSwap(op.dish, undefined, p, false);
+          if (match) eaten = { ...toMeal(match), type: op.mealType };
+        }
+        if (!eaten && op.loggedCalories) {
+          eaten = {
+            name: op.dish ? op.dish : "Logged meal",
+            type: op.mealType,
+            description: "Logged by you.",
+            calories: op.loggedCalories,
+            proteinGrams: op.loggedProtein ?? 0,
+            carbsGrams: 0,
+            fatGrams: 0,
+            timeMinutes: 0,
+            ingredients: [],
+            steps: [],
+          };
+        }
+        if (!eaten) {
+          notes.push(`I don't know what's in "${op.dish ?? "that"}" — roughly how many calories was it?`);
+          break;
+        }
+        if (op.dish && !op.loggedCalories && eaten.proteinGrams === 0 && !eaten.ingredients.length)
+          notes.push(`I logged it at ${eaten.calories} kcal but I don't know its protein.`);
+
+        const locked = slotsUpTo(op.mealType);
+        const withEaten = origDay.meals.map((m) => (m.type === op.mealType ? eaten! : m));
+        const newMeals = rebalanceDay(withEaten, p, locked, namesOnOtherDays(curPlan, op.day));
+        curPlan = { ...curPlan, days: curPlan.days.map((d) => (d.day === op.day ? { ...d, meals: newMeals } : d)) };
+
+        const tot = dayTotals({ ...origDay, meals: newMeals });
+        const ahead = newMeals.filter((m) => !locked.has(m.type));
+        const changed = ahead.filter((nm) => !origDay.meals.some((om) => om.type === nm.type && om.name === nm.name));
+        let note = `Logged ${eaten.name} (${eaten.calories} kcal) for ${op.mealType}.`;
+        if (ahead.length === 0) note += ` That was your last meal of the day — ${op.day} lands at ${tot.kcal} kcal and ${tot.protein}g protein.`;
+        else {
+          note += ` I re-solved the rest of ${op.day}: it now lands at ${tot.kcal} kcal and ${tot.protein}g protein.`;
+          if (changed.length) note += ` I switched your ${changed.map((c) => `${c.type} to ${c.name}`).join(" and ")}.`;
+        }
+        const over = tot.kcal - p.targetCalories;
+        if (Math.abs(over) > p.targetCalories * 0.15)
+          note += ` That's still ${Math.abs(over)} kcal ${over > 0 ? "over" : "under"} your ${p.targetCalories} kcal target — there isn't enough left in the day to fix it.`;
+        const pShort = p.proteinGrams - tot.protein;
+        if (pShort > PROTEIN_MISS)
+          note += ` Protein lands at ${tot.protein}g against your ${p.proteinGrams}g target — what you ate didn't leave room to make it up.`;
+        notes.push(note);
         break;
       }
       case "answer":

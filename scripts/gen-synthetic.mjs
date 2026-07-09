@@ -93,6 +93,7 @@ function renderSystemPrompt(profile, plan) {
     "- regenerate_day: rebuild ONE day; requires day. Optional diet, targetCalories, cuisine, targetFiber apply to THAT day only (not saved).\n" +
     "- swap_meal: replace one meal with a specific dish; requires day, mealType, dish. By DEFAULT the app keeps that day on the user's macro targets by adjusting the other meals' portions — automatic, you don't ask for it. Set preserveMacros:false ONLY when the user signals a treat ('cheat day', 'treat', 'don't care about macros'). Never compute macros yourself.\n" +
     "- compute_targets: work out the user's calories/protein/carbs/fat from their body and goal, then rebuild the week. Needs age, heightCm, weightKg, sex (male|female), activity (sedentary|light|moderate|active|very_active) and goal (lose_weight|maintain|build_muscle). If any fact is missing, ASK for it (operations: []) — never guess someone's weight. The app does the arithmetic; you never compute.\n" +
+    "- log_meal: the user says what they ACTUALLY ate ('I had pizza for lunch'). Requires day + mealType + dish. The app locks that meal and everything earlier that day, then re-solves the meals still ahead. If the food isn't in the library, pass loggedCalories when the user gives a number; otherwise the app asks. Never estimate calories yourself.\n" +
     "- answer: no change; just answering a question.\n\n" +
     "Rules:\n" +
     "- Only a question -> operations: []. Put the answer in reply. For facts use the EXACT numbers below; the AVERAGES line is already per-day.\n" +
@@ -238,6 +239,30 @@ for (let i = 0; i < 6; i++) { const day = rand(DAYS); const key = rand(["iron", 
 
 // regenerate week
 for (const m of ["give me a whole new plan", "start over", "regenerate everything", "this is boring, redo it", "new week please", "shuffle it up", "i want different meals"]) push([u(m)], "Fresh week coming up — I've rebuilt the whole plan.", [OP({ tool: "regenerate_week" })]);
+
+// log_meal — "I ate a burger for lunch". Real life derails the plan; the plan absorbs it.
+const ATE = ["pizza", "a burger", "fried chicken", "nachos", "ice cream", "mac and cheese", "a chicken salad", "oatmeal", "a protein shake"];
+for (let i = 0; i < 22; i++) {
+  const day = rand(DAYS); const mt = rand(MEALS); const dish = rand(ATE);
+  push([u(rand([
+    `i ate ${dish} for ${mt} on ${day}`,
+    `i had ${dish} for ${mt}`,
+    `just ate ${dish}, that was my ${mt}`,
+    `${day} ${mt} was ${dish}, i already ate it`,
+  ]))], `Logged it — I've re-solved the rest of the day around it.`, [OP({ tool: "log_meal", day, mealType: mt, dish })]);
+}
+// the user supplies calories for a food we don't know
+for (let i = 0; i < 8; i++) {
+  const day = rand(DAYS); const mt = rand(MEALS); const cal = rand([450, 600, 750, 900, 1100]);
+  push([u(rand([
+    `i ate my mum's lasagna for ${mt}, about ${cal} calories`,
+    `had a takeaway for ${mt}, roughly ${cal} kcal`,
+    `${cal} calorie ${mt} today, some leftovers`,
+  ]))], "Logged — I've adjusted the rest of your day.", [OP({ tool: "log_meal", day, mealType: mt, dish: "logged meal", loggedCalories: cal })]);
+}
+// they ate something we don't know and gave no number -> log it anyway; the app asks
+for (const m of ["i ate my nan's stew for dinner", "had something random for lunch"])
+  push([u(m)], "Logged it — roughly how many calories was it, so I can balance the rest of your day?", [OP({ tool: "log_meal", day: "Monday", mealType: m.includes("dinner") ? "dinner" : "lunch", dish: "unknown meal" })]);
 
 // compute_targets: the model collects FACTS, the engine does the arithmetic and states the
 // numbers. The reply never contains a calorie figure the model made up.

@@ -470,6 +470,50 @@ console.log("\n--- COMPUTE_TARGETS (the engine does the arithmetic) ---");
   check("compute_targets explains itself in plain English", full.notes.some((n) => /resting burn/.test(n)), (full.notes[0] ?? "").slice(0, 90));
 }
 
+// ---------------------------------------------------------------- 1e. log_meal
+console.log("\n--- LOG_MEAL (real life derails the plan) ---");
+{
+  // Meals must stay a sensible SIZE. Hitting macros by squashing breakfast to its floor and
+  // inflating dinner to its ceiling is arithmetically right and useless as a meal plan.
+  let worstRatio = 0;
+  let lopsided = 0;
+  for (let i = 0; i < 6; i++) {
+    const wk = freshWeek(BASE);
+    for (const d of wk.days) {
+      const b = d.meals.find((m) => m.type === "breakfast")!.calories;
+      const dn = d.meals.find((m) => m.type === "dinner")!.calories;
+      worstRatio = Math.max(worstRatio, dn / b);
+      if (b < 350 || dn > 950) lopsided++;
+    }
+  }
+  check("meals stay a sensible size (dinner/breakfast < 2x)", worstRatio < 2, `worst ratio ${worstRatio.toFixed(2)}`);
+  check("no lopsided days", lopsided === 0, `${lopsided}/42`);
+}
+{
+  // "I ate a burger for lunch" -> the REST of the day re-solves; what you ate is a fact.
+  const wk = freshWeek(BASE);
+  const before = wk.days.find((x) => x.day === "Monday")!;
+  const bBreak = before.meals.find((m) => m.type === "breakfast")!;
+  const r = applyOperations(BASE, wk, [op({ tool: "log_meal", day: "Monday", mealType: "lunch", dish: "pizza" } as never)]);
+  const d = r.plan.days.find((x) => x.day === "Monday")!;
+  const aBreak = d.meals.find((m) => m.type === "breakfast")!;
+  check("log_meal: a dish from ANY slot can be eaten (pizza at lunch)", d.meals.some((m) => /pizza/i.test(m.name)), names(d));
+  check("log_meal: already-eaten meals are LOCKED", aBreak.name === bBreak.name && aBreak.calories === bBreak.calories);
+  check("log_meal: the day still lands near target", Math.abs(kcal(d) - 2000) <= 150, `${kcal(d)} kcal`);
+  check("log_meal: reports honestly what it changed", r.notes.some((n) => /Logged .*pizza/i.test(n)), (r.notes[0] ?? "").slice(0, 80));
+  check("log_meal: admits a protein shortfall it cannot fix", prot(d) >= 140 || r.notes.some((n) => /Protein lands at/.test(n)), `${prot(d)}g`);
+}
+{
+  // An unknown food: ask for the calories rather than invent them.
+  const wk = freshWeek(BASE);
+  const ask = applyOperations(BASE, wk, [op({ tool: "log_meal", day: "Monday", mealType: "lunch", dish: "grandma's lasagna" } as never)]);
+  check("log_meal: unknown food -> asks for calories, never guesses", ask.notes.some((n) => /how many calories/.test(n)), ask.notes[0] ?? "(none)");
+
+  const told = applyOperations(BASE, wk, [op({ tool: "log_meal", day: "Monday", mealType: "lunch", dish: "grandma's lasagna", loggedCalories: 900, loggedProtein: 35 } as never)]);
+  const d = told.plan.days.find((x) => x.day === "Monday")!;
+  check("log_meal: accepts user-supplied calories and re-solves", d.meals.some((m) => /lasagna/i.test(m.name)) && Math.abs(kcal(d) - 2000) <= 150, `${kcal(d)} kcal`);
+}
+
 // ---------------------------------------------------------------- 2. adversarial
 console.log("\n--- ADVERSARIAL / EDGE CASES ---");
 {
