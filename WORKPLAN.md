@@ -170,27 +170,44 @@ The `--audit` trail confirms the curation: `brown rice → Rice, brown, long-gra
   → engine says honestly that the day can't be saved rather than starving dinner.
 
 ### Phase 4 — Hydration
+
 - Water target from bodyweight/activity; `set_hydration_target`, `log_water`.
 - Plan surfaces hydration; suggests water-rich / electrolyte foods when short.
 - **Tests:** "how much water should I drink?", "I only drank 1L today".
 
-### Phase 5 — Symptom → nutrient reasoning
-- `assess_symptoms(symptoms[])` → **curated, conservative** mapping (fatigue → iron/B12/vitD/
-  hydration/calorie deficit; cramps → magnesium/potassium; brittle nails → iron/protein).
-- Composes existing tools: engine re-solves to boost the nutrient **while preserving macros**.
-- Replies are honest and non-diagnostic: *"these foods are rich in iron; if the fatigue persists,
-  get bloodwork."* (Basic coherence, not the safety phase.)
-- **Tests:** the owner's scenario ("no energy, symptoms X, fix my plan"); red-flag variants.
+### ✅ Phase 5 — Symptom → nutrient reasoning — **DONE** (`symptom_check`)
+Built differently, and better, than planned. The tool does **not** map a symptom to a nutrient
+and then recommend food. It names what the symptom is *associated* with, then checks those
+nutrients **against the user's actual week**, and reports which are genuinely low *in their
+own numbers*. A claim about their food, never about their body.
+- Recommends **no supplement and no dose** — asserted by test across every symptom.
+- A tired vegan is told B12 is at 3%, vitamin D at 0%, and that *no vegan food in the library
+  can fix it* — see a dietitian. Honest where a lookup table would have lied.
+- **Red flags moved here from Phase 9**, because shipping the symptom tool without them was not
+  defensible: chest pain / blood / fainting / slurred speech → urgent care, no nutrient talk.
+  Self-harm is a **separate** category with a crisis line, because "see a doctor" is the wrong
+  sentence. The engine **overrides the model's reply entirely** on these paths.
 
-### Phase 6 — Personalization & trust
-- `rate_meal` ("I hated the tofu") + `lock_meal` ("never change my Sunday roast") → persistent
-  taste model. This is what makes it feel *yours*.
-- `explain_meal` ("why is this here?") — a nutritionist justifies choices.
-- `weekly_report` — proactive: "you're short on fiber and iron — want me to fix it?"
-- `undo` — "actually, revert that."
+### Phase 6 — Personalization & trust — *partly done*
+- ✅ **`explain_meal`** — justifies every choice from the plan and the USDA table. Drops a
+  nutrient claim entirely when ingredient coverage is under 60% rather than softening it, and
+  refuses to invent reasons for a meal the user told it about (a restaurant reserve, a logged
+  meal).
+- ✅ **`weekly_report`** — computed averages, admitted shortfalls, micronutrients under 80% of
+  reference. Distinguishes gaps it *can* close from gaps no compliant food can close.
+- ⬜ `rate_meal` / `lock_meal` → persistent taste model.
+- ⬜ `undo` — "actually, revert that."
 
-### Phase 7 — Real life
-- `eating_out` ("dinner out Friday") · `substitute_ingredient` ("no feta — what instead?")
+### Phase 7 — Real life — *partly done*
+- ✅ **`eating_out`** — reserves a realistic calorie budget for a meal it cannot see, books
+  **zero protein** for it (you can't know what you'll order), re-solves the rest of the day, and
+  tells you *what to order*: "your other meals carry 102g of protein, so order something with
+  roughly 48g." Refuses to prescribe the physically impossible (121g of protein in a 300 kcal
+  salad).
+- ✅ **`substitute_ingredient`** — safety filter first (diet, allergies, dislikes), curated
+  candidates second (a nutrient table doesn't know lentils can't replace a chicken breast),
+  computed macro cost third. 440 ingredient×restriction combinations verified safe.
+- ⬜ Remaining:
 - `scale_portions` ("cooking for 2", "my partner is vegetarian, I'm not")
 - `whats_for_now` ("15 minutes and these 5 things")
 - `pantry_expiry` ("use the spinach before it turns") · `batch_cook` (cook once, eat twice)
@@ -247,4 +264,10 @@ The `--audit` trail confirms the curation: `brown rice → Rice, brown, long-gra
 | Fine-tune technique | **QLoRA** | ~99% of full-FT quality at ~⅓ the VRAM for a fixed-schema task |
 | Base model | Qwen2.5-1.5B (local) | Fits 8 GB; upgrade to 3B/7B once data is expanded |
 | Correctness | **Always code, never the model** | The model hallucinated macros when trusted with arithmetic |
+| Nutrient boost | **A guarantee, not a bias** | As a scoring bias it could return a week with *less* of the nutrient (vitD 9.5 → 6.5µg). Now a monotone upgrade pass, verified after portion rebalancing; if no week beats the user's, theirs is kept and it says so |
+| Read-only tools | `weekly_report`, `explain_meal`, `substitute_ingredient`, `symptom_check` | Advice must never silently rewrite someone's week |
+| Dangerous replies | **Engine overrides the model** | The route prepends the model's reply to engine notes — a 1.5B could have written "sounds like low iron!" above a suicide hotline |
+| Red flags | **Pulled forward from Phase 9** | A symptom tool without them isn't shippable, whatever the phase order says |
+| Training data | **`npm run check:data` gates it** | A silent `slice(0, TARGET)` deleted every clarify example; the model would have lost the ability to ask instead of guess |
+| Symptom advice | **Check their food, not their body** | The only claim the data can support |
 | Test strategy | Scenarios + invariants + **fuzz** | Fuzzing found 3 real bugs on day one |

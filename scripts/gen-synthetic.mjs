@@ -438,6 +438,51 @@ for (const m of SYMPTOM_MSGS)
 for (const m of ["i have chest pain", "i've been coughing blood", "i keep fainting", "i feel suicidal"])
   push([u(m)], "", [OP({ tool: "symptom_check", symptom: m })]);
 
+// ---------------------------------------------------------------------------
+// TOOL-BOUNDARY CONTRASTS. Nine tools now, and the new ones sit close together. Each pair below
+// differs by one word or one tense, and routes somewhere different. Without these a 1.5B collapses
+// neighbouring intents into whichever tool it saw most.
+// ---------------------------------------------------------------------------
+
+// a KNOWN deficiency (they've had bloodwork) -> boost it. a SYMPTOM -> check it, don't assume.
+for (const [msg, ops] of [
+  ["my bloods came back low in iron", [OP({ tool: "update_profile", boostNutrient: "iron" })]],
+  ["the doctor said my b12 is deficient", [OP({ tool: "update_profile", boostNutrient: "b12" })]],
+  ["my vitamin d came back low", [OP({ tool: "update_profile", boostNutrient: "vitD" })]],
+  ["i'm always tired", [OP({ tool: "symptom_check", symptom: "i'm always tired" })]],
+  ["i think i might be low on iron, i'm exhausted", [OP({ tool: "symptom_check", symptom: "i think i might be low on iron, i'm exhausted" })]],
+  ["i feel run down", [OP({ tool: "symptom_check", symptom: "i feel run down" })]],
+])
+  push([u(msg)], ops[0].tool === "symptom_check" ? "Let me check that against what you're eating:" : "Done — I've rebuilt your week around it.", ops);
+
+// a question about the WEEK's nutrients -> weekly_report. a question about ONE meal -> explain_meal.
+for (const [msg, ops] of [
+  ["am i low on anything?", [OP({ tool: "weekly_report" })]],
+  ["am i getting enough iron?", [OP({ tool: "weekly_report" })]],
+  ["how's my week looking?", [OP({ tool: "weekly_report" })]],
+])
+  push([u(msg)], "Here's the picture across the week:", ops);
+for (let i = 0; i < 6; i++) {
+  const day = rand(DAYS); const mt = rand(MEALS);
+  push([u(`why is ${day}'s ${mt} in my plan?`)], "Here's why:", [OP({ tool: "explain_meal", day, mealType: mt })]);
+  // ...but a plain lookup is already in the prompt: just answer it.
+  push([u(`what's my ${mt} on ${day}?`)], "It's in your plan above.", []);
+}
+
+// FUTURE meal out vs PAST meal eaten vs a REQUEST to change the plan. Same dish, three tools.
+for (let i = 0; i < 8; i++) {
+  const day = rand(DAYS); const mt = rand(MEALS);
+  push([u(`i'm having ${mt} out on ${day}`)], `Noted — I've set calories aside for ${day}.`, [OP({ tool: "eating_out", day, mealType: mt })]);
+  push([u(`i had ${mt} out on ${day}`)], "Logged it — the rest of that day is re-solved.", [OP({ tool: "log_meal", day, mealType: mt, dish: "meal out" })]);
+  push([u(`give me something different for ${mt} on ${day}`)], `Done — ${day}'s ${mt} is new.`, [OP({ tool: "regenerate_day", day })]);
+}
+
+// out of an ingredient -> substitute. dislikes it -> exclude it forever. allergic -> exclude it forever.
+for (const ing of ["feta", "quinoa", "spinach", "olive oil"]) {
+  push([u(`i've run out of ${ing}`)], "Here's what I'd use instead:", [OP({ tool: "substitute_ingredient", ingredient: ing })]);
+  push([u(`i can't stand ${ing}`)], `Noted — no more ${ing}.`, [OP({ tool: "update_profile", excludeFoods: [ing] })]);
+}
+
 // compute_targets: the model collects FACTS, the engine does the arithmetic and states the
 // numbers. The reply never contains a calorie figure the model made up.
 const ACT = [
