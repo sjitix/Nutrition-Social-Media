@@ -9,8 +9,9 @@
 
 ## RESUME HERE (last updated: 2026-07-09, end of session)
 
-Everything is committed and pushed. `main` is clean, `npm run test:engine` is **190/190** with the
-fuzzer clean over 40 sequences. Nothing is half-finished.
+Everything is committed and pushed. `main` is clean, `npm run test:engine` is **~192 passed, 0
+failed** (the count moves by one or two because the `explain_meal` fiber check runs once per meal
+in a freshly generated week), fuzzer clean. Nothing is half-finished.
 
 **The one command to start tomorrow** — train v6, which is the first model that will know all
 eleven tools:
@@ -209,7 +210,7 @@ The `--audit` trail confirms the curation: `brown rice → Rice, brown, long-gra
   raises iron without breaking macros; all invariants still hold under fuzz.
 - **Exit:** micro values traceable to an FDC id; suite green; pushed.
 
-### Phase 3 — `compute_targets` + `log_meal` *(promoted — highest convenience per line)*
+### ✅ Phase 3 — `compute_targets` + `log_meal` — **DONE**
 - **`compute_targets`** — user never types "2000 kcal" again. Age/height/weight/sex/activity/goal
   → Mifflin-St Jeor + activity factor + a sane rate → sets calories & protein. Pure math.
 - **`log_meal`** — 🔥 *the killer feature.* "I ate a burger for lunch" → **the rest of the day
@@ -217,7 +218,7 @@ The `--audit` trail confirms the curation: `brown rice → Rice, brown, long-gra
 - **Tests:** "I ate pizza for lunch" → dinner adapts, day still near target; logging a huge meal
   → engine says honestly that the day can't be saved rather than starving dinner.
 
-### Phase 4 — Hydration
+### Phase 4 — Hydration — *not started* (needs `UserProfile.weightKg`, which `compute_targets` should persist)
 
 - Water target from bodyweight/activity; `set_hydration_target`, `log_water`.
 - Plan surfaces hydration; suggests water-rich / electrolyte foods when short.
@@ -262,7 +263,7 @@ own numbers*. A claim about their food, never about their body.
 - `travel_mode` · `meal_timing` ("I train at 6pm") · `fasting_window` (16:8)
 - `set_budget` (weekly £/$ cap, enforced by the engine)
 
-### Phase 8 — Model evaluation, data expansion, **retrain**
+### 🔄 Phase 8 — Model evaluation, data expansion, **retrain** — *in progress, v5 shipped, v6 queued*
 1. `merge_lora.py` → GGUF `q8_0` → LM Studio → `.env.local` (toolchain verified).
 2. **Eval harness, not vibes.** Held-out set + hand-written hard cases. Metrics:
    valid-JSON %, correct-tool %, field exactness, hallucination rate, clarification
@@ -277,11 +278,52 @@ own numbers*. A claim about their food, never about their body.
 > **Data beats model size.** 452 → 2,000 good examples will improve this more than any bigger
 > model or fancier training technique.
 
-### Phase 9 — Safety & guardrails *(deferred here at owner's request)*
+### 🔄 Phase 9 — Safety & guardrails *(deferred — but the red flags could not wait, see Phase 5)*
 - Red-flag symptoms (chest pain, fainting, blood, pregnancy, meds e.g. warfarin×vitamin K) →
   **escalate to a professional, change nothing.**
 - Never diagnose. Hard floors in code: refuse unsafe calorie targets, absurd protein, crash diets.
 - Disordered-eating guardrails. Allergy remains inviolable everywhere, including cheat mode.
+
+---
+
+## 3b. Added to the plan mid-build (these weren't in the original phases)
+
+Each of these was discovered by doing the work, and each earned its place.
+
+- **✅ `npm run check:data` — a gate on the training data.** A silent `slice(0, TARGET)` in the
+  generator deleted every clarify example the moment the hand-written tail grew past the cap; the
+  model would have quietly lost the ability to ask a question instead of guessing. The checker now
+  rejects contradictory labels for the same message, null or invented fields, and any tool or the
+  clarify category falling below a minimum.
+- **✅ Read-only tools, enforced in code.** `weekly_report`, `explain_meal`,
+  `substitute_ingredient` and `symptom_check` answer questions; they must never flag the plan as
+  changed. `lib/reply.ts` owns that rule and a test fails if a new tool is added without deciding
+  which side it falls on.
+- **✅ The engine overrides the model on dangerous replies.** The route used to prepend the LLM's
+  prose to the engine's notes, so a 1.5B could have written "sounds like low iron!" above a suicide
+  hotline. `applyOperations` now returns a `replyOverride` that discards the model's words.
+- **✅ A nutrient boost is a guarantee, not a bias.** As a scoring bias, "rebuild my week around
+  vitamin D" could hand back *less* vitamin D. Now a monotone upgrade pass, verified after portion
+  rebalancing; if no week beats the user's, theirs is kept and the assistant says so.
+- **✅ Adversarial audit as a recurring practice, not a one-off.** Independent agents attacking the
+  new skills found six real defects in one pass, including a **live allergen exposure**: a user who
+  typed `peanuts` — the placeholder in our own onboarding form — was served peanut butter, because
+  the matcher only asked whether the ingredient was a plural of the token, never the reverse. Run an
+  audit after every batch of new skills. My own 440-combination safety sweep had missed it.
+- **⬜ Still owed:** the ingredient lists flagged thin by the nutrient-coverage gate (Shakshuka
+  reports 244 kcal of ingredients against 430 on the card); make the fridge preference a guarantee
+  rather than a bias, the way the nutrient boost now is.
+
+### Testing rules learned the hard way
+
+1. **A test that samples a random week is a coin flip.** The dairy-allergy check passed for weeks
+   and only failed once Thai Peanut Chicken Rice Bowl happened to be selected. Scan several weeks,
+   or scan the library.
+2. **When a test fails, ask whether the test is wrong first.** Four times now the engine was right:
+   per-day diet overrides are legitimate; a treat day is *supposed* to be off-target; "unicorn
+   tears" contains "corn"; peanut butter is not dairy.
+3. **`tsc` will not catch a corrupted regex.** `\b` written through a bash heredoc becomes a
+   backspace character. It compiles, and then matches nothing.
 
 ---
 

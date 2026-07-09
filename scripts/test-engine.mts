@@ -322,13 +322,20 @@ console.log("\n--- ALLERGENS & DATA INTEGRITY (hard rules) ---");
       if (/\b(almond|walnut|pecan|cashew|hazelnut|pistachio|peanut)/i.test(mealHay(m))) nutHits.push(m.name);
   check("allergy 'nuts' blocks almonds/pecans/cashews, not just 'walnuts'", nutHits.length === 0, nutHits.slice(0, 3).join(", ") || "clean");
 
+  // Peanut butter and almond butter are not dairy. This check used to grep for `\bbutter` and so
+  // demanded that a dairy-allergic user be denied Thai Peanut Chicken Rice Bowl — it was asserting
+  // the over-block bug. It was also flaky: that recipe only turns up in some random weeks.
+  // Scanning several weeks makes the failure deterministic rather than a coin flip.
   const dairyAllergy: UserProfile = { ...BASE, allergies: "dairy" };
-  const dw = freshWeek(dairyAllergy);
+  const isDairy = (hay: string) =>
+    /\b(milk|cheese|yogurt|feta|mozzarella|cheddar|parmesan|ricotta|halloumi)\b/i.test(hay) ||
+    /(?<!peanut |almond |cashew |cocoa |nut )\bbutter\b/i.test(hay);
   const dairyHits: string[] = [];
-  for (const d of dw.days)
-    for (const m of d.meals)
-      if (/\b(milk|cheese|yogurt|butter|feta|mozzarella|cheddar|parmesan|ricotta|halloumi)/i.test(mealHay(m))) dairyHits.push(m.name);
+  for (let i = 0; i < 6; i++)
+    for (const d of freshWeek(dairyAllergy).days)
+      for (const m of d.meals) if (isDairy(mealHay(m))) dairyHits.push(m.name);
   check("allergy 'dairy' blocks cheese/yogurt/milk/butter", dairyHits.length === 0, dairyHits.slice(0, 3).join(", ") || "clean");
+  check("...but a nut butter is not dairy", !isDairy("chicken breast peanut butter brown rice"));
 }
 {
   // ...but it must not over-block: "egg" is not "eggplant", "oat" is not "goat cheese".
