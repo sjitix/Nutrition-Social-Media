@@ -75,6 +75,12 @@ export const OperationSchema = z.object({
   targetCarbs: z.number().nullable(),
   targetFat: z.number().nullable(),
   targetFiber: z.number().nullable(),
+  // "I'm low on iron" / "boost my vitamin D" → bias meal selection toward foods dense in
+  // this nutrient, while the macro engine still holds calories and protein on target.
+  boostNutrient: z
+    .enum(["iron", "calcium", "magnesium", "potassium", "zinc", "vitD", "vitC", "folate", "b12"])
+    .nullable()
+    .optional(),
   maxCookTime: z.number().nullable(),
   // LLM-controlled intent: when swapping/regenerating, should the day stay on the
   // user's macro targets (the engine rebalances the other meals to hold protein/

@@ -8,6 +8,14 @@ import {
   type UserProfile,
   type WeekPlan,
 } from "./types";
+import {
+  microsForIngredients,
+  microDensity,
+  MICRO_LABEL,
+  MICRO_UNIT,
+  DAILY_REFERENCE,
+  type MicroKey,
+} from "./nutrients";
 
 // ---------------------------------------------------------------------------
 // Recipe database (Phase A scaffolding — see VISION.md "Recipe data strategy").
@@ -2064,6 +2072,17 @@ export function findRecipe(
   return bestScore > 0 ? best : null;
 }
 
+// Micronutrients per recipe, computed once from the USDA-mapped ingredients.
+const microsCache = new Map<string, ReturnType<typeof microsForIngredients>>();
+export function recipeMicros(r: Recipe) {
+  let m = microsCache.get(r.id);
+  if (!m) {
+    m = microsForIngredients(r.ingredients);
+    microsCache.set(r.id, m);
+  }
+  return m;
+}
+
 interface PickContext {
   target: number;
   proteinTarget?: number; // grams of protein this slot should aim for
@@ -2074,6 +2093,7 @@ interface PickContext {
   usedIngredients: Set<string>;
   fridge?: Set<string>; // on-hand ingredients to prefer ("use what's in my fridge")
   preferFiber?: boolean;
+  boost?: MicroKey; // nutrient to favour ("I'm low on iron")
 }
 
 // Choose the best candidate: prefer unused dishes, then a fresh protein, then a
@@ -2119,6 +2139,14 @@ function chooseRecipe(candidates: Recipe[], ctx: PickContext): Recipe | null {
     (targetDensity > 0 ? Math.max(0, targetDensity - r.proteinGrams / r.calories) * 60 : 0) +
     (ctx.fridge
       ? r.ingredients.filter((i) => ctx.fridge!.has(i.name.trim().toLowerCase())).length * 3
+      : 0) +
+    // Nutrient boost, scored on DENSITY per calorie: scaling a portion raises the nutrient
+    // and the calories together, so only density tells an iron-rich meal from a big one.
+    // Normalised against the daily reference so every nutrient contributes on one scale.
+    (ctx.boost
+      ? microDensity(recipeMicros(r).micros, r.calories, ctx.boost) *
+        (2000 / DAILY_REFERENCE[ctx.boost]) *
+        4
       : 0);
   const maxScore = Math.max(...top.map(score));
   const best = top.filter((r) => score(r) >= maxScore - 0.5);
@@ -2166,6 +2194,7 @@ interface WeekCtx {
   usedNames: Set<string>;
   usedIngredients: Set<string>;
   fridge?: Set<string>; // on-hand ingredients to prefer across the week
+  boost?: MicroKey; // nutrient to favour across the week
 }
 
 function newCtx(): WeekCtx {
@@ -2228,6 +2257,7 @@ function pickMealsForDay(
       usedIngredients: ctx.usedIngredients,
       fridge: ctx.fridge,
       preferFiber,
+      boost: ctx.boost,
     });
     if (pick) {
       ctx.usedIds.add(pick.id);
@@ -2247,6 +2277,7 @@ export function selectWeekFromDb(
   cuisinePref?: Cuisine,
   preferFiber?: boolean,
   seedIngredients?: string[],
+  boost?: MicroKey,
 ): WeekPlan {
   const split = localSplit(profile.mealsPerDay);
   const cap = budgetCap(profile.budget);
@@ -2254,6 +2285,7 @@ export function selectWeekFromDb(
   const ctx = newCtx();
   if (seedIngredients?.length)
     ctx.fridge = new Set(seedIngredients.map((s) => s.trim().toLowerCase()).filter(Boolean));
+  ctx.boost = boost;
 
   const days = DAYS.map((day) => ({
     day,
@@ -2278,6 +2310,7 @@ export function selectDay(
   cuisinePref?: Cuisine,
   preferFiber?: boolean,
   seedIngredients?: string[],
+  boost?: MicroKey,
 ): DayPlan {
   const split = localSplit(profile.mealsPerDay);
   const cap = budgetCap(profile.budget);
@@ -2285,6 +2318,7 @@ export function selectDay(
   const ctx = newCtx();
   if (seedIngredients?.length)
     ctx.fridge = new Set(seedIngredients.map((s) => s.trim().toLowerCase()).filter(Boolean));
+  ctx.boost = boost;
   for (const d of plan.days) {
     if (d.day === dayName) continue;
     for (const m of d.meals) {
@@ -2606,6 +2640,23 @@ const weekAverages = (plan: WeekPlan) => {
   };
 };
 
+
+/** Average daily amount of a micronutrient across the week, from the mapped ingredients. */
+function weekMicroAverage(plan: WeekPlan, key: MicroKey): { amount: number; coverage: number } {
+  const n = plan.days.length || 1;
+  let total = 0;
+  let cov = 0;
+  let meals = 0;
+  for (const d of plan.days)
+    for (const m of d.meals) {
+      const r = microsForIngredients(m.ingredients);
+      total += r.micros[key];
+      cov += r.coverage;
+      meals++;
+    }
+  return { amount: total / n, coverage: meals ? cov / meals : 0 };
+}
+
 const PROTEIN_MISS = 8; // g/day we'll tolerate before admitting we fell short
 
 /**
@@ -2628,6 +2679,22 @@ function namesOnOtherDays(plan: WeekPlan, day: DayPlan["day"]): Set<string> {
   return new Set(
     plan.days.filter((d) => d.day !== day).flatMap((d) => d.meals.map((m) => m.name.toLowerCase())),
   );
+}
+
+/**
+ * Honest reporting for a nutrient boost: the achieved daily average against the reference
+ * intake, plus the ingredient coverage behind it. We never present a number we half-guessed:
+ * if too few ingredients resolved to USDA records, we say so instead of quoting a figure.
+ */
+function microNote(plan: WeekPlan, key: MicroKey): string {
+  const { amount, coverage } = weekMicroAverage(plan, key);
+  const label = MICRO_LABEL[key];
+  const unit = MICRO_UNIT[key];
+  if (coverage < 0.6)
+    return `I've favoured ${label}-rich meals, but I can't put a reliable number on it — only ${Math.round(coverage * 100)}% of these ingredients have nutrition data.`;
+  const pct = Math.round((amount / DAILY_REFERENCE[key]) * 100);
+  const round = (x: number) => (x >= 10 ? Math.round(x) : Math.round(x * 10) / 10);
+  return `Your week now averages about ${round(amount)}${unit} of ${label} a day — roughly ${pct}% of the daily reference.`;
 }
 
 // Execute a list of tool-call operations against the plan + profile, in order.
@@ -2661,16 +2728,18 @@ export function applyOperations(
         // Re-solve every day onto the macro targets so the base plan actually hits
         // protein/calories, not just each meal's calorie share.
         curPlan = keepMacros(op)
-          ? rebalanceWeek(selectWeekFromDb(p, normalizeCuisine(op.cuisine), fiberOn(op), op.useIngredients), p)
-          : selectWeekFromDb(p, normalizeCuisine(op.cuisine), fiberOn(op), op.useIngredients);
+          ? rebalanceWeek(selectWeekFromDb(p, normalizeCuisine(op.cuisine), fiberOn(op), op.useIngredients, op.boostNutrient ?? undefined), p)
+          : selectWeekFromDb(p, normalizeCuisine(op.cuisine), fiberOn(op), op.useIngredients, op.boostNutrient ?? undefined);
         if (keepMacros(op)) notes.push(achievementNote("Your week now averages", weekAverages(curPlan), p));
+        if (op.boostNutrient) notes.push(microNote(curPlan, op.boostNutrient));
         break;
       }
       case "regenerate_week": {
         curPlan = keepMacros(op)
-          ? rebalanceWeek(selectWeekFromDb(p, normalizeCuisine(op.cuisine), fiberOn(op), op.useIngredients), p)
-          : selectWeekFromDb(p, normalizeCuisine(op.cuisine), fiberOn(op), op.useIngredients);
+          ? rebalanceWeek(selectWeekFromDb(p, normalizeCuisine(op.cuisine), fiberOn(op), op.useIngredients, op.boostNutrient ?? undefined), p)
+          : selectWeekFromDb(p, normalizeCuisine(op.cuisine), fiberOn(op), op.useIngredients, op.boostNutrient ?? undefined);
         if (keepMacros(op)) notes.push(achievementNote("Your week now averages", weekAverages(curPlan), p));
+        if (op.boostNutrient) notes.push(microNote(curPlan, op.boostNutrient));
         break;
       }
       case "regenerate_day": {
@@ -2680,7 +2749,7 @@ export function applyOperations(
         if (op.targetCalories && op.targetCalories > 0) tp.targetCalories = op.targetCalories;
         if (op.targetProtein && op.targetProtein > 0) tp.proteinGrams = op.targetProtein;
         if (op.excludeFoods.length) tp.dislikes = mergeDislikes(tp.dislikes, op.excludeFoods);
-        const newDay = selectDay(tp, op.day, curPlan, normalizeCuisine(op.cuisine), fiberOn(op), op.useIngredients);
+        const newDay = selectDay(tp, op.day, curPlan, normalizeCuisine(op.cuisine), fiberOn(op), op.useIngredients, op.boostNutrient ?? undefined);
         const meals = keepMacros(op)
           ? rebalanceDay(newDay.meals, tp, undefined, namesOnOtherDays(curPlan, op.day))
           : newDay.meals;

@@ -14,6 +14,7 @@
  */
 import { selectWeekFromDb, rebalanceWeek, applyOperations, RECIPES } from "@/lib/recipeDb";
 import type { UserProfile, Operation, DayPlan, WeekPlan, Meal } from "@/lib/types";
+import { microsForIngredients } from "@/lib/nutrients";
 
 // ---------------------------------------------------------------- harness
 let pass = 0;
@@ -235,6 +236,46 @@ console.log("\n--- SCENARIOS (user perspective) ---");
   // limited to ~3 days/week) can crowd salmon out. Asserting "always" claimed a promise the
   // engine never made. Making it a guarantee is tracked in WORKPLAN.md.
   check("fridge: a capped protein (salmon) usually appears when requested", salmonPresent >= N - 1, `${salmonPresent}/${N} runs`);
+}
+
+// ---------------------------------------------------------------- 1b. micronutrients
+console.log("\n--- MICRONUTRIENTS (USDA-derived) ---");
+{
+  // Sanity: the table must reflect reality, not vibes.
+  const spinach = microsForIngredients([{ name: "spinach", quantity: "100 g" }]).micros;
+  const salmon = microsForIngredients([{ name: "salmon fillet", quantity: "100 g" }]).micros;
+  const oil = microsForIngredients([{ name: "olive oil", quantity: "100 g" }]).micros;
+  check("spinach is iron- and folate-rich", spinach.iron > 2 && spinach.folate > 150, `iron=${spinach.iron.toFixed(1)}mg folate=${Math.round(spinach.folate)}ug`);
+  check("salmon carries vitamin D and B12", salmon.vitD > 5 && salmon.b12 > 2, `vitD=${salmon.vitD.toFixed(1)}ug B12=${salmon.b12.toFixed(1)}ug`);
+  check("olive oil has essentially no micronutrients", oil.iron < 1 && oil.b12 === 0, `iron=${oil.iron.toFixed(2)}mg`);
+
+  // A count-based quantity must convert: "2" eggs = 100 g, not 2 g.
+  const eggs = microsForIngredients([{ name: "eggs", quantity: "2" }]).micros;
+  check("bare counts convert to grams (2 eggs -> B12 present)", eggs.b12 > 0.5, `B12=${eggs.b12.toFixed(2)}ug`);
+}
+{
+  // "I'm low on iron" must raise iron WITHOUT breaking calories/protein.
+  const ironOf = (p: WeekPlan) =>
+    p.days.reduce((s, d) => s + d.meals.reduce((a, m) => a + microsForIngredients(m.ingredients).micros.iron, 0), 0) / p.days.length;
+  const N = 8;
+  let base = 0;
+  let boosted = 0;
+  let macrosHeld = true;
+  for (let i = 0; i < N; i++) {
+    const wk = freshWeek(BASE);
+    base += ironOf(wk);
+    const r = applyOperations(BASE, wk, [op({ tool: "regenerate_week", boostNutrient: "iron" })]);
+    boosted += ironOf(r.plan);
+    if (!r.plan.days.every((d) => Math.abs(kcal(d) - 2000) <= 200 && prot(d) >= 125)) macrosHeld = false;
+  }
+  check("boostNutrient:iron raises weekly iron", boosted / N > base / N, `default=${(base / N).toFixed(1)}mg/day boosted=${(boosted / N).toFixed(1)}mg/day`);
+  check("boostNutrient:iron does NOT break calories/protein", macrosHeld);
+}
+{
+  // The engine must refuse to quote a number it half-guessed, and must report honestly.
+  const wk = freshWeek(BASE);
+  const r = applyOperations(BASE, wk, [op({ tool: "regenerate_week", boostNutrient: "iron" })]);
+  check("boost emits an honest iron note", r.notes.some((n) => /iron/.test(n)), r.notes.find((n) => /iron/.test(n)) ?? "(none)");
 }
 
 // ---------------------------------------------------------------- 2. adversarial

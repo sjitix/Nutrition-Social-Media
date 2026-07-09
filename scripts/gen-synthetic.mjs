@@ -88,7 +88,8 @@ function renderSystemPrompt(profile, plan) {
     "You are the meal-plan assistant. Read the user's message and the recent conversation, then output JSON: a natural 'reply' plus a list of 'operations' (tool calls) the app runs in order. Use the conversation to resolve references ('do that', 'only Tuesday', 'make it 1500').\n\n" +
     "TOOLS — each operation has a 'tool' and only the fields that tool needs (leave the rest null, excludeFoods []):\n" +
     "- update_profile: change a WEEK-WIDE setting and rebuild the week. Fields: diet, budget, excludeFoods, targetCalories, targetProtein, targetCarbs, targetFat, targetFiber, maxCookTime, cuisine. The plan re-solves to hit any macro target you set.\n" +
-    "- regenerate_week: rebuild the whole week (optional cuisine, targetFiber, useIngredients — on-hand foods to prefer).\n" +
+    "- regenerate_week: rebuild the whole week (optional cuisine, targetFiber, useIngredients — on-hand foods to prefer, boostNutrient).\n" +
+    "- boostNutrient (on update_profile / regenerate_week / regenerate_day): favour foods rich in one nutrient — iron, calcium, magnesium, potassium, zinc, vitD, vitC, folate, b12. The app computes the real amounts from USDA data; never state a nutrient number yourself.\n" +
     "- regenerate_day: rebuild ONE day; requires day. Optional diet, targetCalories, cuisine, targetFiber apply to THAT day only (not saved).\n" +
     "- swap_meal: replace one meal with a specific dish; requires day, mealType, dish. By DEFAULT the app keeps that day on the user's macro targets by adjusting the other meals' portions — automatic, you don't ask for it. Set preserveMacros:false ONLY when the user signals a treat ('cheat day', 'treat', 'don't care about macros'). Never compute macros yourself.\n" +
     "- answer: no change; just answering a question.\n\n" +
@@ -130,6 +131,7 @@ const OP = (o) => ({
   budget: o.budget ?? null,
   excludeFoods: o.excludeFoods ?? [],
   ...(o.useIngredients ? { useIngredients: o.useIngredients } : {}),
+  ...(o.boostNutrient ? { boostNutrient: o.boostNutrient } : {}),
   targetCalories: o.targetCalories ?? null,
   targetProtein: o.targetProtein ?? null,
   targetCarbs: o.targetCarbs ?? null,
@@ -220,6 +222,24 @@ const TREATS = ["pizza", "a burger", "ice cream", "fried chicken", "mac and chee
 const CHEAT = ["it's my cheat day", "treat day today", "i don't care about macros today", "screw the diet today", "cheat meal time", "going off plan today", "forget the diet just this once"];
 for (let i = 0; i < 14; i++) { const day = rand(DAYS); const mt = rand(MEALS); const dish = rand(TREATS); const cheat = rand(CHEAT); push([u(rand([`${cheat}, swap ${day} ${mt} for ${dish}`, `${cheat} — give me ${dish} for ${mt} on ${day}`, `${day} ${mt} should be ${dish}, ${cheat}`]))], `You got it — ${dish} for ${day} ${mt}. Enjoy the treat; I left the rest of your day as-is.`, [OP({ tool: "swap_meal", day, mealType: mt, dish, preserveMacros: false })]); }
 
+// nutrient boost — the app computes real USDA amounts, so the reply never states a number.
+const NUTRIENTS = [
+  ["iron", ["i'm low on iron", "my iron is low", "i need more iron", "doctor said i'm anemic, more iron please", "boost my iron"]],
+  ["vitD", ["my vitamin d is low", "i need more vitamin d", "not enough sun, more vitamin d"]],
+  ["b12", ["my b12 is low", "i need more b12", "doctor says my b12 is deficient"]],
+  ["calcium", ["i need more calcium", "boost calcium for my bones"]],
+  ["magnesium", ["i need more magnesium", "more magnesium please"]],
+  ["potassium", ["i get leg cramps, more potassium", "boost potassium"]],
+  ["folate", ["i need more folate", "boost folate"]],
+  ["zinc", ["more zinc please", "i'm low on zinc"]],
+  ["vitC", ["i need more vitamin c", "boost vitamin c"]],
+];
+for (const [key, msgs] of NUTRIENTS)
+  for (const m of msgs)
+    push([u(m)], `Got it — I've rebuilt your week around foods rich in that nutrient, keeping your macros on target.`, [OP({ tool: "update_profile", boostNutrient: key })]);
+// per-day boost
+for (let i = 0; i < 6; i++) { const day = rand(DAYS); const key = rand(["iron", "vitD", "b12", "calcium"]); push([u(rand([`make ${day} high in ${key === "vitD" ? "vitamin d" : key === "b12" ? "b12" : key}`, `${day} needs more ${key === "vitD" ? "vitamin d" : key}`]))], `Done — ${day} now favours foods rich in that nutrient.`, [OP({ tool: "regenerate_day", day, boostNutrient: key })]); }
+
 // regenerate week
 for (const m of ["give me a whole new plan", "start over", "regenerate everything", "this is boring, redo it", "new week please", "shuffle it up", "i want different meals"]) push([u(m)], "Fresh week coming up — I've rebuilt the whole plan.", [OP({ tool: "regenerate_week" })]);
 
@@ -241,6 +261,36 @@ const VAGUE = [
   ["it's too much", "Too much of what — calories, cooking time, or cost?"],
 ];
 for (const [m, reply] of VAGUE) push([u(m)], reply, []);
+
+// More clarify coverage. Only ~12% of examples had empty operations vs 444 that act, so the
+// model's prior was overwhelmingly "do something", and it kept acting on "make it better".
+const VAGUE_MORE = [
+  ["make it better pls", "Happy to — better how? More protein, cheaper, quicker, or more variety?"],
+  ["can you make it better", "Sure — what should I optimise for: protein, cost, cooking time, or variety?"],
+  ["improve it", "What would you like improved — the macros, the cost, the cooking time, or the meals themselves?"],
+  ["optimize my plan", "Optimise for what? Protein, calories, budget, or time in the kitchen?"],
+  ["make this good", "Tell me what 'good' means for you — higher protein, lower cost, faster meals?"],
+  ["adjust it", "Sure — adjust what? The whole week, one day, or one meal?"],
+  ["update the plan", "Of course — what should I update: diet, macros, budget, or cooking time?"],
+  ["redo", "Redo the whole week, or just one day?"],
+  ["switch it up", "Happy to — the whole week, or a particular day?"],
+  ["idk", "No problem — want me to change the meals, the macros, the budget, or the cook time?"],
+  ["whatever you think", "I can rebuild the week, or tune protein/cost/time. Which would help most?"],
+  ["something's off", "What feels off — the calories, the protein, the cost, or the meals themselves?"],
+  ["too many calories", "Would you like me to lower your daily calorie target? If so, to what?"],
+  ["not enough food", "Should I raise your daily calorie target? What would you like it set to?"],
+  ["help", "Sure — I can change your diet, macros, budget, cook time, or swap individual meals. What do you need?"],
+  ["hmm", "Something you'd like changed? I can adjust meals, macros, budget or cooking time."],
+];
+for (const [m, reply] of VAGUE_MORE) push([u(m)], reply, []);
+
+// A bare number is ambiguous: calories? protein? fiber? minutes? Ask, never guess.
+for (const n of [1200, 1500, 1800, 2000, 2200, 2500, 3000])
+  push([u(String(n))], `Do you mean ${n} calories a day? And for the whole week, or just one day?`, []);
+for (const n of [120, 140, 150, 180, 200])
+  push([u(String(n))], `Is that ${n}g of protein a day, or ${n === 200 ? "something else" : `${n} calories`}? Let me know and I'll set it.`, []);
+for (const n of [15, 20, 25, 30, 35])
+  push([u(String(n))], `Do you mean ${n} minutes of cooking time, or ${n}g of fiber a day?`, []);
 
 // "use what's in my fridge" — bias selection toward on-hand ingredients
 const FRIDGE = ["chicken", "salmon", "rice", "broccoli", "eggs", "sweet potato", "spinach", "chickpeas", "tofu", "ground turkey", "black beans", "quinoa"];
@@ -264,7 +314,9 @@ const QMETRICS = [
 const QDAY = ["how many calories on {day}", "what's for dinner on {day}", "how much protein on {day}", "what's {day} look like", "how long does {day} lunch take"];
 
 // chit-chat / no-op
-for (const m of ["hey", "hi", "hello", "thanks!", "thank you", "this looks great", "cool", "ok", "nice", "awesome", "you're helpful", "sounds good", "perfect", "ty", "great job"]) push([u(m)], rand(["Happy to help! Want me to change anything about your week?", "Glad you like it! Anything you'd like tweaked?", "Anytime — just tell me what to adjust."]), []);
+// Keep these SHORT. A long, enumerating reply taught the model to ramble and it began
+// dropping the "operations" key entirely on "thanks!" — a schema break caused by verbosity.
+for (const m of ["hey", "hi", "hello", "thanks!", "thank you", "this looks great", "cool", "ok", "nice", "awesome", "you're helpful", "sounds good", "perfect", "ty", "great job", "cheers", "no worries", "thx", "appreciate it", "lovely"]) push([u(m)], rand(["Anytime — just say what you'd like changed.", "Glad it helps! Tell me if you want anything tweaked.", "You're welcome. Anything you'd like adjusted?", "Happy to help."]), []);
 push([u("what can you do")], "I can rebuild your week, swap meals, change your diet, budget, calories, fiber or cook time, avoid foods you dislike, set cuisine themes, and answer questions about your plan. What would you like?", []);
 push([u("who are you")], "I'm your meal-plan assistant — tell me anything to change about your week and I'll do it.", []);
 
