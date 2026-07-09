@@ -127,7 +127,33 @@ The foundation for every health skill. VISION already predicted it: **same solve
   = a bad mapping or a bad unit conversion. This validates all 174 mappings without eyeballing them.
 - Unmapped ingredients must **not** silently contribute zero; coverage is reported, and micros are
   only exposed once coverage is high.
-- Unit → grams uses USDA `food_portion.csv` (per-food household measures) with a curated fallback.
+- Unit → grams uses a curated, versioned table (`scripts/food-units.json`).
+
+**Status:** `npm run build:nutrients` → **175/175 ingredients resolved, 132/132 recipes covered.**
+The `--audit` trail confirms the curation: `brown rice → Rice, brown, long-grain, raw (367 kcal/100g)`,
+`chicken breast → skinless boneless raw (120)`, `eggs → Egg, whole, raw, fresh (143)`,
+`olive oil → 884`, `oats → dry (379)`. The gate caught a real 3× error (`red lentils` are used **dry**
+— no "cooked" marker — while `lentils`/`green lentils` say "150 g cooked").
+
+> **⚠️ Finding: recipe ingredient lists are simplified, not complete formulations.**
+> Each recipe lists ~4 ingredients for easy cooking/shopping. So ingredient-derived calories
+> diverge from the authored macros in both directions: *Shakshuka* computes 244 vs 430 (its list
+> omits oil/bread), while *Peanut Banana Oatmeal* computes 557 vs an authored 410 (oats 233 + milk
+> 128 + banana 105 + PB 94 = 560 — **the computed figure is right and the authored one is wrong**).
+> Median divergence: **16.2%**.
+
+**Decisions:**
+1. **Do NOT auto-replace authored macros with ingredient-derived ones** — the lists are incomplete,
+   so that would introduce a different error. Authored macros stay canonical for the solver.
+2. **Micronutrients ARE derived from the mapped ingredients** and labelled as such. For the engine's
+   real purpose (bias selection toward iron-rich meals), *relative* nutrient density across recipes
+   is what matters, and the listed ingredients carry the dominant sources (lentils, spinach, beef).
+3. **Never silently scale micros** to force agreement with authored calories — that would inflate
+   the nutrients of whichever foods happen to be listed.
+4. **Two real bugs to fix:** (a) batch recipes need a `servings` field — *Banana Walnut Protein
+   Muffins* computes 913 vs 360 because the ingredients make ~2.5 servings; (b) recipes whose
+   computed calories fall far below authored have incomplete lists → complete them over time,
+   prioritised by the gate's worst-offenders report.
 - Extend the vector: `{cal, protein, carbs, fat, fiber, iron, calcium, vitD, B12, magnesium,
   potassium, folate, zinc, vitC}`. Recipe micros **computed from ingredients**, deterministically.
 - `targetNutrient` support: "boost my iron" → engine biases iron-rich foods **while macros hold**.

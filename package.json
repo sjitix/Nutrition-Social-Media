@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test:engine": "esbuild scripts/test-engine.mts --bundle --platform=node --format=esm --tsconfig=tsconfig.json --outfile=node_modules/.cache/test-engine.mjs --log-level=error && node node_modules/.cache/test-engine.mjs"
+    "test:engine": "esbuild scripts/test-engine.mts --bundle --platform=node --format=esm --tsconfig=tsconfig.json --outfile=node_modules/.cache/test-engine.mjs --log-level=error && node node_modules/.cache/test-engine.mjs",
+    "build:nutrients": "esbuild scripts/build-nutrients.mts --bundle --platform=node --format=esm --tsconfig=tsconfig.json --outfile=node_modules/.cache/build-nutrients.mjs --log-level=error && node node_modules/.cache/build-nutrients.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",
