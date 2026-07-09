@@ -7,6 +7,54 @@
 
 ---
 
+## RESUME HERE (last updated: 2026-07-09, end of session)
+
+Everything is committed and pushed. `main` is clean, `npm run test:engine` is **190/190** with the
+fuzzer clean over 40 sequences. Nothing is half-finished.
+
+**The one command to start tomorrow** — train v6, which is the first model that will know all
+eleven tools:
+
+```bash
+python scripts/train_lora.py          # 348 steps, ~2h on the 2070, checkpoints every 30
+```
+
+It reads `data/finetune.jsonl` (already built, 922 examples, `npm run check:data` clean). It
+checkpoints to `models/_ckpt/` and auto-resumes, so an interrupted run costs at most 30 steps.
+When it finishes:
+
+```bash
+python scripts/merge_lora.py
+python llama.cpp/convert_hf_to_gguf.py models/nutriflow-merged \
+  --outfile models/nutriflow-assistant-v6-q8_0.gguf --outtype q8_0
+cp models/nutriflow-assistant-v6-q8_0.gguf ~/.lmstudio/models/nutriflow/nutriflow-assistant-v6/
+~/.lmstudio/bin/lms.exe unload --all
+~/.lmstudio/bin/lms.exe load nutriflow-assistant-v6 --gpu max --context-length 8192 --identifier nutriflow-v6 -y
+MODEL=nutriflow-v6 npm run eval:assistant     # 51 cases; compare against the table below
+```
+
+**Model scoreboard** (same 51 unconstrained cases, `MODEL=… npm run eval:assistant`):
+
+| | v4 | v5 | v6 (expected) |
+|---|---|---|---|
+| toolAccuracy | 73% | **88%** | should clear 90% |
+| fieldAccuracy | 80% | **86%** | |
+| clarify/answer | 8/10 | **9/10** | |
+| failures | 20 | **13** | |
+
+v5's remaining failures are 9 on tools it was never trained on (v6 fixes by construction) and 3
+that now have targeted data (`activity:"desk_job"` not in the enum; calories stuffed into the dish
+name; a bare `"1500"` acted on instead of asked about).
+
+**What the assistant can do now (11 tools):** `update_profile`, `regenerate_week`,
+`regenerate_day`, `swap_meal`, `compute_targets`, `log_meal`, `weekly_report`, `eating_out`,
+`explain_meal`, `substitute_ingredient`, `symptom_check`.
+
+**Next up, in order:** `lock_meal`/`unlock_meal` (pin a meal; needs `UserProfile.lockedMeals` and a
+re-impose pass after every rebuild) → `rate_meal` → hydration → `scale_portions` → `undo`.
+
+---
+
 ## 0. The aim (never lose sight of this)
 
 Build an AI that **replaces a nutritionist *and* a knowledgeable health coach**. The user talks

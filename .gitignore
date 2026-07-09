@@ -37,3 +37,6 @@ next-env.d.ts
 
 # local env backups
 .env.local.bak
+
+# training logs (local, noisy)
+train-*.log
