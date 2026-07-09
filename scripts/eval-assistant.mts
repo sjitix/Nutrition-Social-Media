@@ -96,6 +96,48 @@ const PROFILE: UserProfile = {
 const PLAN = rebalanceWeek(selectWeekFromDb(PROFILE), PROFILE);
 const SYSTEM = assistantTurnSystemPrompt(PROFILE, PLAN);
 
+// The app enforces a JSON schema for local models. Comparing an unconstrained base against
+// a fine-tune that natively emits the envelope is unfair: most of the base's "bad schema"
+// failures have the right tool and fields, just no wrapper. ENFORCE=1 levels the field.
+const ENFORCE = process.env.ENFORCE === "1";
+const RESPONSE_FORMAT = {
+  type: "json_schema",
+  json_schema: {
+    name: "assistant_turn",
+    strict: true,
+    schema: {
+      type: "object",
+      properties: {
+        reply: { type: "string" },
+        operations: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              tool: { type: "string", enum: [...TOOLS] },
+              day: { type: ["string", "null"] },
+              mealType: { type: ["string", "null"] },
+              dish: { type: ["string", "null"] },
+              cuisine: { type: ["string", "null"] },
+              diet: { type: ["string", "null"] },
+              budget: { type: ["string", "null"] },
+              excludeFoods: { type: "array", items: { type: "string" } },
+              targetCalories: { type: ["number", "null"] },
+              targetProtein: { type: ["number", "null"] },
+              targetFiber: { type: ["number", "null"] },
+              maxCookTime: { type: ["number", "null"] },
+              preserveMacros: { type: ["boolean", "null"] },
+              useIngredients: { type: "array", items: { type: "string" } },
+            },
+            required: ["tool"],
+          },
+        },
+      },
+      required: ["reply", "operations"],
+    },
+  },
+};
+
 async function ask(message: string): Promise<string> {
   const res = await fetch(`${BASE_URL}/chat/completions`, {
     method: "POST",
@@ -103,6 +145,7 @@ async function ask(message: string): Promise<string> {
     body: JSON.stringify({
       model: MODEL, temperature: 0, max_tokens: 400,
       messages: [{ role: "system", content: SYSTEM }, { role: "user", content: message }],
+      ...(ENFORCE ? { response_format: RESPONSE_FORMAT } : {}),
     }),
   });
   if (!res.ok) throw new Error(`${res.status} ${(await res.text()).slice(0, 120)}`);
@@ -167,7 +210,7 @@ for (const c of CASES) {
 }
 
 const pct = (x: number) => `${((x / stat.n) * 100).toFixed(0)}%`.padStart(4);
-console.log(`\nmodel: ${MODEL}\nendpoint: ${BASE_URL}\ncases: ${stat.n}\n`);
+console.log(`\nmodel: ${MODEL}\nendpoint: ${BASE_URL}\ncases: ${stat.n}\nschema enforcement: ${ENFORCE ? "ON (as the app does for local models)" : "OFF (raw instruction-following)"}\n`);
 console.log(`validJson        ${pct(stat.validJson)}`);
 console.log(`schemaOk         ${pct(stat.schemaOk)}`);
 console.log(`noHallucination  ${pct(stat.noHalluc)}`);

@@ -182,12 +182,14 @@ for (let i = 0; i < 8; i++) { const day = rand(DAYS); const c = rand([1200, 1500
 // fiber
 for (const m of ["more fiber please", "i want at least 30g fiber a day", "add more fiber", "high fiber plan", "can you get me to 35g fiber daily", "not enough fiber, increase it"]) { const g = /(\d+)/.exec(m)?.[1]; push([u(m)], `Sure — I've prioritized higher-fiber meals${g ? ` to hit about ${g}g a day` : ""}.`, [OP({ tool: "update_profile", targetFiber: g ? Number(g) : 30 })]); }
 
-// protein target (week) — the plan re-solves to hit it
-for (let i = 0; i < 14; i++) { const g = rand([120, 140, 150, 160, 180, 200, 220]); push([u(rand([`set my protein to ${g}g`, `i want ${g}g protein a day`, `bump protein to ${g}`, `${g} grams of protein daily`, `hit ${g}g protein`, `more protein, like ${g}g`]))], `Done — I've re-solved your week to hit about ${g}g protein a day.`, [OP({ tool: "update_profile", targetProtein: g })]); }
+// protein target (week). The reply states the TARGET SET, never an achieved number — the
+// model does no arithmetic and the recipe pool may not reach the target. The engine appends
+// what was actually achieved (and admits when it fell short).
+for (let i = 0; i < 14; i++) { const g = rand([120, 140, 150, 160, 180, 200, 220]); push([u(rand([`set my protein to ${g}g`, `i want ${g}g protein a day`, `bump protein to ${g}`, `${g} grams of protein daily`, `hit ${g}g protein`, `more protein, like ${g}g`]))], `Done — I've set your protein target to ${g}g a day and rebuilt the week around it.`, [OP({ tool: "update_profile", targetProtein: g })]); }
 // vague "more protein" with no number → sensible bump
 for (const m of ["i need more protein", "add more protein", "high protein plan please", "protein is too low, raise it"]) push([u(m)], "Sure — I've rebuilt the week around higher-protein meals.", [OP({ tool: "update_profile", targetProtein: 180 })]);
 // protein target (single day)
-for (let i = 0; i < 6; i++) { const day = rand(DAYS); const g = rand([180, 200, 220]); push([u(rand([`make ${day} high protein`, `${day} needs ${g}g protein`, `more protein on ${day}`]))], `Got it — ${day} is now built around ~${g}g protein.`, [OP({ tool: "regenerate_day", day, targetProtein: g })]); }
+for (let i = 0; i < 6; i++) { const day = rand(DAYS); const g = rand([180, 200, 220]); push([u(rand([`make ${day} high protein`, `${day} needs ${g}g protein`, `more protein on ${day}`]))], `Got it — I've rebuilt ${day} around a higher protein target.`, [OP({ tool: "regenerate_day", day, targetProtein: g })]); }
 // carbs / fat targets
 for (let i = 0; i < 6; i++) { const g = rand([120, 150, 180, 220]); push([u(rand([`set carbs to ${g}g`, `i want ${g}g carbs a day`, `${g} grams carbs daily`]))], `Done — targeting about ${g}g carbs a day.`, [OP({ tool: "update_profile", targetCarbs: g })]); }
 for (let i = 0; i < 6; i++) { const g = rand([50, 60, 70, 80]); push([u(rand([`keep fat around ${g}g`, `${g}g fat a day`, `limit fat to ${g} grams`]))], `Got it — holding fat near ${g}g a day.`, [OP({ tool: "update_profile", targetFat: g })]); }
@@ -203,18 +205,42 @@ for (let i = 0; i < 12; i++) { const day = rand(DAYS); const c = rand(CUISINES);
 // swap specific dish
 for (let i = 0; i < 26; i++) { const day = rand(DAYS); const mt = rand(MEALS); const dish = rand(DISHES); push([u(rand([`swap ${day} ${mt} for ${dish}`, `change ${day}'s ${mt} to ${dish}`, `i want ${dish} for ${mt} on ${day}`, `replace ${day} ${mt} with ${dish}`]))], `Swapped ${day}'s ${mt} for ${dish}.`, [OP({ tool: "swap_meal", day, mealType: mt, dish })]); }
 
-// swap while watching macros — the app keeps the day on target automatically; the
-// model just picks the dish and talks like a nutritionist (default: preserve macros).
-const LEAN = ["but i'm cutting", "i'm trying to stay lean", "keep me on my macros", "but keep my protein up", "without wrecking my diet", "i'm on a high protein plan"];
-for (let i = 0; i < 16; i++) { const day = rand(DAYS); const mt = rand(MEALS); const dish = rand(DISHES); const lean = rand(LEAN); push([u(rand([`i want ${dish} for ${mt} on ${day} ${lean}`, `can i have ${dish} ${day} ${mt}? ${lean}`, `${day} ${mt} ${dish}, ${lean}`]))], `Done — ${dish} for ${day} ${mt}, and I balanced the rest of the day so your macros stay on target.`, [OP({ tool: "swap_meal", day, mealType: mt, dish })]); }
+// swap while watching macros. CONTRASTIVE with the cheat-day block below: both mention
+// "macros", but here the user wants them KEPT. Emit preserveMacros:true explicitly so the
+// model learns the distinction from INTENT, not from the presence of the word "macros".
+// (A fine-tune trained without this learned the shortcut `"macros" -> preserveMacros:false`
+// and turned preservation OFF for "keep me on my macros". Exactly backwards.)
+const LEAN = ["but i'm cutting", "i'm trying to stay lean", "keep me on my macros", "but keep my protein up", "without wrecking my diet", "i'm on a high protein plan", "don't ruin my macros", "stay on my macros", "keep my macros the same", "but i still want to hit my macros"];
+for (let i = 0; i < 24; i++) { const day = rand(DAYS); const mt = rand(MEALS); const dish = rand(DISHES); const lean = rand(LEAN); push([u(rand([`i want ${dish} for ${mt} on ${day} ${lean}`, `can i have ${dish} ${day} ${mt}? ${lean}`, `${day} ${mt} ${dish}, ${lean}`, `swap ${day} ${mt} for ${dish}, ${lean}`]))], `Done — ${dish} for ${day} ${mt}, and I balanced the rest of the day so your macros stay on target.`, [OP({ tool: "swap_meal", day, mealType: mt, dish, preserveMacros: true })]); }
 
 // treat / cheat day — user explicitly going off-plan → preserveMacros:false
 const TREATS = ["pizza", "a burger", "ice cream", "fried chicken", "mac and cheese", "a big bowl of pasta", "nachos"];
-const CHEAT = ["it's my cheat day", "treat day today", "i don't care about macros today", "screw the diet today", "cheat meal time"];
+// Note the overlap with LEAN: some of these also say "macros". The signal must be the
+// INTENT (cheat / treat / don't care / go off-plan), never the word itself.
+const CHEAT = ["it's my cheat day", "treat day today", "i don't care about macros today", "screw the diet today", "cheat meal time", "going off plan today", "forget the diet just this once"];
 for (let i = 0; i < 14; i++) { const day = rand(DAYS); const mt = rand(MEALS); const dish = rand(TREATS); const cheat = rand(CHEAT); push([u(rand([`${cheat}, swap ${day} ${mt} for ${dish}`, `${cheat} — give me ${dish} for ${mt} on ${day}`, `${day} ${mt} should be ${dish}, ${cheat}`]))], `You got it — ${dish} for ${day} ${mt}. Enjoy the treat; I left the rest of your day as-is.`, [OP({ tool: "swap_meal", day, mealType: mt, dish, preserveMacros: false })]); }
 
 // regenerate week
 for (const m of ["give me a whole new plan", "start over", "regenerate everything", "this is boring, redo it", "new week please", "shuffle it up", "i want different meals"]) push([u(m)], "Fresh week coming up — I've rebuilt the whole plan.", [OP({ tool: "regenerate_week" })]);
+
+// AMBIGUOUS -> ask, never guess. The evaluated model failed exactly these: it "fixed"
+// "make it better" by silently changing the diet, and read a bare "1500" as a day's calories.
+// Guessing is worse than asking: it edits the user's week on a coin flip.
+const VAGUE = [
+  ["make it better", "Happy to — what would 'better' look like? More protein, cheaper, quicker to cook, or more variety?"],
+  ["change it", "Sure — what should I change? The whole week, one day, or a single meal?"],
+  ["fix it", "What's wrong with it? Too expensive, too repetitive, too many calories, or something else?"],
+  ["improve my plan", "Of course — what matters most to you: protein, cost, cooking time, or variety?"],
+  ["1500", "Do you mean 1500 calories a day for the whole week, or just for one day?"],
+  ["2000?", "Would you like me to set your daily target to 2000 calories?"],
+  ["more", "More of what — protein, fiber, variety, or calories?"],
+  ["less", "Less of what — calories, carbs, cost, or cooking time?"],
+  ["i don't like it", "Sorry! Is it the meals themselves, the cost, the cooking time, or the macros?"],
+  ["do something", "Tell me what you'd like changed and I'll do it — meals, macros, budget, or cooking time?"],
+  ["make monday different", "Sure — different how? A new set of meals, a different cuisine, or different macros?"],
+  ["it's too much", "Too much of what — calories, cooking time, or cost?"],
+];
+for (const [m, reply] of VAGUE) push([u(m)], reply, []);
 
 // "use what's in my fridge" — bias selection toward on-hand ingredients
 const FRIDGE = ["chicken", "salmon", "rice", "broccoli", "eggs", "sweet potato", "spinach", "chickpeas", "tofu", "ground turkey", "black beans", "quinoa"];

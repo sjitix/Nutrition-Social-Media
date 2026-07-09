@@ -2200,18 +2200,19 @@ function pickMealsForDay(
     const hard = RECIPES.filter(
       (r) => r.type === type && passesDiet(r, profile.diet) && !blockedByExclusions(r, tokens),
     );
-    // SOFT preferences — relax in stages rather than silently drop a meal from the
-    // day. A slightly slower or pricier meal beats a missing one; a nutritionist
-    // would never just leave you without dinner.
+    // SOFT preferences — relax in stages rather than silently drop a meal from the day. A
+    // pricier meal beats a missing one; a nutritionist would never leave you without dinner.
+    //
+    // ORDER MATTERS. Cook time is relaxed LAST: someone who says "nothing over 15 minutes"
+    // usually cannot cook for 25, whereas price is elastic. Relaxing time to save money
+    // (the earlier order) handed a 25-min meal to a user with a 15-min limit.
+    const fast = (r: Recipe) => r.timeMinutes <= profile.maxCookTime + 5;
     let candidates = hard.filter(
-      (r) =>
-        r.timeMinutes <= profile.maxCookTime + 5 &&
-        r.ingredients.length <= profile.maxIngredients + 1 &&
-        r.approxCost <= cap,
+      (r) => fast(r) && r.ingredients.length <= profile.maxIngredients + 1 && r.approxCost <= cap,
     );
-    if (!candidates.length)
-      candidates = hard.filter((r) => r.timeMinutes <= profile.maxCookTime + 15 && r.approxCost <= cap);
-    if (!candidates.length) candidates = hard.filter((r) => r.approxCost <= cap);
+    if (!candidates.length) candidates = hard.filter((r) => fast(r) && r.approxCost <= cap); // drop ingredient cap
+    if (!candidates.length) candidates = hard.filter(fast); // drop budget, keep the time limit
+    if (!candidates.length) candidates = hard.filter((r) => r.timeMinutes <= profile.maxCookTime + 15);
     if (!candidates.length) candidates = hard; // last resort: honour only the hard rules
     if (cuisinePref) {
       const pref = candidates.filter((r) => r.cuisine === cuisinePref);
@@ -2443,19 +2444,26 @@ function scaleToTargets(meals: Meal[], profile: UserProfile, lockedType?: Recipe
     }
   }
 
-  // Calorie polish. The multi-axis descent balances five goals at once and can settle
-  // short on calories when carbs/fat/fiber pull the other way. Calories are the axis
-  // the user actually set, so close the remaining gap directly. Iterate: a single
-  // proportional correction undershoots when some meals hit the 1.8x clamp, so repeat
-  // to redistribute the remainder onto the meals that still have headroom.
+  // Calorie polish (water-filling). The multi-axis descent balances five goals at once and
+  // can settle off-target on calories when carbs/fat/fiber pull the other way. Calories are
+  // the axis the user actually set, so close the gap directly.
+  //
+  // Scaling every meal by the same factor is wrong: a meal already pinned at a clamp absorbs
+  // none of the correction, so the day stays short even when the others have headroom
+  // (observed: lunch pinned at 0.60x while breakfast sat at 1.49x and the day was 350 kcal
+  // under). Instead, each round pushes the remaining deficit ONLY onto meals that can still
+  // move, and re-checks. Works in both directions (deficit and surplus).
   const adjCal = () => adj.reduce((s, it) => s + recipeMacros(it.base).cal * it.g, 0);
   const wanted = target.cal - fixed.cal;
-  for (let t = 0; t < 8 && wanted > 0; t++) {
-    const have = adjCal();
-    if (have <= 0) break;
-    const k = wanted / have;
-    if (Math.abs(k - 1) < 0.005) break; // close enough
-    for (const it of adj) it.g = clampScale(it.g * k);
+  for (let t = 0; t < 12 && wanted > 0; t++) {
+    const deficit = wanted - adjCal();
+    if (Math.abs(deficit) < 5) break; // close enough
+    const free = adj.filter((it) => (deficit > 0 ? it.g < SCALE_HI - 1e-6 : it.g > SCALE_LO + 1e-6));
+    if (!free.length) break; // everything is clamped: the target is physically unreachable
+    const freeCal = free.reduce((s, it) => s + recipeMacros(it.base).cal * it.g, 0);
+    if (freeCal <= 0) break;
+    const k = (freeCal + deficit) / freeCal;
+    for (const it of free) it.g = clampScale(it.g * k);
   }
 
   const scaled = new Map<Meal, Meal>();
@@ -2584,6 +2592,36 @@ function findRecipeForSwap(
   return top.slice().sort((a, b) => macroDistance(recipeMacros(a), st) - macroDistance(recipeMacros(b), st))[0];
 }
 
+const dayTotals = (d: DayPlan) => ({
+  kcal: d.meals.reduce((s, m) => s + m.calories, 0),
+  protein: d.meals.reduce((s, m) => s + m.proteinGrams, 0),
+});
+
+const weekAverages = (plan: WeekPlan) => {
+  const n = plan.days.length || 1;
+  const t = plan.days.map(dayTotals);
+  return {
+    kcal: Math.round(t.reduce((s, x) => s + x.kcal, 0) / n),
+    protein: Math.round(t.reduce((s, x) => s + x.protein, 0) / n),
+  };
+};
+
+const PROTEIN_MISS = 8; // g/day we'll tolerate before admitting we fell short
+
+/**
+ * Report what the plan ACTUALLY achieved. The model writes the friendly sentence but does
+ * no arithmetic, so left alone it will happily claim "I hit 190g protein" when the recipe
+ * pool tops out at 167g. That is a trust violation. The engine appends the truth — including
+ * an explicit admission when a target is out of reach under the user's constraints.
+ */
+function achievementNote(label: string, got: { kcal: number; protein: number }, p: UserProfile): string {
+  let note = `${label} ${got.kcal} kcal and ${got.protein}g protein.`;
+  const short = p.proteinGrams - got.protein;
+  if (short > PROTEIN_MISS)
+    note += ` I couldn't reach ${p.proteinGrams}g protein within your diet, budget and time limits — ${got.protein}g is the most these recipes allow.`;
+  return note;
+}
+
 // Dish names used on days OTHER than `day` — so a single-day rebalance/upgrade
 // doesn't introduce a dish already on the plate elsewhere in the week.
 function namesOnOtherDays(plan: WeekPlan, day: DayPlan["day"]): Set<string> {
@@ -2625,12 +2663,14 @@ export function applyOperations(
         curPlan = keepMacros(op)
           ? rebalanceWeek(selectWeekFromDb(p, normalizeCuisine(op.cuisine), fiberOn(op), op.useIngredients), p)
           : selectWeekFromDb(p, normalizeCuisine(op.cuisine), fiberOn(op), op.useIngredients);
+        if (keepMacros(op)) notes.push(achievementNote("Your week now averages", weekAverages(curPlan), p));
         break;
       }
       case "regenerate_week": {
         curPlan = keepMacros(op)
           ? rebalanceWeek(selectWeekFromDb(p, normalizeCuisine(op.cuisine), fiberOn(op), op.useIngredients), p)
           : selectWeekFromDb(p, normalizeCuisine(op.cuisine), fiberOn(op), op.useIngredients);
+        if (keepMacros(op)) notes.push(achievementNote("Your week now averages", weekAverages(curPlan), p));
         break;
       }
       case "regenerate_day": {
@@ -2645,6 +2685,7 @@ export function applyOperations(
           ? rebalanceDay(newDay.meals, tp, undefined, namesOnOtherDays(curPlan, op.day))
           : newDay.meals;
         curPlan = { ...curPlan, days: curPlan.days.map((d) => (d.day === op.day ? { ...newDay, meals } : d)) };
+        if (keepMacros(op)) notes.push(achievementNote(`${op.day} now has`, dayTotals({ ...newDay, meals }), tp));
         break;
       }
       case "swap_meal": {
