@@ -34,3 +34,6 @@ next-env.d.ts
 
 # personal Claude Code permission overrides (per-machine)
 /.claude/settings.local.json
+
+# local env backups
+.env.local.bak
