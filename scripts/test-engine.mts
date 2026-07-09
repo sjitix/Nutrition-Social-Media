@@ -15,7 +15,7 @@
 import { selectWeekFromDb, rebalanceWeek, applyOperations, RECIPES, recipeMicros, newReport, reportNotes } from "@/lib/recipeDb";
 import type { UserProfile, Operation, DayPlan, WeekPlan, Meal } from "@/lib/types";
 import { microsForIngredients } from "@/lib/nutrients";
-import { haystackBlocked, dietTagConflicts } from "@/lib/exclusions";
+import { haystackBlocked, dietTagConflicts, parseExclusionTokens } from "@/lib/exclusions";
 import { bmr, computeTargets } from "@/lib/targets";
 import { composeReply, planWasChanged, READ_ONLY_TOOLS } from "@/lib/reply";
 import { SUBSTITUTES } from "@/lib/substitutions";
@@ -941,12 +941,141 @@ console.log("--- REPLY COMPOSITION (who gets the last word) ---");
   check("no tool is left unclassified", unclassified.length === 0, unclassified.join(", "));
 }
 
+
+// ---------------------------------------------------------------- audit regressions
+console.log("");
+console.log("--- ALLERGEN MATCHING (found by audit: a peanut-allergic user was served peanuts) ---");
+{
+  const T = (a: string) => parseExclusionTokens(a, "");
+
+  // The bug: wordMatches only asked whether the INGREDIENT was a plural of the TOKEN, never the
+  // reverse. "peanuts" — the literal placeholder in the onboarding form — did not block "peanut
+  // butter", and the planner served Thai Peanut Chicken Rice Bowl.
+  const mustBlock: [string, string][] = [
+    ["peanuts", "peanut butter"], ["peanut", "peanut butter"], ["almonds", "almond butter"],
+    ["eggs", "egg"], ["egg", "eggs"], ["walnuts", "walnut halves"],
+    ["soy", "teriyaki sauce"], ["gluten", "teriyaki sauce"],
+    ["milk", "cheddar"], ["milk", "greek yogurt"],
+    ["allergic to nuts", "almonds"], ["tree nuts and shellfish", "shrimp"],
+    ["tree nuts and shellfish", "walnuts"], ["i'm allergic to dairy", "feta"],
+    ["shellfish", "prawns"], ["fish", "cod fillet"],
+  ];
+  let leaks = "";
+  for (const [tok, food] of mustBlock)
+    if (!haystackBlocked(food, T(tok))) leaks += ` "${tok}"->"${food}"`;
+  check("every allergy phrasing blocks the food it names", leaks === "", leaks);
+
+  // ...without over-blocking. "egg" must still not eat "eggplant", and a dairy allergy must not
+  // strip peanut butter just because the category lists the bare word "butter".
+  const mustNotBlock: [string, string][] = [
+    ["egg", "eggplant"], ["oat", "goat cheese"], ["dairy", "peanut butter"],
+    ["lactose", "almond butter"], ["nuts", "coconut milk"], ["corn", "unicorn stew"],
+  ];
+  let over = "";
+  for (const [tok, food] of mustNotBlock)
+    if (haystackBlocked(food, T(tok))) over += ` "${tok}"->"${food}"`;
+  check("no allergy phrasing over-blocks an unrelated food", over === "", over);
+
+  // The invariant that actually matters: it must not reach the plate.
+  const ALLERGY_CASES = ["peanuts", "almonds", "eggs", "milk", "allergic to nuts", "shellfish"];
+  let served = "";
+  for (const allergy of ALLERGY_CASES) {
+    const prof: UserProfile = { ...BASE, allergies: allergy };
+    const tokens = T(allergy);
+    for (let i = 0; i < 4 && !served; i++) {
+      const wk = freshWeek(prof);
+      for (const d of wk.days)
+        for (const m of d.meals)
+          if (haystackBlocked(mealHay(m), tokens)) served = `${allergy}: ${d.day} ${m.name}`;
+    }
+  }
+  check("the planner never serves an allergen, in any phrasing", served === "", served);
+}
+
+console.log("");
+console.log("--- RED FLAGS (found by audit: 'my chest hurts' got a nutrition answer) ---");
+{
+  const plan = freshWeek(BASE);
+  const kind = (msg: string) => {
+    const n = applyOperations(BASE, plan, [op({ tool: "symptom_check", symptom: msg })]).notes.join(" ");
+    if (/crisis line/i.test(n)) return "crisis";
+    if (/urgent care/i.test(n)) return "urgent";
+    if (/rather say so than invent/i.test(n)) return "refuse";
+    return "symptom";
+  };
+
+  const CRISIS = ["i feel suicidal", "i keep thinking about suicide", "i want to end it all",
+    "i don't want to live anymore", "i've been cutting myself to cope", "i'd be better off dead",
+    "i want to kill myself", "i'm going to hurt myself"];
+  let missed = "";
+  for (const m of CRISIS) if (kind(m) !== "crisis") missed += ` "${m}"->${kind(m)}`;
+  check("every way of saying it reaches the crisis line", missed === "", missed);
+
+  const URGENT = ["my chest hurts", "i've been having chest pains", "im having a heart attack",
+    "i'm short of breath", "i cant breath", "i'm throwing up blood", "i blacked out",
+    "i've been coughing up blood", "i have blood in my stool", "my speech went slurred"];
+  let missedU = "";
+  for (const m of URGENT) if (kind(m) !== "urgent") missedU += ` "${m}"->${kind(m)}`;
+  check("every urgent phrasing reaches urgent care", missedU === "", missedU);
+
+  // Adjacency, not a scattered word set: "blood ... in ... stool" must not fire on prose.
+  check("a scattered word set does not fire a red flag",
+    kind("my blood test was low and i sat on a stool in the kitchen") !== "urgent");
+  // A delighted dieter is not a medical emergency.
+  check("losing weight on a weight-loss app is not urgent care",
+    kind("i've been losing weight without even trying") !== "urgent");
+  check("an unexplained loss still is", kind("i've got unexplained weight loss") === "urgent");
+  check("'my heart is set on pizza' is not a palpitation", kind("my heart is set on pizza") !== "urgent");
+}
+
+console.log("");
+console.log("--- EATING OUT / EXPLAIN (audit regressions) ---");
+{
+  const plan = freshWeek(BASE);
+
+  // .map() can only replace a slot. Reserving a "snack" on a 3-meal day reserved NOTHING while
+  // the note claimed it had set calories aside and made the other meals lighter.
+  const snack = applyOperations(BASE, plan, [op({ tool: "eating_out", day: "Friday", mealType: "snack" })]);
+  check("eating_out on a slot you don't have says so", /don't have a snack/i.test(snack.notes.join(" ")));
+  // NB: assert on the CLAIM ("I've set aside N kcal"), not the words "set aside" — the refusal
+  // itself contains them ("nothing for me to set aside there"). The first version of this check
+  // failed for that reason: the test was wrong, the engine was right.
+  check("eating_out on a missing slot claims no reservation", !/I've set aside/i.test(snack.notes.join(" ")));
+  check("eating_out on a missing slot changes nothing", JSON.stringify(snack.plan) === JSON.stringify(plan));
+
+  // A logged meal has no recipe and CANNOT be rescaled. Flooring it at 0.6x understated the day
+  // and suppressed the over-target warning on exactly the days that needed it.
+  const logged = applyOperations(BASE, plan, [
+    op({ tool: "log_meal", day: "Thursday", mealType: "lunch", dish: "takeout pho", loggedCalories: 1200 }),
+  ]).plan;
+  const out = applyOperations(BASE, logged, [op({ tool: "eating_out", day: "Thursday", mealType: "dinner" })]);
+  const thu = out.plan.days.find((d) => d.day === "Thursday")!;
+  const total = thu.meals.reduce((s, m) => s + m.calories, 0);
+  const warned = /over target/i.test(out.notes.join(" "));
+  check("a day pushed over target by a fixed meal is admitted, not reassured",
+    total <= BASE.targetCalories * 1.05 || warned, `${total} kcal, warned=${warned}`);
+
+  // explain_meal quoted the recipe card's fiber, not the portion actually served.
+  for (const d of plan.days)
+    for (const m of d.meals) {
+      const note = applyOperations(BASE, plan, [op({ tool: "explain_meal", day: d.day, mealType: m.type })]).notes.join(" ");
+      const claimed = /it carries (\d+)g of fiber/.exec(note)?.[1];
+      if (claimed) check(`explain_meal quotes the served fiber for ${m.name}`, Number(claimed) === m.fiberGrams, `said ${claimed}, served ${m.fiberGrams}`);
+    }
+
+  // Keto is a number on an ingredient, not a tag. dietTagConflicts can't see it.
+  const keto: UserProfile = { ...BASE, diet: "keto" };
+  const kn = applyOperations(keto, freshWeek(keto), [op({ tool: "substitute_ingredient", ingredient: "rice" })]).notes.join(" ");
+  check("a keto user is never offered quinoa for rice", !/quinoa|couscous|brown rice/i.test(kn), kn.slice(0, 80));
+}
+
 // ---------------------------------------------------------------- 3. fuzz
 console.log("\n--- FUZZ (random op sequences, invariants after each) ---");
 const DAYS_L = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
 const MEALS_L = ["breakfast", "lunch", "dinner"] as const;
 const DISHES_L = ["oatmeal", "pancakes", "salmon", "chicken salad", "omelette", "curry", "stir fry", "tacos", "pizza", "unicorn stew"];
-const FOODS_L = ["onion", "mushroom", "olive", "cilantro"];
+// Plurals and phrases, because that is how people type and that is where the bug was.
+const FOODS_L = ["onion", "mushroom", "olive", "cilantro", "peanuts", "eggs", "milk", "almonds"];
 const DIETS_L = ["none", "vegetarian", "vegan", "mediterranean"] as const;
 const pick = <T,>(a: readonly T[]) => a[Math.floor(Math.random() * a.length)];
 

@@ -11,7 +11,7 @@ import {
 import { haystackBlocked, parseExclusionTokens, dietTagConflicts, wordMatches } from "./exclusions";
 import { computeTargets, explainTargets } from "./targets";
 import { SUBSTITUTES, INGREDIENT_ALIASES } from "./substitutions";
-import { SYMPTOMS, URGENT_FLAGS, CRISIS_FLAGS } from "./symptoms";
+import { SYMPTOMS, URGENT_FLAGS, CRISIS_FLAGS, PHRASE_NOISE } from "./symptoms";
 import { NUTRIENT_TABLE } from "./nutrientTable.generated";
 import {
   microsForIngredients,
@@ -2946,23 +2946,49 @@ function symptomNote(plan: WeekPlan, p: UserProfile, reported: string): { text: 
   const said = reported.trim().toLowerCase();
   if (!said) return { text: "What have you been noticing?", override: false };
 
-  // Match a phrase as an unordered WORD SET, with the same stemmer the allergen filter uses.
+  const words = said.split(/[^a-z']+/).filter(Boolean);
+  const same = (w: string, t: string) => w === t || wordMatches(w, t) || wordMatches(t, w);
+
+  // SYMPTOMS match as an unordered WORD SET, with the same stemmer the allergen filter uses:
   // "my nails are brittle and my hair is thinning" must find "brittle nails" and "hair thinning";
   // "retired" must never find "tired".
-  const words = said.split(/[^a-z']+/).filter(Boolean);
-  const hasWord = (t: string) => words.some((w) => w === t || wordMatches(w, t) || wordMatches(t, w));
+  const hasWord = (t: string) => words.some((w) => same(w, t));
   const phraseIn = (phrase: string) => phrase.split(/\s+/).every(hasWord);
+
+  // RED FLAGS match on ADJACENCY, not on a scattered set. "blood in stool" contains the word
+  // "in"; as a word set it would fire on "my blood test was low and I sat on a stool in the
+  // kitchen". Noise words are dropped from both sides, then the phrase must appear as
+  // consecutive words — which still lets "coughing up blood" find "coughing blood".
+  const signal = words.filter((w) => !PHRASE_NOISE.has(w.replace(/'/g, "")));
+  const flagIn = (phrase: string) => {
+    const want = phrase.split(/\s+/).filter((w) => !PHRASE_NOISE.has(w.replace(/'/g, "")));
+    if (!want.length) return false;
+    // Adjacent but ORDER-FREE: "a pain in my chest" and "my speech is slurred" are the same
+    // emergency as "chest pain" and "slurred speech". Strict ordering missed both.
+    for (let i = 0; i + want.length <= signal.length; i++) {
+      const window = signal.slice(i, i + want.length);
+      const taken = new Array(window.length).fill(false);
+      const all = want.every((t) => {
+        const j = window.findIndex((w, k) => !taken[k] && same(w, t));
+        if (j < 0) return false;
+        taken[j] = true;
+        return true;
+      });
+      if (all) return true;
+    }
+    return false;
+  };
 
   // Crisis first. Nothing else in this function runs.
   // `override` means: the model's own words are DISCARDED and this text is the entire reply. A
   // 1.5B must not be able to prepend "sounds like low iron!" to a chest-pain warning.
-  if (CRISIS_FLAGS.some(phraseIn))
+  if (CRISIS_FLAGS.some(flagIn))
     return {
       text: "I'm not the right help for this, and I don't want to talk to you about food right now. Please contact your local emergency number or a crisis line straight away — in the US and Canada you can call or text 988, in the UK call 116 123. If you're in danger, call emergency services.",
       override: true,
     };
 
-  if (URGENT_FLAGS.some(phraseIn))
+  if (URGENT_FLAGS.some(flagIn))
     return {
       text: "That isn't something I should be answering with food. Please contact a doctor or urgent care now — I'll look at your nutrition once you've had it seen to.",
       override: true,
@@ -3082,6 +3108,9 @@ function substituteNote(
   const safe = candidates.filter((c: string) => {
     if (haystackBlocked(c, tokens)) return false;
     if (dietTag && dietTagConflicts(dietTag, [c]).length) return false;
+    // Keto isn't a tag on an ingredient, it's a number on one. dietTagConflicts can't see it, so
+    // a keto user was being told to replace rice with... quinoa and couscous.
+    if (p.diet === "keto" && (NUTRIENT_TABLE[c]?.per100g.carbs ?? 0) > KETO_MAX_CARBS_PER_100G) return false;
     return true;
   });
   if (!safe.length)
@@ -3156,7 +3185,8 @@ function explainMealNote(plan: WeekPlan, p: UserProfile, day: DayPlan["day"], ty
   if (base.timeMinutes <= 15) why.push(`it's quick (${base.timeMinutes} min)`);
   else if (base.timeMinutes <= p.maxCookTime) why.push(`it fits your ${p.maxCookTime}-min limit at ${base.timeMinutes} min`);
   if (base.approxCost === 1) why.push("it's one of the cheaper recipes");
-  if ((base.fiberGrams ?? 0) >= 8) why.push(`it carries ${base.fiberGrams}g of fiber`);
+  // The SERVED portion, not the recipe card: everything else in this sentence is scaled.
+  if ((meal.fiberGrams ?? 0) >= 8) why.push(`it carries ${meal.fiberGrams}g of fiber`);
   if (p.diet !== "none") why.push(`it's ${p.diet}`);
 
   // Ingredient reuse is a real reason: it's why the grocery list stays short.
@@ -3231,6 +3261,9 @@ function guaranteeBoost(
  */
 const RESTAURANT_SHARE = 0.4; // a restaurant main is a big meal, not an average one
 
+/** Above this, a food is not a keto food. Bell peppers pass; rice, couscous and banana do not. */
+const KETO_MAX_CARBS_PER_100G = 10;
+
 function eatingOut(
   p: UserProfile,
   plan: WeekPlan,
@@ -3241,6 +3274,12 @@ function eatingOut(
 ): WeekPlan {
   const origDay = plan.days.find((d) => d.day === day);
   if (!origDay) return plan;
+  // .map() below can only REPLACE a slot, never add one. On a 3-meal plan an eating_out for
+  // "snack" silently reserved nothing while the note cheerfully claimed it had. Say the truth.
+  if (!origDay.meals.some((m) => m.type === mealType)) {
+    notes.push(`You don't have a ${mealType} on ${day}, so there's nothing for me to set aside there.`);
+    return plan;
+  }
   const reserve = estimated ?? Math.round(p.targetCalories * Math.max(slotShare(p, mealType), RESTAURANT_SHARE));
 
   const placeholder: Meal = {
@@ -3261,8 +3300,11 @@ function eatingOut(
   // Can the remaining meals even fit in what's left? At minimum portion (0.6x) they still cost
   // something; if the reserve eats the whole day, say so instead of quietly blowing the target.
   const restFloor = rest.reduce((sum, m) => {
+    // A meal with no library recipe behind it (a logged meal, an earlier reserve) CANNOT be
+    // rescaled — scaleToTargets skips it. Flooring it at 0.6x understated the day and silently
+    // suppressed the "you'll be over target" warning on exactly the days that needed it.
     const base = RECIPES.find((r) => r.name === m.name);
-    return sum + (base ? base.calories : m.calories) * SCALE_LO;
+    return sum + (base ? base.calories * SCALE_LO : m.calories);
   }, 0);
 
   const meals = rebalanceDay(withReserve, p, new Set([mealType]), namesOnOtherDays(plan, day));

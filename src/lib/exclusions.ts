@@ -20,15 +20,19 @@ const CATEGORY_TERMS: Record<string, string[]> = {
 
   dairy: ["milk", "cheese", "yogurt", "butter", "cream", "feta", "mozzarella", "cheddar", "parmesan", "ricotta", "halloumi", "dairy"],
   lactose: ["milk", "cheese", "yogurt", "butter", "cream", "feta", "mozzarella", "cheddar", "parmesan", "ricotta", "halloumi"],
+  // "milk" is what people actually type for a cow's-milk-protein allergy. It must mean dairy,
+  // not just the literal word, or cheddar sails straight through.
+  milk: ["milk", "cheese", "yogurt", "butter", "cream", "feta", "mozzarella", "cheddar", "parmesan", "ricotta", "halloumi", "dairy"],
 
-  gluten: ["bread", "pasta", "couscous", "bulgur", "orzo", "panko", "spaghetti", "penne", "noodle", "noodles", "bagel", "wrap", "tortilla", "flour", "muesli", "granola", "soy sauce", "wheat", "toast", "bun"],
-  wheat: ["bread", "pasta", "couscous", "bulgur", "orzo", "panko", "spaghetti", "penne", "bagel", "wrap", "tortilla", "flour", "wheat", "toast", "bun"],
+  // teriyaki is soy sauce with wheat in it — it belongs in all three lists.
+  gluten: ["bread", "pasta", "couscous", "bulgur", "orzo", "panko", "spaghetti", "penne", "noodle", "noodles", "bagel", "wrap", "tortilla", "flour", "muesli", "granola", "soy sauce", "teriyaki", "wheat", "toast", "bun"],
+  wheat: ["bread", "pasta", "couscous", "bulgur", "orzo", "panko", "spaghetti", "penne", "bagel", "wrap", "tortilla", "flour", "teriyaki", "wheat", "toast", "bun"],
 
   shellfish: ["shrimp", "prawn", "prawns", "crab", "lobster"],
   fish: ["salmon", "tuna", "cod", "mackerel", "trout", "anchovy", "fish"],
   seafood: ["salmon", "tuna", "cod", "mackerel", "trout", "shrimp", "prawn", "prawns", "fish"],
 
-  soy: ["tofu", "tempeh", "edamame", "soy", "miso", "soy sauce"],
+  soy: ["tofu", "tempeh", "edamame", "soy", "miso", "soy sauce", "teriyaki"],
   sesame: ["sesame", "tahini"],
   pork: ["pork", "bacon", "chorizo", "sausage", "ham"],
   eggs: ["egg", "eggs"],
@@ -53,6 +57,30 @@ export function expandExclusion(token: string): string[] {
 }
 
 /**
+ * Word-level match in BOTH directions, because an allergy token and an ingredient can differ by a
+ * plural on either side.
+ *
+ * The one-directional version shipped a real allergen exposure: a user who typed "peanuts" — the
+ * literal placeholder in the onboarding form — was served "Thai Peanut Chicken Rice Bowl", because
+ * wordMatches("peanut", "peanuts") is false. It only ever asked whether the INGREDIENT was a
+ * plural of the TOKEN, never the reverse.
+ *
+ * This does not reintroduce the "egg" -> "eggplant" over-block: neither direction produces an
+ * allowed suffix ("plant" isn't one), and the same holds for "oat" -> "goat".
+ */
+function termMatchesWord(word: string, term: string): boolean {
+  return wordMatches(word, term) || wordMatches(term, word);
+}
+
+/**
+ * Peanut butter, almond butter and cocoa butter are not dairy. The "dairy"/"lactose" categories
+ * list the bare word "butter", which would otherwise strip every nut butter from a lactose-
+ * intolerant user's plan. The diet path already knew this (VEGAN_EXCEPTIONS); the allergen path
+ * did not.
+ */
+const BUTTER_EXCEPTIONS = ["peanut butter", "almond butter", "cocoa butter", "nut butter", "cashew butter"];
+
+/**
  * Does `haystack` (a recipe's name + ingredients + steps) contain an excluded term?
  * Multi-word terms ("soy sauce") are matched as phrases; single words are matched on word
  * boundaries with light plural/verb stemming, so "egg" never blocks "eggplant".
@@ -65,7 +93,11 @@ export function haystackBlocked(haystack: string, tokens: string[]): boolean {
     for (const term of expandExclusion(token)) {
       if (term.includes(" ")) {
         if (hay.includes(term)) return true; // phrase
-      } else if (words.some((w) => wordMatches(w, term))) {
+      } else if (term === "butter") {
+        // Block "butter" only where it isn't part of a nut butter.
+        const stripped = BUTTER_EXCEPTIONS.reduce((acc, ex) => acc.split(ex).join(" "), hay);
+        if (stripped.split(/[^a-z]+/).some((w) => termMatchesWord(w, term))) return true;
+      } else if (words.some((w) => termMatchesWord(w, term))) {
         return true;
       }
     }
@@ -73,18 +105,30 @@ export function haystackBlocked(haystack: string, tokens: string[]): boolean {
   return false;
 }
 
+/** Filler that means nothing on its own but wraps what people actually type. */
+const TOKEN_NOISE = /\b(i'?m|i|am|is|are|allergic|allergy|allergies|to|the|a|an|any|no|non|and|plus|also|avoid|avoiding|cant|can't|cannot|eat|have|intolerant|intolerance|sensitive|free)\b/g;
+
 /**
  * Parse the profile's free-text allergies/dislikes into tokens.
- * Tokens shorter than 3 characters are dropped: a stray "a" would otherwise match every
- * recipe and silently empty the entire plan.
+ *
+ * People do not type "nuts, shellfish". They type "allergic to nuts and shellfish". The old
+ * comma-only split turned that into ONE token that matched no ingredient anywhere, so the user's
+ * allergies were silently ignored — the most dangerous possible failure, and a silent one.
+ *
+ * Tokens shorter than 3 characters are dropped: a stray "a" would otherwise match every recipe
+ * and empty the entire plan.
  */
 export function parseExclusionTokens(allergies: string, dislikes: string): string[] {
-  return [allergies, dislikes]
-    .join(",")
-    .toLowerCase()
-    .split(",")
-    .map((s) => s.trim())
-    .filter((s) => s.length >= 3);
+  const raw = [allergies, dislikes].join(",").toLowerCase();
+  const out = new Set<string>();
+  for (const chunk of raw.split(/[,;/]| and | & |\+/)) {
+    const cleaned = chunk.replace(TOKEN_NOISE, " ").replace(/\s+/g, " ").trim();
+    if (cleaned.length >= 3) out.add(cleaned);
+    // A multi-word phrase may still contain a known category ("tree nuts" inside "tree nuts raw").
+    for (const key of Object.keys(CATEGORY_TERMS))
+      if (cleaned === key || cleaned.split(/\s+/).includes(key)) out.add(key);
+  }
+  return [...out];
 }
 
 /* ------------------------------------------------------------------------- *

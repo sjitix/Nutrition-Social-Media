@@ -97,10 +97,25 @@ export const SYMPTOMS: Symptom[] = [
  * must be present somewhere in the message — so word order and filler words don't defeat them.
  */
 export const URGENT_FLAGS = [
-  "chest pain", "chest tightness", "cant breathe", "can't breathe", "shortness of breath",
-  "breathless", "coughing blood", "vomiting blood", "blood in stool", "blood in urine",
-  "fainting", "fainted", "passed out", "seizure", "seizures", "numb face", "slurred speech",
-  "heart racing", "palpitations", "losing weight without trying", "unexplained weight loss",
+  // Written the way people type, not the way a textbook does. Every phrase below was a MISS in an
+  // audit: "my chest hurts", "i cant breath", "i blacked out", "im having a heart attack",
+  // "throwing up blood" all fell through to a bland "I don't have a nutritional angle on that".
+  // Where a single word is unambiguous on its own, it is listed on its own.
+  "chest pain", "chest pains", "chest tightness", "chest hurts", "chest hurting", "tight chest",
+  "chest pressure", "heart attack", "stroke",
+  "cant breathe", "can't breathe", "cant breath", "can't breath", "shortness of breath",
+  "short of breath", "struggling to breathe", "breathless",
+  "coughing blood", "vomiting blood", "throwing up blood", "puking blood",
+  "blood in stool", "blood in urine", "blood in my stool", "blood in my urine",
+  "fainting", "fainted", "passed out", "blacked out", "black out", "lost consciousness",
+  "collapsed", "seizure", "seizures", "numb face",
+  "slurred speech", "slurred", "slurring words",
+  "blurred vision", "blurry vision", "lost my vision", "vision loss",
+  "heart racing", "palpitations",
+  // NB: a bare "losing weight without trying" fired on a delighted dieter typing "I've been
+  // losing weight without even trying!". Unintentional weight loss is a real red flag, so it
+  // stays — but only in phrasings that actually mean unexplained.
+  "unexplained weight loss", "losing weight for no reason", "weight loss for no reason",
 ];
 
 /**
@@ -108,6 +123,32 @@ export const URGENT_FLAGS = [
  * crisis line and they need it in the first clause, not after a paragraph about vitamin D.
  */
 export const CRISIS_FLAGS = [
-  "suicidal", "kill myself", "end my life", "self harm", "selfharm", "hurt myself",
-  "want to die", "no reason to live",
+  // A missed phrase here sends someone in crisis to a paragraph about vitamin D, so this list is
+  // deliberately generous and every single-word entry is unambiguous on its own.
+  "suicidal", "suicide",
+  "kill myself", "killing myself", "end my life", "ending my life", "end it all",
+  "want to die", "wanna die", "better off dead", "no reason to live", "dont want to live",
+  "don't want to live", "live anymore", "dont want to be here", "don't want to be here",
+  "self harm", "selfharm", "self-harm", "harming myself", "harm myself",
+  "hurt myself", "hurting myself", "cut myself", "cutting myself",
 ];
+
+/**
+ * Words that carry no meaning inside a red-flag phrase. Stripped from BOTH the message and the
+ * phrase before matching, so "blood in my stool" matches "blood in stool" while "I sat on a stool
+ * … my blood test" does not: after stripping, the flag's words must appear CONSECUTIVELY.
+ *
+ * Symptoms are matched as unordered word sets (that's what lets "my nails are brittle and my hair
+ * is thinning" find "brittle nails"). Red flags are not, because a scattered match on a phrase
+ * containing a word as common as "in" is a false positive waiting to happen.
+ */
+export const PHRASE_NOISE = new Set([
+  "i", "im", "ive", "id", "my", "me", "a", "an", "the", "been", "being", "have", "has", "had",
+  "am", "is", "are", "was", "were", "up", "of", "to", "and", "or", "it", "its", "that", "this",
+  "really", "very", "just", "so", "even", "keep", "keeps", "getting", "got", "get", "feel",
+  "feels", "feeling", "think", "on", "in", "for", "with", "some", "lot", "lots", "bit", "kinda",
+  "sort", "like", "about", "all", "day", "days", "week", "weeks", "time", "times", "always",
+  "sometimes", "often", "lately", "recently", "today", "tonight", "now", "still", "quite",
+  // linking verbs: "my speech WENT slurred", "my vision HAS GONE blurry"
+  "went", "gone", "go", "goes", "become", "becomes", "becoming", "suddenly", "started",
+]);
