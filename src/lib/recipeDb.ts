@@ -2007,6 +2007,34 @@ export const RECIPES: Recipe[] = [
     steps: ["Mix everything into a dough.", "Roll into balls; chill 15 min."],
   },
 
+  // Keto snacks. Without these, a keto user on 4 meals/day silently received only 3: no snack
+  // recipe carried the keto tag, the slot found no candidate, and the meal was quietly dropped.
+  {
+    id: "s-keto-eggs-avocado", name: "Boiled Eggs & Avocado", type: "snack",
+    cuisine: "american", mainProtein: "eggs",
+    calories: 300, proteinGrams: 15, carbsGrams: 6, fatGrams: 25, fiberGrams: 6, timeMinutes: 10, approxCost: 1,
+    dietTags: ["keto", "vegetarian", "gluten_free"],
+    description: "Jammy boiled eggs with avocado and olive oil.",
+    ingredients: [
+      { name: "eggs", quantity: "2" },
+      { name: "avocado", quantity: "1/2" },
+      { name: "olive oil", quantity: "1 tsp" },
+    ],
+    steps: ["Boil the eggs 7 min.", "Halve the avocado; drizzle with oil."],
+  },
+  {
+    id: "s-keto-cheese-almonds", name: "Cheddar & Almonds", type: "snack",
+    cuisine: "american", mainProtein: "dairy",
+    calories: 300, proteinGrams: 14, carbsGrams: 5, fatGrams: 26, fiberGrams: 3, timeMinutes: 2, approxCost: 2,
+    dietTags: ["keto", "vegetarian", "gluten_free"],
+    description: "Sharp cheddar with toasted almonds.",
+    ingredients: [
+      { name: "cheddar", quantity: "40 g" },
+      { name: "almonds", quantity: "25 g" },
+    ],
+    steps: ["Cube the cheddar.", "Toast the almonds briefly."],
+  },
+
   // ---- Treats (treatOnly: never auto-selected; only via an explicit request) ----
   {
     id: "t-pizza", name: "Pepperoni & Mozzarella Pizza", type: "dinner",
@@ -2311,6 +2339,37 @@ function exclusionTokens(profile: UserProfile): string[] {
   return parseExclusionTokens(profile.allergies, profile.dislikes);
 }
 
+/**
+ * What the selector had to compromise on. The product rule is "soft preferences may be relaxed
+ * but ONLY with disclosure" — before this existed, pickMealsForDay quietly handed a 30-minute
+ * meal to a user who asked for 15, and quietly dropped a meal entirely when no recipe fit the
+ * diet (keto + 4 meals silently produced 3).
+ */
+export interface SelectionReport {
+  droppedSlots: string[];
+  slowestOverLimit: number; // worst cook time placed above the user's limit (0 = none)
+  relaxedBudget: boolean;
+}
+
+export const newReport = (): SelectionReport => ({ droppedSlots: [], slowestOverLimit: 0, relaxedBudget: false });
+
+/** Turn a report into honest, user-facing sentences. Empty when nothing was compromised. */
+export function reportNotes(rep: SelectionReport, profile: UserProfile): string[] {
+  const out: string[] = [];
+  if (rep.droppedSlots.length) {
+    const uniq = [...new Set(rep.droppedSlots)];
+    out.push(
+      `I couldn't find a ${uniq.join(" or ")} that fits your ${profile.diet !== "none" ? profile.diet + " " : ""}rules, so ${uniq.length > 1 ? "those meals are" : "that meal is"} missing from some days.`,
+    );
+  }
+  if (rep.slowestOverLimit > profile.maxCookTime + 5)
+    out.push(
+      `Heads up: you asked for meals under ${profile.maxCookTime} min, but the only options that fit your other rules take up to ${rep.slowestOverLimit} min.`,
+    );
+  if (rep.relaxedBudget) out.push(`Some meals came out pricier than your budget setting — there wasn't a cheaper option that fit.`);
+  return out;
+}
+
 // Select one day's meals under all constraints. Shared by the full-week
 // generator and single-day edits. An optional cuisine preference biases picks.
 function pickMealsForDay(
@@ -2321,6 +2380,7 @@ function pickMealsForDay(
   ctx: WeekCtx,
   cuisinePref?: Cuisine,
   preferFiber?: boolean,
+  report?: SelectionReport,
 ): Meal[] {
   const dayCuisines = new Set<string>();
   const meals: Meal[] = [];
@@ -2345,9 +2405,13 @@ function pickMealsForDay(
       (r) => fast(r) && r.ingredients.length <= profile.maxIngredients + 1 && r.approxCost <= cap,
     );
     if (!candidates.length) candidates = hard.filter((r) => fast(r) && r.approxCost <= cap); // drop ingredient cap
-    if (!candidates.length) candidates = hard.filter(fast); // drop budget, keep the time limit
+    if (!candidates.length) {
+      candidates = hard.filter(fast); // drop budget, keep the time limit
+      if (candidates.length && report) report.relaxedBudget = true;
+    }
     if (!candidates.length) candidates = hard.filter((r) => r.timeMinutes <= profile.maxCookTime + 15);
     if (!candidates.length) candidates = hard; // last resort: honour only the hard rules
+    if (!hard.length && report) report.droppedSlots.push(type); // no recipe can satisfy the HARD rules
     if (cuisinePref) {
       const pref = candidates.filter((r) => r.cuisine === cuisinePref);
       if (pref.length) candidates = pref;
@@ -2364,7 +2428,10 @@ function pickMealsForDay(
       preferFiber,
       boost: ctx.boost,
     });
+    if (!pick && hard.length && report) report.droppedSlots.push(type);
     if (pick) {
+      if (report && pick.timeMinutes > profile.maxCookTime + 5)
+        report.slowestOverLimit = Math.max(report.slowestOverLimit, pick.timeMinutes);
       ctx.usedIds.add(pick.id);
       ctx.usedNames.add(pick.name.toLowerCase());
       ctx.proteinDays[pick.mainProtein] = (ctx.proteinDays[pick.mainProtein] ?? 0) + 1;
@@ -2383,6 +2450,7 @@ export function selectWeekFromDb(
   preferFiber?: boolean,
   seedIngredients?: string[],
   boost?: MicroKey,
+  report?: SelectionReport,
 ): WeekPlan {
   const split = localSplit(profile.mealsPerDay);
   const cap = budgetCap(profile.budget);
@@ -2394,7 +2462,7 @@ export function selectWeekFromDb(
 
   const days = DAYS.map((day) => ({
     day,
-    meals: pickMealsForDay(profile, split, cap, tokens, ctx, cuisinePref, preferFiber),
+    meals: pickMealsForDay(profile, split, cap, tokens, ctx, cuisinePref, preferFiber, report),
   }));
 
   const avg = Math.round(
@@ -2416,6 +2484,7 @@ export function selectDay(
   preferFiber?: boolean,
   seedIngredients?: string[],
   boost?: MicroKey,
+  report?: SelectionReport,
 ): DayPlan {
   const split = localSplit(profile.mealsPerDay);
   const cap = budgetCap(profile.budget);
@@ -2433,7 +2502,7 @@ export function selectDay(
   }
   return {
     day: dayName,
-    meals: pickMealsForDay(profile, split, cap, tokens, ctx, cuisinePref, preferFiber),
+    meals: pickMealsForDay(profile, split, cap, tokens, ctx, cuisinePref, preferFiber, report),
   };
 }
 
@@ -2776,6 +2845,11 @@ function achievementNote(label: string, got: { kcal: number; protein: number }, 
   const short = p.proteinGrams - got.protein;
   if (short > PROTEIN_MISS)
     note += ` I couldn't reach ${p.proteinGrams}g protein within your diet, budget and time limits — ${got.protein}g is the most these recipes allow.`;
+  // Calories were only ever reported, never admitted as missed. A user setting 4000 kcal was
+  // told "your week averages 2100 kcal" as though that were success.
+  const calMiss = got.kcal - p.targetCalories;
+  if (Math.abs(calMiss) > p.targetCalories * 0.1)
+    note += ` That's ${Math.abs(calMiss)} kcal ${calMiss < 0 ? "below" : "above"} your ${p.targetCalories} kcal target — these recipes can't stretch further without unrealistic portions.`;
   return note;
 }
 
@@ -2833,19 +2907,25 @@ export function applyOperations(
         profileChanged = true;
         // Re-solve every day onto the macro targets so the base plan actually hits
         // protein/calories, not just each meal's calorie share.
-        curPlan = keepMacros(op)
-          ? rebalanceWeek(selectWeekFromDb(p, normalizeCuisine(op.cuisine), fiberOn(op), op.useIngredients, op.boostNutrient ?? undefined), p)
-          : selectWeekFromDb(p, normalizeCuisine(op.cuisine), fiberOn(op), op.useIngredients, op.boostNutrient ?? undefined);
-        if (keepMacros(op)) notes.push(achievementNote("Your week now averages", weekAverages(curPlan), p));
-        if (op.boostNutrient) notes.push(microNote(curPlan, op.boostNutrient));
+        {
+          const rep = newReport();
+          const built = selectWeekFromDb(p, normalizeCuisine(op.cuisine), fiberOn(op), op.useIngredients, op.boostNutrient ?? undefined, rep);
+          curPlan = keepMacros(op) ? rebalanceWeek(built, p) : built;
+          notes.push(...reportNotes(rep, p));
+          if (keepMacros(op)) notes.push(achievementNote("Your week now averages", weekAverages(curPlan), p));
+          if (op.boostNutrient) notes.push(microNote(curPlan, op.boostNutrient));
+        }
         break;
       }
       case "regenerate_week": {
-        curPlan = keepMacros(op)
-          ? rebalanceWeek(selectWeekFromDb(p, normalizeCuisine(op.cuisine), fiberOn(op), op.useIngredients, op.boostNutrient ?? undefined), p)
-          : selectWeekFromDb(p, normalizeCuisine(op.cuisine), fiberOn(op), op.useIngredients, op.boostNutrient ?? undefined);
-        if (keepMacros(op)) notes.push(achievementNote("Your week now averages", weekAverages(curPlan), p));
-        if (op.boostNutrient) notes.push(microNote(curPlan, op.boostNutrient));
+        {
+          const rep = newReport();
+          const built = selectWeekFromDb(p, normalizeCuisine(op.cuisine), fiberOn(op), op.useIngredients, op.boostNutrient ?? undefined, rep);
+          curPlan = keepMacros(op) ? rebalanceWeek(built, p) : built;
+          notes.push(...reportNotes(rep, p));
+          if (keepMacros(op)) notes.push(achievementNote("Your week now averages", weekAverages(curPlan), p));
+          if (op.boostNutrient) notes.push(microNote(curPlan, op.boostNutrient));
+        }
         break;
       }
       case "regenerate_day": {
@@ -2855,7 +2935,9 @@ export function applyOperations(
         if (op.targetCalories && op.targetCalories > 0) tp.targetCalories = op.targetCalories;
         if (op.targetProtein && op.targetProtein > 0) tp.proteinGrams = op.targetProtein;
         if (op.excludeFoods.length) tp.dislikes = mergeDislikes(tp.dislikes, op.excludeFoods);
-        const newDay = selectDay(tp, op.day, curPlan, normalizeCuisine(op.cuisine), fiberOn(op), op.useIngredients, op.boostNutrient ?? undefined);
+        const rep = newReport();
+        const newDay = selectDay(tp, op.day, curPlan, normalizeCuisine(op.cuisine), fiberOn(op), op.useIngredients, op.boostNutrient ?? undefined, rep);
+        notes.push(...reportNotes(rep, tp));
         const meals = keepMacros(op)
           ? rebalanceDay(newDay.meals, tp, undefined, namesOnOtherDays(curPlan, op.day))
           : newDay.meals;

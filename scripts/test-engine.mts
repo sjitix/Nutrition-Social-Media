@@ -12,7 +12,7 @@
  * (diet, allergies, exclusions, cook time) are rules, not suggestions — a violation
  * is a bug, and this file is where we find it before a user does.
  */
-import { selectWeekFromDb, rebalanceWeek, applyOperations, RECIPES, recipeMicros } from "@/lib/recipeDb";
+import { selectWeekFromDb, rebalanceWeek, applyOperations, RECIPES, recipeMicros, newReport, reportNotes } from "@/lib/recipeDb";
 import type { UserProfile, Operation, DayPlan, WeekPlan, Meal } from "@/lib/types";
 import { microsForIngredients } from "@/lib/nutrients";
 import { haystackBlocked, dietTagConflicts } from "@/lib/exclusions";
@@ -347,6 +347,40 @@ console.log("\n--- ALLERGENS & DATA INTEGRITY (hard rules) ---");
   const nms = RECIPES.map((r) => r.name.toLowerCase());
   check("no duplicate recipe ids", new Set(ids).size === ids.length);
   check("no duplicate recipe names", new Set(nms).size === nms.length);
+}
+
+// ---------------------------------------------------------------- 1b3. honesty about compromises
+console.log("\n--- HONESTY ABOUT COMPROMISES ---");
+{
+  // keto + 4 meals used to silently yield 3: no snack carried the keto tag.
+  const keto4: UserProfile = { ...BASE, diet: "keto", mealsPerDay: 4 };
+  const wk = selectWeekFromDb(keto4);
+  check("keto + 4 meals/day actually gets 4 meals", wk.days.every((d) => d.meals.length === 4), `[${wk.days.map((d) => d.meals.length)}]`);
+}
+{
+  // When a slot genuinely cannot be filled, the engine must SAY so, not drop it quietly.
+  const impossible: UserProfile = { ...BASE, diet: "keto", mealsPerDay: 4, dislikes: "eggs, cheese, almonds, avocado" };
+  const rep = newReport();
+  const wk = selectWeekFromDb(impossible, undefined, undefined, undefined, undefined, rep);
+  const notes = reportNotes(rep, impossible);
+  const dropped = wk.days.some((d) => d.meals.length < 4);
+  check("an unfillable slot is DISCLOSED, not silently dropped", !dropped || notes.length > 0, `dropped=${dropped} notes=${notes[0] ?? "(none)"}`);
+}
+{
+  // A cook-time relaxation must be disclosed (swap_meal already did; generation did not).
+  const busy: UserProfile = { ...BASE, maxCookTime: 5 };
+  const rep = newReport();
+  selectWeekFromDb(busy, undefined, undefined, undefined, undefined, rep);
+  const notes = reportNotes(rep, busy);
+  check("relaxing the cook-time limit is disclosed", notes.some((n) => /min/.test(n)), notes[0] ?? "(none)");
+}
+{
+  // A calorie target the recipes cannot reach must be ADMITTED, not reported as success.
+  const huge: UserProfile = { ...BASE, targetCalories: 4000 };
+  const wk = freshWeek(huge);
+  const r = applyOperations(huge, wk, [op({ tool: "regenerate_week" })]);
+  const note = r.notes.find((n) => /averages/.test(n)) ?? "";
+  check("an unreachable calorie target is admitted", /below your 4000 kcal target/.test(note), note || "(none)");
 }
 
 // ---------------------------------------------------------------- 1c. treats
