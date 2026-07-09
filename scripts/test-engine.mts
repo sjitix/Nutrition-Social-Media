@@ -716,6 +716,55 @@ console.log("\n--- EATING OUT (reserve calories, never invent the meal) ---");
   check("eating_out re-solves the rest of the day within diet + allergies", !vegBad);
 }
 
+
+// ---------------------------------------------------------------- explain_meal
+console.log("");
+console.log("--- EXPLAIN MEAL (justify the choice, claim only what the data says) ---");
+{
+  const plan = freshWeek(BASE);
+  const ex = (day: string, mt: string, pl = plan, prof = BASE) =>
+    applyOperations(prof, pl, [op({ tool: "explain_meal", day: day as DayPlan["day"], mealType: mt as Meal["type"] })]);
+
+  const r = ex("Tuesday", "dinner");
+  const note = r.notes.join(" ");
+  check("explain_meal changes nothing", JSON.stringify(r.plan) === JSON.stringify(plan));
+
+  // Every number it states must be recomputable from the meal itself.
+  const meal = plan.days.find((d) => d.day === "Tuesday")!.meals.find((m) => m.type === "dinner")!;
+  check("explain_meal states the meal's real calories", note.includes(`${meal.calories} kcal`), `${meal.calories}`);
+  check("explain_meal states the meal's real protein", note.includes(`${meal.proteinGrams}g protein`));
+  const pctPro = Math.round((meal.proteinGrams / BASE.proteinGrams) * 100);
+  check("explain_meal's % of protein target is arithmetic, not vibes", note.includes(`(${pctPro}% of your ${BASE.proteinGrams}g target)`), `${pctPro}%`);
+
+  // A reserved restaurant slot has no recipe. Inventing reasons for it would be fabrication.
+  const out = applyOperations(BASE, plan, [op({ tool: "eating_out", day: "Friday", mealType: "dinner" })]).plan;
+  const outNote = ex("Friday", "dinner", out).notes.join(" ");
+  check("explain_meal admits it didn't choose a meal you told it about", /isn't one of my recipes/i.test(outNote));
+  check("explain_meal makes no nutrient claim about a meal it never saw", !/strong source/i.test(outNote), outNote.slice(0, 80));
+
+  // "Rich in iron" is a claim about someone's blood. Only make it when the data supports it.
+  let unsupported = 0;
+  for (const d of plan.days)
+    for (const m of d.meals) {
+      const claim = ex(d.day, m.type).notes.join(" ");
+      const cov = microsForIngredients(m.ingredients).coverage;
+      if (/strong source/i.test(claim) && cov < 0.6) unsupported++;
+      if (cov < 0.6 && !/can't measure its micronutrients/i.test(claim) && RECIPES.some((x) => x.name === m.name)) unsupported++;
+    }
+  check("explain_meal never claims a nutrient it can't measure", unsupported === 0, `${unsupported} unsupported claims`);
+
+  // Diet compliance is a reason worth stating — and it must be true.
+  const V: UserProfile = { ...BASE, diet: "vegan" };
+  const vplan = freshWeek(V);
+  const vnote = ex("Monday", "dinner", vplan, V).notes.join(" ");
+  const vmeal = vplan.days.find((d) => d.day === "Monday")!.meals.find((m) => m.type === "dinner")!;
+  const vbase = recipeByName.get(vmeal.name.toLowerCase());
+  check("explain_meal only calls a meal vegan when it is", !/it's vegan/.test(vnote) || (!!vbase && dietOk(vbase.dietTags, "vegan")));
+
+  check("explain_meal asks when it doesn't know which meal", /which day/i.test(ex("Monday", "").notes.join(" ")) || /which meal/i.test(applyOperations(BASE, plan, [op({ tool: "explain_meal" })]).notes.join(" ")));
+  check("explain_meal handles a slot that isn't in the plan", /don't have a snack/i.test(ex("Monday", "snack").notes.join(" ")));
+}
+
 // ---------------------------------------------------------------- 3. fuzz
 console.log("\n--- FUZZ (random op sequences, invariants after each) ---");
 const DAYS_L = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;

@@ -72,6 +72,7 @@ export const OperationSchema = z.object({
     "log_meal", // "I ate a burger for lunch" -> re-solve the REST of that day
     "weekly_report", // "how am I doing?" -> computed macro + micronutrient summary, no change
     "eating_out", // "I'm out for dinner Friday" -> reserve calories, lighten the rest of the day
+    "explain_meal", // "why is this in my plan?" -> computed reasons, no change
     "answer", // no change — just answering a question
   ]),
   day: z.enum(DAYS).nullable().optional(),

@@ -2927,6 +2927,77 @@ function upgradeForNutrient(profile: UserProfile, plan: WeekPlan, key: MicroKey)
 }
 
 /**
+ * "Why is this in my plan?" An assistant that cannot justify its own choices is a black box, and
+ * a black box cannot replace a nutritionist. Every clause below is derived from the plan and the
+ * USDA table — the model narrates it, it never invents it.
+ *
+ * Where the data is thin (an ingredient list we can't fully match), the nutrient claim is dropped
+ * rather than softened. "Rich in iron" is a claim about someone's blood; we make it only when the
+ * numbers actually say so.
+ */
+function explainMealNote(plan: WeekPlan, p: UserProfile, day: DayPlan["day"], type: Meal["type"]): string {
+  const d = plan.days.find((x) => x.day === day);
+  const meal = d?.meals.find((m) => m.type === type);
+  if (!meal) return `I don't have a ${type} on ${day}.`;
+
+  const t = dayTargetMacros(p);
+  const pctCal = Math.round((meal.calories / t.cal) * 100);
+  const pctPro = t.protein > 0 ? Math.round((meal.proteinGrams / t.protein) * 100) : 0;
+  const parts: string[] = [
+    `${day}'s ${type} is ${meal.name}: ${meal.calories} kcal (${pctCal}% of your day) and ${meal.proteinGrams}g protein (${pctPro}% of your ${Math.round(t.protein)}g target).`,
+  ];
+
+  // A reserved or logged meal has no recipe behind it — say that plainly rather than pretending.
+  const base = RECIPES.find((r) => r.name === meal.name);
+  if (!base) {
+    parts.push(`It isn't one of my recipes — it's a meal you told me about, so I planned the rest of the day around it.`);
+    return parts.join(" ");
+  }
+
+  const why: string[] = [];
+  const density = meal.calories > 0 ? (meal.proteinGrams * 4) / meal.calories : 0;
+  if (density >= 0.3) why.push(`it's protein-dense (${Math.round(density * 100)}% of its calories)`);
+  if (base.timeMinutes <= 15) why.push(`it's quick (${base.timeMinutes} min)`);
+  else if (base.timeMinutes <= p.maxCookTime) why.push(`it fits your ${p.maxCookTime}-min limit at ${base.timeMinutes} min`);
+  if (base.approxCost === 1) why.push("it's one of the cheaper recipes");
+  if ((base.fiberGrams ?? 0) >= 8) why.push(`it carries ${base.fiberGrams}g of fiber`);
+  if (p.diet !== "none") why.push(`it's ${p.diet}`);
+
+  // Ingredient reuse is a real reason: it's why the grocery list stays short.
+  const mine = new Set(base.ingredients.map((i) => i.name.trim().toLowerCase()));
+  const shared = new Set<string>();
+  for (const other of plan.days.flatMap((x) => x.meals))
+    if (other !== meal)
+      for (const ing of other.ingredients)
+        if (mine.has(ing.name.trim().toLowerCase())) shared.add(ing.name.trim().toLowerCase());
+  if (shared.size >= 2) why.push(`it reuses ${shared.size} ingredients already on your shopping list`);
+
+  if (why.length) parts.push(`I picked it because ${listPhrase(why)}.`);
+
+  // Micronutrients: only claim what the data supports.
+  const { micros, coverage } = microsForIngredients(meal.ingredients);
+  if (coverage >= 0.6) {
+    const per = Math.max(1, meal.servings ?? 1);
+    const top = MICRO_KEYS.map((k) => ({ k, pct: (micros[k] / per) / DAILY_REFERENCE[k] }))
+      .filter((x) => x.pct >= 0.3)
+      .sort((a, b) => b.pct - a.pct)
+      .slice(0, 2);
+    if (top.length)
+      parts.push(
+        `It's a strong source of ${listPhrase(top.map((x) => `${MICRO_LABEL[x.k]} (${Math.round(x.pct * 100)}% of a day's reference)`))}.`,
+      );
+  } else {
+    parts.push(`I can't measure its micronutrients reliably — I don't have full data for its ingredients.`);
+  }
+  return parts.join(" ");
+}
+
+function listPhrase(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
+
+/**
  * The contract for a boost: the user ends up with MORE of the nutrient than they had. A fresh
  * random week can easily be worse than the one it replaced, so we upgrade the new week, and if
  * that still doesn't beat what the user already had, we upgrade their existing week instead —
@@ -3370,6 +3441,15 @@ export function applyOperations(
           break;
         }
         curPlan = eatingOut(p, curPlan, op.day, op.mealType, op.estimatedCalories ?? undefined, notes);
+        break;
+      }
+      case "explain_meal": {
+        // Read-only: justify, never change.
+        if (!op.day || !op.mealType) {
+          notes.push("Which meal would you like me to explain — which day, and breakfast, lunch or dinner?");
+          break;
+        }
+        notes.push(explainMealNote(curPlan, p, op.day, op.mealType));
         break;
       }
       case "weekly_report": {

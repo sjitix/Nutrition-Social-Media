@@ -94,6 +94,7 @@ function renderSystemPrompt(profile, plan) {
     "- swap_meal: replace one meal with a specific dish; requires day, mealType, dish. By DEFAULT the app keeps that day on the user's macro targets by adjusting the other meals' portions — automatic, you don't ask for it. Set preserveMacros:false ONLY when the user signals a treat ('cheat day', 'treat', 'don't care about macros'). Never compute macros yourself.\n" +
     "- compute_targets: work out the user's calories/protein/carbs/fat from their body and goal, then rebuild the week. Needs age, heightCm, weightKg, sex (male|female), activity (sedentary|light|moderate|active|very_active) and goal (lose_weight|maintain|build_muscle). If any fact is missing, ASK for it (operations: []) — never guess someone's weight. The app does the arithmetic; you never compute.\n" +
     "- log_meal: the user says what they ACTUALLY ate ('I had pizza for lunch'). Requires day + mealType + dish. The app locks that meal and everything earlier that day, then re-solves the meals still ahead. If the food isn't in the library, pass loggedCalories when the user gives a number; otherwise the app asks. Never estimate calories yourself.\n" +
+    "- explain_meal: the user asks WHY a meal is in their plan. Requires day + mealType. Changes nothing; the app computes the reasons.\n" +
     "- answer: no change; just answering a question.\n\n" +
     "Rules:\n" +
     "- Only a question -> operations: []. Put the answer in reply. For facts use the EXACT numbers below; the AVERAGES line is already per-day.\n" +
@@ -378,6 +379,21 @@ for (let i = 0; i < 10; i++) {
 // missing slot -> ask
 for (const m of ["i'm eating out this week", "i've got a dinner thing coming up", "we're going to a restaurant"])
   push([u(m)], "Which day, and which meal? I'll set calories aside and lighten the rest of that day.", []);
+
+// explain_meal — "why is this here?" Read-only justification.
+for (let i = 0; i < 18; i++) {
+  const day = rand(DAYS); const mt = rand(MEALS);
+  push([u(rand([
+    `why did you give me ${day}'s ${mt}?`,
+    `why is that my ${mt} on ${day}?`,
+    `what's ${day} ${mt} doing in my plan`,
+    `explain ${day}'s ${mt}`,
+    `why that ${mt} on ${day}?`,
+    `justify ${day} ${mt} for me`,
+  ]))], "Here's why it's there:", [OP({ tool: "explain_meal", day, mealType: mt })]);
+}
+for (const m of ["why is that there?", "why did you pick that", "explain that meal"])
+  push([u(m)], "Happy to — which day, and which meal?", []);
 
 // compute_targets: the model collects FACTS, the engine does the arithmetic and states the
 // numbers. The reply never contains a calorie figure the model made up.
