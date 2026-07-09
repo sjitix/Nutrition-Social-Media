@@ -92,6 +92,7 @@ function renderSystemPrompt(profile, plan) {
     "- boostNutrient (on update_profile / regenerate_week / regenerate_day): favour foods rich in one nutrient — iron, calcium, magnesium, potassium, zinc, vitD, vitC, folate, b12. The app computes the real amounts from USDA data; never state a nutrient number yourself.\n" +
     "- regenerate_day: rebuild ONE day; requires day. Optional diet, targetCalories, cuisine, targetFiber apply to THAT day only (not saved).\n" +
     "- swap_meal: replace one meal with a specific dish; requires day, mealType, dish. By DEFAULT the app keeps that day on the user's macro targets by adjusting the other meals' portions — automatic, you don't ask for it. Set preserveMacros:false ONLY when the user signals a treat ('cheat day', 'treat', 'don't care about macros'). Never compute macros yourself.\n" +
+    "- compute_targets: work out the user's calories/protein/carbs/fat from their body and goal, then rebuild the week. Needs age, heightCm, weightKg, sex (male|female), activity (sedentary|light|moderate|active|very_active) and goal (lose_weight|maintain|build_muscle). If any fact is missing, ASK for it (operations: []) — never guess someone's weight. The app does the arithmetic; you never compute.\n" +
     "- answer: no change; just answering a question.\n\n" +
     "Rules:\n" +
     "- Only a question -> operations: []. Put the answer in reply. For facts use the EXACT numbers below; the AVERAGES line is already per-day.\n" +
@@ -237,6 +238,42 @@ for (let i = 0; i < 6; i++) { const day = rand(DAYS); const key = rand(["iron", 
 
 // regenerate week
 for (const m of ["give me a whole new plan", "start over", "regenerate everything", "this is boring, redo it", "new week please", "shuffle it up", "i want different meals"]) push([u(m)], "Fresh week coming up — I've rebuilt the whole plan.", [OP({ tool: "regenerate_week" })]);
+
+// compute_targets: the model collects FACTS, the engine does the arithmetic and states the
+// numbers. The reply never contains a calorie figure the model made up.
+const ACT = [
+  ["desk job, no exercise", "sedentary"], ["i barely move", "sedentary"],
+  ["i walk a bit, gym once a week", "light"], ["light exercise", "light"],
+  ["i train 3 times a week", "moderate"], ["gym 4x a week", "moderate"], ["i train 4 times a week", "moderate"],
+  ["i train 6 days a week", "active"], ["gym almost every day", "active"],
+  ["i'm a builder and i lift twice a day", "very_active"],
+];
+const GOALW = [["lose fat", "lose_weight"], ["cut", "lose_weight"], ["lose weight", "lose_weight"],
+  ["maintain", "maintain"], ["stay the same", "maintain"],
+  ["build muscle", "build_muscle"], ["bulk", "build_muscle"], ["gain muscle", "build_muscle"]];
+for (let i = 0; i < 26; i++) {
+  const age = rand([21, 24, 27, 30, 33, 38, 42, 47, 55]);
+  const h = rand([158, 163, 168, 172, 178, 183, 188]);
+  const w = rand([52, 58, 64, 70, 75, 80, 88, 95]);
+  const sex = rand(["male", "female"]);
+  const [actWord, activity] = rand(ACT);
+  const [goalWord, goal] = rand(GOALW);
+  push(
+    [u(rand([
+      `i'm ${age}, ${h}cm, ${w}kg, ${sex}, ${actWord}, i want to ${goalWord}`,
+      `work out my macros: ${age} years old, ${h} cm, ${w} kg, ${sex}, ${actWord}, goal is to ${goalWord}`,
+      `can you set my calories? ${sex}, ${age}, ${w}kg, ${h}cm, ${actWord}, trying to ${goalWord}`,
+    ]))],
+    "Done — I've worked out your targets and rebuilt the week around them.",
+    [OP({ tool: "compute_targets", age, heightCm: h, weightKg: w, sex, activity, goal })],
+  );
+}
+// missing facts -> ASK. Never guess someone's body.
+for (const m of [
+  "work out my calories", "what should my macros be", "set my targets for me",
+  "how many calories should i eat", "calculate my tdee", "i want to lose fat, what calories?",
+  "i'm 80kg, what should i eat", "i'm 30 and male, set my macros",
+]) push([u(m)], "Happy to work that out — tell me your age, height, weight, sex, roughly how active you are, and whether you want to lose fat, maintain, or build muscle.", []);
 
 // AMBIGUOUS -> ask, never guess. The evaluated model failed exactly these: it "fixed"
 // "make it better" by silently changing the diet, and read a bare "1500" as a day's calories.

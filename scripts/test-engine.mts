@@ -16,6 +16,7 @@ import { selectWeekFromDb, rebalanceWeek, applyOperations, RECIPES, recipeMicros
 import type { UserProfile, Operation, DayPlan, WeekPlan, Meal } from "@/lib/types";
 import { microsForIngredients } from "@/lib/nutrients";
 import { haystackBlocked, dietTagConflicts } from "@/lib/exclusions";
+import { bmr, computeTargets } from "@/lib/targets";
 
 // ---------------------------------------------------------------- harness
 let pass = 0;
@@ -426,6 +427,47 @@ const TREAT_NAMES = new Set(RECIPES.filter((r) => r.treatOnly).map((r) => r.name
   const d = r.plan.days.find((x) => x.day === "Saturday")!;
   check("vegan + cheat day: pizza refused (diet is a HARD rule)", !d.meals.some((m) => /pizza/i.test(m.name)), names(d));
   check("vegan + cheat day: engine explains the refusal", r.notes.length > 0, r.notes.join(" | ") || "(none)");
+}
+
+// ---------------------------------------------------------------- 1d. compute_targets
+console.log("\n--- COMPUTE_TARGETS (the engine does the arithmetic) ---");
+{
+  // Mifflin-St Jeor, checked against the textbook formula by hand.
+  // male 30y, 180cm, 80kg: 10*80 + 6.25*180 - 5*30 + 5 = 800 + 1125 - 150 + 5 = 1780
+  const m = bmr({ age: 30, heightCm: 180, weightKg: 80, sex: "male" });
+  check("BMR male 30y/180cm/80kg = 1780", Math.round(m) === 1780, `${Math.round(m)}`);
+  // female 30y, 165cm, 60kg: 600 + 1031.25 - 150 - 161 = 1320.25
+  const f = bmr({ age: 30, heightCm: 165, weightKg: 60, sex: "female" });
+  check("BMR female 30y/165cm/60kg = 1320", Math.round(f) === 1320, `${Math.round(f)}`);
+}
+{
+  const t = computeTargets({ age: 30, heightCm: 180, weightKg: 80, sex: "male", activity: "moderate", goal: "maintain" });
+  // TDEE = 1780 * 1.55 = 2759
+  check("maintenance calories ~= TDEE", Math.abs(t.calories - 2759) <= 10, `${t.calories} vs 2759`);
+  check("protein at 1.6 g/kg for maintenance", t.proteinGrams === 128, `${t.proteinGrams}g`);
+  const macroKcal = t.proteinGrams * 4 + t.carbsGrams * 4 + t.fatGrams * 9;
+  check("macros add back up to the calorie target (±3%)", Math.abs(macroKcal - t.calories) < t.calories * 0.03, `${macroKcal} vs ${t.calories}`);
+}
+{
+  const cut = computeTargets({ age: 30, heightCm: 180, weightKg: 80, sex: "male", activity: "moderate", goal: "lose_weight" });
+  const gain = computeTargets({ age: 30, heightCm: 180, weightKg: 80, sex: "male", activity: "moderate", goal: "build_muscle" });
+  check("cutting < maintenance < bulking", cut.calories < 2759 && gain.calories > 2759, `${cut.calories} / 2759 / ${gain.calories}`);
+  check("protein is HIGHER when cutting (protects muscle)", cut.proteinGrams > 128, `${cut.proteinGrams}g`);
+}
+{
+  // A tiny sedentary person on a deficit must not be planned below the floor.
+  const t = computeTargets({ age: 65, heightCm: 150, weightKg: 45, sex: "female", activity: "sedentary", goal: "lose_weight" });
+  check("calorie floor is enforced and disclosed", t.calories >= 1200 && t.clampedTo === 1200, `${t.calories} clampedTo=${t.clampedTo}`);
+}
+{
+  // The tool must refuse to invent a body weight.
+  const wk = freshWeek(BASE);
+  const partial = applyOperations(BASE, wk, [op({ tool: "compute_targets", age: 30, heightCm: 180 } as never)]);
+  check("missing facts -> asks, never guesses", partial.notes.some((n) => /I need your/.test(n)) && partial.profile.targetCalories === 2000, partial.notes[0] ?? "(none)");
+
+  const full = applyOperations(BASE, wk, [op({ tool: "compute_targets", age: 30, heightCm: 180, weightKg: 80, sex: "male", activity: "moderate", goal: "build_muscle" } as never)]);
+  check("full facts -> profile targets are set", full.profile.targetCalories > 2900 && full.profile.proteinGrams === 152, `${full.profile.targetCalories} kcal, ${full.profile.proteinGrams}g protein`);
+  check("compute_targets explains itself in plain English", full.notes.some((n) => /resting burn/.test(n)), (full.notes[0] ?? "").slice(0, 90));
 }
 
 // ---------------------------------------------------------------- 2. adversarial

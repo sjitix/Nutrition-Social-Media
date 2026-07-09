@@ -9,6 +9,7 @@ import {
   type WeekPlan,
 } from "./types";
 import { haystackBlocked, parseExclusionTokens } from "./exclusions";
+import { computeTargets, explainTargets } from "./targets";
 import {
   microsForIngredients,
   microDensity,
@@ -2999,6 +3000,48 @@ export function applyOperations(
             note += ` I bumped your ${bumped.map((b) => `${b.type} to ${b.name}`).join(" and ")} to make room.`;
           notes.push(note);
         }
+        break;
+      }
+      case "compute_targets": {
+        // The model gathers the facts; the arithmetic lives here. If a fact is missing we say
+        // so rather than guessing a body weight.
+        const missing = (
+          [
+            ["age", op.age],
+            ["height", op.heightCm],
+            ["weight", op.weightKg],
+            ["sex", op.sex],
+            ["activity level", op.activity],
+          ] as const
+        ).filter(([, v]) => v == null).map(([k]) => k);
+        if (missing.length) {
+          notes.push(`I need your ${missing.join(", ")} before I can work out your targets.`);
+          break;
+        }
+        const t = computeTargets({
+          age: op.age!,
+          heightCm: op.heightCm!,
+          weightKg: op.weightKg!,
+          sex: op.sex!,
+          activity: op.activity!,
+          goal: op.goal ?? p.goal,
+        });
+        p.goal = op.goal ?? p.goal;
+        p.targetCalories = t.calories;
+        p.proteinGrams = t.proteinGrams;
+        p.carbsGrams = t.carbsGrams;
+        p.fatGrams = t.fatGrams;
+        profileChanged = true;
+        const rep = newReport();
+        curPlan = rebalanceWeek(selectWeekFromDb(p, undefined, false, undefined, undefined, rep), p);
+        notes.push(
+          explainTargets(t, {
+            age: op.age!, heightCm: op.heightCm!, weightKg: op.weightKg!,
+            sex: op.sex!, activity: op.activity!, goal: p.goal,
+          }),
+        );
+        notes.push(...reportNotes(rep, p));
+        notes.push(achievementNote("Your week now averages", weekAverages(curPlan), p));
         break;
       }
       case "answer":
