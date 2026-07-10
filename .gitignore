@@ -36,6 +36,10 @@ next-env.d.ts
 /.venv-ft/
 /models/
 /llama.cpp/
+__pycache__/
+*.pyc
+# training logs are per-machine progress output, regenerated each run
+/train-*.log
 
 # personal Claude Code permission overrides (per-machine)
 /.claude/settings.local.json

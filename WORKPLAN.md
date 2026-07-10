@@ -15,42 +15,88 @@ run now), fuzz clean, plus `npm run check:recipes` and `npm run check:data`.
 **The four planned tools have all shipped (rate_meal, hydration, scale_portions, undo) and so has
 the plant-protein-powder debt. The model is now due a retrain — v7 does not know any of the four.**
 
-### >>> THE NEXT THING TO DO: train v8 <<<
+### >>> PICK UP HERE (v8 was training when the PC shut down) <<<
 
-The training data is built and verified (1282 examples, 0 over MAX_LEN by estimate; the trainer
-aborts if >5% skip). v8 is the first model to see the 4 new tools AND the minimal pairs for v7's
-three real failures. **Training needs the whole 8 GB GPU, so v7 must come out of LM Studio first —
-which takes the site's assistant offline for the ~2.7h run.** That's why it hasn't been launched
-yet; the user was using the site. When clear:
+v8 training was at ~84% (step ~406/483) when the session ended. **All code is committed and pushed
+— nothing to recover there.** Only the training run's state is in question. Do this, in order:
 
+**STEP 1 — find out what state training is in:**
 ```bash
-# 1. free the GPU (this stops the live site's AI)
-~/.lmstudio/bin/lms.exe unload --all
-# 2. train (~4h, 483 steps for 1282 examples; watch: npm run train:status, or train-v8.log for
-#    "skipped N of 1282" — abort if N is large). ALREADY RUNNING as of this session.
-.venv-ft/Scripts/python.exe scripts/train_lora.py 2>&1 | tee train-v8.log
-# 3. archive the adapter, merge, convert
-cp -r models/nutriflow-lora models/nutriflow-lora-v8
-.venv-ft/Scripts/python.exe scripts/merge_lora.py
-.venv-ft/Scripts/python.exe llama.cpp/convert_hf_to_gguf.py models/nutriflow-merged \
-  --outfile models/nutriflow-assistant-v8-q8_0.gguf --outtype q8_0
-mkdir -p ~/.lmstudio/models/nutriflow/nutriflow-assistant-v8
-cp models/nutriflow-assistant-v8-q8_0.gguf ~/.lmstudio/models/nutriflow/nutriflow-assistant-v8/
-# 4. load + eval on the HELD-OUT set (now 63 cases incl. the 4 new tools)
-~/.lmstudio/bin/lms.exe load nutriflow-assistant-v8 --gpu max --context-length 8192 --identifier nutriflow-v8 -y
-ENFORCE=1 MODEL=nutriflow-v8 npm run eval:assistant
-MODEL=nutriflow-v8 npm run eval:assistant
-# 5. point the site at it
-#    edit .env.local: LOCAL_AI_MODEL=nutriflow-v8   (must match `lms ps`)
+npm run train:status                 # DONE? or a step number?
+ls models/nutriflow-lora/            # a finished adapter is here only if training COMPLETED
+ls -dt models/_ckpt/checkpoint-*     # mid-run checkpoints (every 30 steps); newest is the resume point
 ```
 
-v8 targets: tool/field accuracy should hold or climb (the 4 new tools add ~20 held-out cases the
-model has never been scored on), and the three v7 "read the sentence" failures below should clear
-now that minimal pairs teach them.
+**STEP 2 — branch on what you found:**
+
+- **A) `train:status` says DONE** (or `train-v8.log` ends with "Saved LoRA adapter") — it finished
+  before shutdown. Promote it, one command:
+  ```bash
+  bash scripts/promote-model.sh v8
+  ```
+  Then point the site at it: edit `.env.local` → `LOCAL_AI_MODEL=nutriflow-v8` (must match `lms ps`).
+
+- **B) It was interrupted** (a step number, no "Saved LoRA adapter"). Resume from the last
+  checkpoint — the RESUME=1 path is fixed to work past the torch CVE guard:
+  ```bash
+  ~/.lmstudio/bin/lms.exe unload --all                 # free the GPU
+  RESUME=1 .venv-ft/Scripts/python.exe scripts/train_lora.py 2>&1 | tee -a train-v8.log
+  # ~40 min to finish from step ~390, then:
+  bash scripts/promote-model.sh v8
+  ```
+  If RESUME=1 errors for any reason, fall to (C).
+
+- **C) Resume won't run / both checkpoints look broken** — the checkpoint still holds a usable
+  ~2.5-epoch adapter (safetensors, no CVE guard). Merge it directly:
+  ```bash
+  cp -r models/_ckpt/checkpoint-390 models/nutriflow-lora   # or the newest good checkpoint
+  bash scripts/promote-model.sh v8 --force
+  ```
+  Or, if you'd rather have the full 3 epochs, just retrain from scratch (data is all committed):
+  `.venv-ft/Scripts/python.exe scripts/train_lora.py 2>&1 | tee train-v8.log` (~4h).
+
+**STEP 3 — get the site running again** (after a reboot, LM Studio has nothing loaded):
+```bash
+# if you promoted v8, promote-model.sh already loaded it. Otherwise load v7 so the site works NOW:
+~/.lmstudio/bin/lms.exe load nutriflow-assistant-v7 --gpu max --context-length 8192 --identifier nutriflow-v7 -y
+npm run dev                          # http://localhost:3000
+```
+
+**STEP 4 — the deferred check:** run the FULL suite once the GPU is free (it was skipped during
+training to avoid CPU contention; only the fuzz-less checks ran, 308/0):
+```bash
+npm run test:engine                  # expect ~306+ passed / 0 failed, fuzz clean
+```
+
+v8 is the first model to see the 4 new tools AND the minimal pairs for v7's three "read the
+sentence" failures. Expected: tool/field accuracy holds or climbs; the pizza-for-lunch,
+estimatedCalories, and fatigue misfires clear.
 
 **The 17 tools:** update_profile, regenerate_week, regenerate_day, swap_meal, compute_targets,
 log_meal, weekly_report, eating_out, explain_meal, substitute_ingredient, symptom_check, lock_meal,
 unlock_meal, **rate_meal, hydration, scale_portions, undo**.
+
+### Also shipped this session — a deterministic UI + infra layer (all pushed, no model needed)
+
+Built while v8 trained, so all of it works with the assistant OFFLINE. Verified by tsc + live curl
+(the engine is pure); the browser look-and-feel is NOT yet eyeballed — click through to confirm.
+
+- **`/api/operation`** — runs ONE deterministic op (rate/pin/unpin/resize/undo/weekly_report/
+  hydration), no LLM. Allowlisted; rejects anything needing interpretation. Tested: allowlist holds.
+- **Meal drawer** — star rating, "Keep every week" pin toggle, portion −/+ (refreshes in place).
+- **Undo button** — floating, appears when there's a change, labelled with what it reverses.
+- **Home "coach" card** — the weekly review + (when a weight is known) the hydration target.
+- **Onboarding** — optional body-stats row + "Calculate my targets" (Mifflin-St Jeor, the tested
+  `computeTargets`); stores `bodyStats` so hydration never has to ask. Manual entry still works.
+- **Graceful offline** — the assistant route no longer leaks raw LM Studio errors; a 503 +
+  `offline:true` renders as a friendly assistant bubble pointing at the direct actions.
+- **Infra** — `scripts/promote-model.sh` (one-command adapter→GGUF→load→eval, guarded),
+  `npm run train:status`, and `train_lora.py` RESUME=1 fixed to survive an interrupted run.
+- **Debt found + fixed:** `swap_meal` ignored exact recipe names (keyword-matched "Veggie Omelette"
+  to a chickpea omelette); exact name now wins, still behind the hard filters.
+
+Not yet done: the FULL `npm run test:engine` (fuzz) since v8's UI/engine changes — deferred to avoid
+CPU contention with training; the fuzz-less run passed 308/0. Run it once the GPU is free (STEP 4).
 
 ### v7 (the model in production RIGHT NOW)
 
