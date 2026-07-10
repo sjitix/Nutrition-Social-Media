@@ -11,6 +11,7 @@ import {
   ClockIcon,
   CompassIcon,
   HomeIcon,
+  PinIcon,
   PlayIcon,
   PlusIcon,
   RefreshIcon,
@@ -108,6 +109,9 @@ export default function PlanPage() {
   const [previous, setPrevious] = useState<PlanSnapshot | undefined>(undefined);
   // A brief confirmation line after a direct action (rating a meal, undo). Auto-clears.
   const [toast, setToast] = useState<string | null>(null);
+  // The day the open meal sits on, when it's a plan meal. Undefined for an Explore recipe, which is
+  // on no day and can't be pinned. Pinning is slot-based (day + mealType), unlike rating.
+  const [detailDay, setDetailDay] = useState<string | undefined>(undefined);
   const [regenerating, setRegenerating] = useState(false);
   const [regenError, setRegenError] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -215,6 +219,19 @@ export default function PlanPage() {
 
   const ratingFor = (name: string) =>
     profile?.mealRatings?.find((r) => r.name.toLowerCase() === name.toLowerCase())?.rating ?? 0;
+
+  // Open the meal drawer. `day` is passed for a plan meal (enables pinning) and omitted for an
+  // Explore recipe. Always set together so the drawer never shows a pin for the wrong meal.
+  function openMeal(meal: Meal, day?: string) {
+    setDetail(meal);
+    setDetailDay(day);
+  }
+  function closeDetail() {
+    setDetail(null);
+    setDetailDay(undefined);
+  }
+  const isPinned = (day: string | undefined, mealType: string) =>
+    !!day && !!profile?.lockedMeals?.some((l) => l.day === day && l.mealType === mealType);
 
   async function regeneratePlan() {
     if (!profile || regenerating) return;
@@ -383,7 +400,7 @@ export default function PlanPage() {
                       </p>
                       {tonight && (
                         <button
-                          onClick={() => setDetail(tonight)}
+                          onClick={() => openMeal(tonight, today.day)}
                           className="flex items-center gap-1.5 rounded-full bg-vio px-3.5 py-1.5 text-xs font-bold text-white transition hover:bg-vio-deep"
                         >
                           <PlayIcon className="h-3 w-3" /> Start cooking
@@ -421,7 +438,7 @@ export default function PlanPage() {
                       {today.meals.map((meal, i) => (
                         <button
                           key={i}
-                          onClick={() => setDetail(meal)}
+                          onClick={() => openMeal(meal, today.day)}
                           className="flex w-full items-center justify-between gap-4 border-b border-line py-3.5 text-left transition hover:opacity-70"
                         >
                           <div className="min-w-0">
@@ -555,7 +572,7 @@ export default function PlanPage() {
                           return (
                             <button
                               key={day.day}
-                              onClick={() => setDetail(meal)}
+                              onClick={() => openMeal(meal, day.day)}
                               className="flex flex-col overflow-hidden rounded-xl bg-white p-3 text-left transition card-shadow hover:-translate-y-0.5"
                             >
                               <p className="line-clamp-2 text-sm font-semibold leading-snug">
@@ -635,7 +652,7 @@ export default function PlanPage() {
                       key={r.meal.name}
                       className="mb-4 break-inside-avoid overflow-hidden rounded-2xl bg-white card-shadow"
                     >
-                      <button onClick={() => setDetail(r.meal)} className="block w-full">
+                      <button onClick={() => openMeal(r.meal)} className="block w-full">
                         <div
                           className="w-full bg-cover bg-center"
                           style={{ height: r.height, backgroundImage: `url(${r.image})` }}
@@ -824,6 +841,19 @@ export default function PlanPage() {
         </div>
       </main>
 
+      {/* Undo the last change. Appears only when there IS one to reverse, and reaches the same
+          deterministic endpoint — so it works even while the assistant model is offline. */}
+      {previous && (
+        <button
+          onClick={() => void runOperation({ tool: "undo" } as Operation)}
+          className="fixed bottom-6 left-6 z-50 flex items-center gap-2 rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-plum shadow-lg ring-1 ring-line transition hover:bg-bgsoft"
+          title={`Undo: ${previous.label}`}
+        >
+          <RefreshIcon className="h-3.5 w-3.5 -scale-x-100" />
+          Undo {previous.label}
+        </button>
+      )}
+
       {/* A brief confirmation after a direct action (rating, undo). */}
       {toast && (
         <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-plum px-5 py-2.5 text-sm font-medium text-white shadow-lg">
@@ -836,12 +866,12 @@ export default function PlanPage() {
         <>
           <div
             className="fixed inset-0 z-30 bg-plum/40"
-            onClick={() => setDetail(null)}
+            onClick={closeDetail}
           />
           <aside className="fixed inset-y-0 right-0 z-40 w-full max-w-md overflow-y-auto bg-white shadow-2xl">
             <div className="h-20 w-full bg-gradient-to-r from-vio to-vio-deep" />
             <button
-              onClick={() => setDetail(null)}
+              onClick={closeDetail}
               className="absolute top-4 right-4 rounded-full bg-white/90 p-2 text-plum shadow"
               aria-label="Close"
             >
@@ -873,6 +903,27 @@ export default function PlanPage() {
                   </span>
                 )}
               </div>
+              {/* Keep this meal in the same slot every week. Only for a PLAN meal (we know its day);
+                  an Explore recipe has no slot to pin. Deterministic — no assistant. */}
+              {detailDay && (
+                <button
+                  onClick={() =>
+                    runOperation({
+                      tool: isPinned(detailDay, detail.type) ? "unlock_meal" : "lock_meal",
+                      day: detailDay,
+                      mealType: detail.type,
+                    } as Operation)
+                  }
+                  className={
+                    isPinned(detailDay, detail.type)
+                      ? "mt-3 flex items-center gap-1.5 rounded-full bg-vio px-3.5 py-1.5 text-xs font-bold text-white transition hover:bg-vio-deep"
+                      : "mt-3 flex items-center gap-1.5 rounded-full bg-bgsoft px-3.5 py-1.5 text-xs font-bold text-plum transition hover:bg-lav"
+                  }
+                >
+                  <PinIcon className="h-3.5 w-3.5" filled={isPinned(detailDay, detail.type)} />
+                  {isPinned(detailDay, detail.type) ? "Kept every week" : "Keep every week"}
+                </button>
+              )}
               <div className="mt-4 grid grid-cols-5 gap-2 text-center">
                 {[
                   [detail.calories, "kcal"],

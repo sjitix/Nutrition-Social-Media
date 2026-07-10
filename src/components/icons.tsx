@@ -100,6 +100,14 @@ export const StarIcon = ({ className, filled = false }: IconProps & { filled?: b
   </svg>
 );
 
+// A pin/thumbtack for "keep this meal every week". `filled` marks a currently-pinned slot.
+export const PinIcon = ({ className, filled = false }: IconProps & { filled?: boolean }) => (
+  <svg {...base(className)} fill={filled ? "currentColor" : "none"}>
+    <path d="M12 17v5" />
+    <path d="M9 3h6l-1 6 3 3H7l3-3z" />
+  </svg>
+);
+
 export const XIcon = ({ className }: IconProps) => (
   <svg {...base(className)}>
     <path d="M18 6L6 18M6 6l12 12" />
