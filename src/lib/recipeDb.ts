@@ -7,6 +7,7 @@ import {
   type Operation,
   type UserProfile,
   type WeekPlan,
+  type LockedMeal,
 } from "./types";
 import { haystackBlocked, parseExclusionTokens, dietTagConflicts, wordMatches } from "./exclusions";
 import { computeTargets, explainTargets } from "./targets";
@@ -2465,6 +2466,16 @@ export function selectWeekFromDb(
   if (seedIngredients?.length)
     ctx.fridge = new Set(seedIngredients.map((s) => s.trim().toLowerCase()).filter(Boolean));
   ctx.boost = boost;
+  // A pinned dish is going back into its slot after this, so the selector must not spend it
+  // somewhere else — otherwise the week serves the user's Sunday roast twice. (It did, in 6 of
+  // every 30 rebuilds, until the selector was told.)
+  for (const l of profile.lockedMeals ?? []) {
+    const r = RECIPES.find((x) => x.name === l.name);
+    if (r) {
+      ctx.usedIds.add(r.id);
+      ctx.usedNames.add(r.name.toLowerCase());
+    }
+  }
 
   const days = DAYS.map((day) => ({
     day,
@@ -2779,7 +2790,12 @@ function rebalanceDay(
 // from the start. Threads a running set of used dish names so a protein upgrade on
 // one day never introduces a dish already on another day.
 export const rebalanceWeek = (plan: WeekPlan, profile: UserProfile): WeekPlan => {
-  const used = new Set(plan.days.flatMap((d) => d.meals.map((m) => m.name.toLowerCase())));
+  // Seed with the pinned dishes too. They are not in `plan` yet — the selector was told to skip
+  // them — so without this an upgrade is free to spend one on the wrong day.
+  const used = new Set([
+    ...plan.days.flatMap((d) => d.meals.map((m) => m.name.toLowerCase())),
+    ...(profile.lockedMeals ?? []).map((l) => l.name.toLowerCase()),
+  ]);
   const days = plan.days.map((d) => {
     const own = new Set(d.meals.map((m) => m.name.toLowerCase()));
     const avoid = new Set([...used].filter((n) => !own.has(n)));
@@ -3223,6 +3239,78 @@ function listPhrase(items: string[]): string {
   return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 }
 
+/* ------------------------------------------------------------------------- *
+ * Pinned meals — "never change my Sunday roast"
+ *
+ * A plan you cannot pin is not yours. A locked meal is re-imposed after EVERY rebuild (a new
+ * week, a new day, a nutrient boost, a macro re-solve) and the day is then re-solved around it as
+ * a fixed point, exactly like a meal the user has already eaten.
+ *
+ * A pin outranks PREFERENCES — cook time, budget, variety — because the user asked for it by
+ * name. A pin never outranks a HARD RULE. If they go vegan, a pinned chicken roast cannot stay,
+ * so the pin is dropped and they are told. Silently serving it would break I1/I2, the two
+ * invariants that exist to protect someone's health.
+ * ------------------------------------------------------------------------- */
+
+function lockKey(day: string, mealType: string): string {
+  return `${day}|${mealType}`;
+}
+
+function lockedSlotsFor(p: UserProfile, day: DayPlan["day"]): Set<Meal["type"]> {
+  return new Set((p.lockedMeals ?? []).filter((l) => l.day === day).map((l) => l.mealType));
+}
+
+/**
+ * Would this pinned recipe break a hard rule under the CURRENT profile? Diet and allergies are the
+ * only things allowed to evict a pin.
+ */
+function lockViolatesHardRule(p: UserProfile, lock: LockedMeal): string | null {
+  const recipe = RECIPES.find((r) => r.name === lock.name);
+  if (!recipe) return "it isn't one of my recipes any more";
+  if (!passesDiet(recipe, p.diet)) return `it isn't ${p.diet}`;
+  if (blockedByExclusions(recipe, exclusionTokens(p))) return "it contains something you avoid";
+  return null;
+}
+
+/**
+ * Put every surviving pin back into its slot and re-solve those days around them.
+ * Returns the plan plus any pins that had to be dropped, so the caller can update the profile
+ * and say so out loud.
+ */
+function reimposeLocks(
+  p: UserProfile,
+  plan: WeekPlan,
+  onlyDays?: Set<string>,
+): { plan: WeekPlan; dropped: { lock: LockedMeal; why: string }[] } {
+  const locks = p.lockedMeals ?? [];
+  if (!locks.length) return { plan, dropped: [] };
+
+  const dropped: { lock: LockedMeal; why: string }[] = [];
+  const live: LockedMeal[] = [];
+  for (const l of locks) {
+    const why = lockViolatesHardRule(p, l);
+    if (why) dropped.push({ lock: l, why });
+    else live.push(l);
+  }
+
+  const touched = new Set(live.filter((l) => !onlyDays || onlyDays.has(l.day)).map((l) => l.day));
+  const days = plan.days.map((d) => {
+    if (!touched.has(d.day)) return d;
+    const here = live.filter((l) => l.day === d.day);
+    const meals = d.meals.map((m) => {
+      const lock = here.find((l) => l.mealType === m.type);
+      if (!lock || m.name === lock.name) return m;
+      const recipe = RECIPES.find((r) => r.name === lock.name)!;
+      const share = localSplit(p.mealsPerDay).find((sp) => sp[0] === recipe.type)?.[1] ?? 1 / p.mealsPerDay;
+      return { ...toMeal(scaleRecipeToTarget(recipe, Math.round(p.targetCalories * share))), type: m.type };
+    });
+    const pinned = new Set(here.map((l) => l.mealType));
+    return { ...d, meals: rebalanceDay(meals, p, pinned, namesOnOtherDays(plan, d.day, p)) };
+  });
+
+  return { plan: { ...plan, days }, dropped };
+}
+
 /**
  * The contract for a boost: the user ends up with MORE of the nutrient than they had. A fresh
  * random week can easily be worse than the one it replaced, so we upgrade the new week, and if
@@ -3307,7 +3395,7 @@ function eatingOut(
     return sum + (base ? base.calories * SCALE_LO : m.calories);
   }, 0);
 
-  const meals = rebalanceDay(withReserve, p, new Set([mealType]), namesOnOtherDays(plan, day));
+  const meals = rebalanceDay(withReserve, p, new Set([mealType]), namesOnOtherDays(plan, day, p));
   const total = meals.reduce((sum, m) => sum + m.calories, 0);
   const pct = Math.round((reserve / p.targetCalories) * 100);
 
@@ -3413,10 +3501,19 @@ function weeklyReportNote(plan: WeekPlan, p: UserProfile): string {
 
 // Dish names used on days OTHER than `day` — so a single-day rebalance/upgrade
 // doesn't introduce a dish already on the plate elsewhere in the week.
-function namesOnOtherDays(plan: WeekPlan, day: DayPlan["day"]): Set<string> {
-  return new Set(
-    plan.days.filter((d) => d.day !== day).flatMap((d) => d.meals.map((m) => m.name.toLowerCase())),
-  );
+/**
+ * Dishes a re-solve of `day` must not introduce, because they belong to another day.
+ *
+ * That includes any dish PINNED to another day, even if it isn't in the plan yet: a pin is
+ * re-imposed after the rebuild, so a protein upgrade that grabs it now produces a week serving the
+ * user's Sunday roast twice. (It did, in 1 of every 25 rebuilds.)
+ */
+function namesOnOtherDays(plan: WeekPlan, day: DayPlan["day"], profile?: UserProfile): Set<string> {
+  const names = plan.days
+    .filter((d) => d.day !== day)
+    .flatMap((d) => d.meals.map((m) => m.name.toLowerCase()));
+  for (const l of profile?.lockedMeals ?? []) if (l.day !== day) names.push(l.name.toLowerCase());
+  return new Set(names);
 }
 
 /**
@@ -3450,6 +3547,23 @@ export function applyOperations(
   // Set when the engine must own the ENTIRE reply and the model's words are discarded — a
   // crisis or an urgent medical symptom. Nothing the LLM writes may sit in front of it.
   let replyOverride: string | undefined;
+
+  /**
+   * Put the user's pinned meals back. Called after EVERY rebuild, and always BEFORE the engine
+   * states any number — otherwise achievementNote reports a week the user is not getting.
+   * A pin that a new diet or allergy has made impossible is dropped, and said out loud.
+   */
+  const applyLocks = (onlyDays?: Set<string>) => {
+    if (!p.lockedMeals?.length) return;
+    const res = reimposeLocks(p, curPlan, onlyDays);
+    curPlan = res.plan;
+    if (!res.dropped.length) return;
+    const gone = new Set(res.dropped.map((d) => lockKey(d.lock.day, d.lock.mealType)));
+    p.lockedMeals = p.lockedMeals.filter((l) => !gone.has(lockKey(l.day, l.mealType)));
+    profileChanged = true;
+    for (const d of res.dropped)
+      notes.push(`I couldn't keep ${d.lock.name} pinned on ${d.lock.day} — ${d.why}. I've unpinned it.`);
+  };
   // Factual macro notes the LLM can't produce (it does no math) — the route appends
   // these so the assistant reports honestly what the engine did.
   const notes: string[] = [];
@@ -3479,6 +3593,7 @@ export function applyOperations(
             curPlan = g.plan;
             if (g.note) notes.push(g.note);
           }
+          applyLocks();
           if (keepMacros(op)) notes.push(achievementNote("Your week now averages", weekAverages(curPlan), p));
           if (op.boostNutrient) notes.push(microNote(curPlan, op.boostNutrient));
         }
@@ -3496,6 +3611,7 @@ export function applyOperations(
             curPlan = g.plan;
             if (g.note) notes.push(g.note);
           }
+          applyLocks();
           if (keepMacros(op)) notes.push(achievementNote("Your week now averages", weekAverages(curPlan), p));
           if (op.boostNutrient) notes.push(microNote(curPlan, op.boostNutrient));
         }
@@ -3512,14 +3628,25 @@ export function applyOperations(
         const newDay = selectDay(tp, op.day, curPlan, normalizeCuisine(op.cuisine ?? null), fiberOn(op), op.useIngredients, op.boostNutrient ?? undefined, rep);
         notes.push(...reportNotes(rep, tp));
         const meals = keepMacros(op)
-          ? rebalanceDay(newDay.meals, tp, undefined, namesOnOtherDays(curPlan, op.day))
+          ? rebalanceDay(newDay.meals, tp, undefined, namesOnOtherDays(curPlan, op.day, tp))
           : newDay.meals;
         curPlan = { ...curPlan, days: curPlan.days.map((d) => (d.day === op.day ? { ...newDay, meals } : d)) };
-        if (keepMacros(op)) notes.push(achievementNote(`${op.day} now has`, dayTotals({ ...newDay, meals }), tp));
+        applyLocks(new Set([op.day]));
+        const finalDay = curPlan.days.find((d) => d.day === op.day)!;
+        if (keepMacros(op)) notes.push(achievementNote(`${op.day} now has`, dayTotals(finalDay), tp));
         break;
       }
       case "swap_meal": {
         if (!op.day || !op.dish) break;
+        // A pin says "don't change this when you rebuild". An explicit swap of that very slot is a
+        // newer, more specific instruction, so it wins — but the pin is removed and the user is
+        // told, rather than the swap silently reverting on their next regeneration.
+        if (op.mealType && p.lockedMeals?.some((l) => l.day === op.day && l.mealType === op.mealType)) {
+          const gone = p.lockedMeals.find((l) => l.day === op.day && l.mealType === op.mealType)!;
+          p.lockedMeals = p.lockedMeals.filter((l) => !(l.day === op.day && l.mealType === op.mealType));
+          profileChanged = true;
+          notes.push(`${gone.name} was pinned on ${op.day} — I've swapped it and removed the pin.`);
+        }
         // Macro-aware pick: matches the requested dish, tie-broken toward the slot's
         // macro profile (e.g. the protein-forward pancake on a high-protein plan).
         const match = findRecipeForSwap(op.dish, op.mealType ?? undefined, p);
@@ -3551,7 +3678,7 @@ export function applyOperations(
         // Keep the day on its macro targets by rebalancing the OTHER meals — the
         // swapped-in dish stays as the user requested (locked).
         const newMeals = keepMacros(op)
-          ? rebalanceDay(swapped, p, new Set([match.type]), namesOnOtherDays(curPlan, op.day))
+          ? rebalanceDay(swapped, p, new Set([match.type]), namesOnOtherDays(curPlan, op.day, p))
           : swapped;
         curPlan = {
           ...curPlan,
@@ -3606,6 +3733,7 @@ export function applyOperations(
         profileChanged = true;
         const rep = newReport();
         curPlan = rebalanceWeek(selectWeekFromDb(p, undefined, false, undefined, undefined, rep), p);
+        applyLocks();
         notes.push(
           explainTargets(t, {
             age: op.age!, heightCm: op.heightCm!, weightKg: op.weightKg!,
@@ -3655,7 +3783,7 @@ export function applyOperations(
 
         const locked = slotsUpTo(op.mealType);
         const withEaten = origDay.meals.map((m) => (m.type === op.mealType ? eaten! : m));
-        const newMeals = rebalanceDay(withEaten, p, locked, namesOnOtherDays(curPlan, op.day));
+        const newMeals = rebalanceDay(withEaten, p, locked, namesOnOtherDays(curPlan, op.day, p));
         curPlan = { ...curPlan, days: curPlan.days.map((d) => (d.day === op.day ? { ...d, meals: newMeals } : d)) };
 
         const tot = dayTotals({ ...origDay, meals: newMeals });
@@ -3682,6 +3810,46 @@ export function applyOperations(
           break;
         }
         curPlan = eatingOut(p, curPlan, op.day, op.mealType, op.estimatedCalories ?? undefined, notes);
+        break;
+      }
+      case "lock_meal": {
+        if (!op.day || !op.mealType) {
+          notes.push("Which meal would you like me to pin — which day, and breakfast, lunch or dinner?");
+          break;
+        }
+        const day = curPlan.days.find((d) => d.day === op.day);
+        const meal = day?.meals.find((m) => m.type === op.mealType);
+        if (!meal) {
+          notes.push(`You don't have a ${op.mealType} on ${op.day} to pin.`);
+          break;
+        }
+        // Pins are stored by name and re-cooked from the library on every rebuild, so a meal we
+        // can't rebuild (a restaurant reserve, something the user logged) cannot be pinned.
+        if (!RECIPES.some((r) => r.name === meal.name)) {
+          notes.push(`${meal.name} isn't one of my recipes — it's something you told me about, so I can't pin it.`);
+          break;
+        }
+        p.lockedMeals = [
+          ...(p.lockedMeals ?? []).filter((l) => !(l.day === op.day && l.mealType === op.mealType)),
+          { day: op.day, mealType: op.mealType, name: meal.name },
+        ];
+        profileChanged = true;
+        notes.push(`Pinned: ${meal.name} stays as your ${op.day} ${op.mealType}. I'll build the rest of the week around it.`);
+        break;
+      }
+      case "unlock_meal": {
+        if (!op.day || !op.mealType) {
+          notes.push("Which pin should I remove — which day, and which meal?");
+          break;
+        }
+        const had = p.lockedMeals?.find((l) => l.day === op.day && l.mealType === op.mealType);
+        if (!had) {
+          notes.push(`Nothing is pinned on ${op.day} ${op.mealType}.`);
+          break;
+        }
+        p.lockedMeals = (p.lockedMeals ?? []).filter((l) => !(l.day === op.day && l.mealType === op.mealType));
+        profileChanged = true;
+        notes.push(`Unpinned ${had.name} — I can change ${op.day} ${op.mealType} again.`);
         break;
       }
       case "symptom_check": {

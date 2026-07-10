@@ -75,6 +75,8 @@ export const OperationSchema = z.object({
     "explain_meal", // "why is this in my plan?" -> computed reasons, no change
     "substitute_ingredient", // "I have no greek yogurt" -> safe swaps + the macro cost, no change
     "symptom_check", // "I'm always tired" -> check the associated nutrients against THEIR week
+    "lock_meal", // "never change my Sunday roast" -> pin it; every rebuild puts it back
+    "unlock_meal", // "you can change Sunday again"
     "answer", // no change — just answering a question
   ]),
   day: z.enum(DAYS).nullable().optional(),
@@ -140,6 +142,16 @@ export type AssistantResponse = z.infer<typeof AssistantResponseSchema>;
 export type Operation = z.infer<typeof OperationSchema>;
 export type AssistantTurn = z.infer<typeof AssistantTurnSchema>;
 
+/**
+ * A meal the user pinned. Stored by NAME, not by reference into the plan, so it survives a
+ * regeneration that would otherwise have discarded the dish entirely.
+ */
+export interface LockedMeal {
+  day: (typeof DAYS)[number];
+  mealType: (typeof MEAL_TYPES)[number];
+  name: string;
+}
+
 export interface UserProfile {
   goal: "lose_weight" | "maintain" | "build_muscle";
   diet: "none" | "vegetarian" | "vegan" | "keto" | "mediterranean";
@@ -156,6 +168,9 @@ export interface UserProfile {
   // Simplicity controls, also defaulted + enforced in generation.
   maxCookTime: number; // minutes per meal (approx upper bound)
   maxIngredients: number; // ingredients per meal (upper bound)
+  // "Never change my Sunday roast." Pinned meals are re-imposed after every rebuild. A pin
+  // overrides PREFERENCES (cook time, budget, variety); it never overrides diet or an allergy.
+  lockedMeals?: LockedMeal[];
 }
 
 // Sensible starting values for a general healthy adult. Prefilled in onboarding

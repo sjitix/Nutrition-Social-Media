@@ -16,6 +16,9 @@ export const READ_ONLY_TOOLS: ReadonlySet<string> = new Set([
   "explain_meal",
   "substitute_ingredient",
   "symptom_check",
+  // Pinning changes the PROFILE, not this week's meals — the plan on screen is untouched.
+  "lock_meal",
+  "unlock_meal",
 ]);
 
 export function planWasChanged(operations: Operation[]): boolean {

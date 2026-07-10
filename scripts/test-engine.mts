@@ -109,11 +109,11 @@ const compliantExists = (type: Meal["type"], diet: UserProfile["diet"], tokens: 
  * A meal of `lockedType` (the dish the user explicitly swapped in) is FIXED — it cannot
  * be rescaled — so it contributes its exact calories and narrows the reachable range.
  */
-function calorieReachable(d: DayPlan, targetCal: number, lockedType?: Meal["type"]): boolean {
+function calorieReachable(d: DayPlan, targetCal: number, lockedTypes?: ReadonlySet<Meal["type"]>): boolean {
   let lo = 0;
   let hi = 0;
   for (const m of d.meals) {
-    if (m.type === lockedType) {
+    if (lockedTypes?.has(m.type)) {
       lo += m.calories;
       hi += m.calories;
       continue;
@@ -146,6 +146,10 @@ function invariants(
   const tokens = tokensOf(p);
   for (const d of plan.days) {
     const effectiveDiet = dayDiet[d.day] ?? p.diet;
+    // A pinned meal is an explicit instruction by name. It outranks PREFERENCES (cook time), and
+    // is a fixed point for the calorie solver — but it may never break diet or an allergy, which
+    // is why I1/I2 below make no exception for it.
+    const pinned = new Set((p.lockedMeals ?? []).filter((l) => l.day === d.day).map((l) => l.mealType));
     if (d.meals.length !== p.mealsPerDay)
       v.push(`I3 ${d.day}: ${d.meals.length} meals, expected ${p.mealsPerDay}`);
 
@@ -158,8 +162,10 @@ function invariants(
       for (const t of tokens)
         if (hay.includes(t)) v.push(`I2 ${d.day} "${m.name}": contains excluded/allergen "${t}"`);
 
-      // Only a violation if a compliant recipe actually existed to choose instead.
+      // Only a violation if a compliant recipe actually existed to choose instead — and never for
+      // a meal the user pinned by name.
       if (
+        !pinned.has(m.type) &&
         m.timeMinutes > p.maxCookTime + 5 &&
         compliantExists(m.type, effectiveDiet, tokens, p.maxCookTime)
       )
@@ -175,7 +181,9 @@ function invariants(
 
     // Only a violation if the target was physically reachable by portion scaling, and this
     // day isn't a deliberate treat day.
-    const lockedHere = locked && locked.day === d.day ? locked.type : undefined;
+    const fixedHere = new Set(pinned);
+    if (locked && locked.day === d.day) fixedHere.add(locked.type);
+    const lockedHere = fixedHere.size ? fixedHere : undefined;
     if (macrosKept && !treatDays.has(d.day) && calorieReachable(d, p.targetCalories, lockedHere)) {
       const c = kcal(d);
       if (Math.abs(c - p.targetCalories) > p.targetCalories * 0.15) {
@@ -184,7 +192,7 @@ function invariants(
           .map((m) => {
             const b = recipeByName.get(m.name.toLowerCase());
             const g = b ? (m.calories / b.calories).toFixed(2) : "?";
-            return `${m.type}${m.type === lockedHere ? "*" : ""}=${m.calories}kcal(x${g})`;
+            return `${m.type}${lockedHere?.has(m.type) ? "*" : ""}=${m.calories}kcal(x${g})`;
           })
           .join(" ");
         v.push(`I5 ${d.day}: ${c} kcal vs target ${p.targetCalories} (>15% off) [${detail}]`);
@@ -1076,6 +1084,86 @@ console.log("--- EATING OUT / EXPLAIN (audit regressions) ---");
   check("a keto user is never offered quinoa for rice", !/quinoa|couscous|brown rice/i.test(kn), kn.slice(0, 80));
 }
 
+
+// ---------------------------------------------------------------- lock_meal
+console.log("");
+console.log("--- LOCK MEAL (a plan you can't pin isn't yours) ---");
+{
+  const plan = freshWeek(BASE);
+  const pinSunday = applyOperations(BASE, plan, [op({ tool: "lock_meal", day: "Sunday", mealType: "dinner" })]);
+  const pinned = plan.days.find((d) => d.day === "Sunday")!.meals.find((m) => m.type === "dinner")!.name;
+  const prof = pinSunday.profile;
+
+  check("lock_meal records the pin on the profile", prof.lockedMeals?.[0]?.name === pinned, pinned);
+  check("lock_meal doesn't touch this week's plan", JSON.stringify(pinSunday.plan) === JSON.stringify(plan));
+  check("lock_meal says what it pinned", new RegExp(`Pinned: ${pinned.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`).test(pinSunday.notes.join(" ")));
+
+  // The whole point: it must come back, every time, and the day must still hit its target.
+  let survived = 0, dupes = 0, offTarget = 0;
+  const N = 60; // the duplicate showed up 1-in-25; sample enough that a regression can't hide
+  for (let i = 0; i < N; i++) {
+    const rebuilt = applyOperations(prof, plan, [op({ tool: "regenerate_week" })]).plan;
+    const sun = rebuilt.days.find((d) => d.day === "Sunday")!;
+    if (sun.meals.find((m) => m.type === "dinner")!.name === pinned) survived++;
+    if (rebuilt.days.flatMap((d) => d.meals).filter((m) => m.name === pinned).length > 1) dupes++;
+    if (Math.abs(kcal(sun) - BASE.targetCalories) > BASE.targetCalories * 0.15) offTarget++;
+  }
+  check("a pinned meal survives every rebuild", survived === N, `${survived}/${N}`);
+  check("a pinned meal is never served twice in the week", dupes === 0, `${dupes}/${N} weeks had a duplicate`);
+  check("the day still hits its calorie target around the pin", offTarget === 0, `${offTarget}/${N} off target`);
+
+  check("a pin survives a budget change", (() => {
+    const r = applyOperations(prof, plan, [op({ tool: "update_profile", budget: "low" })]);
+    return r.plan.days.find((d) => d.day === "Sunday")!.meals.find((m) => m.type === "dinner")!.name === pinned;
+  })());
+  check("a pin survives a nutrient boost", (() => {
+    const r = applyOperations(prof, plan, [op({ tool: "regenerate_week", boostNutrient: "iron" })]);
+    return r.plan.days.find((d) => d.day === "Sunday")!.meals.find((m) => m.type === "dinner")!.name === pinned;
+  })());
+  check("regenerating another day leaves the pin alone", (() => {
+    const r = applyOperations(prof, plan, [op({ tool: "regenerate_day", day: "Monday" })]);
+    return r.plan.days.find((d) => d.day === "Sunday")!.meals.find((m) => m.type === "dinner")!.name === pinned;
+  })());
+
+  // A pin outranks preferences. It NEVER outranks a hard rule.
+  const meaty = RECIPES.find((r) => r.type === "dinner" && !r.dietTags.includes("vegan") && !r.treatOnly)!;
+  const meatProf: UserProfile = { ...BASE, lockedMeals: [{ day: "Sunday", mealType: "dinner", name: meaty.name }] };
+  const goneVegan = applyOperations(meatProf, plan, [op({ tool: "update_profile", diet: "vegan" })]);
+  check("going vegan evicts a meaty pin", (goneVegan.profile.lockedMeals ?? []).length === 0);
+  check("...and says why", /couldn't keep .* pinned .* isn't vegan/i.test(goneVegan.notes.join(" ")), goneVegan.notes[0]?.slice(0, 90));
+  const veganViolation = goneVegan.plan.days.flatMap((d) => d.meals).filter((m) => {
+    const b = recipeByName.get(m.name.toLowerCase());
+    return b && !dietOk(b.dietTags, "vegan");
+  });
+  check("a pin can never smuggle a diet violation into the plan", veganViolation.length === 0, veganViolation[0]?.name ?? "");
+
+  // ...nor an allergen.
+  const nutty = RECIPES.find((r) => /peanut/i.test(recipeHay(r)))!;
+  if (nutty) {
+    const nutProf: UserProfile = { ...BASE, lockedMeals: [{ day: "Sunday", mealType: nutty.type, name: nutty.name }] };
+    const allergic = applyOperations(nutProf, plan, [op({ tool: "update_profile", excludeFoods: ["peanuts"] })]);
+    check("an allergy evicts a pin that contains it", (allergic.profile.lockedMeals ?? []).length === 0);
+    const served = allergic.plan.days.flatMap((d) => d.meals).some((m) => /peanut/i.test(mealHay(m)));
+    check("a pin can never smuggle an allergen into the plan", !served);
+  }
+
+  // An explicit swap of the pinned slot is a newer, more specific instruction. It wins, loudly.
+  const swapped = applyOperations(prof, plan, [op({ tool: "swap_meal", day: "Sunday", mealType: "dinner", dish: "salmon" })]);
+  check("an explicit swap of a pinned slot wins", (swapped.profile.lockedMeals ?? []).length === 0);
+  check("...and the swap is disclosed, not silent", /was pinned on Sunday/i.test(swapped.notes.join(" ")));
+
+  // Housekeeping.
+  check("unlock_meal removes the pin", (applyOperations(prof, plan, [op({ tool: "unlock_meal", day: "Sunday", mealType: "dinner" })]).profile.lockedMeals ?? []).length === 0);
+  check("unlock_meal on an unpinned slot says so", /nothing is pinned/i.test(applyOperations(BASE, plan, [op({ tool: "unlock_meal", day: "Monday", mealType: "lunch" })]).notes.join(" ")));
+  check("lock_meal on a slot you don't have says so", /don't have a snack/i.test(applyOperations(BASE, plan, [op({ tool: "lock_meal", day: "Monday", mealType: "snack" })]).notes.join(" ")));
+  check("lock_meal asks when it doesn't know which meal", /which day/i.test(applyOperations(BASE, plan, [op({ tool: "lock_meal" })]).notes.join(" ")));
+
+  // A meal we can't rebuild from the library can't be pinned — reimposing it would be a lie.
+  const withReserve = applyOperations(BASE, plan, [op({ tool: "eating_out", day: "Friday", mealType: "dinner" })]).plan;
+  check("you can't pin a restaurant reserve", /isn't one of my recipes/i.test(
+    applyOperations(BASE, withReserve, [op({ tool: "lock_meal", day: "Friday", mealType: "dinner" })]).notes.join(" ")));
+}
+
 // ---------------------------------------------------------------- 3. fuzz
 console.log("\n--- FUZZ (random op sequences, invariants after each) ---");
 const DAYS_L = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
@@ -1088,10 +1176,15 @@ const pick = <T,>(a: readonly T[]) => a[Math.floor(Math.random() * a.length)];
 
 function randomOp(): Operation {
   const roll = Math.random();
-  if (roll < 0.3)
+  // Pins are part of ordinary use, so the fuzzer must create them. They are the only thing in the
+  // engine allowed to override a preference, which makes them the most likely place for an
+  // invariant to leak.
+  if (roll < 0.06) return op({ tool: "lock_meal", day: pick(DAYS_L), mealType: pick(MEALS_L) });
+  if (roll < 0.09) return op({ tool: "unlock_meal", day: pick(DAYS_L), mealType: pick(MEALS_L) });
+  if (roll < 0.34)
     return op({ tool: "swap_meal", day: pick(DAYS_L), mealType: pick(MEALS_L), dish: pick(DISHES_L), preserveMacros: Math.random() < 0.3 ? false : null });
-  if (roll < 0.5) return op({ tool: "regenerate_day", day: pick(DAYS_L), diet: Math.random() < 0.4 ? pick(DIETS_L) : null });
-  if (roll < 0.65) return op({ tool: "regenerate_week" });
+  if (roll < 0.52) return op({ tool: "regenerate_day", day: pick(DAYS_L), diet: Math.random() < 0.4 ? pick(DIETS_L) : null });
+  if (roll < 0.67) return op({ tool: "regenerate_week" });
   return op({
     tool: "update_profile",
     diet: Math.random() < 0.4 ? pick(DIETS_L) : null,

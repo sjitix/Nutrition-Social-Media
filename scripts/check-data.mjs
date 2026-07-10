@@ -30,7 +30,7 @@ const FIELDS = new Set([
 const TOOLS = [
   "update_profile", "regenerate_week", "regenerate_day", "swap_meal",
   "compute_targets", "log_meal", "weekly_report", "eating_out", "explain_meal",
-  "substitute_ingredient", "symptom_check", "answer",
+  "substitute_ingredient", "symptom_check", "lock_meal", "unlock_meal", "answer",
 ];
 const MIN_PER_TOOL = 15;
 
@@ -63,6 +63,10 @@ for (const r of rows) {
     // The model must pass the user's words through, never a nutrient it guessed itself.
     if (op.tool === "symptom_check" && Object.keys(op).some((k) => !["tool", "symptom"].includes(k)))
       problems.push(`symptom_check takes only the reported symptom: ${r.message}`);
+    // A pin names a SLOT. The dish it holds is whatever is in that slot; the model never picks it.
+    if ((op.tool === "lock_meal" || op.tool === "unlock_meal") &&
+        Object.keys(op).some((k) => !["tool", "day", "mealType"].includes(k)))
+      problems.push(`${op.tool} takes only day+mealType: ${r.message}`);
   }
 }
 

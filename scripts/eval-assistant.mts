@@ -38,13 +38,13 @@ const BASE_URL = process.env.BASE_URL ?? env.LOCAL_AI_URL ?? "http://localhost:1
 const MODEL = process.env.MODEL ?? env.LOCAL_AI_MODEL ?? "nutriflow-assistant";
 
 const TOOLS = new Set(["update_profile", "regenerate_week", "regenerate_day", "swap_meal", "compute_targets",
-  "log_meal", "weekly_report", "eating_out", "explain_meal", "substitute_ingredient", "answer"]);
+  "log_meal", "weekly_report", "eating_out", "explain_meal", "substitute_ingredient", "symptom_check", "lock_meal", "unlock_meal", "answer"]);
 const FIELDS = new Set([
   "tool", "day", "mealType", "dish", "cuisine", "diet", "budget", "excludeFoods",
   "targetCalories", "targetProtein", "targetCarbs", "targetFat", "targetFiber",
   "maxCookTime", "preserveMacros", "useIngredients", "boostNutrient",
   "age", "heightCm", "weightKg", "sex", "activity", "goal",
-  "loggedCalories", "loggedProtein", "estimatedCalories", "ingredient",
+  "loggedCalories", "loggedProtein", "estimatedCalories", "ingredient", "symptom",
 ]);
 
 interface Case {
@@ -106,6 +106,13 @@ const CASES: Case[] = [
   { msg: "i don't have any greek yogurt", tool: "substitute_ingredient", want: { ingredient: "greek yogurt" } },
   { msg: "i'm out of chicken breast, what can i use?", tool: "substitute_ingredient", want: { ingredient: "chicken breast" } },
   { msg: "i don't like mushrooms", tool: "update_profile", expectExclude: "mushroom" },
+  // symptom_check: pass the words through, never map to a nutrient
+  { msg: "i'm always tired", tool: "symptom_check" },
+  { msg: "i keep getting muscle cramps", tool: "symptom_check" },
+  // lock_meal: a standing instruction, not a one-off swap
+  { msg: "never change my sunday dinner", tool: "lock_meal", want: { day: "Sunday", mealType: "dinner" } },
+  { msg: "keep monday's breakfast the same every week", tool: "lock_meal", want: { day: "Monday", mealType: "breakfast" } },
+  { msg: "you can change sunday dinner again", tool: "unlock_meal", want: { day: "Sunday", mealType: "dinner" } },
 
   // questions / chit-chat -> must not change the plan
   { msg: "what's my average protein?" },
@@ -172,6 +179,7 @@ const RESPONSE_FORMAT = {
               loggedProtein: { type: ["number", "null"] },
               estimatedCalories: { type: ["number", "null"] },
               ingredient: { type: ["string", "null"] },
+              symptom: { type: ["string", "null"] },
             },
             required: ["tool"],
           },

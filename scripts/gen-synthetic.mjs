@@ -97,6 +97,8 @@ function renderSystemPrompt(profile, plan) {
     "- explain_meal: the user asks WHY a meal is in their plan. Requires day + mealType. Changes nothing; the app computes the reasons.\n" +
     "- substitute_ingredient: the user has run out of an ingredient ('i don't have greek yogurt'). Requires ingredient. Changes nothing; the app checks diet/allergies and computes the macro cost.\n" +
     "- symptom_check: the user reports how they FEEL ('i'm always tired', 'muscle cramps'). Pass their words in `symptom`. Changes nothing. Never map a symptom to a nutrient or diagnose — the app does it.\n" +
+    "- lock_meal: the user wants a meal to stay put ('never change my sunday roast'). Requires day + mealType. The app puts it back on every rebuild.\n" +
+    "- unlock_meal: undo a pin. Requires day + mealType.\n" +
     "- answer: no change; just answering a question.\n\n" +
     "Rules:\n" +
     "- Only a question -> operations: []. Put the answer in reply. For facts use the EXACT numbers below; the AVERAGES line is already per-day.\n" +
@@ -551,6 +553,36 @@ for (const m of ["i don't have any greek yogurt", "we're out of chicken breast, 
   ];
   push([u(m)], "Here's what I'd use instead:", [OP({ tool: "substitute_ingredient", ingredient: ing })]);
 }
+
+// lock_meal / unlock_meal — "never change my sunday roast". Pinning is a standing instruction, so
+// it must be told apart from a one-off swap ("give me the roast on sunday") and from a dislike.
+for (let i = 0; i < 20; i++) {
+  const day = rand(DAYS); const mt = rand(MEALS);
+  push([u(rand([
+    `never change my ${day} ${mt}`,
+    `keep ${day}'s ${mt} the same every week`,
+    `pin ${day} ${mt}`,
+    `always give me the same ${mt} on ${day}`,
+    `don't touch ${day} ${mt}`,
+    `i want to keep ${day}'s ${mt}`,
+    `lock in ${day} ${mt}`,
+  ]))], `Pinned — I'll build the rest of the week around it.`, [OP({ tool: "lock_meal", day, mealType: mt })]);
+  push([u(rand([
+    `you can change ${day} ${mt} again`,
+    `unpin ${day} ${mt}`,
+    `stop keeping ${day}'s ${mt}`,
+    `${day} ${mt} doesn't need to stay the same`,
+  ]))], `Unpinned — ${day}'s ${mt} is free to change.`, [OP({ tool: "unlock_meal", day, mealType: mt })]);
+}
+// CONTRAST: a one-off request for a dish is a swap, not a standing pin.
+for (let i = 0; i < 8; i++) {
+  const day = rand(DAYS); const mt = rand(MEALS); const dish = rand(DISHES);
+  push([u(`give me ${dish} for ${mt} on ${day}`)], `Done — ${dish} on ${day}.`, [OP({ tool: "swap_meal", day, mealType: mt, dish })]);
+  push([u(`i always want ${dish} for ${mt} on ${day}`)], `Done, and pinned so it stays.`,
+    [OP({ tool: "swap_meal", day, mealType: mt, dish }), OP({ tool: "lock_meal", day, mealType: mt })]);
+}
+for (const m of ["never change it", "pin that one", "keep that meal"])
+  push([u(m)], "Happy to — which day, and which meal?", []);
 
 // compute_targets: the model collects FACTS, the engine does the arithmetic and states the
 // numbers. The reply never contains a calorie figure the model made up.
