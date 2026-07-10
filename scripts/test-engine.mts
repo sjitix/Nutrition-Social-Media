@@ -1282,6 +1282,25 @@ console.log("--- RECIPE LIBRARY: can it actually serve each diet? ---");
     check(`a ${diet} week reaches ${floor}g protein`, got >= floor, `${Math.round(got)}g against a ${BASE.proteinGrams}g target`);
   }
 
+  // A diet is a claim about MACROS, not just a filter on recipes. Keto was only honouring the
+  // filter: the user kept their onboarding carb target (200g) and the solver scaled toward it.
+  // Keto is judged on NET carbs — total minus fiber, because fiber isn't absorbed.
+  {
+    const K: UserProfile = { ...BASE, diet: "keto" };
+    let worstNet = 0;
+    for (let i = 0; i < 6; i++)
+      for (const d of freshWeek(K).days) {
+        const net = d.meals.reduce((s, m) => s + m.carbsGrams, 0) - d.meals.reduce((s, m) => s + (m.fiberGrams ?? 0), 0);
+        worstNet = Math.max(worstNet, net);
+      }
+    check("a keto week stays under 50g net carbs, every day", worstNet <= 50, `worst day ${Math.round(worstNet)}g net`);
+
+    const note = applyOperations(K, freshWeek(K), [op({ tool: "weekly_report" })]).notes.join(" ");
+    check("weekly_report tells a keto user their NET carbs", /net carbs .* average \d+g/i.test(note), note.slice(0, 90));
+    const plainNote = applyOperations(BASE, freshWeek(BASE), [op({ tool: "weekly_report" })]).notes.join(" ");
+    check("...and doesn't mention net carbs to anyone else", !/net carbs/i.test(plainNote));
+  }
+
   // Every diet needs enough recipes to fill a week without repeating a dish.
   for (const diet of ["vegan", "vegetarian", "keto", "mediterranean"] as const) {
     for (const type of ["breakfast", "lunch", "dinner"] as const) {

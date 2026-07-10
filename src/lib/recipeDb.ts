@@ -2749,6 +2749,7 @@ interface PickContext {
   fridge?: Set<string>; // on-hand ingredients to prefer ("use what's in my fridge")
   preferFiber?: boolean;
   boost?: MicroKey; // nutrient to favour ("I'm low on iron")
+  ketoCarbs?: boolean; // prefer the lowest-carb dish among keto-eligible ones
 }
 
 // Choose the best candidate: prefer unused dishes, then a fresh protein, then a
@@ -2802,7 +2803,11 @@ function chooseRecipe(candidates: Recipe[], ctx: PickContext): Recipe | null {
       ? microDensity(recipeMicros(r).micros, r.calories, ctx.boost) *
         (2000 / DAILY_REFERENCE[ctx.boost]) *
         4
-      : 0);
+      : 0) +
+    // On keto, prefer the LOWEST-carb dish among the eligible ones. The dietTag filter only says
+    // "under 20g"; portions then scale up to fill the day and the carbs scale with them. Scored on
+    // density per calorie for the same reason the nutrient boost is: a big meal is not a carby one.
+    (ctx.ketoCarbs ? -(r.carbsGrams / Math.max(1, r.calories)) * 900 : 0);
   const maxScore = Math.max(...top.map(score));
   const best = top.filter((r) => score(r) >= maxScore - 0.5);
   return best[Math.floor(Math.random() * best.length)];
@@ -2850,6 +2855,7 @@ interface WeekCtx {
   usedIngredients: Set<string>;
   fridge?: Set<string>; // on-hand ingredients to prefer across the week
   boost?: MicroKey; // nutrient to favour across the week
+  ketoCarbs?: boolean; // prefer the lowest-carb dish among keto-eligible ones
 }
 
 function newCtx(): WeekCtx {
@@ -2948,6 +2954,7 @@ function pickMealsForDay(
       fridge: ctx.fridge,
       preferFiber,
       boost: ctx.boost,
+      ketoCarbs: ctx.ketoCarbs,
     });
     if (!pick && hard.length && report) report.droppedSlots.push(type);
     if (pick) {
@@ -2980,6 +2987,7 @@ export function selectWeekFromDb(
   if (seedIngredients?.length)
     ctx.fridge = new Set(seedIngredients.map((s) => s.trim().toLowerCase()).filter(Boolean));
   ctx.boost = boost;
+  ctx.ketoCarbs = profile.diet === "keto";
   // A pinned dish is going back into its slot after this, so the selector must not spend it
   // somewhere else — otherwise the week serves the user's Sunday roast twice. (It did, in 6 of
   // every 30 rebuilds, until the selector was told.)
@@ -3024,6 +3032,7 @@ export function selectDay(
   if (seedIngredients?.length)
     ctx.fridge = new Set(seedIngredients.map((s) => s.trim().toLowerCase()).filter(Boolean));
   ctx.boost = boost;
+  ctx.ketoCarbs = profile.diet === "keto";
   for (const d of plan.days) {
     if (d.day === dayName) continue;
     for (const m of d.meals) {
@@ -3114,8 +3123,38 @@ function recipeMacros(r: Recipe): Macros {
 function mealMacros(m: Meal): Macros {
   return { cal: m.calories, protein: m.proteinGrams, carbs: m.carbsGrams, fat: m.fatGrams, fiber: m.fiberGrams ?? 0 };
 }
+/**
+ * Ketosis is judged on NET carbohydrate — total carbs minus fiber, because fiber isn't absorbed.
+ * Under 50g net keeps most people in ketosis; 30 is where a dietitian would aim. The solver works
+ * in total carbs, so the target it gets is the net target plus the fiber the week carries anyway.
+ */
+const KETO_NET_CARB_TARGET = 30;
+
+/**
+ * The macro targets a day is solved against.
+ *
+ * A diet is not just a filter on recipes — it is a claim about macros, and for keto the app was
+ * only honouring the filter. A keto user kept whatever carb target their onboarding default gave
+ * them (200g), the solver dutifully scaled portions toward it, and their "keto" week landed at
+ * 42-74g of carbohydrate a day. Keto in name only.
+ *
+ * So keto sets its own targets: carbs down to 30g, and the calories that frees go to fat, which is
+ * exactly the trade the diet is. Protein is left where the user put it. The profile is NOT
+ * modified — this is a derived target, so switching off keto restores what they chose.
+ */
 function dayTargetMacros(p: UserProfile): Macros {
-  return { cal: p.targetCalories, protein: p.proteinGrams, carbs: p.carbsGrams, fat: p.fatGrams, fiber: DAY_FIBER_TARGET };
+  if (p.diet !== "keto")
+    return { cal: p.targetCalories, protein: p.proteinGrams, carbs: p.carbsGrams, fat: p.fatGrams, fiber: DAY_FIBER_TARGET };
+
+  const carbs = Math.min(p.carbsGrams, KETO_NET_CARB_TARGET + DAY_FIBER_TARGET);
+  const fatCalories = p.targetCalories - p.proteinGrams * 4 - carbs * 4;
+  return {
+    cal: p.targetCalories,
+    protein: p.proteinGrams,
+    carbs,
+    fat: Math.max(p.fatGrams, Math.round(fatCalories / 9)),
+    fiber: DAY_FIBER_TARGET,
+  };
 }
 function slotShare(p: UserProfile, type: Recipe["type"]): number {
   return localSplit(p.mealsPerDay).find((s) => s[0] === type)?.[1] ?? 1 / p.mealsPerDay;
@@ -4090,6 +4129,16 @@ function weeklyReportNote(plan: WeekPlan, p: UserProfile): string {
     s += ` That's ${Math.abs(calOff)} kcal ${calOff > 0 ? "above" : "below"} your target.`;
   const protOff = p.proteinGrams - protein;
   if (protOff > PROTEIN_MISS) s += ` Protein is ${protOff}g short.`;
+
+  if (p.diet === "keto") {
+    // Total carbs include fiber, which ketosis doesn't. Reporting 51g of carbs to someone who is
+    // actually eating 30g net tells them they've failed when they haven't.
+    const net = Math.max(0, Math.round(carbs - fiber));
+    s +=
+      net <= 50
+        ? ` Net carbs — what counts for ketosis — average ${net}g a day, under the 50g that keeps you in it.`
+        : ` Net carbs average ${net}g a day, above the 50g that keeps you in ketosis.`;
+  }
 
   const fixable: string[] = [];
   const unfixable: string[] = [];
