@@ -4,7 +4,16 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Wordmark } from "@/components/icons";
 import { saveChat, savePlan, saveProfile } from "@/lib/storage";
-import { DEFAULT_TARGETS, type UserProfile } from "@/lib/types";
+import { DEFAULT_TARGETS, type BodyStats, type UserProfile } from "@/lib/types";
+import { computeTargets, type Activity } from "@/lib/targets";
+
+const ACTIVITIES: { value: Activity; label: string }[] = [
+  { value: "sedentary", label: "Desk job, little exercise" },
+  { value: "light", label: "Light (1–3×/week)" },
+  { value: "moderate", label: "Moderate (3–5×/week)" },
+  { value: "active", label: "Active (6–7×/week)" },
+  { value: "very_active", label: "Very active / physical job" },
+];
 
 const GOALS: { value: UserProfile["goal"]; label: string; hint: string }[] = [
   { value: "lose_weight", label: "Lose weight", hint: "Moderate calorie deficit" },
@@ -43,10 +52,41 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Optional body stats. If given, we compute the targets (Mifflin-St Jeor) instead of asking the
+  // user to guess calorie numbers — a nutritionist's job — and remember them so hydration and any
+  // later re-calc never has to ask again. Empty = the user set macros by hand, which still works.
+  const [age, setAge] = useState<string>("");
+  const [heightCm, setHeightCm] = useState<string>("");
+  const [weightKg, setWeightKg] = useState<string>("");
+  const [sex, setSex] = useState<"male" | "female" | "">("");
+  const [activity, setActivity] = useState<Activity | "">("");
+  const [computed, setComputed] = useState(false);
+
+  const bodyStatsComplete = !!(age && heightCm && weightKg && sex && activity);
+
+  function calculateTargets() {
+    if (!bodyStatsComplete) return;
+    const t = computeTargets({
+      age: Number(age), heightCm: Number(heightCm), weightKg: Number(weightKg),
+      sex: sex as "male" | "female", activity: activity as Activity, goal,
+    });
+    setTargetCalories(t.calories);
+    setProteinGrams(t.proteinGrams);
+    setCarbsGrams(t.carbsGrams);
+    setFatGrams(t.fatGrams);
+    setComputed(true);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    const bodyStats: BodyStats | undefined = bodyStatsComplete
+      ? {
+          age: Number(age), heightCm: Number(heightCm), weightKg: Number(weightKg),
+          sex: sex as "male" | "female", activity: activity as Activity,
+        }
+      : undefined;
     const profile: UserProfile = {
       goal,
       diet,
@@ -60,6 +100,7 @@ export default function OnboardingPage() {
       fatGrams,
       maxCookTime,
       maxIngredients,
+      ...(bodyStats ? { bodyStats } : {}),
     };
     try {
       const res = await fetch("/api/plan", {
@@ -163,9 +204,59 @@ export default function OnboardingPage() {
         <section>
           <h2 className="mb-1 font-semibold">7. Daily targets</h2>
           <p className="mb-3 text-sm text-mut">
-            Pre-filled with sensible defaults — the plan will aim to hit these each day.
-            Adjust any time.
+            Don&rsquo;t know your numbers? Give your stats and I&rsquo;ll work them out — or set
+            them yourself below. Either way you can adjust any time.
           </p>
+
+          {/* Optional: compute targets from body stats instead of guessing calorie numbers. */}
+          <div className="mb-5 rounded-2xl bg-white p-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-mut">Age</span>
+                <input type="number" min={0} value={age} onChange={(e) => setAge(e.target.value)}
+                  className="w-full rounded-xl border-2 border-transparent bg-bgsoft px-3 py-2 outline-none focus:border-vio" />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-mut">Height (cm)</span>
+                <input type="number" min={0} value={heightCm} onChange={(e) => setHeightCm(e.target.value)}
+                  className="w-full rounded-xl border-2 border-transparent bg-bgsoft px-3 py-2 outline-none focus:border-vio" />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-mut">Weight (kg)</span>
+                <input type="number" min={0} value={weightKg} onChange={(e) => setWeightKg(e.target.value)}
+                  className="w-full rounded-xl border-2 border-transparent bg-bgsoft px-3 py-2 outline-none focus:border-vio" />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-mut">Sex</span>
+                <select value={sex} onChange={(e) => setSex(e.target.value as "male" | "female" | "")}
+                  className="w-full rounded-xl border-2 border-transparent bg-bgsoft px-3 py-2 outline-none focus:border-vio">
+                  <option value="">—</option>
+                  <option value="female">Female</option>
+                  <option value="male">Male</option>
+                </select>
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-mut">Activity</span>
+                <select value={activity} onChange={(e) => setActivity(e.target.value as Activity | "")}
+                  className="w-full rounded-xl border-2 border-transparent bg-bgsoft px-3 py-2 outline-none focus:border-vio">
+                  <option value="">—</option>
+                  {ACTIVITIES.map((a) => (
+                    <option key={a.value} value={a.value}>{a.label}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <button type="button" onClick={calculateTargets} disabled={!bodyStatsComplete}
+              className="mt-3 rounded-full bg-vio px-4 py-2 text-sm font-bold text-white transition hover:bg-vio-deep disabled:opacity-50">
+              {computed ? "Recalculate my targets" : "Calculate my targets"}
+            </button>
+            {computed && (
+              <span className="ml-3 text-sm text-mut">
+                Done — {targetCalories} kcal, {proteinGrams}g protein. Tweak below if you like.
+              </span>
+            )}
+          </div>
+
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             {(
               [
