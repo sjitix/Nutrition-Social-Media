@@ -208,7 +208,17 @@ export default function PlanPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Couldn't do that.");
       if (data.profile) { setProfile(data.profile); saveProfile(data.profile); }
-      if (data.plan) { setPlan(data.plan); savePlan(data.plan); }
+      if (data.plan) {
+        setPlan(data.plan);
+        savePlan(data.plan);
+        // If the drawer is open on a plan meal, refresh it from the new plan — otherwise resizing a
+        // portion leaves the drawer showing the old calories until you close and reopen it.
+        if (detail && detailDay) {
+          const refreshed = (data.plan as WeekPlan).days
+            .find((d) => d.day === detailDay)?.meals.find((m) => m.type === detail.type);
+          if (refreshed) setDetail(refreshed);
+        }
+      }
       setPrevious(data.previous ?? undefined);
       if (data.planChanged) setChecked(new Set());
       if (data.reply) setToast(data.reply);
@@ -923,6 +933,29 @@ export default function PlanPage() {
                   <PinIcon className="h-3.5 w-3.5" filled={isPinned(detailDay, detail.type)} />
                   {isPinned(detailDay, detail.type) ? "Kept every week" : "Keep every week"}
                 </button>
+              )}
+              {/* Resize this meal's portion. Deterministic; the engine holds the day on target where
+                  it can and never crosses the calorie floor. Only for a plan meal (needs a slot). */}
+              {detailDay && (
+                <div className="mt-3 flex items-center gap-2">
+                  <span className="text-xs font-semibold text-mut">Portion</span>
+                  <button
+                    onClick={() => runOperation({ tool: "scale_portions", day: detailDay, mealType: detail.type, portionChange: "smaller" } as Operation)}
+                    className="flex h-7 w-7 items-center justify-center rounded-full bg-bgsoft text-lg font-bold text-plum transition hover:bg-lav"
+                    aria-label="Smaller portion"
+                    title="Smaller portion"
+                  >
+                    −
+                  </button>
+                  <button
+                    onClick={() => runOperation({ tool: "scale_portions", day: detailDay, mealType: detail.type, portionChange: "bigger" } as Operation)}
+                    className="flex h-7 w-7 items-center justify-center rounded-full bg-bgsoft text-lg font-bold text-plum transition hover:bg-lav"
+                    aria-label="Bigger portion"
+                    title="Bigger portion"
+                  >
+                    +
+                  </button>
+                </div>
               )}
               <div className="mt-4 grid grid-cols-5 gap-2 text-center">
                 {[
