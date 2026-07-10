@@ -283,6 +283,14 @@ export default function PlanPage() {
         body: JSON.stringify({ profile, plan, history, previous }),
       });
       const data = await res.json();
+      // The model being offline isn't an error the user caused — it's a state (right now, it's
+      // retraining). Answer in-conversation with what still works, rather than a red banner.
+      if (res.status === 503 && data.offline) {
+        const offlineChat: ChatMessage[] = [...history, { role: "assistant", text: data.error }];
+        setChat(offlineChat);
+        saveChat(offlineChat);
+        return;
+      }
       if (!res.ok) throw new Error(data.error ?? "Something went wrong.");
       const newChat: ChatMessage[] = [
         ...history,

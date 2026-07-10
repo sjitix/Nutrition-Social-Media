@@ -104,10 +104,24 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Assistant call failed:", error);
-    const msg =
-      error instanceof Error && provider === "local"
-        ? error.message
-        : "The assistant is unavailable right now. Please try again.";
-    return NextResponse.json({ error: msg }, { status: 502 });
+    // Never leak the raw provider error to the user — LM Studio's "No models loaded. Please load a
+    // model in the developer page or use the 'lms load' command" is meaningless to them and exposes
+    // internals. Classify the common "model isn't there right now" cases and say so plainly, with a
+    // flag the client uses to point at the direct actions (rate/pin/resize/undo) that still work.
+    const raw = error instanceof Error ? error.message : String(error);
+    const offline = /no models? loaded|model_not_found|ECONNREFUSED|fetch failed|Failed to fetch|ENOTFOUND|connect|502|503|404/i.test(raw);
+    if (offline) {
+      return NextResponse.json(
+        {
+          error: "The chat assistant is offline right now. You can still rate, pin and resize meals directly, or regenerate your plan — those work without it.",
+          offline: true,
+        },
+        { status: 503 },
+      );
+    }
+    return NextResponse.json(
+      { error: "The assistant hit a snag. Please try that again." },
+      { status: 502 },
+    );
   }
 }
