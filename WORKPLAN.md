@@ -7,52 +7,49 @@
 
 ---
 
-## RESUME HERE (last updated: 2026-07-09, end of session)
+## RESUME HERE (last updated: 2026-07-10)
 
-Everything is committed and pushed. `main` is clean, `npm run test:engine` is **~192 passed, 0
-failed** (the count moves by one or two because the `explain_meal` fiber check runs once per meal
-in a freshly generated week), fuzzer clean. Nothing is half-finished.
+`main` is green: `npm run test:engine` ~239 passed / 0 failed, fuzz clean, plus `npm run
+check:recipes` and `npm run check:data`.
 
-**The one command to start tomorrow** — train v6, which is the first model that will know all
-eleven tools:
-
-```bash
-python scripts/train_lora.py          # 348 steps, ~2h on the 2070, checkpoints every 30
-```
-
-It reads `data/finetune.jsonl` (already built, 922 examples, `npm run check:data` clean). It
-checkpoints to `models/_ckpt/` and auto-resumes, so an interrupted run costs at most 30 steps.
-When it finishes:
+**v7 is training** (387 steps, ~2h, 1030 examples, all 13 tools). When it lands:
 
 ```bash
 python scripts/merge_lora.py
 python llama.cpp/convert_hf_to_gguf.py models/nutriflow-merged \
-  --outfile models/nutriflow-assistant-v6-q8_0.gguf --outtype q8_0
-cp models/nutriflow-assistant-v6-q8_0.gguf ~/.lmstudio/models/nutriflow/nutriflow-assistant-v6/
+  --outfile models/nutriflow-assistant-v7-q8_0.gguf --outtype q8_0
+cp models/nutriflow-assistant-v7-q8_0.gguf ~/.lmstudio/models/nutriflow/nutriflow-assistant-v7/
 ~/.lmstudio/bin/lms.exe unload --all
-~/.lmstudio/bin/lms.exe load nutriflow-assistant-v6 --gpu max --context-length 8192 --identifier nutriflow-v6 -y
-MODEL=nutriflow-v6 npm run eval:assistant     # 51 cases; compare against the table below
+~/.lmstudio/bin/lms.exe load nutriflow-assistant-v7 --gpu max --context-length 8192 --identifier nutriflow-v7 -y
+ENFORCE=1 MODEL=nutriflow-v7 npm run eval:assistant   # the production path
+MODEL=nutriflow-v7 npm run eval:assistant             # unconstrained stress test
 ```
 
-**Model scoreboard** (same 51 unconstrained cases, `MODEL=… npm run eval:assistant`):
+**Model scoreboard**, 56 cases. `ENFORCE=1` is what the app actually does with a local model
+(JSON-schema enforcement); the unconstrained column is a stress test.
 
-| | v4 | v5 | v6 (expected) |
+| enforced | v5 | v6 | v7 (expected) |
 |---|---|---|---|
-| toolAccuracy | 73% | **88%** | should clear 90% |
-| fieldAccuracy | 80% | **86%** | |
-| clarify/answer | 8/10 | **9/10** | |
-| failures | 20 | **13** | |
+| validJson / schemaOk | 100% | 100% | |
+| noHallucination | 100% | 100% | |
+| **toolAccuracy** | 82% | **95%** | |
+| fieldAccuracy | 86% | 86% | should clear 92% |
+| clarify/answer | 9/10 | 9/10 | |
 
-v5's remaining failures are 9 on tools it was never trained on (v6 fixes by construction) and 3
-that now have targeted data (`activity:"desk_job"` not in the enum; calories stuffed into the dish
-name; a bare `"1500"` acted on instead of asked about).
+v6 knows all 13 tools (toolAccuracy 82% -> 95%). Its remaining failures were almost all the same
+shape: **the right tool with an empty body** — `{"tool":"compute_targets"}` with no age, no weight.
+The cause was not the model. `OP()` in gen-synthetic.mjs had a hardcoded list of fields to copy
+into a label, and it had never been updated for compute_targets' body stats, log_meal's calories,
+eating_out's estimate, substitute_ingredient's `ingredient` or symptom_check's `symptom`. **Every
+one of those fields was silently dropped from every label we ever trained on.** v7 is the first
+model to see them.
 
-**What the assistant can do now (11 tools):** `update_profile`, `regenerate_week`,
-`regenerate_day`, `swap_meal`, `compute_targets`, `log_meal`, `weekly_report`, `eating_out`,
-`explain_meal`, `substitute_ingredient`, `symptom_check`.
+**The assistant's 13 tools:** `update_profile`, `regenerate_week`, `regenerate_day`, `swap_meal`,
+`compute_targets`, `log_meal`, `weekly_report`, `eating_out`, `explain_meal`,
+`substitute_ingredient`, `symptom_check`, `lock_meal`, `unlock_meal`.
 
-**Next up, in order:** `lock_meal`/`unlock_meal` (pin a meal; needs `UserProfile.lockedMeals` and a
-re-impose pass after every rebuild) → `rate_meal` → hydration → `scale_portions` → `undo`.
+**Next, in order:** `rate_meal` -> hydration (needs `UserProfile.weightKg`, which `compute_targets`
+should persist) -> `scale_portions` -> `undo`.
 
 ---
 
@@ -310,9 +307,27 @@ Each of these was discovered by doing the work, and each earned its place.
   typed `peanuts` — the placeholder in our own onboarding form — was served peanut butter, because
   the matcher only asked whether the ingredient was a plural of the token, never the reverse. Run an
   audit after every batch of new skills. My own 440-combination safety sweep had missed it.
-- **⬜ Still owed:** the ingredient lists flagged thin by the nutrient-coverage gate (Shakshuka
-  reports 244 kcal of ingredients against 430 on the card); make the fridge preference a guarantee
-  rather than a bias, the way the nutrient boost now is.
+- **✅ PAID: the recipe cards lied.** 46 of 140 recipes disagreed with their own ingredient list
+  by more than 20%, one by 63%. Since every micronutrient is derived from the ingredients while
+  the calories came from the card, the nutrients were silently wrong in proportion — a Shakshuka
+  whose ingredients covered 57% of its calories reported 57% of its real iron. 54 recipes were
+  cooked in a pan and listed no fat; five described a smaller meal than the dish is. The
+  hand-written macros are now **deleted**: calories, protein, carbs, fat and fiber are computed
+  from the ingredients. `npm run check:recipes` fails on an unpriced ingredient, low nutrient
+  coverage, an implausible meal, a keto tag over 20g of carbs, or macros that miss Atwater.
+- **✅ PAID: the fridge is a guarantee.** "Use up the salmon" was a per-slot bias that the
+  protein-diversity cap could defeat, so the test could only assert "usually". The week is now
+  built, checked, and the missing ingredient placed: 12/12. Hard rules still win — a vegan asking
+  to use up salmon is told, not served — and a pinned meal is never displaced.
+- **✅ PAID: the library couldn't feed the diets it offers.** A keto user got Turkey Cobb Salad
+  seven days running (3 keto breakfasts, ONE keto lunch, 2 keto dinners). A vegan could not reach
+  a protein target — the gap was in the food, not the solver. 28 new recipes: every diet now has
+  ≥7 options per slot, vegan protein went 100g -> 131g.
+- **⬜ Still owed:** a keto week lands at 42-74g of carbohydrate a day, because the profile's
+  carb TARGET is whatever the user's non-keto default was and the solver scales toward it. The
+  diet label must set the macro targets.
+- **⬜ Still owed:** `protein powder` in the USDA table is whey-based. There is no plant protein
+  powder in the table, which caps what a vegan breakfast can do. Add one via `build:nutrients`.
 
 ### Testing rules learned the hard way
 
@@ -324,6 +339,16 @@ Each of these was discovered by doing the work, and each earned its place.
    tears" contains "corn"; peanut butter is not dairy.
 3. **`tsc` will not catch a corrupted regex.** `\b` written through a bash heredoc becomes a
    backspace character. It compiles, and then matches nothing.
+4. **Read the summary line, not the tail.** I committed red once because the last three lines of
+   the test output were the failure list, not the score.
+5. **A green mutation test that never mutated is worse than no test.** Assert the edit landed
+   before trusting the result.
+6. **Silence is the enemy.** Three bugs this week were silent: a `slice()` that deleted every
+   clarify example, an `OP()` allowlist that dropped five fields from every training label, and a
+   trainer that skipped 1028 of 1030 examples and saved an adapter as though nothing happened.
+   None of them failed anything. All three now abort loudly.
+7. **Adversarial audit after every batch of skills.** Two audits, eleven real defects, including
+   a live allergen exposure and a pin that could break a diet. My own tests missed all of them.
 
 ---
 

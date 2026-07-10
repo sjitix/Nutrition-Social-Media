@@ -34,6 +34,22 @@ const TOOLS = [
 ];
 const MIN_PER_TOOL = 15;
 
+// Fields without which a tool call is useless. The model learned "omit what you don't mean" so
+// well that it started emitting {"tool":"compute_targets"} with no body at all — the right tool,
+// carrying nothing. A label that does the same teaches exactly that, so labels are checked here.
+const REQUIRED = {
+  compute_targets: ["age", "heightCm", "weightKg", "sex", "activity", "goal"],
+  swap_meal: ["day", "dish"],
+  log_meal: ["day", "mealType"],
+  eating_out: ["day", "mealType"],
+  explain_meal: ["day", "mealType"],
+  lock_meal: ["day", "mealType"],
+  unlock_meal: ["day", "mealType"],
+  substitute_ingredient: ["ingredient"],
+  symptom_check: ["symptom"],
+  regenerate_day: ["day"],
+};
+
 const problems = [];
 const counts = Object.fromEntries(TOOLS.map((t) => [t, 0]));
 let clarify = 0;
@@ -63,6 +79,8 @@ for (const r of rows) {
     // The model must pass the user's words through, never a nutrient it guessed itself.
     if (op.tool === "symptom_check" && Object.keys(op).some((k) => !["tool", "symptom"].includes(k)))
       problems.push(`symptom_check takes only the reported symptom: ${r.message}`);
+    for (const f of REQUIRED[op.tool] ?? [])
+      if (!(f in op)) problems.push(`${op.tool} is missing required field "${f}": ${r.message}`);
     // A pin names a SLOT. The dish it holds is whatever is in that slot; the model never picks it.
     if ((op.tool === "lock_meal" || op.tool === "unlock_meal") &&
         Object.keys(op).some((k) => !["tool", "day", "mealType"].includes(k)))

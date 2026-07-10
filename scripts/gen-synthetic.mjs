@@ -86,7 +86,8 @@ function renderSystemPrompt(profile, plan) {
     .join("\n");
   return (
     "You are the meal-plan assistant. Read the user's message and the recent conversation, then output JSON: a natural 'reply' plus a list of 'operations' (tool calls) the app runs in order. Use the conversation to resolve references ('do that', 'only Tuesday', 'make it 1500').\n\n" +
-    "TOOLS — each operation has a 'tool' and ONLY the fields that tool actually needs. OMIT every field you are not setting. Never write nulls, and never invent a value for a field the user did not mention.\n" +
+    "TOOLS — each operation has a 'tool' plus its fields. Every tool below lists what it REQUIRES: a call without those fields does nothing and wastes the user's turn. Beyond the required ones, OMIT every field you are not setting. Never write nulls, and never invent a value for a field the user did not mention.\n" +
+    "REQUIRED FIELDS: compute_targets needs age+heightCm+weightKg+sex+activity+goal. swap_meal needs day+dish. log_meal, eating_out, explain_meal, lock_meal and unlock_meal need day+mealType. substitute_ingredient needs ingredient. symptom_check needs symptom. regenerate_day needs day. If the user gave a number (calories they ate, calories they expect to eat), it goes in loggedCalories or estimatedCalories — never inside the dish name.\n" +
     "- update_profile: change a WEEK-WIDE setting and rebuild the week. Fields: diet, budget, excludeFoods, targetCalories, targetProtein, targetCarbs, targetFat, targetFiber, maxCookTime, cuisine. The plan re-solves to hit any macro target you set.\n" +
     "- regenerate_week: rebuild the whole week (optional cuisine, targetFiber, useIngredients — on-hand foods to prefer, boostNutrient).\n" +
     "- boostNutrient (on update_profile / regenerate_week / regenerate_day): favour foods rich in one nutrient — iron, calcium, magnesium, potassium, zinc, vitD, vitC, folate, b12. The app computes the real amounts from USDA data; never state a nutrient number yourself.\n" +
@@ -133,12 +134,20 @@ const PROFILE = {
 // (76% of emitted tokens were nulls) and the model leaked memorised values into slots it was
 // forced to fill: "make Tuesday vegetarian" came back with diet:null but targetFiber:30 and
 // excludeFoods:["bake","roast","oven"]. Omitting unused fields removes the opportunity.
+// Every field in OperationSchema. This list was stale for months: it never learned about
+// compute_targets' body stats, log_meal's calories, eating_out's estimate, substitute_ingredient's
+// ingredient or symptom_check's symptom — so those fields were SILENTLY DROPPED from every label
+// we ever trained on. The model emitted {"tool":"compute_targets"} with an empty body because that
+// is exactly what we taught it. check-data now fails when a required field is missing, and this
+// list is the thing that must not go stale again.
 const OP = (o) => {
   const op = { tool: o.tool };
   for (const k of [
     "day", "mealType", "dish", "cuisine", "diet", "budget",
     "targetCalories", "targetProtein", "targetCarbs", "targetFat", "targetFiber",
     "maxCookTime", "boostNutrient", "preserveMacros",
+    "age", "heightCm", "weightKg", "sex", "activity", "goal",
+    "loggedCalories", "loggedProtein", "estimatedCalories", "ingredient", "symptom",
   ]) if (o[k] !== undefined && o[k] !== null) op[k] = o[k];
   if (o.excludeFoods && o.excludeFoods.length) op.excludeFoods = o.excludeFoods;
   if (o.useIngredients && o.useIngredients.length) op.useIngredients = o.useIngredients;
@@ -583,6 +592,30 @@ for (let i = 0; i < 8; i++) {
 }
 for (const m of ["never change it", "pin that one", "keep that meal"])
   push([u(m)], "Happy to — which day, and which meal?", []);
+
+// v6 emitted the right tool with an EMPTY body, because OP() had been silently dropping these
+// fields from every label. Now that they survive, give the thin ones more surface.
+for (let i = 0; i < 16; i++) {
+  const day = rand(DAYS); const mt = rand(MEALS); const cal = rand([600, 750, 900, 1000, 1200, 1500]);
+  push([u(rand([
+    `i'm out for ${mt} on ${day}, probably ${cal} calories`,
+    `${day} ${mt} out, about ${cal} kcal i reckon`,
+    `restaurant ${mt} on ${day}, budget ${cal} calories for it`,
+    `eating out ${day} ${mt} — figure ${cal} kcal`,
+  ]))], `Done — ${cal} kcal set aside for ${day} ${mt}.`,
+    [OP({ tool: "eating_out", day, mealType: mt, estimatedCalories: cal })]);
+}
+// "i don't like X" is a standing exclusion, and v6 started answering it with nothing at all.
+const DISLIKED = ["mushrooms", "olives", "cilantro", "onions", "blue cheese", "eggplant", "beetroot", "anchovies", "coconut", "liver"];
+for (const f of DISLIKED) {
+  push([u(`i don't like ${f}`)], `Noted — no more ${f}.`, [OP({ tool: "update_profile", excludeFoods: [f] })]);
+  push([u(rand([`i hate ${f}`, `${f} are gross`, `please no ${f}`, `keep ${f} out of my plan`]))], `Done — ${f} are off the menu.`, [OP({ tool: "update_profile", excludeFoods: [f] })]);
+}
+// weekly_report: questions about how the WEEK is going
+for (const m of ["am i hitting my protein?", "am i getting enough protein?", "how's my protein looking?",
+  "am i on track for my macros?", "am i short on fiber?", "is my week balanced?", "how are my calories overall?",
+  "am i eating enough?"])
+  push([u(m)], "Here's the picture across the week:", [OP({ tool: "weekly_report" })]);
 
 // compute_targets: the model collects FACTS, the engine does the arithmetic and states the
 // numbers. The reply never contains a calorie figure the model made up.

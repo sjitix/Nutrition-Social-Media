@@ -34,7 +34,10 @@ DATA = ROOT / "data" / "finetune.jsonl"
 OUT = ROOT / "models" / "nutriflow-lora"
 
 BASE = os.environ.get("BASE_MODEL", "Qwen/Qwen2.5-1.5B-Instruct")
-MAX_LEN = int(os.environ.get("MAX_LEN", "2048"))
+# The system prompt embeds the whole week's plan, so examples run ~2100 tokens. At 2048 a single
+# extra line of prompt truncated EVERY example past its answer, the labels became all-masked, and
+# the trainer cheerfully trained on the 2 examples that still fit. Leave headroom.
+MAX_LEN = int(os.environ.get("MAX_LEN", "2560"))
 EPOCHS = float(os.environ.get("EPOCHS", "3"))
 # Cap optimizer steps — used for a short stability smoke-test before a long run.
 MAX_STEPS = int(os.environ.get("MAX_STEPS", "-1"))
@@ -95,7 +98,18 @@ with open(DATA, "r", encoding="utf-8") as f:
         else:
             skipped += 1
 
-print(f"Training examples: {len(rows)}  (skipped {skipped})")
+total = len(rows) + skipped
+print(f"Training examples: {len(rows)}  (skipped {skipped} of {total})")
+# A silent data loss is worse than a crash. v7 trained on 2 of 1030 examples and saved an adapter
+# as if nothing had happened, because the only signal was this number scrolling past.
+if total and skipped > 0.05 * total:
+    raise SystemExit(
+        f"ABORT: skipped {skipped}/{total} examples ({skipped/total:.0%}). "
+        f"Almost certainly MAX_LEN={MAX_LEN} is shorter than the prompts. "
+        f"Raise MAX_LEN or shorten the system prompt; do not train on the remainder."
+    )
+if not rows:
+    raise SystemExit("ABORT: no usable training examples.")
 ds = Dataset.from_list(rows)
 
 # ---- collator: pad input_ids/attention/labels ------------------------------
