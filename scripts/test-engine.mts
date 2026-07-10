@@ -723,7 +723,15 @@ console.log("\n--- EATING OUT (reserve calories, never invent the meal) ---");
   // booking zero protein for the restaurant. That is a false explanation.
   check("eating_out never blames the recipes for the protein it deliberately didn't book",
     !/these recipes allow|can't stretch/i.test(d.note), d.note.slice(0, 90));
-  check("eating_out tells the user what to ORDER", /order something with roughly \d+g/i.test(d.note), d.note.slice(0, 120));
+  // Which branch fires depends on whether the meals at home already cover the protein target, and
+  // after the library grew they sometimes do. Test BOTH branches on purpose instead of leaving it
+  // to the draw — this was flaky 1 run in 4.
+  const hungry = run({}, { ...BASE, proteinGrams: 210 });
+  check("eating_out tells the user what to ORDER when protein is short",
+    /order something with roughly \d+g/i.test(hungry.note), hungry.note.slice(-110));
+  const easy = run({}, { ...BASE, proteinGrams: 60 });
+  check("...and tells them to order what they like when it isn't",
+    /order whatever you fancy/i.test(easy.note), easy.note.slice(-90));
 
   // The user's own number is used verbatim — never second-guessed.
   const e = run({ estimatedCalories: 1200 });
