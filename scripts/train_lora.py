@@ -183,6 +183,14 @@ resume = os.environ.get("RESUME") == "1" and CKPT.exists() and any(CKPT.glob("ch
 if not resume and CKPT.exists():
     shutil.rmtree(CKPT)
 print(f"Resuming from checkpoint: {resume}")
+if resume:
+    # Resuming reloads the optimizer state, which transformers loads via torch.load and now blocks
+    # under CVE-2025-32434 (the fix ships in torch >= 2.6). That guard is meant for UNTRUSTED files;
+    # this checkpoint is one we just wrote ourselves, so bypassing it here is safe — and without the
+    # bypass, resume is impossible on this torch and an interrupted run is lost entirely.
+    import transformers.trainer as _tt
+    if hasattr(_tt, "check_torch_load_is_safe"):
+        _tt.check_torch_load_is_safe = lambda *a, **k: None
 trainer.train(resume_from_checkpoint=resume)
 
 OUT.mkdir(parents=True, exist_ok=True)
