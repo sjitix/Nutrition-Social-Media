@@ -1254,8 +1254,20 @@ for (let i = 0; i < ROUNDS; i++) {
   let dayDiet: Record<string, UserProfile["diet"]> = {};
   const treatDays = new Set<string>();
   const nOps = 1 + Math.floor(Math.random() * 3);
+  // Days that currently carry a pin. Random ops almost never collide a pin with a same-day diet
+  // override, which is exactly the pair that let a pinned beef bowl onto a vegan Tuesday. Steer
+  // toward it on purpose: an adversarial fuzzer aims at the seams, it doesn't wait for luck.
+  const pinnedDays: string[] = [];
   for (let k = 0; k < nOps; k++) {
-    const o = randomOp();
+    const steer = pinnedDays.length > 0 && Math.random() < 0.4;
+    const o = steer
+      ? op({ tool: "regenerate_day", day: pick(pinnedDays) as (typeof DAYS_L)[number], diet: pick(DIETS_L) })
+      : randomOp();
+    if (o.tool === "lock_meal" && o.day && !pinnedDays.includes(o.day)) pinnedDays.push(o.day);
+    if (o.tool === "unlock_meal" && o.day) {
+      const i = pinnedDays.indexOf(o.day);
+      if (i >= 0) pinnedDays.splice(i, 1);
+    }
     const res = applyOperations(profile, plan, [o]);
     plan = res.plan;
     profile = res.profile;
