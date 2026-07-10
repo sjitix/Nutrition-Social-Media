@@ -872,20 +872,36 @@ console.log("--- SUBSTITUTE INGREDIENT (safe first, honest about the cost) ---")
   // The macro delta must be arithmetic on the real portion, not a vibe. Read the note for WHICH
   // meal and WHICH ingredient it actually used — it may match "egg" where we asked for "eggs", and
   // hard-coding the meal made this test break whenever recipe selection changed.
-  const eggNote = sub("eggs").notes.join(" ");
-  const m = /instead of the (.+?) (?:of )?([a-z ]+?) in (\w+)'s (\w+)/.exec(eggNote);
-  if (m) {
-    const [, qty, ingName, dayName, slot] = m;
-    const meal = plan.days.find((d) => d.day === dayName)!.meals.find((x) => x.type === slot)!;
-    const ing = meal.ingredients.find((i) => i.name.trim().toLowerCase() === ingName.trim());
-    const g = ing ? gramsFor(ingName.trim(), ing.quantity) : null;
-    const sub0 = NUTRIENT_TABLE[ingName.trim()]?.per100g.cal ?? 0;
-    const sub1 = NUTRIENT_TABLE["egg whites"]?.per100g.cal ?? 0;
-    if (g) {
-      const dCal = Math.abs(Math.round(((sub1 - sub0) * g) / 100));
-      check("substitute_ingredient's calorie delta is computed from the real portion",
-        dCal < 15 || eggNote.includes(`${dCal} `), `note said "${eggNote.slice(0, 70)}", recomputed ${dCal} from ${qty}`);
+  //
+  // The whole block used to sit behind `if (m) { if (g) { check } }`, so on a week that happened
+  // not to contain eggs it asserted NOTHING and the suite still said "passed". Put an egg dish in
+  // the plan on purpose, then assert unconditionally: a check that can quietly not run is not a
+  // check. This is the same lesson as the boost control — prove the test looked at something.
+  {
+    const eggRecipe = RECIPES.find((r) => r.type === "breakfast" && r.ingredients.some((i) => /^eggs?$/i.test(i.name.trim())))!;
+    const eggPlan = applyOperations(BASE, plan, [op({ tool: "swap_meal", day: "Monday", mealType: "breakfast", dish: eggRecipe.name })]).plan;
+    const eggNote = applyOperations(BASE, eggPlan, [op({ tool: "substitute_ingredient", ingredient: "eggs" })]).notes.join(" ");
+
+    const m = /instead of the (.+?) (?:of )?([a-z ]+?) in (\w+)'s (\w+)/.exec(eggNote);
+    check("substitute_ingredient says which meal and which ingredient it priced", !!m, eggNote.slice(0, 100));
+
+    let ok = false;
+    let detail = "the note never named a meal";
+    if (m) {
+      const [, qty, ingName, dayName, slot] = m;
+      const meal = eggPlan.days.find((d) => d.day === dayName)?.meals.find((x) => x.type === slot);
+      const ing = meal?.ingredients.find((i) => i.name.trim().toLowerCase() === ingName.trim());
+      const g = ing ? gramsFor(ingName.trim(), ing.quantity) : null;
+      if (!g) detail = `couldn't weigh "${ingName}" from "${ing?.quantity}"`;
+      else {
+        const sub0 = NUTRIENT_TABLE[ingName.trim()]?.per100g.cal ?? 0;
+        const sub1 = NUTRIENT_TABLE["egg whites"]?.per100g.cal ?? 0;
+        const dCal = Math.abs(Math.round(((sub1 - sub0) * g) / 100));
+        ok = dCal < 15 || eggNote.includes(`${dCal} `);
+        detail = `note said "${eggNote.slice(0, 60)}", recomputed ${dCal} kcal from ${qty}`;
+      }
     }
+    check("substitute_ingredient's calorie delta is computed from the real portion", ok, detail);
   }
 }
 
@@ -1099,12 +1115,26 @@ console.log("--- EATING OUT / EXPLAIN (audit regressions) ---");
     total <= BASE.targetCalories * 1.05 || warned, `${total} kcal, warned=${warned}`);
 
   // explain_meal quoted the recipe card's fiber, not the portion actually served.
-  for (const d of plan.days)
-    for (const m of d.meals) {
-      const note = applyOperations(BASE, plan, [op({ tool: "explain_meal", day: d.day, mealType: m.type })]).notes.join(" ");
-      const claimed = /it carries (\d+)g of fiber/.exec(note)?.[1];
-      if (claimed) check(`explain_meal quotes the served fiber for ${m.name}`, Number(claimed) === m.fiberGrams, `said ${claimed}, served ${m.fiberGrams}`);
-    }
+  //
+  // This used to emit one check PER DISH of a randomly generated week, so the suite's total wobbled
+  // between runs (297 one time, 299 the next) and a genuinely deleted test would have hidden in the
+  // noise. Worse, `if (claimed) check(...)` meant a dish whose note omitted fiber was silently never
+  // checked at all. Two fixed checks now: every quote is right, and enough dishes quoted to prove
+  // the first check looked at something.
+  {
+    let quoted = 0;
+    const wrong: string[] = [];
+    for (const d of plan.days)
+      for (const m of d.meals) {
+        const note = applyOperations(BASE, plan, [op({ tool: "explain_meal", day: d.day, mealType: m.type })]).notes.join(" ");
+        const claimed = /it carries (\d+)g of fiber/.exec(note)?.[1];
+        if (!claimed) continue;
+        quoted++;
+        if (Number(claimed) !== m.fiberGrams) wrong.push(`${m.name}: said ${claimed}g, served ${m.fiberGrams}g`);
+      }
+    check("explain_meal quotes the SERVED fiber, never the recipe card's", wrong.length === 0, wrong.slice(0, 3).join("; "));
+    check("...and it quoted enough dishes for that to mean something", quoted >= 5, `${quoted} of 21 meals quoted fiber`);
+  }
 
   // Keto is a number on an ingredient, not a tag. dietTagConflicts can't see it.
   const keto: UserProfile = { ...BASE, diet: "keto" };
@@ -1256,6 +1286,100 @@ console.log("--- LOCK MEAL (a plan you can't pin isn't yours) ---");
   const backTo3 = applyOperations({ ...snackPin, mealsPerDay: 3 }, plan4, [op({ tool: "regenerate_week" })]);
   check("dropping to 3 meals evicts a pinned snack", (backTo3.profile.lockedMeals ?? []).length === 0);
   check("...and says why", /no snack/i.test(backTo3.notes.join(" ")), backTo3.notes.find((n) => /pinned/.test(n))?.slice(0, 80) ?? "");
+}
+
+
+// ---------------------------------------------------------------- scale_portions
+console.log("");
+console.log("--- SCALE PORTIONS (the one tool allowed to leave the target, and it must say so) ---");
+{
+  const plan = freshWeek(BASE);
+  const monBefore = kcal(plan.days.find((d) => d.day === "Monday")!);
+
+  const bigger = applyOperations(BASE, plan, [op({ tool: "scale_portions", day: "Monday", portionChange: "bigger" })]);
+  const monAfter = kcal(bigger.plan.days.find((d) => d.day === "Monday")!);
+  check("scale_portions bigger adds food to the day", monAfter > monBefore, `${monBefore} -> ${monAfter} kcal`);
+  check("...and leaves the other days alone", kcal(bigger.plan.days.find((d) => d.day === "Friday")!) === kcal(plan.days.find((d) => d.day === "Friday")!));
+  // It reported the WEEK's average after the user resized one DAY: "Monday now averages 2028 kcal"
+  // when Monday came to 2201. A number attached to the wrong noun is a wrong number.
+  check("...and says what THAT DAY now totals, not the week's average", (() => {
+    const note = bigger.notes.join(" ");
+    const weekAvg = Math.round(bigger.plan.days.reduce((s, d) => s + kcal(d), 0) / 7);
+    return note.includes(String(monAfter)) && !note.includes(String(weekAvg));
+  })(), bigger.notes.join(" ").slice(0, 100));
+  check("scale_portions changes the plan", planWasChanged([op({ tool: "scale_portions", portionChange: "bigger" })]));
+
+  const smaller = applyOperations(BASE, plan, [op({ tool: "scale_portions", day: "Monday", portionChange: "smaller" })]);
+  check("scale_portions smaller takes food away", kcal(smaller.plan.days.find((d) => d.day === "Monday")!) < monBefore);
+
+  // one meal only
+  const tueBefore = plan.days.find((d) => d.day === "Tuesday")!;
+  const oneMeal = applyOperations(BASE, plan, [op({ tool: "scale_portions", day: "Tuesday", mealType: "dinner", portionChange: "much_bigger" })]);
+  const tueAfter = oneMeal.plan.days.find((d) => d.day === "Tuesday")!;
+  check("scaling one meal moves only that meal", (() => {
+    const changed = tueAfter.meals.filter((m, i) => m.calories !== tueBefore.meals[i].calories);
+    return changed.length === 1 && changed[0].type === "dinner";
+  })());
+  check("...and the ingredient quantities move with it", (() => {
+    const b = tueBefore.meals.find((m) => m.type === "dinner")!;
+    const a = tueAfter.meals.find((m) => m.type === "dinner")!;
+    return JSON.stringify(a.ingredients) !== JSON.stringify(b.ingredients);
+  })());
+
+  // The whole week, and the honest advice that goes with it.
+  const week = applyOperations(BASE, plan, [op({ tool: "scale_portions", portionChange: "bigger" })]);
+  check("scaling the week touches every day", week.plan.days.every((d, i) => kcal(d) > kcal(plan.days[i])));
+  check("...and says a lasting change belongs in the targets", /work out my macros/i.test(week.notes.join(" ")));
+
+  // No direction -> ask, don't guess.
+  const vague = applyOperations(BASE, plan, [op({ tool: "scale_portions", day: "Monday" })]);
+  check("scale_portions with no direction asks", /bigger or smaller/i.test(vague.notes.join(" ")) && JSON.stringify(vague.plan) === JSON.stringify(plan));
+
+  // SAFETY: "much smaller", repeated, must not become a starvation diet one polite step at a time.
+  {
+    let p: UserProfile = { ...BASE };
+    let cur = freshWeek(p);
+    let lastNotes: string[] = [];
+    for (let i = 0; i < 8; i++) {
+      const r = applyOperations(p, cur, [op({ tool: "scale_portions", portionChange: "much_smaller" })]);
+      cur = r.plan; p = r.profile; lastNotes = r.notes;
+    }
+    const worst = Math.min(...cur.days.map(kcal));
+    check("no amount of 'much smaller' takes a day under the calorie floor", worst >= 1200, `worst day ${worst} kcal`);
+    check("...and it refuses out loud rather than quietly stopping", /1200 kcal|nutrients you need/i.test(lastNotes.join(" ")), lastNotes.join(" ").slice(0, 110));
+  }
+
+  // A user whose target already sits near the floor is refused the FIRST time, and told why.
+  {
+    const lean: UserProfile = { ...BASE, targetCalories: 1300, bodyStats: { sex: "female" } };
+    const leanPlan = freshWeek(lean);
+    const r = applyOperations(lean, leanPlan, [op({ tool: "scale_portions", portionChange: "much_smaller" })]);
+    check("a day already near the floor is not made smaller", JSON.stringify(r.plan) === JSON.stringify(leanPlan));
+    check("...and the refusal offers to redo the targets properly", /redo your targets/i.test(r.notes.join(" ")), r.notes.join(" ").slice(0, 110));
+  }
+
+  // Portions stay realistic no matter how often you ask.
+  {
+    const p: UserProfile = { ...BASE };
+    let cur = freshWeek(p);
+    for (let i = 0; i < 6; i++) cur = applyOperations(p, cur, [op({ tool: "scale_portions", portionChange: "much_bigger" })]).plan;
+    const bad = cur.days.flatMap((d) => d.meals).filter((m) => {
+      const base = RECIPES.find((r) => r.name === m.name);
+      return base && m.calories / base.calories > 1.82;
+    });
+    check("no amount of 'much bigger' breaks the 1.8x portion clamp (I6)", bad.length === 0, `${bad.length} meals over the clamp`);
+    check("...and it says the portions stopped growing", (() => {
+      const r = applyOperations(p, cur, [op({ tool: "scale_portions", portionChange: "much_bigger" })]);
+      return /as big as a sensible portion goes/i.test(r.notes.join(" "));
+    })());
+  }
+
+  // A restaurant reserve has no recipe behind it, so there is nothing to divide.
+  {
+    const out = applyOperations(BASE, plan, [op({ tool: "eating_out", day: "Friday", mealType: "dinner", estimatedCalories: 900 })]);
+    const r = applyOperations(out.profile, out.plan, [op({ tool: "scale_portions", day: "Friday", mealType: "dinner", portionChange: "smaller" })]);
+    check("a meal with no recipe behind it can't be resized, and we say so", /isn't a recipe|aren't recipes/i.test(r.notes.join(" ")), r.notes.join(" ").slice(0, 110));
+  }
 }
 
 
@@ -1568,6 +1692,15 @@ function randomOp(): Operation {
   // nothing, and I3 (every day has mealsPerDay meals) is what catches it if the ban fails to relax.
   if (roll < 0.15)
     return op({ tool: "rate_meal", day: pick(DAYS_L), mealType: pick(MEALS_L), rating: pick([1, 1, 1, 1, 2, 3, 4, 5]) });
+  // Portions compound across a sequence. I6 (every portion within [0.6, 1.8] of its recipe) is the
+  // invariant that catches a scale that forgets to clamp against the BASE rather than the current.
+  if (roll < 0.21)
+    return op({
+      tool: "scale_portions",
+      day: Math.random() < 0.6 ? pick(DAYS_L) : null,
+      mealType: Math.random() < 0.3 ? pick(MEALS_L) : null,
+      portionChange: pick(["much_smaller", "smaller", "bigger", "much_bigger"] as const),
+    });
   if (roll < 0.38)
     return op({ tool: "swap_meal", day: pick(DAYS_L), mealType: pick(MEALS_L), dish: pick(DISHES_L), preserveMacros: Math.random() < 0.3 ? false : null });
   if (roll < 0.55) return op({ tool: "regenerate_day", day: pick(DAYS_L), diet: Math.random() < 0.4 ? pick(DIETS_L) : null });
@@ -1626,6 +1759,13 @@ for (let i = 0; i < ROUNDS; i++) {
     if (o.tool === "swap_meal" && o.preserveMacros === false && o.day && swapped) treatDays.add(o.day);
     else if (o.day && o.tool === "regenerate_day") treatDays.delete(o.day);
     else if (o.day && swapped) treatDays.delete(o.day);
+    // scale_portions is the one tool whose whole purpose is to leave the calorie target: the user
+    // said they were hungry. The day it touched is off-target BY DESIGN, so I5 must not judge it.
+    // Every other invariant still applies — the portion clamp (I6) especially.
+    if (o.tool === "scale_portions" && o.portionChange) {
+      if (o.day) treatDays.add(o.day);
+      else for (const d of DAYS_L) treatDays.add(d);
+    }
     if (o.tool === "regenerate_week" || o.tool === "update_profile") {
       treatDays.clear();
       dayDiet = {};

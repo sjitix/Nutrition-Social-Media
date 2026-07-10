@@ -79,6 +79,7 @@ export const OperationSchema = z.object({
     "unlock_meal", // "you can change Sunday again"
     "rate_meal", // "that salmon was incredible" / "hated the tofu" -> learn the taste
     "hydration", // "how much water should i drink?" -> engine computes it from body weight
+    "scale_portions", // "i'm still hungry" / "that's way too much food" -> resize the servings
     "answer", // no change — just answering a question
   ]),
   day: z.enum(DAYS).nullable().optional(),
@@ -126,6 +127,10 @@ export const OperationSchema = z.object({
   // rate_meal: 1 = never serve this again, 5 = loved it. The model maps the user's words to the
   // number ("that was incredible" -> 5, "it was fine" -> 3); the engine decides what to do with it.
   rating: z.number().int().min(1).max(5).nullable().optional(),
+  // scale_portions: a DIRECTION, never a factor. The model reads "I'm starving" and says
+  // "much_bigger"; the engine decides that means 1.25x, clamps the portion, and checks the result
+  // against the calorie floor. The model does no arithmetic, ever.
+  portionChange: z.enum(["much_smaller", "smaller", "bigger", "much_bigger"]).nullable().optional(),
   // LLM-controlled intent: when swapping/regenerating, should the day stay on the
   // user's macro targets (the engine rebalances the other meals to hold protein/
   // calories/etc.)? Default = yes (the nutritionist default). The model sets this

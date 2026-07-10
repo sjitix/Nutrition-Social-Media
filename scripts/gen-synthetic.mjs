@@ -90,7 +90,7 @@ function renderSystemPrompt(profile, plan) {
   return (
     "You are the meal-plan assistant. Read the user's message and the recent conversation, then output JSON: a natural 'reply' plus a list of 'operations' (tool calls) the app runs in order. Use the conversation to resolve references ('do that', 'only Tuesday', 'make it 1500').\n\n" +
     "TOOLS — each operation has a 'tool' plus its fields. Every tool below lists what it REQUIRES: a call without those fields does nothing and wastes the user's turn. Beyond the required ones, OMIT every field you are not setting. Never write nulls, and never invent a value for a field the user did not mention.\n" +
-    "REQUIRED FIELDS: compute_targets needs age+heightCm+weightKg+sex+activity+goal. swap_meal needs day+dish. log_meal, eating_out, explain_meal, lock_meal and unlock_meal need day+mealType. substitute_ingredient needs ingredient. symptom_check needs symptom. regenerate_day needs day. rate_meal needs rating, plus dish or day+mealType. hydration needs nothing unless the user states a weight or activity. If the user gave a number (calories they ate, calories they expect to eat), it goes in loggedCalories or estimatedCalories — never inside the dish name.\n" +
+    "REQUIRED FIELDS: compute_targets needs age+heightCm+weightKg+sex+activity+goal. swap_meal needs day+dish. log_meal, eating_out, explain_meal, lock_meal and unlock_meal need day+mealType. substitute_ingredient needs ingredient. symptom_check needs symptom. regenerate_day needs day. rate_meal needs rating, plus dish or day+mealType. hydration needs nothing unless the user states a weight or activity. scale_portions needs portionChange. If the user gave a number (calories they ate, calories they expect to eat), it goes in loggedCalories or estimatedCalories — never inside the dish name.\n" +
     "- update_profile: change a WEEK-WIDE setting and rebuild the week. Fields: diet, budget, excludeFoods, targetCalories, targetProtein, targetCarbs, targetFat, targetFiber, maxCookTime, cuisine. The plan re-solves to hit any macro target you set.\n" +
     "- regenerate_week: rebuild the whole week (optional cuisine, targetFiber, useIngredients — on-hand foods to prefer, boostNutrient).\n" +
     "- boostNutrient (on update_profile / regenerate_week / regenerate_day): favour foods rich in one nutrient — iron, calcium, magnesium, potassium, zinc, vitD, vitC, folate, b12. The app computes the real amounts from USDA data; never state a nutrient number yourself.\n" +
@@ -105,6 +105,7 @@ function renderSystemPrompt(profile, plan) {
     "- unlock_meal: undo a pin. Requires day + mealType.\n" +
     "- rate_meal: what the user THOUGHT of a dish ('that salmon was incredible', 'the tofu was awful, never again'). Requires rating (1-5) plus either dish, or day + mealType. hated/never again = 1, didn't like = 2, ok/fine = 3, liked = 4, loved = 5. Contrast with 'i don't like mushrooms' (an ingredient, forever -> update_profile) and log_meal (what they ATE).\n" +
     "- hydration: the user asks about water or fluid ('how much water should i drink?'). Changes nothing. Pass weightKg / activity only if the message gives them. The app computes the litres; never state a figure yourself.\n" +
+    "- scale_portions: the user wants MORE or LESS food, not different food ('i'm still hungry', 'too much food'). Requires portionChange: much_smaller | smaller | bigger | much_bigger. day / mealType only if named; no day means the whole week. Never pass a number.\n" +
     "- answer: no change; just answering a question.\n\n" +
     "Rules:\n" +
     "- Only a question -> operations: []. Put the answer in reply. For facts use the EXACT numbers below; the AVERAGES line is already per-day.\n" +
@@ -153,6 +154,7 @@ const OP = (o) => {
     "maxCookTime", "boostNutrient", "preserveMacros",
     "age", "heightCm", "weightKg", "sex", "activity", "goal",
     "loggedCalories", "loggedProtein", "estimatedCalories", "ingredient", "symptom", "rating",
+    "portionChange",
   ]) if (o[k] !== undefined && o[k] !== null) op[k] = o[k];
   if (o.excludeFoods && o.excludeFoods.length) op.excludeFoods = o.excludeFoods;
   if (o.useIngredients && o.useIngredients.length) op.useIngredients = o.useIngredients;
@@ -684,6 +686,40 @@ for (let i = 0; i < 14; i++) {
     `Noted — I've set calories aside for ${day} ${mt} and lightened the rest of that day.`,
     [OP({ tool: "eating_out", day, mealType: mt })]);
 }
+// scale_portions — MORE food or LESS food, never different food. The model picks a direction; the
+// engine picks the factor, clamps the portion, and checks it against the calorie floor. Emitting a
+// number here would be the model doing arithmetic, which it must never do.
+const HUNGRY = ["i'm still hungry", "these portions are tiny", "i'm starving on this", "there isn't enough food"];
+const STUFFED = ["that's way too much food", "i can't finish these portions", "the servings are huge", "it's too much"];
+for (let i = 0; i < 6; i++) {
+  const day = rand(DAYS); const mt = rand(MEALS);
+  push([u(`${rand(HUNGRY)} on ${day}`)], "Done — bigger portions that day.",
+    [OP({ tool: "scale_portions", day, portionChange: "bigger" })]);
+  push([u(`${rand(STUFFED)} on ${day}`)], "Done — smaller portions that day.",
+    [OP({ tool: "scale_portions", day, portionChange: "smaller" })]);
+  push([u(rand([`make ${day}'s portions bigger`, `bigger servings on ${day}`, `more food on ${day}`]))],
+    "Done — bigger portions that day.", [OP({ tool: "scale_portions", day, portionChange: "bigger" })]);
+  push([u(rand([`${day}'s ${mt} is too big`, `smaller ${mt} on ${day}`, `cut down ${day}'s ${mt}`]))],
+    "Done — smaller portion there.", [OP({ tool: "scale_portions", day, mealType: mt, portionChange: "smaller" })]);
+  push([u(rand([`${day}'s ${mt} is nowhere near enough`, `bigger ${mt} on ${day}`, `i need more at ${mt} on ${day}`]))],
+    "Done — bigger portion there.", [OP({ tool: "scale_portions", day, mealType: mt, portionChange: "bigger" })]);
+}
+// No day named -> the whole week. And the extremes map to much_bigger / much_smaller.
+for (const m of ["i'm still hungry", "these portions are tiny", "there isn't enough food", "i need bigger portions", "everything's too small"])
+  push([u(m)], "Done — bigger portions all week.", [OP({ tool: "scale_portions", portionChange: "bigger" })]);
+for (const m of ["that's way too much food", "the servings are huge", "i can't finish any of it", "smaller portions please", "it's all too much"])
+  push([u(m)], "Done — smaller portions all week.", [OP({ tool: "scale_portions", portionChange: "smaller" })]);
+for (const m of ["i'm absolutely starving on this", "these portions are nowhere near enough", "way way too little food"])
+  push([u(m)], "Done — much bigger portions.", [OP({ tool: "scale_portions", portionChange: "much_bigger" })]);
+for (const m of ["this is way way too much food", "i'm stuffed after every single meal", "the portions are enormous"])
+  push([u(m)], "Done — much smaller portions.", [OP({ tool: "scale_portions", portionChange: "much_smaller" })]);
+// CONTRAST: a permanent change to how much you SHOULD eat is a target, not a portion.
+for (const [m, kc] of [["set my calories to 2500", 2500], ["i should be eating 1800 a day", 1800]])
+  push([u(m)], "Updated — I've rebuilt the week around that.", [OP({ tool: "update_profile", targetCalories: kc })]);
+// CONTRAST: "more food" is not "different food".
+for (const m of ["i don't want this dinner", "give me something else on friday"])
+  push([u(m)], "Sure — what would you like instead?", []);
+
 // hydration — a question about water, never about food. The app knows the user's weight if they
 // ever worked out their targets, so the DEFAULT call carries no fields at all. The model's only
 // job is to notice a weight or an activity level when the sentence happens to contain one.

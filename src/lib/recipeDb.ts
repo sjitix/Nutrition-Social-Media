@@ -11,7 +11,10 @@ import {
   type MealRating,
 } from "./types";
 import { haystackBlocked, parseExclusionTokens, dietTagConflicts, wordMatches } from "./exclusions";
-import { computeTargets, explainTargets, hydrationTarget, explainHydration } from "./targets";
+import {
+  computeTargets, explainTargets, hydrationTarget, explainHydration,
+  CALORIE_FLOOR, DEFAULT_CALORIE_FLOOR,
+} from "./targets";
 import { SUBSTITUTES, INGREDIENT_ALIASES } from "./substitutions";
 import { SYMPTOMS, URGENT_FLAGS, CRISIS_FLAGS, PHRASE_NOISE } from "./symptoms";
 import { NUTRIENT_TABLE } from "./nutrientTable.generated";
@@ -4248,6 +4251,124 @@ function namesOnOtherDays(plan: WeekPlan, day: DayPlan["day"], profile?: UserPro
 }
 
 /**
+ * "I'm still hungry" / "that's way too much food".
+ *
+ * The model says which direction; these are the factors. Deliberately gentle — a nutritionist
+ * nudges a portion, they don't halve it — and repeatable, because the clamp against the BASE
+ * recipe means saying "smaller" five times saturates at 0.6x rather than compounding to nothing.
+ */
+const PORTION_FACTOR: Record<NonNullable<Operation["portionChange"]>, number> = {
+  much_smaller: 0.75,
+  smaller: 0.9,
+  bigger: 1.1,
+  much_bigger: 1.25,
+};
+
+/**
+ * Resize the servings in a meal, a day, or the whole week.
+ *
+ * This is the one tool that deliberately moves a day OFF its calorie target: that is what the user
+ * asked for. So it owes them three honest sentences — what the day now totals, what could not be
+ * moved, and (for a change to the whole week) that a lasting change belongs in the target, not in
+ * the portions.
+ *
+ * Two things it will not do. It will not rescale a meal with no recipe behind it — a restaurant
+ * reserve, or something the user logged as eaten — because there are no ingredients to divide. And
+ * it will not take a day below the calorie floor, however politely it's asked: "make it all much
+ * smaller", repeated, must not become a starvation diet one step at a time.
+ */
+function scalePortions(
+  p: UserProfile,
+  plan: WeekPlan,
+  change: NonNullable<Operation["portionChange"]>,
+  day: string | undefined,
+  mealType: string | undefined,
+  notes: string[],
+): WeekPlan {
+  const factor = PORTION_FACTOR[change];
+  const down = factor < 1;
+  const floor = p.bodyStats?.sex ? CALORIE_FLOOR[p.bodyStats.sex] : DEFAULT_CALORIE_FLOOR;
+
+  const inScope = (d: DayPlan, m: Meal) =>
+    (!day || d.day === day) && (!mealType || m.type === mealType);
+
+  const unscalable = new Set<string>();
+  let atLimit = 0;
+  const blockedByFloor: string[] = [];
+
+  const days = plan.days.map((d) => {
+    if (day && d.day !== day) return d;
+
+    const meals = d.meals.map((m) => {
+      if (!inScope(d, m)) return m;
+      const base = baseRecipeOf(m);
+      if (!base) {
+        unscalable.add(m.name);
+        return m;
+      }
+      const current = m.calories / base.calories;
+      const wanted = current * factor;
+      const clamped = clampScale(wanted);
+      if (Math.abs(clamped - current) < 0.02) {
+        atLimit++;
+        return m;
+      }
+      return { ...toMeal(scaleRecipeByFactor(base, clamped)), type: m.type };
+    });
+
+    // The floor is judged on the DAY, after everything in scope has moved. A single small meal is
+    // fine; a day that adds up to less than someone can get their nutrients from is not.
+    const total = meals.reduce((s, m) => s + m.calories, 0);
+    if (down && total < floor) {
+      blockedByFloor.push(d.day);
+      return d; // leave the day exactly as it was
+    }
+    return { ...d, meals };
+  });
+
+  const scaled: WeekPlan = { ...plan, days };
+
+  // Four scopes: one meal, one day, one slot across the week, or everything.
+  const scope =
+    day && mealType ? `${day} ${mealType}` : day ? day : mealType ? `every ${mealType}` : "the week";
+  const word = change.replace("_", " ");
+  if (blockedByFloor.length === plan.days.length || (day && blockedByFloor.length)) {
+    notes.push(
+      `I've left ${scope} as it is. Going smaller would drop ${blockedByFloor.length > 1 ? "those days" : "that day"} under ${floor} kcal, and below that it's very hard to get the nutrients you need. If you want to eat less overall, let's redo your targets properly — tell me your age, height, weight, sex and how active you are.`,
+    );
+    return plan;
+  }
+
+  // The number has to match the scope. Reporting the week's average after the user resized one
+  // day told them "Monday now averages 2028 kcal" when Monday came to 2201.
+  const dayTotal = (d: DayPlan) => d.meals.reduce((t, m) => t + m.calories, 0);
+  let note =
+    day && mealType ? `Made ${scope} ${word}.`
+    : day ? `Made ${day}'s meals ${word}.`
+    : mealType ? `Made ${scope} ${word}.`
+    : `Made every meal ${word}.`;
+  if (day) {
+    const total = dayTotal(scaled.days.find((d) => d.day === day)!);
+    note += ` ${day} now comes to ${total} kcal against your ${p.targetCalories} kcal target.`;
+  } else {
+    const avg = Math.round(scaled.days.reduce((s, d) => s + dayTotal(d), 0) / scaled.days.length);
+    note += ` Your week now averages ${avg} kcal a day against your ${p.targetCalories} kcal target.`;
+  }
+
+  if (blockedByFloor.length)
+    note += ` I left ${listPhrase(blockedByFloor)} alone — going smaller would put ${blockedByFloor.length > 1 ? "them" : "it"} under ${floor} kcal.`;
+  if (atLimit)
+    note += ` ${atLimit === 1 ? "One meal was" : `${atLimit} meals were`} already as ${down ? "small" : "big"} as a sensible portion goes, so ${atLimit === 1 ? "it" : "they"} didn't move.`;
+  if (unscalable.size)
+    note += ` I couldn't resize ${listPhrase([...unscalable])} — ${unscalable.size > 1 ? "they aren't recipes" : "that isn't a recipe"} of mine.`;
+  if (!day)
+    note += ` If this is how you want to eat from now on, it belongs in your targets rather than your portions — say "work out my macros" and I'll set them properly.`;
+
+  notes.push(note);
+  return scaled;
+}
+
+/**
  * Resolve the dish a rating is about: the name the user said, or whatever is in the slot they
  * named. Returns null when neither identifies a real recipe.
  *
@@ -4660,6 +4781,14 @@ export function applyOperations(
         p.lockedMeals = (p.lockedMeals ?? []).filter((l) => !(l.day === op.day && l.mealType === op.mealType));
         profileChanged = true;
         notes.push(`Unpinned ${had.name} — I can change ${op.day} ${op.mealType} again.`);
+        break;
+      }
+      case "scale_portions": {
+        if (!op.portionChange) {
+          notes.push("Would you like the portions bigger or smaller?");
+          break;
+        }
+        curPlan = scalePortions(p, curPlan, op.portionChange, op.day ?? undefined, op.mealType ?? undefined, notes);
         break;
       }
       case "hydration": {

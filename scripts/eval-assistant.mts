@@ -38,13 +38,14 @@ const BASE_URL = process.env.BASE_URL ?? env.LOCAL_AI_URL ?? "http://localhost:1
 const MODEL = process.env.MODEL ?? env.LOCAL_AI_MODEL ?? "nutriflow-assistant";
 
 const TOOLS = new Set(["update_profile", "regenerate_week", "regenerate_day", "swap_meal", "compute_targets",
-  "log_meal", "weekly_report", "eating_out", "explain_meal", "substitute_ingredient", "symptom_check", "lock_meal", "unlock_meal", "rate_meal", "hydration", "answer"]);
+  "log_meal", "weekly_report", "eating_out", "explain_meal", "substitute_ingredient", "symptom_check", "lock_meal", "unlock_meal", "rate_meal", "hydration",
+  "scale_portions", "answer"]);
 const FIELDS = new Set([
   "tool", "day", "mealType", "dish", "cuisine", "diet", "budget", "excludeFoods",
   "targetCalories", "targetProtein", "targetCarbs", "targetFat", "targetFiber",
   "maxCookTime", "preserveMacros", "useIngredients", "boostNutrient",
   "age", "heightCm", "weightKg", "sex", "activity", "goal",
-  "loggedCalories", "loggedProtein", "estimatedCalories", "ingredient", "symptom", "rating",
+  "loggedCalories", "loggedProtein", "estimatedCalories", "ingredient", "symptom", "rating", "portionChange",
 ]);
 
 interface Case {
@@ -116,6 +117,7 @@ const RESPONSE_FORMAT = {
               ingredient: { type: ["string", "null"] },
               symptom: { type: ["string", "null"] },
               rating: { type: ["number", "null"] },
+              portionChange: { type: ["string", "null"] },
             },
             required: ["tool"],
           },

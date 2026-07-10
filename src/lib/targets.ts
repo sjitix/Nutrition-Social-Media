@@ -42,8 +42,14 @@ const ACTIVITY_FACTOR: Record<Activity, number> = {
   very_active: 1.9, // physical job or twice-daily training
 };
 
-/** Lowest daily intake we will ever plan for. Below this you cannot eat enough nutrients. */
-const CALORIE_FLOOR: Record<Sex, number> = { female: 1200, male: 1500 };
+/**
+ * Lowest daily intake we will ever plan for. Below this you cannot eat enough nutrients.
+ * Exported because scale_portions has to honour the same floor: "make it all much smaller",
+ * said enough times, must not walk someone into a starvation diet one polite step at a time.
+ */
+export const CALORIE_FLOOR: Record<Sex, number> = { female: 1200, male: 1500 };
+/** When we don't know someone's sex, use the lower floor — under-restricting is the safe error. */
+export const DEFAULT_CALORIE_FLOOR = CALORIE_FLOOR.female;
 
 /** Mifflin-St Jeor resting metabolic rate. */
 export function bmr({ age, heightCm, weightKg, sex }: Pick<TargetInput, "age" | "heightCm" | "weightKg" | "sex">): number {

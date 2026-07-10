@@ -36,12 +36,13 @@ const FIELDS = new Set([
   "useIngredients", "targetCalories", "targetProtein", "targetCarbs", "targetFat",
   "targetFiber", "boostNutrient", "maxCookTime", "age", "heightCm", "weightKg", "sex",
   "activity", "goal", "loggedCalories", "loggedProtein", "preserveMacros", "estimatedCalories",
-  "ingredient", "symptom", "rating",
+  "ingredient", "symptom", "rating", "portionChange",
 ]);
 const TOOLS = [
   "update_profile", "regenerate_week", "regenerate_day", "swap_meal",
   "compute_targets", "log_meal", "weekly_report", "eating_out", "explain_meal",
-  "substitute_ingredient", "symptom_check", "lock_meal", "unlock_meal", "rate_meal", "hydration", "answer",
+  "substitute_ingredient", "symptom_check", "lock_meal", "unlock_meal", "rate_meal", "hydration",
+  "scale_portions", "answer",
 ];
 const MIN_PER_TOOL = 15;
 
@@ -60,6 +61,7 @@ const REQUIRED = {
   symptom_check: ["symptom"],
   regenerate_day: ["day"],
   rate_meal: ["rating"],
+  scale_portions: ["portionChange"],
 };
 
 const problems = [];
@@ -97,6 +99,9 @@ for (const r of rows) {
     if ((op.tool === "lock_meal" || op.tool === "unlock_meal") &&
         Object.keys(op).some((k) => !["tool", "day", "mealType"].includes(k)))
       problems.push(`${op.tool} takes only day+mealType: ${r.message}`);
+    // More food or less food -- never different food, and never a number the model made up.
+    if (op.tool === "scale_portions" && Object.keys(op).some((k) => !["tool", "day", "mealType", "portionChange"].includes(k)))
+      problems.push(`scale_portions takes only day+mealType+portionChange: ${r.message}`);
     // Water is not food. hydration takes a body, never a meal.
     if (op.tool === "hydration" && Object.keys(op).some((k) => !["tool", "weightKg", "activity"].includes(k)))
       problems.push(`hydration takes only weightKg + activity: ${r.message}`);
