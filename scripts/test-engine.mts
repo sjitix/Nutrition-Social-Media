@@ -1250,6 +1250,39 @@ console.log("--- LOCK MEAL (a plan you can't pin isn't yours) ---");
   check("...and says why", /no snack/i.test(backTo3.notes.join(" ")), backTo3.notes.find((n) => /pinned/.test(n))?.slice(0, 80) ?? "");
 }
 
+
+// ---------------------------------------------------------------- library capability
+console.log("");
+console.log("--- RECIPE LIBRARY: can it actually serve each diet? ---");
+{
+  // The engine reported a 50g protein shortfall to every vegan, every week — honestly, and
+  // uselessly. The gap was in the food, not the solver: the vegan recipes leaned on lentils and
+  // chickpeas (~0.07g protein per kcal) while tofu, tempeh, edamame and protein powder sat unused
+  // in the same USDA table. This asserts the library can still feed each diet.
+  const meanProtein = (diet: UserProfile["diet"], runs = 6) => {
+    const prof: UserProfile = { ...BASE, diet };
+    let sum = 0;
+    for (let i = 0; i < runs; i++) {
+      const wk = freshWeek(prof);
+      sum += wk.days.reduce((s, d) => s + prot(d), 0) / wk.days.length;
+    }
+    return sum / runs;
+  };
+  const targets: [UserProfile["diet"], number][] = [["none", 145], ["vegetarian", 130], ["vegan", 120]];
+  for (const [diet, floor] of targets) {
+    const got = meanProtein(diet);
+    check(`a ${diet} week reaches ${floor}g protein`, got >= floor, `${Math.round(got)}g against a ${BASE.proteinGrams}g target`);
+  }
+
+  // Every diet needs enough recipes to fill a week without repeating a dish.
+  for (const diet of ["vegan", "vegetarian", "keto", "mediterranean"] as const) {
+    for (const type of ["breakfast", "lunch", "dinner"] as const) {
+      const n = RECIPES.filter((r) => !r.treatOnly && r.type === type && dietOk(r.dietTags, diet)).length;
+      check(`${diet}: at least 7 ${type}s so a week never repeats`, n >= 7, `${n} available`);
+    }
+  }
+}
+
 // ---------------------------------------------------------------- 3. fuzz
 console.log("\n--- FUZZ (random op sequences, invariants after each) ---");
 const DAYS_L = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;

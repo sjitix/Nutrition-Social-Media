@@ -25,6 +25,8 @@ import { gramsFor, microsForIngredients } from "@/lib/nutrients";
 const FLOOR: Record<string, number> = { breakfast: 250, lunch: 340, dinner: 380, snack: 90 };
 const MIN_COVERAGE = 0.6;
 const ATWATER_TOLERANCE = 0.2;
+// A "keto" tag is a claim about carbohydrate, and the app filters entire weeks on it. Verify it.
+const KETO_MAX_CARBS = 20;
 
 const problems: string[] = [];
 let worstAtwater = 0;
@@ -43,6 +45,9 @@ for (const r of RECIPES) {
   const floor = FLOOR[r.type] ?? 0;
   if (r.calories < floor)
     problems.push(`${r.name}: ${r.calories} kcal is not a ${r.type} (floor ${floor}) — an ingredient is missing`);
+
+  if (r.dietTags.includes("keto") && r.carbsGrams > KETO_MAX_CARBS)
+    problems.push(`${r.name}: tagged keto but ${r.carbsGrams}g carbs (max ${KETO_MAX_CARBS})`);
 
   const atwater = r.proteinGrams * 4 + r.carbsGrams * 4 + r.fatGrams * 9;
   const miss = r.calories > 0 ? Math.abs(atwater - r.calories) / r.calories : 0;
