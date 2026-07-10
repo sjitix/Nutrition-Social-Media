@@ -26,7 +26,8 @@ yet; the user was using the site. When clear:
 ```bash
 # 1. free the GPU (this stops the live site's AI)
 ~/.lmstudio/bin/lms.exe unload --all
-# 2. train (~2.7h, 387 steps; watch train-v8.log for "skipped N of 1282" — abort if N is large)
+# 2. train (~4h, 483 steps for 1282 examples; watch: npm run train:status, or train-v8.log for
+#    "skipped N of 1282" — abort if N is large). ALREADY RUNNING as of this session.
 .venv-ft/Scripts/python.exe scripts/train_lora.py 2>&1 | tee train-v8.log
 # 3. archive the adapter, merge, convert
 cp -r models/nutriflow-lora models/nutriflow-lora-v8
