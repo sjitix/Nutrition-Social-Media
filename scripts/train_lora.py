@@ -16,6 +16,7 @@ separate step (scripts/merge_and_gguf.py) so this stays a clean training run.
 
 import json
 import os
+import shutil
 from pathlib import Path
 
 import torch
@@ -172,7 +173,15 @@ args = TrainingArguments(
 )
 
 trainer = Trainer(model=model, args=args, train_dataset=ds, data_collator=collate)
-resume = CKPT.exists() and any(CKPT.glob("checkpoint-*"))
+
+# Resume is for crash recovery WITHIN one run — never across versions. Every vN is a fresh run on
+# changed data, so inheriting the previous run's checkpoints is wrong: at best it wastes the run, at
+# worst (since transformers blocked torch.load of optimizer state under CVE-2025-32434) it crashes
+# on start. So a fresh run CLEARS the checkpoint dir; pass RESUME=1 only to recover an interrupted
+# run of the SAME data.
+resume = os.environ.get("RESUME") == "1" and CKPT.exists() and any(CKPT.glob("checkpoint-*"))
+if not resume and CKPT.exists():
+    shutil.rmtree(CKPT)
 print(f"Resuming from checkpoint: {resume}")
 trainer.train(resume_from_checkpoint=resume)
 
