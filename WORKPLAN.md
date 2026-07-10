@@ -403,11 +403,14 @@ Each of these was discovered by doing the work, and each earned its place.
   seven days running (3 keto breakfasts, ONE keto lunch, 2 keto dinners). A vegan could not reach
   a protein target — the gap was in the food, not the solver. 28 new recipes: every diet now has
   ≥7 options per slot, vegan protein went 100g -> 131g.
-- **⬜ Still owed:** a keto week lands at 42-74g of carbohydrate a day, because the profile's
-  carb TARGET is whatever the user's non-keto default was and the solver scales toward it. The
-  diet label must set the macro targets.
-- **⬜ Still owed:** `protein powder` in the USDA table is whey-based. There is no plant protein
-  powder in the table, which caps what a vegan breakfast can do. Add one via `build:nutrients`.
+- **✅ PAID: keto sets its own macros.** `dayTargetMacros` gives keto `KETO_NET_CARB_TARGET = 30`
+  and lets fat absorb the freed calories; the profile is left untouched. It turned out the weeks
+  were already ketogenic (51g total carbs − 21g fiber = 30g NET) — the measurement was wrong, not
+  the plan, so `weekly_report` now tells keto users their net carbs.
+- **✅ PAID: plant protein powder.** Added soy protein powder (fdcId 173181, B12=0 so it can't mask
+  a vegan B12 gap the way whey did) + a "Vegan Berry Protein Shake Bowl" (24g protein). Needed a
+  `VEGAN_EXCEPTION` because "soy protein powder" contains the "protein powder" substring that flags
+  whey as non-vegan.
 
 ### Testing rules learned the hard way
 
@@ -438,6 +441,22 @@ Each of these was discovered by doing the work, and each earned its place.
    produced by crossing a random meal slot with a venue named "a work dinner" — taught the model
    that the meal word in a sentence is unreliable. It then read "i ate pizza for lunch on monday"
    and answered `breakfast`. Two examples out of 1030 were enough.
+10. **A test that asserts an absence must first prove the presence.** The nutrient-boost ban test
+    passed before the fix — because I'd ranked "the dish the boost wants" by iron-per-calorie while
+    the engine ranks by absolute iron, so I banned a dish it never picks and proved nothing. Every
+    "X never happens" check now has a control showing X happens without the guard.
+11. **A wandering test count hides a deleted test.** Two checks emitted one assertion per dish of a
+    random week, so the suite total drifted run to run (297, then 299) and a genuinely missing test
+    would have vanished into the noise — and `if (claimed) check(...)` meant a dish that omitted the
+    field was silently never checked. Fixed count now, same number every run.
+12. **A fresh training run must not resume the last version's checkpoint.** v8 crashed on launch
+    auto-resuming v7's `checkpoint-387` (blocked by a torch.load CVE guard). Resume is for one
+    interrupted run; every vN is fresh data. A fresh run clears the checkpoint dir; `RESUME=1` opts
+    back in.
+13. **Adding one recipe can tip over a latent test — and a latent bug.** The new vegan recipe
+    shifted the random week, which exposed both a fragile note-parsing regex AND that `swap_meal`
+    ignored exact recipe names. The test shift was noise; the swap bug was real. Read what a new
+    failure is actually telling you before you "fix the test".
 
 ---
 
