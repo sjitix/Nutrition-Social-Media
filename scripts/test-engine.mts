@@ -1259,6 +1259,196 @@ console.log("--- LOCK MEAL (a plan you can't pin isn't yours) ---");
 }
 
 
+// ---------------------------------------------------------------- rate_meal
+console.log("");
+console.log("--- RATE MEAL (it learns what you like, and never starves you for it) ---");
+{
+  const plan = freshWeek(BASE);
+  const monBreakfast = plan.days.find((d) => d.day === "Monday")!.meals.find((m) => m.type === "breakfast")!.name;
+
+  // --- resolution
+  const bySlot = applyOperations(BASE, plan, [op({ tool: "rate_meal", day: "Monday", mealType: "breakfast", rating: 5 })]);
+  check("rate_meal resolves the dish from day + mealType", bySlot.profile.mealRatings?.[0]?.name === monBreakfast, monBreakfast);
+  check("rate_meal stores the rating", bySlot.profile.mealRatings?.[0]?.rating === 5);
+  check("rate_meal never touches the week on screen", JSON.stringify(bySlot.plan) === JSON.stringify(plan));
+  check("rate_meal is a read-only tool", !planWasChanged([op({ tool: "rate_meal", rating: 5 })]));
+
+  const byName = applyOperations(BASE, plan, [op({ tool: "rate_meal", dish: RECIPES[0].name, rating: 4 })]);
+  check("rate_meal resolves the dish by name", byName.profile.mealRatings?.[0]?.name === RECIPES[0].name);
+
+  check("rate_meal with no rating asks for one", (() => {
+    const r = applyOperations(BASE, plan, [op({ tool: "rate_meal", day: "Monday", mealType: "breakfast" })]);
+    return !r.profile.mealRatings?.length && /1 to 5/i.test(r.notes.join(" "));
+  })());
+  check("rate_meal on a dish we don't have asks which meal", (() => {
+    const r = applyOperations(BASE, plan, [op({ tool: "rate_meal", dish: "my nan's hotpot", rating: 5 })]);
+    return !r.profile.mealRatings?.length && /which day/i.test(r.notes.join(" "));
+  })());
+  check("re-rating a dish replaces the old rating, never duplicates it", (() => {
+    const once = applyOperations(BASE, plan, [op({ tool: "rate_meal", dish: monBreakfast, rating: 1 })]).profile;
+    const twice = applyOperations(once, plan, [op({ tool: "rate_meal", dish: monBreakfast, rating: 5 })]).profile;
+    return twice.mealRatings?.length === 1 && twice.mealRatings[0].rating === 5;
+  })());
+
+  // --- a 1-star dish disappears from future weeks
+  const banned = applyOperations(BASE, plan, [op({ tool: "rate_meal", dish: monBreakfast, rating: 1 })]).profile;
+  let servedBanned = 0;
+  const N = 25;
+  for (let i = 0; i < N; i++) {
+    const wk = freshWeek(banned);
+    if (wk.days.flatMap((d) => d.meals).some((m) => m.name === monBreakfast)) servedBanned++;
+  }
+  check("a 1-star dish is never planned again", servedBanned === 0, `${servedBanned}/${N} weeks still served it`);
+
+  // --- ...but a rating is a PREFERENCE. It can never leave a slot empty.
+  // One-star EVERY breakfast in the library and the user must still get seven breakfasts.
+  const hatesBreakfast: UserProfile = {
+    ...BASE,
+    mealRatings: RECIPES.filter((r) => r.type === "breakfast").map((r) => ({ name: r.name, rating: 1 as const })),
+  };
+  const desperate = freshWeek(hatesBreakfast);
+  const breakfasts = desperate.days.filter((d) => d.meals.some((m) => m.type === "breakfast")).length;
+  check("one-starring every breakfast still yields seven breakfasts", breakfasts === 7, `${breakfasts}/7`);
+  check("...and the week discloses that it reused a dish you rejected", (() => {
+    const rep = newReport();
+    rebalanceWeek(selectWeekFromDb(hatesBreakfast, undefined, undefined, undefined, undefined, rep), hatesBreakfast);
+    return rep.servedBannedDish && /didn't want/i.test(reportNotes(rep, hatesBreakfast).join(" "));
+  })());
+
+  // --- a 5-star dish gets served
+  const lovedName = RECIPES.find((r) => r.type === "dinner" && r.dietTags.length === 0)?.name
+    ?? RECIPES.find((r) => r.type === "dinner")!.name;
+  const loves: UserProfile = { ...BASE, mealRatings: [{ name: lovedName, rating: 5 }] };
+  let servedLoved = 0;
+  for (let i = 0; i < N; i++) if (freshWeek(loves).days.flatMap((d) => d.meals).some((m) => m.name === lovedName)) servedLoved++;
+  check("a 5-star dish shows up in the week", servedLoved === N, `${servedLoved}/${N} weeks served it`);
+
+  // --- a rating is a preference, so it NEVER beats a hard rule.
+  // A vegan who adores a beef dish is not served beef. Ever.
+  const beef = RECIPES.find((r) => r.mainProtein === "beef")!;
+  const veganLovesBeef: UserProfile = { ...BASE, diet: "vegan", mealRatings: [{ name: beef.name, rating: 5 }] };
+  let beefServed = 0;
+  for (let i = 0; i < N; i++) if (freshWeek(veganLovesBeef).days.flatMap((d) => d.meals).some((m) => m.name === beef.name)) beefServed++;
+  check("a 5-star rating never overrides the diet", beefServed === 0, `${beef.name} served ${beefServed}/${N} weeks to a vegan`);
+
+  // An allergen the user loves is still an allergen.
+  const eggy = RECIPES.find((r) => r.ingredients.some((i) => /^eggs?$/i.test(i.name.trim())))!;
+  const allergicLovesEggs: UserProfile = { ...BASE, allergies: "eggs", mealRatings: [{ name: eggy.name, rating: 5 }] };
+  let eggServed = 0;
+  for (let i = 0; i < N; i++) if (freshWeek(allergicLovesEggs).days.flatMap((d) => d.meals).some((m) => m.name === eggy.name)) eggServed++;
+  check("a 5-star rating never overrides an allergy", eggServed === 0, `${eggy.name} served ${eggServed}/${N} weeks`);
+
+  // --- a pin outranks a rating: the user pinned it, then said they disliked it. The pin wins,
+  // because it is the more specific and more recent instruction about THAT slot.
+  check("a pinned dish survives being rated 1", (() => {
+    const pinned = applyOperations(BASE, plan, [op({ tool: "lock_meal", day: "Sunday", mealType: "dinner" })]).profile;
+    const dish = pinned.lockedMeals![0].name;
+    const rated = applyOperations(pinned, plan, [op({ tool: "rate_meal", dish, rating: 1 })]).profile;
+    const wk = applyOperations(rated, plan, [op({ tool: "regenerate_week" })]).plan;
+    return wk.days.find((d) => d.day === "Sunday")!.meals.find((m) => m.type === "dinner")!.name === dish;
+  })());
+
+  // --- ratings persist across a rebuild (they live on the profile, not the plan)
+  check("ratings survive regenerate_week", (() => {
+    const r = applyOperations(banned, plan, [op({ tool: "regenerate_week" })]);
+    return r.profile.mealRatings?.length === 1;
+  })());
+
+  // --- the ban has to hold on EVERY path that puts a recipe into a plan, not just the day
+  // selector. The protein rebalancer leaked (5/25 weeks) until it was patched. These two cover the
+  // other two paths, and each first proves the dish WOULD appear unbanned — otherwise the test
+  // could pass by testing nothing.
+  {
+    // The dish the iron boost most wants. It must be ranked the way upgradeForNutrient ranks —
+    // ABSOLUTE iron, not iron per calorie. Ranking by density picked a dish the boost never
+    // reaches for, and the ban test below passed while testing nothing. That is what the control
+    // is here to catch, and it did.
+    const ironiest = RECIPES
+      .filter((r) => r.type === "dinner" && !r.treatOnly && r.timeMinutes <= BASE.maxCookTime)
+      .sort((a, b) => recipeMicros(b).micros.iron - recipeMicros(a).micros.iron)[0];
+
+    const boosted = (p: UserProfile) =>
+      applyOperations(p, freshWeek(p), [op({ tool: "regenerate_week", boostNutrient: "iron" })])
+        .plan.days.flatMap((d) => d.meals).some((m) => m.name === ironiest.name);
+
+    let unbanned = 0;
+    for (let i = 0; i < 8; i++) if (boosted(BASE)) unbanned++;
+    check("(control) an iron boost does reach for the iron-richest dinner", unbanned > 0, `${unbanned}/8 — ${ironiest.name}`);
+
+    const hates: UserProfile = { ...BASE, mealRatings: [{ name: ironiest.name, rating: 1 }] };
+    let served = 0;
+    for (let i = 0; i < 8; i++) if (boosted(hates)) served++;
+    check("a 1-star dish never returns via a nutrient boost", served === 0, `${ironiest.name} served ${served}/8`);
+  }
+  {
+    // An ingredient that only ONE recipe uses: banning that recipe means the fridge guarantee and
+    // the ban are in direct conflict. The guarantee wins — the user asked for it today — and the
+    // engine says so rather than quietly serving a dish they rejected.
+    const counts = new Map<string, string[]>();
+    for (const r of RECIPES)
+      for (const i of r.ingredients) {
+        const k = i.name.trim().toLowerCase();
+        if (!counts.has(k)) counts.set(k, []);
+        if (!counts.get(k)!.includes(r.name)) counts.get(k)!.push(r.name);
+      }
+    const solo = [...counts.entries()].find(([, rs]) => rs.length === 1);
+    if (solo) {
+      const [ingredient, [onlyDish]] = solo;
+      const hates: UserProfile = { ...BASE, mealRatings: [{ name: onlyDish, rating: 1 }] };
+      const r = applyOperations(hates, freshWeek(hates), [
+        op({ tool: "regenerate_week", useIngredients: [ingredient] }),
+      ]);
+      const used = r.plan.days.flatMap((d) => d.meals).some((m) => m.name === onlyDish);
+      const note = r.notes.join(" ");
+      check(
+        "the fridge guarantee outranks a 1-star, and discloses that it did",
+        used && /rated poorly/i.test(note),
+        `${ingredient} -> ${onlyDish}; used=${used}`,
+      );
+    }
+  }
+
+  // --- the nastiest combination: the diet already narrows the library to a handful of dishes per
+  // slot, and then the user one-stars nearly all of them. The week must still be a week, and every
+  // meal in it must still be vegan.
+  check("a vegan who one-stars almost everything still gets a full, vegan week", (() => {
+    const veganDishes = RECIPES.filter((r) => r.dietTags.includes("vegan"));
+    // Leave exactly one dinner un-banned; ban every other vegan dish in the library.
+    const spare = veganDishes.find((r) => r.type === "dinner")!;
+    const hostile: UserProfile = {
+      ...BASE,
+      diet: "vegan",
+      mealRatings: veganDishes.filter((r) => r.name !== spare.name).map((r) => ({ name: r.name, rating: 1 as const })),
+    };
+    for (let i = 0; i < 10; i++) {
+      const wk = freshWeek(hostile);
+      if (wk.days.length !== 7) return false;
+      for (const d of wk.days) {
+        if (d.meals.length !== hostile.mealsPerDay) return false;
+        for (const m of d.meals) {
+          const base = RECIPES.find((r) => r.name === m.name);
+          if (!base || !base.dietTags.includes("vegan")) return false; // a ban must never break the diet
+        }
+      }
+    }
+    return true;
+  })());
+
+  // --- the note tells the truth about what's still coming
+  check("a low rating names the days the dish is still on", (() => {
+    const dinner = plan.days.find((d) => d.day === "Tuesday")!.meals.find((m) => m.type === "dinner")!.name;
+    const elsewhere = plan.days.filter((d) => d.meals.some((m) => m.name === dinner)).map((d) => d.day);
+    const r = applyOperations(BASE, plan, [op({ tool: "rate_meal", dish: dinner, rating: 2 })]);
+    const note = r.notes.join(" ");
+    return elsewhere.every((d) => note.includes(d)) && /still on your/.test(note);
+  })());
+  check("a 5-star note doesn't threaten to swap anything", (() => {
+    const r = applyOperations(BASE, plan, [op({ tool: "rate_meal", day: "Monday", mealType: "breakfast", rating: 5 })]);
+    return !/swap/i.test(r.notes.join(" ")) && /more often/i.test(r.notes.join(" "));
+  })());
+}
+
+
 // ---------------------------------------------------------------- library capability
 console.log("");
 console.log("--- RECIPE LIBRARY: can it actually serve each diet? ---");
@@ -1327,10 +1517,15 @@ function randomOp(): Operation {
   // invariant to leak.
   if (roll < 0.06) return op({ tool: "lock_meal", day: pick(DAYS_L), mealType: pick(MEALS_L) });
   if (roll < 0.09) return op({ tool: "unlock_meal", day: pick(DAYS_L), mealType: pick(MEALS_L) });
-  if (roll < 0.34)
+  // Ratings accumulate across a sequence, so a fuzz run steadily bans dishes. Weighted hard toward
+  // 1 on purpose: "never serve me this again" is the only preference that can shrink the pool to
+  // nothing, and I3 (every day has mealsPerDay meals) is what catches it if the ban fails to relax.
+  if (roll < 0.15)
+    return op({ tool: "rate_meal", day: pick(DAYS_L), mealType: pick(MEALS_L), rating: pick([1, 1, 1, 1, 2, 3, 4, 5]) });
+  if (roll < 0.38)
     return op({ tool: "swap_meal", day: pick(DAYS_L), mealType: pick(MEALS_L), dish: pick(DISHES_L), preserveMacros: Math.random() < 0.3 ? false : null });
-  if (roll < 0.52) return op({ tool: "regenerate_day", day: pick(DAYS_L), diet: Math.random() < 0.4 ? pick(DIETS_L) : null });
-  if (roll < 0.67) return op({ tool: "regenerate_week" });
+  if (roll < 0.55) return op({ tool: "regenerate_day", day: pick(DAYS_L), diet: Math.random() < 0.4 ? pick(DIETS_L) : null });
+  if (roll < 0.68) return op({ tool: "regenerate_week" });
   return op({
     tool: "update_profile",
     diet: Math.random() < 0.4 ? pick(DIETS_L) : null,

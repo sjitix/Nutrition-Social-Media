@@ -77,6 +77,7 @@ export const OperationSchema = z.object({
     "symptom_check", // "I'm always tired" -> check the associated nutrients against THEIR week
     "lock_meal", // "never change my Sunday roast" -> pin it; every rebuild puts it back
     "unlock_meal", // "you can change Sunday again"
+    "rate_meal", // "that salmon was incredible" / "hated the tofu" -> learn the taste
     "answer", // no change — just answering a question
   ]),
   day: z.enum(DAYS).nullable().optional(),
@@ -121,6 +122,9 @@ export const OperationSchema = z.object({
   // symptom_check: what the user reported, in their own words. The engine matches it; the
   // model must never map a symptom to a nutrient itself.
   symptom: z.string().nullable().optional(),
+  // rate_meal: 1 = never serve this again, 5 = loved it. The model maps the user's words to the
+  // number ("that was incredible" -> 5, "it was fine" -> 3); the engine decides what to do with it.
+  rating: z.number().int().min(1).max(5).nullable().optional(),
   // LLM-controlled intent: when swapping/regenerating, should the day stay on the
   // user's macro targets (the engine rebalances the other meals to hold protein/
   // calories/etc.)? Default = yes (the nutritionist default). The model sets this
@@ -152,6 +156,19 @@ export interface LockedMeal {
   name: string;
 }
 
+/**
+ * What the user thought of a dish, keyed by recipe NAME (the same key `lock_meal` uses), so it
+ * outlives the week it was given in.
+ *
+ * A rating is a PREFERENCE, never a hard rule. 1 means "don't serve me this again" and the
+ * selector drops the dish — but if dropping it would leave a slot with nothing to put in it, the
+ * dish comes back, because a plan with a dinner you dislike beats a plan with no dinner.
+ */
+export interface MealRating {
+  name: string;
+  rating: 1 | 2 | 3 | 4 | 5;
+}
+
 export interface UserProfile {
   goal: "lose_weight" | "maintain" | "build_muscle";
   diet: "none" | "vegetarian" | "vegan" | "keto" | "mediterranean";
@@ -171,6 +188,8 @@ export interface UserProfile {
   // "Never change my Sunday roast." Pinned meals are re-imposed after every rebuild. A pin
   // overrides PREFERENCES (cook time, budget, variety); it never overrides diet or an allergy.
   lockedMeals?: LockedMeal[];
+  // "I loved that salmon" / "never make me the tofu again." Biases selection; never blocks a meal.
+  mealRatings?: MealRating[];
 }
 
 // Sensible starting values for a general healthy adult. Prefilled in onboarding

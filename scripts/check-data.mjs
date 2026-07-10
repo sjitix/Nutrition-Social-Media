@@ -36,12 +36,12 @@ const FIELDS = new Set([
   "useIngredients", "targetCalories", "targetProtein", "targetCarbs", "targetFat",
   "targetFiber", "boostNutrient", "maxCookTime", "age", "heightCm", "weightKg", "sex",
   "activity", "goal", "loggedCalories", "loggedProtein", "preserveMacros", "estimatedCalories",
-  "ingredient", "symptom",
+  "ingredient", "symptom", "rating",
 ]);
 const TOOLS = [
   "update_profile", "regenerate_week", "regenerate_day", "swap_meal",
   "compute_targets", "log_meal", "weekly_report", "eating_out", "explain_meal",
-  "substitute_ingredient", "symptom_check", "lock_meal", "unlock_meal", "answer",
+  "substitute_ingredient", "symptom_check", "lock_meal", "unlock_meal", "rate_meal", "answer",
 ];
 const MIN_PER_TOOL = 15;
 
@@ -59,6 +59,7 @@ const REQUIRED = {
   substitute_ingredient: ["ingredient"],
   symptom_check: ["symptom"],
   regenerate_day: ["day"],
+  rate_meal: ["rating"],
 };
 
 const problems = [];
@@ -96,6 +97,13 @@ for (const r of rows) {
     if ((op.tool === "lock_meal" || op.tool === "unlock_meal") &&
         Object.keys(op).some((k) => !["tool", "day", "mealType"].includes(k)))
       problems.push(`${op.tool} takes only day+mealType: ${r.message}`);
+    // A rating has to be ABOUT something, and the engine has to be able to find it.
+    if (op.tool === "rate_meal") {
+      if (!("dish" in op) && !("day" in op && "mealType" in op))
+        problems.push(`rate_meal needs dish, or day+mealType: ${r.message}`);
+      if (!Number.isInteger(op.rating) || op.rating < 1 || op.rating > 5)
+        problems.push(`rate_meal rating must be an integer 1-5, got ${op.rating}: ${r.message}`);
+    }
   }
 }
 
@@ -127,6 +135,13 @@ for (const r of rows) {
       problems.push(`names two meals (${named.join('/')}), slot is ambiguous: ${r.message}`);
   }
 }
+
+// A template that supplies its own article, crossed with a dish written as a noun phrase, yields
+// "the a curry was lovely". Nobody types that, so nothing good is learned from it. Cheap to check,
+// and it generalises: any doubled article means two templates were composed carelessly.
+for (const r of rows)
+  if (/\b(the|a|an) (a|an|the) \b/i.test(r.message ?? ""))
+    problems.push(`doubled article — a template composed badly: ${r.message}`);
 
 // Eval contamination. Every hit here is a case that measures recall, not skill.
 let contaminated = 0;

@@ -21,6 +21,9 @@ const TARGET = Number(process.argv[2]) || 450;
 
 const rand = (a) => a[Math.floor(Math.random() * a.length)];
 const chance = (p) => Math.random() < p;
+// DISHES are written as noun phrases ("a curry", "an omelette") because most templates read
+// "give me a curry on Tuesday". Templates that supply their own article need the bare name.
+const bare = (dish) => dish.replace(/^(an?|the) /, "");
 
 // ---- a couple of realistic sample plans so questions are grounded ----------
 const POOL = {
@@ -87,7 +90,7 @@ function renderSystemPrompt(profile, plan) {
   return (
     "You are the meal-plan assistant. Read the user's message and the recent conversation, then output JSON: a natural 'reply' plus a list of 'operations' (tool calls) the app runs in order. Use the conversation to resolve references ('do that', 'only Tuesday', 'make it 1500').\n\n" +
     "TOOLS — each operation has a 'tool' plus its fields. Every tool below lists what it REQUIRES: a call without those fields does nothing and wastes the user's turn. Beyond the required ones, OMIT every field you are not setting. Never write nulls, and never invent a value for a field the user did not mention.\n" +
-    "REQUIRED FIELDS: compute_targets needs age+heightCm+weightKg+sex+activity+goal. swap_meal needs day+dish. log_meal, eating_out, explain_meal, lock_meal and unlock_meal need day+mealType. substitute_ingredient needs ingredient. symptom_check needs symptom. regenerate_day needs day. If the user gave a number (calories they ate, calories they expect to eat), it goes in loggedCalories or estimatedCalories — never inside the dish name.\n" +
+    "REQUIRED FIELDS: compute_targets needs age+heightCm+weightKg+sex+activity+goal. swap_meal needs day+dish. log_meal, eating_out, explain_meal, lock_meal and unlock_meal need day+mealType. substitute_ingredient needs ingredient. symptom_check needs symptom. regenerate_day needs day. rate_meal needs rating, plus dish or day+mealType. If the user gave a number (calories they ate, calories they expect to eat), it goes in loggedCalories or estimatedCalories — never inside the dish name.\n" +
     "- update_profile: change a WEEK-WIDE setting and rebuild the week. Fields: diet, budget, excludeFoods, targetCalories, targetProtein, targetCarbs, targetFat, targetFiber, maxCookTime, cuisine. The plan re-solves to hit any macro target you set.\n" +
     "- regenerate_week: rebuild the whole week (optional cuisine, targetFiber, useIngredients — on-hand foods to prefer, boostNutrient).\n" +
     "- boostNutrient (on update_profile / regenerate_week / regenerate_day): favour foods rich in one nutrient — iron, calcium, magnesium, potassium, zinc, vitD, vitC, folate, b12. The app computes the real amounts from USDA data; never state a nutrient number yourself.\n" +
@@ -100,6 +103,7 @@ function renderSystemPrompt(profile, plan) {
     "- symptom_check: the user reports how they FEEL ('i'm always tired', 'muscle cramps'). Pass their words in `symptom`. Changes nothing. Never map a symptom to a nutrient or diagnose — the app does it.\n" +
     "- lock_meal: the user wants a meal to stay put ('never change my sunday roast'). Requires day + mealType. The app puts it back on every rebuild.\n" +
     "- unlock_meal: undo a pin. Requires day + mealType.\n" +
+    "- rate_meal: what the user THOUGHT of a dish ('that salmon was incredible', 'the tofu was awful, never again'). Requires rating (1-5) plus either dish, or day + mealType. hated/never again = 1, didn't like = 2, ok/fine = 3, liked = 4, loved = 5. Contrast with 'i don't like mushrooms' (an ingredient, forever -> update_profile) and log_meal (what they ATE).\n" +
     "- answer: no change; just answering a question.\n\n" +
     "Rules:\n" +
     "- Only a question -> operations: []. Put the answer in reply. For facts use the EXACT numbers below; the AVERAGES line is already per-day.\n" +
@@ -147,7 +151,7 @@ const OP = (o) => {
     "targetCalories", "targetProtein", "targetCarbs", "targetFat", "targetFiber",
     "maxCookTime", "boostNutrient", "preserveMacros",
     "age", "heightCm", "weightKg", "sex", "activity", "goal",
-    "loggedCalories", "loggedProtein", "estimatedCalories", "ingredient", "symptom",
+    "loggedCalories", "loggedProtein", "estimatedCalories", "ingredient", "symptom", "rating",
   ]) if (o[k] !== undefined && o[k] !== null) op[k] = o[k];
   if (o.excludeFoods && o.excludeFoods.length) op.excludeFoods = o.excludeFoods;
   if (o.useIngredients && o.useIngredients.length) op.useIngredients = o.useIngredients;
@@ -595,6 +599,114 @@ for (let i = 0; i < 8; i++) {
 }
 for (const m of ["never change it", "pin that one", "keep that meal"])
   push([u(m)], "Happy to — which day, and which meal?", []);
+
+// rate_meal — what the user THOUGHT of a dish, not what they ate and not an ingredient they
+// dislike. Three neighbours it must be told apart from, all generated above:
+//   "i had the salmon for dinner"      -> log_meal            (what they ate)
+//   "i don't like mushrooms"           -> update_profile      (an ingredient, forever)
+//   "never change my sunday dinner"    -> lock_meal           (a standing instruction)
+const RATE_WORDS = [
+  { r: 5, says: ["was incredible", "was amazing", "was the best thing all week", "was outstanding"] },
+  { r: 4, says: ["was really good", "was lovely", "was tasty", "i liked it a lot"] },
+  { r: 3, says: ["was ok", "was fine", "was alright", "was nothing special"] },
+  { r: 2, says: ["wasn't great", "was pretty bland", "i didn't really enjoy it", "was disappointing"] },
+  { r: 1, says: ["was awful", "was horrible, never again", "i hated it", "was inedible"] },
+];
+for (let i = 0; i < 26; i++) {
+  const day = rand(DAYS); const mt = rand(MEALS);
+  const { r, says } = rand(RATE_WORDS);
+  const say = rand(says);
+  // By slot...
+  push([u(rand([
+    `${day}'s ${mt} ${say}`,
+    `that ${mt} on ${day} ${say}`,
+    `the ${mt} you gave me on ${day} ${say}`,
+  ]))], `Noted — I'll remember that.`, [OP({ tool: "rate_meal", day, mealType: mt, rating: r })]);
+  // ...and by dish name, with no slot at all. DISHES carry articles ("a curry", "an omelette"),
+  // so strip them: "the a curry was lovely" is not a sentence, and the label has to be a name the
+  // engine can match against a recipe, not a noun phrase.
+  const dish = bare(rand(DISHES));
+  push([u(rand([
+    `the ${dish} ${say}`,
+    `that ${dish} ${say}`,
+    `honestly, the ${dish} ${say}`,
+  ]))], `Noted — I'll remember that.`, [OP({ tool: "rate_meal", dish, rating: r })]);
+}
+// Explicit star ratings, the other way people say it.
+for (let i = 0; i < 10; i++) {
+  const day = rand(DAYS); const mt = rand(MEALS); const r = 1 + Math.floor(Math.random() * 5);
+  push([u(rand([
+    `${day} ${mt}: ${r}/5`,
+    `i'd give ${day}'s ${mt} ${r} out of 5`,
+    `${r} stars for ${day} ${mt}`,
+  ]))], `Noted — I'll remember that.`, [OP({ tool: "rate_meal", day, mealType: mt, rating: r })]);
+}
+// CONTRAST: an opinion needs a rating AND a subject. "that was great" alone is neither.
+for (const m of ["that was great", "loved it", "that was rank", "didn't like that one"])
+  push([u(m)], "Glad to know — which meal was it, and how would you rate it out of 5?", []);
+// CONTRAST: disliking an INGREDIENT is a permanent exclusion; disliking a DISH is a rating.
+// The pair is the point — the two sentences differ only in what the complaint is aimed at.
+for (const [food, dish] of [["mushrooms", "mushroom risotto"], ["olives", "greek salad"],
+                            ["cilantro", "chicken curry"], ["feta", "veggie wrap"]]) {
+  push([u(`i don't like ${food}`)], `Noted — I'll keep ${food} out of your plan.`,
+    [OP({ tool: "update_profile", excludeFoods: [food.replace(/s$/, "")] })]);
+  push([u(`${dish} was awful, don't make it again`)], "Noted — I'll remember that.",
+    [OP({ tool: "rate_meal", dish, rating: 1 })]);
+}
+
+// ---------------------------------------------------------------------------------------------
+// MINIMAL PAIRS. v7 answered "breakfast" to "i ate pizza for lunch on monday" because it had
+// memorized "i ate pizza for breakfast on Monday" and stopped reading at the dish and the day.
+// The cure is not more examples, it is examples that differ ONLY in the field under test.
+// ---------------------------------------------------------------------------------------------
+for (let i = 0; i < 10; i++) {
+  const day = rand(DAYS); const dish = rand(DISHES);
+  // Same dish, same day, all three slots. The meal word is the ONLY thing that varies.
+  for (const mt of MEALS)
+    push([u(`i ate ${dish} for ${mt} on ${day}`)], "Logged it — I've re-solved the rest of that day.",
+      [OP({ tool: "log_meal", day, mealType: mt, dish })]);
+}
+// eating_out: with and without a calorie estimate, in the phrasings v7 mishandled — no "on"
+// before the day, no "around" before the number.
+for (let i = 0; i < 14; i++) {
+  const day = rand(DAYS); const mt = rand(MEALS);
+  const n = rand([500, 600, 700, 800, 900, 1000, 1200]);
+  push([u(rand([
+    `i'm out for ${mt} ${day}, probably ${n} calories`,
+    `i'm out for ${mt} ${day}, maybe ${n} calories`,
+    `${day} ${mt} out, probably ${n} kcal`,
+    `eating out ${day} ${mt}, i reckon ${n} calories`,
+  ]))], `Noted — I've set ${n} kcal aside and lightened the rest of that day.`,
+    [OP({ tool: "eating_out", day, mealType: mt, estimatedCalories: n })]);
+  // The same sentence WITHOUT a number must not invent one.
+  push([u(rand([`i'm out for ${mt} ${day}`, `${day} ${mt} out`, `eating out ${day} ${mt}`]))],
+    `Noted — I've set calories aside for ${day} ${mt} and lightened the rest of that day.`,
+    [OP({ tool: "eating_out", day, mealType: mt })]);
+}
+// A vague command is not permission to rebuild the week. v7 heard "do something different" and
+// regenerated everything. Asking one question costs the user a second; guessing costs them a plan.
+for (const m of [
+  "do it differently", "change something", "mix it up", "switch things around",
+  "shake it up a bit", "i want something else", "not this", "try again but different",
+])
+  push([u(m)], "Happy to — what would you like different: the meals, the calories, the cuisine, or the cost?", []);
+// A macro/calorie question with no body stats is a question to ASK, not a report to run. v7
+// answered "tell me my macro split" with weekly_report, which reviews the plan it already has.
+for (const m of [
+  "tell me my macros", "what's my macro breakdown", "what should my protein be",
+  "how much should i be eating", "give me my macro targets", "what macros do i need",
+])
+  push([u(m)], "I can work that out — tell me your age, height, weight, sex, roughly how active you are, and whether you want to lose fat, maintain, or build muscle.", []);
+
+// symptom_check: v7 routed "i feel worn out every afternoon" to weekly_report. Fatigue is the
+// most common thing anyone says to a nutritionist; it needs more than three phrasings.
+for (const s of [
+  "i feel worn out every afternoon", "i'm shattered by 3pm", "i've got no energy in the mornings",
+  "i'm knackered all the time", "i feel sluggish lately", "i'm dragging myself through the day",
+  "i wake up tired", "my energy crashes after lunch", "i feel drained",
+  "i'm exhausted even after a full night's sleep",
+])
+  push([u(s)], "Let me look at what your week is giving you.", [OP({ tool: "symptom_check", symptom: s })]);
 
 // v6 emitted the right tool with an EMPTY body, because OP() had been silently dropping these
 // fields from every label. Now that they survive, give the thin ones more surface.

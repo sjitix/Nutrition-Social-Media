@@ -71,6 +71,10 @@
     { "msg": "i feel worn out every afternoon", "tool": "symptom_check" },
     { "msg": "my calves cramp up at night", "tool": "symptom_check" },
 
+    { "msg": "sunday's dinner was the best thing i've eaten all month", "tool": "rate_meal", "want": { "day": "Sunday", "mealType": "dinner", "rating": 5 } },
+    { "msg": "tuesday's lunch was pretty grim, don't give me that again", "tool": "rate_meal", "want": { "day": "Tuesday", "mealType": "lunch", "rating": 1 } },
+    { "msg": "the porridge was fine i guess", "tool": "rate_meal", "want": { "rating": 3 } },
+
     { "msg": "never change my sunday dinner", "tool": "lock_meal", "want": { "day": "Sunday", "mealType": "dinner" } },
     { "msg": "keep monday's breakfast the same every week", "tool": "lock_meal", "want": { "day": "Monday", "mealType": "breakfast" } },
     { "msg": "you can change sunday dinner again", "tool": "unlock_meal", "want": { "day": "Sunday", "mealType": "dinner" } },

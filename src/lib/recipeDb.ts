@@ -8,6 +8,7 @@ import {
   type UserProfile,
   type WeekPlan,
   type LockedMeal,
+  type MealRating,
 } from "./types";
 import { haystackBlocked, parseExclusionTokens, dietTagConflicts, wordMatches } from "./exclusions";
 import { computeTargets, explainTargets } from "./targets";
@@ -2750,6 +2751,7 @@ interface PickContext {
   preferFiber?: boolean;
   boost?: MicroKey; // nutrient to favour ("I'm low on iron")
   ketoCarbs?: boolean; // prefer the lowest-carb dish among keto-eligible ones
+  ratings?: ReadonlyMap<string, number>; // lowercased recipe name -> 1..5, what the user thought
 }
 
 // Choose the best candidate: prefer unused dishes, then a fresh protein, then a
@@ -2767,6 +2769,15 @@ function chooseRecipe(candidates: Recipe[], ctx: PickContext): Recipe | null {
 
   const newCuisine = pool.filter((r) => !ctx.dayCuisines.has(r.cuisine));
   if (newCuisine.length) pool = newCuisine;
+
+  // Dishes the user loved (4-5). Applied as a pool filter, not a score bonus, because the scoring
+  // window below is the six closest dishes by calorie distance — a loved dish sitting seventh
+  // would never be seen. Placed BEFORE the fridge filter so "use up the salmon", which is a
+  // guarantee, still wins over a taste preference.
+  if (ctx.ratings?.size) {
+    const loved = pool.filter((r) => (ctx.ratings!.get(r.name.toLowerCase()) ?? 0) >= 4);
+    if (loved.length) pool = loved;
+  }
 
   // "Use what's in my fridge" — strongly prefer recipes built on on-hand items.
   const fridgeMatch = ctx.fridge
@@ -2807,7 +2818,10 @@ function chooseRecipe(candidates: Recipe[], ctx: PickContext): Recipe | null {
     // On keto, prefer the LOWEST-carb dish among the eligible ones. The dietTag filter only says
     // "under 20g"; portions then scale up to fill the day and the carbs scale with them. Scored on
     // density per calorie for the same reason the nutrient boost is: a big meal is not a carby one.
-    (ctx.ketoCarbs ? -(r.carbsGrams / Math.max(1, r.calories)) * 900 : 0);
+    (ctx.ketoCarbs ? -(r.carbsGrams / Math.max(1, r.calories)) * 900 : 0) -
+    // "It was alright, wouldn't have it again" (2). Enough to lose a tie, not enough to override
+    // a diet, the fridge, or the calorie fit. A 1 never gets this far — it's dropped upstream.
+    ((ctx.ratings?.get(r.name.toLowerCase()) ?? 0) === 2 ? 8 : 0);
   const maxScore = Math.max(...top.map(score));
   const best = top.filter((r) => score(r) >= maxScore - 0.5);
   return best[Math.floor(Math.random() * best.length)];
@@ -2856,6 +2870,28 @@ interface WeekCtx {
   fridge?: Set<string>; // on-hand ingredients to prefer across the week
   boost?: MicroKey; // nutrient to favour across the week
   ketoCarbs?: boolean; // prefer the lowest-carb dish among keto-eligible ones
+  ratings?: ReadonlyMap<string, number>; // lowercased recipe name -> 1..5
+}
+
+/** The user's ratings as the selector wants them: lowercased name -> 1..5. */
+export function ratingMap(profile: UserProfile): ReadonlyMap<string, number> {
+  return new Map((profile.mealRatings ?? []).map((r) => [r.name.toLowerCase(), r.rating]));
+}
+
+/**
+ * "Never serve me this again." Every path that PUTS a recipe into a plan must consult this, not
+ * just the day selector — the protein rebalancer and the nutrient boost both re-pick dishes on
+ * their own, and a ban that only covers one of the three is not a ban. (It didn't: a one-starred
+ * breakfast came back in 5 of 25 weeks, swapped in by the protein lever.)
+ *
+ * A ban is a preference, so each caller decides its own fallback. Where the fallback is "keep the
+ * meal that's already there", skipping is free. Where it's "leave the slot empty", it must relax.
+ */
+function bannedForUser(profile: UserProfile, name: string): boolean {
+  const list = profile.mealRatings;
+  if (!list?.length) return false;
+  const lower = name.toLowerCase();
+  return list.some((r) => r.rating === 1 && r.name.toLowerCase() === lower);
 }
 
 function newCtx(): WeekCtx {
@@ -2876,9 +2912,14 @@ export interface SelectionReport {
   droppedSlots: string[];
   slowestOverLimit: number; // worst cook time placed above the user's limit (0 = none)
   relaxedBudget: boolean;
+  // A slot where every remaining dish was one the user asked never to see again. We served one
+  // anyway — and, per the disclosure rule, we say so.
+  servedBannedDish: boolean;
 }
 
-export const newReport = (): SelectionReport => ({ droppedSlots: [], slowestOverLimit: 0, relaxedBudget: false });
+export const newReport = (): SelectionReport => ({
+  droppedSlots: [], slowestOverLimit: 0, relaxedBudget: false, servedBannedDish: false,
+});
 
 /** Turn a report into honest, user-facing sentences. Empty when nothing was compromised. */
 export function reportNotes(rep: SelectionReport, profile: UserProfile): string[] {
@@ -2894,6 +2935,8 @@ export function reportNotes(rep: SelectionReport, profile: UserProfile): string[
       `Heads up: you asked for meals under ${profile.maxCookTime} min, but the only options that fit your other rules take up to ${rep.slowestOverLimit} min.`,
     );
   if (rep.relaxedBudget) out.push(`Some meals came out pricier than your budget setting — there wasn't a cheaper option that fit.`);
+  if (rep.servedBannedDish)
+    out.push(`I've had to reuse a dish you told me you didn't want — there's nothing else in that slot that fits your other rules. Rate a few more meals and I'll have more to work with.`);
   return out;
 }
 
@@ -2939,6 +2982,14 @@ function pickMealsForDay(
     if (!candidates.length) candidates = hard.filter((r) => r.timeMinutes <= profile.maxCookTime + 15);
     if (!candidates.length) candidates = hard; // last resort: honour only the hard rules
     if (!hard.length && report) report.droppedSlots.push(type); // no recipe can satisfy the HARD rules
+    // "Never serve me this again" (rating 1). A preference, so it relaxes like one: if banning
+    // the dishes would leave this slot with nothing, they come back. A dinner you disliked beats
+    // no dinner, and a user who one-stars every keto breakfast must still get breakfast.
+    if (profile.mealRatings?.length) {
+      const allowed = candidates.filter((r) => !bannedForUser(profile, r.name));
+      if (allowed.length) candidates = allowed;
+      else if (report) report.servedBannedDish = true;
+    }
     if (cuisinePref) {
       const pref = candidates.filter((r) => r.cuisine === cuisinePref);
       if (pref.length) candidates = pref;
@@ -2955,6 +3006,7 @@ function pickMealsForDay(
       preferFiber,
       boost: ctx.boost,
       ketoCarbs: ctx.ketoCarbs,
+      ratings: ctx.ratings,
     });
     if (!pick && hard.length && report) report.droppedSlots.push(type);
     if (pick) {
@@ -2988,6 +3040,7 @@ export function selectWeekFromDb(
     ctx.fridge = new Set(seedIngredients.map((s) => s.trim().toLowerCase()).filter(Boolean));
   ctx.boost = boost;
   ctx.ketoCarbs = profile.diet === "keto";
+  ctx.ratings = ratingMap(profile);
   // A pinned dish is going back into its slot after this, so the selector must not spend it
   // somewhere else — otherwise the week serves the user's Sunday roast twice. (It did, in 6 of
   // every 30 rebuilds, until the selector was told.)
@@ -3033,6 +3086,7 @@ export function selectDay(
     ctx.fridge = new Set(seedIngredients.map((s) => s.trim().toLowerCase()).filter(Boolean));
   ctx.boost = boost;
   ctx.ketoCarbs = profile.diet === "keto";
+  ctx.ratings = ratingMap(profile);
   for (const d of plan.days) {
     if (d.day === dayName) continue;
     for (const m of d.meals) {
@@ -3328,6 +3382,9 @@ function rebalanceDay(
           r.treatOnly || // a protein upgrade must never become a burger
           !passesDiet(r, profile.diet) ||
           blockedByExclusions(r, tokens) ||
+          // Chasing protein is no reason to serve a dish the user rejected. If nothing else beats
+          // the current meal, `best` stays null and the meal stays — no slot can be emptied here.
+          bannedForUser(profile, r.name) ||
           r.approxCost > cap ||
           r.timeMinutes > profile.maxCookTime + 5 ||
           r.ingredients.length > profile.maxIngredients + 1 ||
@@ -3478,6 +3535,8 @@ function upgradeForNutrient(profile: UserProfile, plan: WeekPlan, key: MicroKey)
       !r.treatOnly &&
       passesDiet(r, profile.diet) &&
       !blockedByExclusions(r, tokens) &&
+      // An iron-rich dish the user hated is not an upgrade. Nothing better => keep the meal.
+      !bannedForUser(profile, r.name) &&
       r.timeMinutes <= profile.maxCookTime,
   );
   const density = new Map(eligible.map((r) => [r.id, recipeMicros(r).micros[key]] as const));
@@ -3906,6 +3965,7 @@ function guaranteeFridge(p: UserProfile, plan: WeekPlan, wanted: string[], notes
   const pinned = new Set((p.lockedMeals ?? []).map((l) => lockKey(l.day, l.mealType)));
   const unusable: string[] = [];
   const relaxed: string[] = [];
+  const forcedBanned: string[] = []; // ingredients only a rejected dish can use up
   let cur = plan;
 
   for (const ing of want) {
@@ -3927,6 +3987,12 @@ function guaranteeFridge(p: UserProfile, plan: WeekPlan, wanted: string[], notes
       cands = eligible;
       relaxed.push(ing);
     }
+    // "Use up the salmon" is a guarantee the user just asked for; a rating is a standing
+    // preference. Prefer a dish they haven't rejected — but if the only way to use the ingredient
+    // is a dish they one-starred, honour the request they made today, and say so.
+    const notBanned = cands.filter((r) => !bannedForUser(p, r.name));
+    if (notBanned.length) cands = notBanned;
+    else if (cands.length) forcedBanned.push(ing);
     if (!cands.length) {
       unusable.push(ing);
       continue;
@@ -3958,6 +4024,8 @@ function guaranteeFridge(p: UserProfile, plan: WeekPlan, wanted: string[], notes
 
   if (relaxed.length)
     notes.push(`Nothing with ${listPhrase(relaxed)} fits your ${p.maxCookTime}-min limit, so that meal takes a little longer.`);
+  if (forcedBanned.length)
+    notes.push(`The only dish I have that uses ${listPhrase(forcedBanned)} is one you rated poorly — I've used it anyway so nothing goes to waste.`);
   if (unusable.length)
     notes.push(`I couldn't work ${listPhrase(unusable)} into the week — nothing I have with ${unusable.length > 1 ? "them" : "it"} fits your plan.`);
   return cur;
@@ -4177,6 +4245,54 @@ function namesOnOtherDays(plan: WeekPlan, day: DayPlan["day"], profile?: UserPro
     .flatMap((d) => d.meals.map((m) => m.name.toLowerCase()));
   for (const l of profile?.lockedMeals ?? []) if (l.day !== day) names.push(l.name.toLowerCase());
   return new Set(names);
+}
+
+/**
+ * Resolve the dish a rating is about: the name the user said, or whatever is in the slot they
+ * named. Returns null when neither identifies a real recipe.
+ *
+ * Only library recipes can be rated. A restaurant reserve or something the user logged has no
+ * recipe behind it, so a rating on it could never change a future week — saying so beats storing
+ * a preference that silently does nothing.
+ */
+function resolveRatedDish(plan: WeekPlan, dish?: string, day?: string, mealType?: string): Recipe | null {
+  const want = dish?.trim().toLowerCase();
+  if (want) {
+    const exact = RECIPES.find((r) => r.name.toLowerCase() === want);
+    if (exact) return exact;
+    const fuzzy = RECIPES.filter((r) => nameMatches(r.name, want));
+    if (fuzzy.length === 1) return fuzzy[0];
+    // Ambiguous by name — fall through to the slot, which is unambiguous.
+  }
+  if (day && mealType) {
+    const meal = plan.days.find((d) => d.day === day)?.meals.find((m) => m.type === mealType);
+    if (meal) return RECIPES.find((r) => r.name === meal.name) ?? null;
+  }
+  return null;
+}
+
+/**
+ * "That salmon was incredible" (5) / "never make me the tofu again" (1).
+ *
+ * A rating changes what the NEXT week looks like, not this one. We don't quietly rewrite a plan
+ * the user is looking at because they passed a comment on a meal — we record the taste, and if the
+ * dish is still coming up this week, we say where, so they can ask for a swap if they want one.
+ */
+function rateMealNote(plan: WeekPlan, recipe: Recipe, rating: number, day?: string, mealType?: string): string {
+  const upcoming = plan.days
+    .filter((d) => d.meals.some((m) => m.name === recipe.name))
+    .map((d) => d.day)
+    .filter((d) => !(d === day && mealType)); // the meal they just rated isn't "still coming up"
+
+  if (rating >= 4) {
+    const note = `Noted — you rated ${recipe.name} ${rating}/5. I'll reach for it more often.`;
+    return note;
+  }
+  if (rating === 3) return `Noted — ${recipe.name} was a 3/5. I'll keep it in the rotation but won't favour it.`;
+
+  const verb = rating === 1 ? `I won't plan ${recipe.name} again` : `I'll steer away from ${recipe.name}`;
+  if (!upcoming.length) return `Noted — ${recipe.name} was a ${rating}/5. ${verb}.`;
+  return `Noted — ${recipe.name} was a ${rating}/5. ${verb}. It's still on your ${upcoming.join(" and ")} this week; say "swap ${upcoming[0].toLowerCase()} ${recipe.type}" and I'll replace it now.`;
 }
 
 /**
@@ -4538,6 +4654,29 @@ export function applyOperations(
         p.lockedMeals = (p.lockedMeals ?? []).filter((l) => !(l.day === op.day && l.mealType === op.mealType));
         profileChanged = true;
         notes.push(`Unpinned ${had.name} — I can change ${op.day} ${op.mealType} again.`);
+        break;
+      }
+      case "rate_meal": {
+        const rating = op.rating;
+        if (rating == null) {
+          notes.push("How would you rate it, 1 to 5?");
+          break;
+        }
+        const recipe = resolveRatedDish(curPlan, op.dish ?? undefined, op.day ?? undefined, op.mealType ?? undefined);
+        if (!recipe) {
+          notes.push(
+            op.dish
+              ? `I don't have a recipe called "${op.dish}" — which day and meal was it?`
+              : "Which meal are you rating — which day, and breakfast, lunch or dinner?",
+          );
+          break;
+        }
+        p.mealRatings = [
+          ...(p.mealRatings ?? []).filter((r) => r.name.toLowerCase() !== recipe.name.toLowerCase()),
+          { name: recipe.name, rating: rating as MealRating["rating"] },
+        ];
+        profileChanged = true;
+        notes.push(rateMealNote(curPlan, recipe, rating, op.day ?? undefined, op.mealType ?? undefined));
         break;
       }
       case "symptom_check": {
