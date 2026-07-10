@@ -23,6 +23,9 @@ const ALLOWED: ReadonlySet<Operation["tool"]> = new Set([
   "unlock_meal",
   "scale_portions",
   "undo",
+  // Read-only and deterministic: the engine computes the week's averages and nutrient gaps. Lets
+  // the Home "coach" card show it without a model call — it's just facts about the current plan.
+  "weekly_report",
 ]);
 
 interface OperationRequest {

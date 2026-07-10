@@ -112,6 +112,9 @@ export default function PlanPage() {
   // The day the open meal sits on, when it's a plan meal. Undefined for an Explore recipe, which is
   // on no day and can't be pinned. Pinning is slot-based (day + mealType), unlike rating.
   const [detailDay, setDetailDay] = useState<string | undefined>(undefined);
+  // The deterministic "how your week looks" note (averages + nutrient gaps), computed by the engine
+  // and shown on Home. No model — it's just facts about the current plan, so it works while v8 trains.
+  const [weekReport, setWeekReport] = useState<string | null>(null);
   const [regenerating, setRegenerating] = useState(false);
   const [regenError, setRegenError] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -137,6 +140,29 @@ export default function PlanPage() {
     const t = setTimeout(() => setToast(null), 4000);
     return () => clearTimeout(t);
   }, [toast]);
+
+  // Recompute the weekly review whenever the plan or profile changes. Deterministic endpoint, no
+  // model — so the Home coach card is live even while the assistant is offline.
+  useEffect(() => {
+    if (!profile || !plan || plan.days.length === 0) {
+      setWeekReport(null);
+      return;
+    }
+    let cancelled = false;
+    fetch("/api/operation", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ profile, plan, operation: { tool: "weekly_report" } }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled && d?.reply) setWeekReport(d.reply);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [profile, plan]);
 
   const groceries = useMemo(() => {
     if (!plan) return [];
@@ -517,6 +543,18 @@ export default function PlanPage() {
                       })}
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* Coach card — the weekly review a nutritionist would give, computed from the plan.
+                  Deterministic, so it's here whether or not the chat model is up. */}
+              {weekReport && (
+                <div className="mt-6 rounded-3xl bg-white p-6 card-shadow">
+                  <div className="flex items-center gap-2">
+                    <ZapIcon className="h-4 w-4 text-vio-deep" />
+                    <h3 className="font-semibold">How your week looks</h3>
+                  </div>
+                  <p className="mt-2 text-sm leading-relaxed text-mut">{weekReport}</p>
                 </div>
               )}
             </>
