@@ -1162,6 +1162,54 @@ console.log("--- LOCK MEAL (a plan you can't pin isn't yours) ---");
   const withReserve = applyOperations(BASE, plan, [op({ tool: "eating_out", day: "Friday", mealType: "dinner" })]).plan;
   check("you can't pin a restaurant reserve", /isn't one of my recipes/i.test(
     applyOperations(BASE, withReserve, [op({ tool: "lock_meal", day: "Friday", mealType: "dinner" })]).notes.join(" ")));
+
+  // ---- regressions from the pinned-meals audit -----------------------------------------------
+
+  // A pin is a fixed point for EVERY day re-solve, not just for a rebuild. Logging a huge
+  // breakfast used to rescale the pinned dinner to its 0.6x floor, and the protein-upgrade lever
+  // was free to replace the dish outright.
+  const pinMon = applyOperations(BASE, plan, [op({ tool: "lock_meal", day: "Monday", mealType: "dinner" })]).profile;
+  const monDinner = plan.days.find((d) => d.day === "Monday")!.meals.find((m) => m.type === "dinner")!;
+  const afterLog = applyOperations(pinMon, plan, [
+    op({ tool: "log_meal", day: "Monday", mealType: "breakfast", dish: "fry up", loggedCalories: 1400, loggedProtein: 40 }),
+  ]).plan.days.find((d) => d.day === "Monday")!.meals.find((m) => m.type === "dinner")!;
+  check("logging a huge breakfast doesn't move the pinned dinner",
+    afterLog.name === monDinner.name && afterLog.calories === monDinner.calories,
+    `${monDinner.name} ${monDinner.calories} -> ${afterLog.name} ${afterLog.calories}`);
+
+  const afterOut = applyOperations(pinMon, plan, [
+    op({ tool: "eating_out", day: "Monday", mealType: "lunch", estimatedCalories: 900 }),
+  ]).plan.days.find((d) => d.day === "Monday")!.meals.find((m) => m.type === "dinner")!;
+  check("eating out at lunch doesn't move the pinned dinner",
+    afterOut.name === monDinner.name && afterOut.calories === monDinner.calories);
+
+  // THE BIG ONE. "make Tuesday vegan" was re-imposing a pinned beef bowl using the SAVED profile,
+  // so the day came back with the beef AND a chicken dish the rebalancer then upgraded to. A pin
+  // may never break a hard rule — including one the user set for a single day.
+  const beef = RECIPES.find((r) => r.type === "lunch" && /beef/i.test(r.name) && !r.treatOnly)!;
+  const beefPin: UserProfile = { ...BASE, lockedMeals: [{ day: "Tuesday", mealType: "lunch", name: beef.name }] };
+  const veganTue = applyOperations(beefPin, plan, [op({ tool: "regenerate_day", day: "Tuesday", diet: "vegan" })]);
+  const tue = veganTue.plan.days.find((d) => d.day === "Tuesday")!;
+  const notVegan = tue.meals.filter((m) => {
+    const b = recipeByName.get(m.name.toLowerCase());
+    return b && !dietOk(b.dietTags, "vegan");
+  });
+  check("a pin cannot break a ONE-DAY diet override", notVegan.length === 0, notVegan.map((m) => m.name).join(", "));
+  check("a one-day override skips the pin but keeps it", (veganTue.profile.lockedMeals ?? []).length === 1);
+  check("...and says it stepped around the pin", /pinned on Tuesday, but/i.test(veganTue.notes.join(" ")));
+
+  // mealType is optional. Unpinning keyed off op.mealType alone, so a swap without it left the pin
+  // in place and reverted on the next rebuild.
+  const swapNoType = applyOperations(pinMon, plan, [op({ tool: "swap_meal", day: "Monday", dish: "salmon" })]);
+  check("a swap with no mealType still removes the pin it replaced", (swapNoType.profile.lockedMeals ?? []).length === 0);
+
+  // A pin on a slot the day no longer has is a phantom: never placed, never dropped, never said.
+  const P4: UserProfile = { ...BASE, mealsPerDay: 4 };
+  const plan4 = freshWeek(P4);
+  const snackPin = applyOperations(P4, plan4, [op({ tool: "lock_meal", day: "Monday", mealType: "snack" })]).profile;
+  const backTo3 = applyOperations({ ...snackPin, mealsPerDay: 3 }, plan4, [op({ tool: "regenerate_week" })]);
+  check("dropping to 3 meals evicts a pinned snack", (backTo3.profile.lockedMeals ?? []).length === 0);
+  check("...and says why", /no snack/i.test(backTo3.notes.join(" ")), backTo3.notes.find((n) => /pinned/.test(n))?.slice(0, 80) ?? "");
 }
 
 // ---------------------------------------------------------------- 3. fuzz

@@ -2517,6 +2517,17 @@ export function selectDay(
       for (const ing of m.ingredients) ctx.usedIngredients.add(ing.name.trim().toLowerCase());
     }
   }
+  // A dish pinned to ANOTHER day is spent, even when it is transiently absent from the plan (a
+  // restaurant reserve sits in its slot, say). Otherwise this day picks it, the pin is re-imposed
+  // later, and the week serves it twice.
+  for (const l of profile.lockedMeals ?? []) {
+    if (l.day === dayName) continue;
+    const r = RECIPES.find((x) => x.name === l.name);
+    if (r) {
+      ctx.usedIds.add(r.id);
+      ctx.usedNames.add(r.name.toLowerCase());
+    }
+  }
   return {
     day: dayName,
     meals: pickMealsForDay(profile, split, cap, tokens, ctx, cuisinePref, preferFiber, report),
@@ -3267,6 +3278,10 @@ function lockedSlotsFor(p: UserProfile, day: DayPlan["day"]): Set<Meal["type"]> 
 function lockViolatesHardRule(p: UserProfile, lock: LockedMeal): string | null {
   const recipe = RECIPES.find((r) => r.name === lock.name);
   if (!recipe) return "it isn't one of my recipes any more";
+  // A pin on a slot the day no longer has (they dropped from 4 meals to 3) can never be placed.
+  // Left alive it becomes a phantom: silently ignored, silently resurrected on the way back.
+  if (!localSplit(p.mealsPerDay).some(([t]) => t === lock.mealType))
+    return `you eat ${p.mealsPerDay} meals a day now, so there's no ${lock.mealType}`;
   if (!passesDiet(recipe, p.diet)) return `it isn't ${p.diet}`;
   if (blockedByExclusions(recipe, exclusionTokens(p))) return "it contains something you avoid";
   return null;
@@ -3395,7 +3410,8 @@ function eatingOut(
     return sum + (base ? base.calories * SCALE_LO : m.calories);
   }, 0);
 
-  const meals = rebalanceDay(withReserve, p, new Set([mealType]), namesOnOtherDays(plan, day, p));
+  // The reserved slot is fixed, and so is every pinned slot on that day.
+  const meals = rebalanceDay(withReserve, p, new Set([mealType, ...lockedSlotsFor(p, day)]), namesOnOtherDays(plan, day, p));
   const total = meals.reduce((sum, m) => sum + m.calories, 0);
   const pct = Math.round((reserve / p.targetCalories) * 100);
 
@@ -3551,13 +3567,28 @@ export function applyOperations(
   /**
    * Put the user's pinned meals back. Called after EVERY rebuild, and always BEFORE the engine
    * states any number — otherwise achievementNote reports a week the user is not getting.
-   * A pin that a new diet or allergy has made impossible is dropped, and said out loud.
+   *
+   * `effective` is the profile the day is judged against. For regenerate_day it is the per-day
+   * override ("make Tuesday vegan"), NOT the saved profile — otherwise a pinned beef bowl is
+   * re-imposed onto a vegan Tuesday, and the day's other meals get re-solved against the wrong
+   * diet too. A pin may never break a hard rule; that includes a rule the user set for one day.
+   *
+   * A pin that a permanent change made impossible is dropped for good and said out loud. A pin
+   * that merely conflicts with a ONE-DAY override is skipped for that day and kept — the user
+   * said "make Tuesday vegan", not "stop pinning my roast".
    */
-  const applyLocks = (onlyDays?: Set<string>) => {
+  const applyLocks = (onlyDays?: Set<string>, effective?: UserProfile) => {
     if (!p.lockedMeals?.length) return;
-    const res = reimposeLocks(p, curPlan, onlyDays);
+    const eff = effective ?? p;
+    const temporary = eff !== p;
+    const res = reimposeLocks(eff, curPlan, onlyDays);
     curPlan = res.plan;
     if (!res.dropped.length) return;
+    if (temporary) {
+      for (const d of res.dropped)
+        notes.push(`${d.lock.name} is pinned on ${d.lock.day}, but ${d.why} — I've left it out just for this change and kept the pin.`);
+      return;
+    }
     const gone = new Set(res.dropped.map((d) => lockKey(d.lock.day, d.lock.mealType)));
     p.lockedMeals = p.lockedMeals.filter((l) => !gone.has(lockKey(l.day, l.mealType)));
     profileChanged = true;
@@ -3631,25 +3662,30 @@ export function applyOperations(
           ? rebalanceDay(newDay.meals, tp, undefined, namesOnOtherDays(curPlan, op.day, tp))
           : newDay.meals;
         curPlan = { ...curPlan, days: curPlan.days.map((d) => (d.day === op.day ? { ...newDay, meals } : d)) };
-        applyLocks(new Set([op.day]));
+        applyLocks(new Set([op.day]), tp);
         const finalDay = curPlan.days.find((d) => d.day === op.day)!;
         if (keepMacros(op)) notes.push(achievementNote(`${op.day} now has`, dayTotals(finalDay), tp));
         break;
       }
       case "swap_meal": {
         if (!op.day || !op.dish) break;
-        // A pin says "don't change this when you rebuild". An explicit swap of that very slot is a
-        // newer, more specific instruction, so it wins — but the pin is removed and the user is
-        // told, rather than the swap silently reverting on their next regeneration.
-        if (op.mealType && p.lockedMeals?.some((l) => l.day === op.day && l.mealType === op.mealType)) {
-          const gone = p.lockedMeals.find((l) => l.day === op.day && l.mealType === op.mealType)!;
-          p.lockedMeals = p.lockedMeals.filter((l) => !(l.day === op.day && l.mealType === op.mealType));
-          profileChanged = true;
-          notes.push(`${gone.name} was pinned on ${op.day} — I've swapped it and removed the pin.`);
-        }
         // Macro-aware pick: matches the requested dish, tie-broken toward the slot's
         // macro profile (e.g. the protein-forward pancake on a high-protein plan).
         const match = findRecipeForSwap(op.dish, op.mealType ?? undefined, p);
+        // A pin says "don't change this when you rebuild". An explicit swap of that very slot is a
+        // newer, more specific instruction, so it wins — but the pin is removed and the user is
+        // told, rather than the swap silently reverting on their next regeneration.
+        //
+        // mealType is OPTIONAL, so the slot that actually gets swapped is the matched recipe's.
+        // Keying the unpin off op.mealType alone left the pin in place and the swap reverted on
+        // the next rebuild, silently.
+        const swapSlot = op.mealType ?? match?.type;
+        if (swapSlot && p.lockedMeals?.some((l) => l.day === op.day && l.mealType === swapSlot)) {
+          const gone = p.lockedMeals.find((l) => l.day === op.day && l.mealType === swapSlot)!;
+          p.lockedMeals = p.lockedMeals.filter((l) => !(l.day === op.day && l.mealType === swapSlot));
+          profileChanged = true;
+          notes.push(`${gone.name} was pinned on ${op.day} — I've swapped it and removed the pin.`);
+        }
         const origDay = curPlan.days.find((d) => d.day === op.day);
         if (!origDay) break;
         if (!match) {
@@ -3678,7 +3714,7 @@ export function applyOperations(
         // Keep the day on its macro targets by rebalancing the OTHER meals — the
         // swapped-in dish stays as the user requested (locked).
         const newMeals = keepMacros(op)
-          ? rebalanceDay(swapped, p, new Set([match.type]), namesOnOtherDays(curPlan, op.day, p))
+          ? rebalanceDay(swapped, p, new Set([match.type, ...lockedSlotsFor(p, op.day)]), namesOnOtherDays(curPlan, op.day, p))
           : swapped;
         curPlan = {
           ...curPlan,
@@ -3781,7 +3817,10 @@ export function applyOperations(
         if (op.dish && !op.loggedCalories && eaten.proteinGrams === 0 && !eaten.ingredients.length)
           notes.push(`I logged it at ${eaten.calories} kcal but I don't know its protein.`);
 
-        const locked = slotsUpTo(op.mealType);
+        // Everything already eaten today is fixed — and so is anything the user pinned. Without
+        // this, logging a 1400 kcal breakfast rescaled the pinned dinner to its 0.6x floor and the
+        // protein-upgrade lever was free to replace the dish outright.
+        const locked = new Set([...slotsUpTo(op.mealType), ...lockedSlotsFor(p, op.day)]);
         const withEaten = origDay.meals.map((m) => (m.type === op.mealType ? eaten! : m));
         const newMeals = rebalanceDay(withEaten, p, locked, namesOnOtherDays(curPlan, op.day, p));
         curPlan = { ...curPlan, days: curPlan.days.map((d) => (d.day === op.day ? { ...d, meals: newMeals } : d)) };
