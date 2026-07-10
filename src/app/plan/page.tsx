@@ -115,6 +115,8 @@ export default function PlanPage() {
   // The deterministic "how your week looks" note (averages + nutrient gaps), computed by the engine
   // and shown on Home. No model — it's just facts about the current plan, so it works while v8 trains.
   const [weekReport, setWeekReport] = useState<string | null>(null);
+  // The fluid target, shown on Home only once we know a body weight (from onboarding or compute_targets).
+  const [hydration, setHydration] = useState<string | null>(null);
   const [regenerating, setRegenerating] = useState(false);
   const [regenError, setRegenError] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -157,6 +159,28 @@ export default function PlanPage() {
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (!cancelled && d?.reply) setWeekReport(d.reply);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [profile, plan]);
+
+  // Fluid target — only when we know a weight. Recomputes if the stored weight changes.
+  useEffect(() => {
+    if (!profile?.bodyStats?.weightKg || !plan) {
+      setHydration(null);
+      return;
+    }
+    let cancelled = false;
+    fetch("/api/operation", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ profile, plan, operation: { tool: "hydration" } }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled && d?.reply) setHydration(d.reply);
       })
       .catch(() => {});
     return () => {
@@ -555,6 +579,11 @@ export default function PlanPage() {
                     <h3 className="font-semibold">How your week looks</h3>
                   </div>
                   <p className="mt-2 text-sm leading-relaxed text-mut">{weekReport}</p>
+                  {hydration && (
+                    <p className="mt-3 border-t border-line pt-3 text-sm leading-relaxed text-mut">
+                      {hydration}
+                    </p>
+                  )}
                 </div>
               )}
             </>

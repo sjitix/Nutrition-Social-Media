@@ -26,6 +26,8 @@ const ALLOWED: ReadonlySet<Operation["tool"]> = new Set([
   // Read-only and deterministic: the engine computes the week's averages and nutrient gaps. Lets
   // the Home "coach" card show it without a model call — it's just facts about the current plan.
   "weekly_report",
+  // Read-only: fluid target from body weight. Shown on Home when we know the weight.
+  "hydration",
 ]);
 
 interface OperationRequest {
