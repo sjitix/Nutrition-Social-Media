@@ -241,27 +241,41 @@ console.log("\n--- SCENARIOS (user perspective) ---");
 {
   // "I've got salmon to use up."
   const wk = freshWeek(BASE);
-  const cnt = (p: WeekPlan) => p.days.reduce((s, d) => s + d.meals.filter((m) => mealHay(m).includes("salmon")).length, 0);
-  // Selection is randomised, so compare MEANS over many runs. Use an ingredient with NO
-  // protein-diversity cap: salmon is a "fish" main-protein and is capped at ~3 days/week
-  // regardless of the fridge, so the lift is swamped by noise and the test flaps.
-  const cntOf = (p: WeekPlan, ing: string) =>
-    p.days.reduce((s, d) => s + d.meals.filter((m) => mealHay(m).includes(ing)).length, 0);
+  // The fridge used to be a BIAS: the selector preferred matching recipes per slot, but the
+  // protein-diversity cap (fish is limited to ~3 days a week) could still crowd salmon out of the
+  // whole week. The test could only say "usually", which is another way of saying nobody knew.
+  // It's a guarantee now, so this asserts a guarantee.
+  const usesIng = (p: WeekPlan, ing: string) =>
+    p.days.some((d) => d.meals.some((m) => m.ingredients.some((i) => i.name.trim().toLowerCase() === ing)));
   const N = 12;
-  let defSum = 0;
-  let fridgeSum = 0;
-  let salmonPresent = 0;
-  for (let i = 0; i < N; i++) {
-    const w = freshWeek(BASE);
-    defSum += cntOf(w, "broccoli");
-    fridgeSum += cntOf(applyOperations(BASE, w, [op({ tool: "regenerate_week", useIngredients: ["broccoli"] })]).plan, "broccoli");
-    salmonPresent += cntOf(applyOperations(BASE, w, [op({ tool: "regenerate_week", useIngredients: ["salmon"] })]).plan, "salmon") > 0 ? 1 : 0;
+  const SETS: string[][] = [["broccoli"], ["salmon fillet"], ["salmon fillet", "broccoli", "chickpeas"]];
+  for (const set of SETS) {
+    let ok = 0;
+    for (let i = 0; i < N; i++) {
+      const plan = applyOperations(BASE, freshWeek(BASE), [op({ tool: "regenerate_week", useIngredients: set })]).plan;
+      if (set.every((s) => usesIng(plan, s))) ok++;
+    }
+    check(`fridge: [${set.join(", ")}] always end up in the week`, ok === N, `${ok}/${N} runs`);
   }
-  check("fridge: useIngredients:[broccoli] raises mean usage", fridgeSum / N > defSum / N, `default=${(defSum / N).toFixed(1)} fridge=${(fridgeSum / N).toFixed(1)} over ${N} runs`);
-  // The fridge is a strong PREFERENCE, not a guarantee: the protein-diversity cap (fish is
-  // limited to ~3 days/week) can crowd salmon out. Asserting "always" claimed a promise the
-  // engine never made. Making it a guarantee is tracked in WORKPLAN.md.
-  check("fridge: a capped protein (salmon) usually appears when requested", salmonPresent >= N - 1, `${salmonPresent}/${N} runs`);
+
+  // The guarantee never overrides a hard rule, and never pretends.
+  const V: UserProfile = { ...BASE, diet: "vegan" };
+  const veganSalmon = applyOperations(V, freshWeek(V), [op({ tool: "regenerate_week", useIngredients: ["salmon fillet"] })]);
+  check("fridge: a vegan asking to use up salmon is told, not obeyed",
+    !usesIng(veganSalmon.plan, "salmon fillet") && /couldn't work/i.test(veganSalmon.notes.join(" ")),
+    veganSalmon.notes.find((n) => /couldn't work/i.test(n))?.slice(0, 70) ?? "silent");
+
+  // Filling the fridge must not knock the week off its macros.
+  const filled = applyOperations(BASE, wk, [op({ tool: "regenerate_week", useIngredients: ["salmon fillet", "broccoli"] })]).plan;
+  const worst = Math.max(...filled.days.map((d) => Math.abs(kcal(d) - BASE.targetCalories)));
+  check("fridge: the week still hits its calorie target", worst <= BASE.targetCalories * 0.15, `worst day off by ${worst} kcal`);
+
+  // A pinned meal is never displaced to make room for the fridge.
+  const pinned = applyOperations(BASE, wk, [op({ tool: "lock_meal", day: "Sunday", mealType: "dinner" })]).profile;
+  const pinnedName = pinned.lockedMeals![0].name;
+  const withFridge = applyOperations(pinned, wk, [op({ tool: "regenerate_week", useIngredients: ["salmon fillet", "broccoli"] })]).plan;
+  check("fridge: a pinned meal is never displaced to make room",
+    withFridge.days.find((d) => d.day === "Sunday")!.meals.find((m) => m.type === "dinner")!.name === pinnedName);
 }
 
 // ---------------------------------------------------------------- 1b. micronutrients
@@ -847,16 +861,22 @@ console.log("--- SUBSTITUTE INGREDIENT (safe first, honest about the cost) ---")
     /egg whites/i.test(sub("egg").notes.join(" ")) && /cottage cheese|yogurt/i.test(sub("greek yoghurt").notes.join(" ")));
   check("substitute_ingredient asks when told nothing", /which ingredient/i.test(sub("").notes.join(" ")));
 
-  // The macro delta must be arithmetic on the real portion, not a vibe.
+  // The macro delta must be arithmetic on the real portion, not a vibe. Read the note for WHICH
+  // meal and WHICH ingredient it actually used — it may match "egg" where we asked for "eggs", and
+  // hard-coding the meal made this test break whenever recipe selection changed.
   const eggNote = sub("eggs").notes.join(" ");
-  const eggMeal = plan.days.flatMap((d) => d.meals).find((m) => m.ingredients.some((i) => /^eggs$/i.test(i.name.trim())));
-  if (eggMeal) {
-    const q = eggMeal.ingredients.find((i) => /^eggs$/i.test(i.name.trim()))!;
-    const g = gramsFor("eggs", q.quantity);
+  const m = /instead of the (.+?) (?:of )?([a-z ]+?) in (\w+)'s (\w+)/.exec(eggNote);
+  if (m) {
+    const [, qty, ingName, dayName, slot] = m;
+    const meal = plan.days.find((d) => d.day === dayName)!.meals.find((x) => x.type === slot)!;
+    const ing = meal.ingredients.find((i) => i.name.trim().toLowerCase() === ingName.trim());
+    const g = ing ? gramsFor(ingName.trim(), ing.quantity) : null;
+    const sub0 = NUTRIENT_TABLE[ingName.trim()]?.per100g.cal ?? 0;
+    const sub1 = NUTRIENT_TABLE["egg whites"]?.per100g.cal ?? 0;
     if (g) {
-      const dCal = Math.round((((NUTRIENT_TABLE["egg whites"].per100g.cal ?? 0) - (NUTRIENT_TABLE["eggs"].per100g.cal ?? 0)) * g) / 100);
-      if (Math.abs(dCal) >= 15)
-        check("substitute_ingredient's calorie delta is computed from the real portion", eggNote.includes(`${Math.abs(dCal)} `), `expected ${Math.abs(dCal)}`);
+      const dCal = Math.abs(Math.round(((sub1 - sub0) * g) / 100));
+      check("substitute_ingredient's calorie delta is computed from the real portion",
+        dCal < 15 || eggNote.includes(`${dCal} `), `note said "${eggNote.slice(0, 70)}", recomputed ${dCal} from ${qty}`);
     }
   }
 }
@@ -1200,8 +1220,26 @@ console.log("--- LOCK MEAL (a plan you can't pin isn't yours) ---");
 
   // mealType is optional. Unpinning keyed off op.mealType alone, so a swap without it left the pin
   // in place and reverted on the next rebuild.
-  const swapNoType = applyOperations(pinMon, plan, [op({ tool: "swap_meal", day: "Monday", dish: "salmon" })]);
-  check("a swap with no mealType still removes the pin it replaced", (swapNoType.profile.lockedMeals ?? []).length === 0);
+  //
+  // Which slot "salmon" lands in is the matcher's choice, not ours — it may well be a lunch bowl.
+  // So ask the engine first, THEN pin that slot. (Assuming salmon meant dinner made this test fail
+  // the moment recipe macros changed; the engine was right and the test was wrong.)
+  const probe = applyOperations(BASE, plan, [op({ tool: "swap_meal", day: "Monday", dish: "salmon" })]).plan;
+  const monBefore = plan.days.find((d) => d.day === "Monday")!.meals;
+  const monAfter = probe.days.find((d) => d.day === "Monday")!.meals;
+  const hitSlot = monBefore.find((mm, i) => mm.name !== monAfter[i].name)?.type;
+  if (hitSlot) {
+    const pinnedThere = applyOperations(BASE, plan, [op({ tool: "lock_meal", day: "Monday", mealType: hitSlot })]).profile;
+    const swapNoType = applyOperations(pinnedThere, plan, [op({ tool: "swap_meal", day: "Monday", dish: "salmon" })]);
+    check("a swap with no mealType still removes the pin it replaced",
+      (swapNoType.profile.lockedMeals ?? []).length === 0, `slot ${hitSlot}`);
+    check("...and a pin on a DIFFERENT slot survives that swap", (() => {
+      const other = (["breakfast", "lunch", "dinner"] as const).find((t) => t !== hitSlot)!;
+      const pinnedElsewhere = applyOperations(BASE, plan, [op({ tool: "lock_meal", day: "Monday", mealType: other })]).profile;
+      const r2 = applyOperations(pinnedElsewhere, plan, [op({ tool: "swap_meal", day: "Monday", dish: "salmon" })]);
+      return (r2.profile.lockedMeals ?? []).length === 1;
+    })());
+  }
 
   // A pin on a slot the day no longer has is a phantom: never placed, never dropped, never said.
   const P4: UserProfile = { ...BASE, mealsPerDay: 4 };

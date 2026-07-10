@@ -115,12 +115,62 @@ function toMeal(r: Recipe): Meal {
 // --- Seed library ----------------------------------------------------------
 // A small but diverse starter set (7 breakfasts / 7 lunches / 7 dinners / 2
 // snacks) spanning cuisines and proteins, enough to build a no-repeat week.
-export const RECIPES: Recipe[] = [
+/** A recipe as authored: everything except the macros, which are computed from the ingredients. */
+type RecipeSeed = Omit<Recipe, "calories" | "proteinGrams" | "carbsGrams" | "fatGrams" | "fiberGrams">;
+
+/**
+ * Add up what the ingredients actually are, per serving, from USDA per-100g values.
+ *
+ * `gramsFor` knows the unit conventions ("1 tbsp", "70 g dry", "1 can"). An ingredient we cannot
+ * price contributes nothing — which would quietly understate the dish, so check-recipes.mts fails
+ * on any unpriced ingredient rather than letting it pass.
+ */
+function deriveMacros(r: RecipeSeed): Recipe {
+  const servings = Math.max(1, r.servings ?? 1);
+  let cal = 0, protein = 0, carbs = 0, fat = 0, fiber = 0;
+  for (const i of r.ingredients) {
+    const key = i.name.trim().toLowerCase();
+    const per = NUTRIENT_TABLE[key]?.per100g;
+    const grams = gramsFor(key, i.quantity);
+    if (!per || !grams) continue;
+    const f = grams / 100;
+    cal += (per.cal ?? 0) * f;
+    protein += (per.protein ?? 0) * f;
+    carbs += (per.carbs ?? 0) * f;
+    fat += (per.fat ?? 0) * f;
+    fiber += (per.fiber ?? 0) * f;
+  }
+  return {
+    ...r,
+    calories: Math.round(cal / servings),
+    proteinGrams: Math.round(protein / servings),
+    carbsGrams: Math.round(carbs / servings),
+    fatGrams: Math.round(fat / servings),
+    fiberGrams: Math.round(fiber / servings),
+  };
+}
+
+/**
+ * The seed library. Note what is NOT here: calories, protein, carbs, fat, fiber.
+ *
+ * Those used to be hand-written on each card, and 46 of 140 recipes disagreed with their own
+ * ingredient list by more than 20% — one by 63%. That is not a cosmetic problem. Every
+ * micronutrient this app reports is derived from the ingredient list against USDA data, while the
+ * calories and protein shown to the user came from the card. When the two disagree, the nutrients
+ * are silently wrong in proportion: a Shakshuka whose ingredients accounted for 57% of its
+ * calories reported 57% of its real iron, and weekly_report could tell someone they were deficient
+ * when they were not.
+ *
+ * So the ingredient list is now the single source of truth, and the macros are computed from it.
+ * A recipe cannot lie about itself any more; the worst it can do is be an incomplete recipe, and
+ * `npm run check:recipes` fails when it is.
+ */
+const SEED_RECIPES: RecipeSeed[] = [
   // ---- Breakfasts ----
   {
     id: "b-greek-yogurt", name: "Greek Yogurt & Berry Bowl", type: "breakfast",
     cuisine: "mediterranean", mainProtein: "dairy",
-    calories: 380, proteinGrams: 22, carbsGrams: 48, fatGrams: 10, timeMinutes: 8, approxCost: 2,
+    timeMinutes: 8, approxCost: 2,
     dietTags: ["vegetarian", "mediterranean"],
     description: "Creamy yogurt with berries, honey and crunchy granola.",
     ingredients: [
@@ -134,7 +184,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "b-veggie-omelette", name: "Veggie Omelette", type: "breakfast",
     cuisine: "american", mainProtein: "eggs",
-    calories: 420, proteinGrams: 27, carbsGrams: 12, fatGrams: 28, timeMinutes: 12, approxCost: 1,
+    timeMinutes: 12, approxCost: 1,
     dietTags: ["vegetarian", "keto", "gluten_free"],
     description: "Fluffy three-egg omelette with peppers and spinach.",
     ingredients: [
@@ -148,7 +198,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "b-banana-oatmeal", name: "Peanut Banana Oatmeal", type: "breakfast",
     cuisine: "american", mainProtein: "dairy",
-    calories: 410, proteinGrams: 14, carbsGrams: 62, fatGrams: 12, timeMinutes: 10, approxCost: 1,
+    timeMinutes: 10, approxCost: 1,
     dietTags: ["vegetarian"],
     description: "Warm oats with banana, cinnamon and peanut butter.",
     ingredients: [
@@ -162,7 +212,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "b-tofu-wrap", name: "Tofu Scramble Wrap", type: "breakfast",
     cuisine: "american", mainProtein: "tofu",
-    calories: 400, proteinGrams: 24, carbsGrams: 34, fatGrams: 16, timeMinutes: 15, approxCost: 2,
+    timeMinutes: 15, approxCost: 2,
     dietTags: ["vegan", "vegetarian"],
     description: "Turmeric tofu scramble with veggies in a warm tortilla.",
     ingredients: [
@@ -170,19 +220,23 @@ export const RECIPES: Recipe[] = [
       { name: "Whole-wheat tortilla", quantity: "1 piece" },
       { name: "Spinach", quantity: "40 g" },
       { name: "Turmeric", quantity: "1 tsp" },
+      { name: "olive oil", quantity: "1 tsp" },
     ],
     steps: ["Crumble and fry tofu with turmeric and spinach.", "Wrap in the tortilla."],
   },
   {
     id: "b-shakshuka", name: "Shakshuka", type: "breakfast",
     cuisine: "middle_eastern", mainProtein: "eggs",
-    calories: 430, proteinGrams: 22, carbsGrams: 28, fatGrams: 24, timeMinutes: 20, approxCost: 2,
+    timeMinutes: 20, approxCost: 2,
     dietTags: ["vegetarian", "gluten_free"],
     description: "Eggs poached in a spiced tomato and pepper sauce.",
     ingredients: [
       { name: "Eggs", quantity: "2 pieces" },
       { name: "Chopped tomatoes", quantity: "1 can" },
       { name: "Bell pepper", quantity: "1 piece" },
+      { name: "Onion", quantity: "1/2 piece" },
+      { name: "Olive oil", quantity: "1 tbsp" },
+      { name: "Feta", quantity: "40 g" },
       { name: "Paprika", quantity: "1 tsp" },
     ],
     steps: ["Simmer peppers, tomatoes and paprika.", "Crack in eggs; cook until set."],
@@ -190,7 +244,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "b-salmon-bagel", name: "Smoked Salmon Bagel", type: "breakfast",
     cuisine: "american", mainProtein: "fish",
-    calories: 450, proteinGrams: 28, carbsGrams: 40, fatGrams: 18, timeMinutes: 8, approxCost: 3,
+    timeMinutes: 8, approxCost: 3,
     dietTags: ["mediterranean"],
     description: "Wholegrain bagel with cream cheese and smoked salmon.",
     ingredients: [
@@ -204,7 +258,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "b-avocado-toast", name: "Avocado & Chickpea Toast", type: "breakfast",
     cuisine: "mediterranean", mainProtein: "legumes",
-    calories: 390, proteinGrams: 16, carbsGrams: 42, fatGrams: 17, timeMinutes: 10, approxCost: 1,
+    timeMinutes: 10, approxCost: 1,
     dietTags: ["vegan", "vegetarian", "mediterranean"],
     description: "Smashed avocado and chickpeas on toasted sourdough.",
     ingredients: [
@@ -220,7 +274,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "l-chicken-quinoa", name: "Chicken Quinoa Bowl", type: "lunch",
     cuisine: "mediterranean", mainProtein: "chicken",
-    calories: 560, proteinGrams: 42, carbsGrams: 50, fatGrams: 16, timeMinutes: 20, approxCost: 2,
+    timeMinutes: 20, approxCost: 2,
     dietTags: ["mediterranean", "gluten_free"],
     description: "Grilled chicken over quinoa with roasted vegetables.",
     ingredients: [
@@ -234,7 +288,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "l-tuna-nicoise", name: "Tuna Niçoise Salad", type: "lunch",
     cuisine: "mediterranean", mainProtein: "fish",
-    calories: 480, proteinGrams: 34, carbsGrams: 30, fatGrams: 22, timeMinutes: 15, approxCost: 2,
+    timeMinutes: 15, approxCost: 2,
     dietTags: ["mediterranean", "gluten_free"],
     description: "Tuna, egg, green beans and potatoes with a light dressing.",
     ingredients: [
@@ -242,13 +296,15 @@ export const RECIPES: Recipe[] = [
       { name: "Egg", quantity: "1 piece" },
       { name: "Green beans", quantity: "100 g" },
       { name: "Baby potatoes", quantity: "150 g" },
+      { name: "Olives", quantity: "30 g" },
+      { name: "Olive oil", quantity: "1 tbsp" },
     ],
     steps: ["Boil egg, beans and potatoes.", "Flake tuna over; dress and toss."],
   },
   {
     id: "l-beef-burrito", name: "Beef Burrito Bowl", type: "lunch",
     cuisine: "mexican", mainProtein: "beef",
-    calories: 620, proteinGrams: 38, carbsGrams: 60, fatGrams: 22, timeMinutes: 25, approxCost: 3,
+    timeMinutes: 25, approxCost: 3,
     dietTags: ["gluten_free"],
     description: "Seasoned beef with rice, black beans, corn and salsa.",
     ingredients: [
@@ -262,7 +318,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "l-lentil-soup", name: "Lentil Soup & Bread", type: "lunch",
     cuisine: "middle_eastern", mainProtein: "legumes",
-    calories: 480, proteinGrams: 24, carbsGrams: 70, fatGrams: 10, timeMinutes: 30, approxCost: 1,
+    timeMinutes: 30, approxCost: 1,
     dietTags: ["vegan", "vegetarian"],
     description: "Hearty red lentil soup with carrot and cumin.",
     ingredients: [
@@ -276,7 +332,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "l-teriyaki-tofu", name: "Teriyaki Tofu Stir-Fry", type: "lunch",
     cuisine: "asian", mainProtein: "tofu",
-    calories: 520, proteinGrams: 26, carbsGrams: 68, fatGrams: 14, timeMinutes: 20, approxCost: 2,
+    timeMinutes: 20, approxCost: 2,
     dietTags: ["vegan", "vegetarian"],
     description: "Crispy tofu and vegetables in teriyaki over rice.",
     ingredients: [
@@ -284,13 +340,14 @@ export const RECIPES: Recipe[] = [
       { name: "Rice", quantity: "70 g dry" },
       { name: "Mixed stir-fry veg", quantity: "150 g" },
       { name: "Teriyaki sauce", quantity: "2 tbsp" },
+      { name: "sesame oil", quantity: "1 tbsp" },
     ],
     steps: ["Cook rice; fry tofu until golden.", "Stir-fry veg with sauce; combine."],
   },
   {
     id: "l-turkey-wrap", name: "Turkey Avocado Wrap", type: "lunch",
     cuisine: "american", mainProtein: "turkey",
-    calories: 540, proteinGrams: 38, carbsGrams: 42, fatGrams: 22, timeMinutes: 10, approxCost: 2,
+    timeMinutes: 10, approxCost: 2,
     dietTags: [],
     description: "Turkey, avocado and salad in a wholegrain wrap.",
     ingredients: [
@@ -304,7 +361,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "l-shrimp-rice", name: "Shrimp Fried Rice", type: "lunch",
     cuisine: "asian", mainProtein: "shrimp",
-    calories: 560, proteinGrams: 32, carbsGrams: 70, fatGrams: 16, timeMinutes: 20, approxCost: 3,
+    timeMinutes: 20, approxCost: 3,
     dietTags: [],
     description: "Wok-fried rice with shrimp, egg and peas.",
     ingredients: [
@@ -312,6 +369,7 @@ export const RECIPES: Recipe[] = [
       { name: "Cooked rice", quantity: "200 g" },
       { name: "Egg", quantity: "1 piece" },
       { name: "Peas", quantity: "60 g" },
+      { name: "sesame oil", quantity: "1 tbsp" },
     ],
     steps: ["Scramble egg; set aside.", "Fry shrimp and rice with peas; combine."],
   },
@@ -320,7 +378,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "d-baked-salmon", name: "Baked Salmon & Potatoes", type: "dinner",
     cuisine: "mediterranean", mainProtein: "fish",
-    calories: 590, proteinGrams: 38, carbsGrams: 45, fatGrams: 26, timeMinutes: 30, approxCost: 3,
+    timeMinutes: 30, approxCost: 3,
     dietTags: ["mediterranean", "gluten_free"],
     description: "Oven salmon with baby potatoes and broccoli.",
     ingredients: [
@@ -328,13 +386,14 @@ export const RECIPES: Recipe[] = [
       { name: "Baby potatoes", quantity: "250 g" },
       { name: "Broccoli", quantity: "150 g" },
       { name: "Lemon", quantity: "1/2 piece" },
+      { name: "olive oil", quantity: "1 tbsp" },
     ],
     steps: ["Roast potatoes 25 min.", "Add salmon and broccoli for the last 12 min."],
   },
   {
     id: "d-turkey-chili", name: "Turkey Chili", type: "dinner",
     cuisine: "american", mainProtein: "turkey",
-    calories: 540, proteinGrams: 40, carbsGrams: 50, fatGrams: 16, timeMinutes: 30, approxCost: 2,
+    timeMinutes: 30, approxCost: 2,
     dietTags: ["gluten_free"],
     description: "Lean turkey chili with beans and tomatoes.",
     ingredients: [
@@ -348,7 +407,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "d-pork-tenderloin", name: "Pork Tenderloin & Veg", type: "dinner",
     cuisine: "american", mainProtein: "pork",
-    calories: 560, proteinGrams: 44, carbsGrams: 30, fatGrams: 26, timeMinutes: 30, approxCost: 3,
+    timeMinutes: 30, approxCost: 3,
     dietTags: ["keto", "gluten_free"],
     description: "Roast pork tenderloin with asparagus and garlic.",
     ingredients: [
@@ -356,13 +415,14 @@ export const RECIPES: Recipe[] = [
       { name: "Asparagus", quantity: "150 g" },
       { name: "Garlic", quantity: "2 cloves" },
       { name: "Olive oil", quantity: "1 tbsp" },
+      { name: "Avocado", quantity: "1/2 piece" },
     ],
     steps: ["Sear pork, then roast 15 min.", "Roast asparagus alongside; rest and slice."],
   },
   {
     id: "d-chickpea-curry", name: "Chickpea Curry", type: "dinner",
     cuisine: "indian", mainProtein: "legumes",
-    calories: 520, proteinGrams: 20, carbsGrams: 78, fatGrams: 14, timeMinutes: 25, approxCost: 1,
+    timeMinutes: 25, approxCost: 1,
     dietTags: ["vegan", "vegetarian", "gluten_free"],
     description: "Spiced chickpea and tomato curry with rice.",
     ingredients: [
@@ -376,7 +436,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "d-beef-noodles", name: "Beef Stir-Fry Noodles", type: "dinner",
     cuisine: "asian", mainProtein: "beef",
-    calories: 640, proteinGrams: 40, carbsGrams: 70, fatGrams: 22, timeMinutes: 25, approxCost: 3,
+    timeMinutes: 25, approxCost: 3,
     dietTags: [],
     description: "Beef and vegetables tossed with noodles in soy-ginger sauce.",
     ingredients: [
@@ -384,13 +444,14 @@ export const RECIPES: Recipe[] = [
       { name: "Egg noodles", quantity: "90 g dry" },
       { name: "Mixed veg", quantity: "150 g" },
       { name: "Soy sauce", quantity: "2 tbsp" },
+      { name: "sesame oil", quantity: "1 tbsp" },
     ],
     steps: ["Cook noodles.", "Stir-fry beef and veg with soy; toss with noodles."],
   },
   {
     id: "d-chicken-fajitas", name: "Chicken Fajitas", type: "dinner",
     cuisine: "mexican", mainProtein: "chicken",
-    calories: 580, proteinGrams: 44, carbsGrams: 48, fatGrams: 22, timeMinutes: 25, approxCost: 2,
+    timeMinutes: 25, approxCost: 2,
     dietTags: [],
     description: "Sizzling chicken and peppers with warm tortillas.",
     ingredients: [
@@ -398,13 +459,14 @@ export const RECIPES: Recipe[] = [
       { name: "Bell peppers", quantity: "2 pieces" },
       { name: "Tortillas", quantity: "2 pieces" },
       { name: "Fajita spice", quantity: "1 tbsp" },
+      { name: "olive oil", quantity: "1 tbsp" },
     ],
     steps: ["Sear spiced chicken and peppers.", "Serve in warm tortillas."],
   },
   {
     id: "d-eggplant-parm", name: "Eggplant Parmesan", type: "dinner",
     cuisine: "italian", mainProtein: "dairy",
-    calories: 520, proteinGrams: 24, carbsGrams: 48, fatGrams: 26, timeMinutes: 30, approxCost: 2,
+    timeMinutes: 30, approxCost: 2,
     dietTags: ["vegetarian"],
     description: "Baked eggplant layered with tomato sauce and mozzarella.",
     ingredients: [
@@ -412,6 +474,7 @@ export const RECIPES: Recipe[] = [
       { name: "Tomato sauce", quantity: "200 g" },
       { name: "Mozzarella", quantity: "60 g" },
       { name: "Parmesan", quantity: "15 g" },
+      { name: "olive oil", quantity: "1 tbsp" },
     ],
     steps: ["Roast eggplant slices.", "Layer with sauce and cheese; bake 15 min."],
   },
@@ -420,7 +483,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "s-yogurt-honey", name: "Greek Yogurt & Honey", type: "snack",
     cuisine: "mediterranean", mainProtein: "dairy",
-    calories: 210, proteinGrams: 16, carbsGrams: 22, fatGrams: 6, timeMinutes: 3, approxCost: 1,
+    timeMinutes: 3, approxCost: 1,
     dietTags: ["vegetarian", "gluten_free", "mediterranean"],
     description: "Thick yogurt drizzled with honey.",
     ingredients: [
@@ -432,7 +495,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "s-protein-smoothie", name: "Berry Protein Smoothie", type: "snack",
     cuisine: "american", mainProtein: "dairy",
-    calories: 290, proteinGrams: 22, carbsGrams: 38, fatGrams: 6, timeMinutes: 5, approxCost: 2,
+    timeMinutes: 5, approxCost: 2,
     dietTags: ["vegetarian", "gluten_free"],
     description: "Frozen berries blended with yogurt and oats.",
     ingredients: [
@@ -449,7 +512,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "b-egg-muffins", name: "Spinach & Feta Egg Muffins", type: "breakfast",
     cuisine: "mediterranean", mainProtein: "eggs",
-    calories: 360, proteinGrams: 28, carbsGrams: 14, fatGrams: 22, fiberGrams: 5, timeMinutes: 25, approxCost: 1,
+    timeMinutes: 25, approxCost: 1,
     dietTags: ["vegetarian", "keto", "gluten_free"],
     description: "Baked egg muffins with spinach and feta — meal-prep friendly.",
     ingredients: [
@@ -457,13 +520,14 @@ export const RECIPES: Recipe[] = [
       { name: "spinach", quantity: "80 g" },
       { name: "feta", quantity: "40 g" },
       { name: "cherry tomatoes", quantity: "60 g" },
+      { name: "olive oil", quantity: "1 tsp" },
     ],
     steps: ["Whisk eggs with chopped spinach, feta and tomatoes.", "Pour into a muffin tin; bake at 190°C for 18 minutes."],
   },
   {
     id: "b-protein-oats", name: "Overnight Protein Oats with Berries", type: "breakfast",
     cuisine: "american", mainProtein: "dairy",
-    calories: 420, proteinGrams: 32, carbsGrams: 52, fatGrams: 10, fiberGrams: 9, timeMinutes: 5, approxCost: 1,
+    timeMinutes: 5, approxCost: 1,
     dietTags: ["vegetarian", "gluten_free"],
     description: "Make-ahead oats with Greek yogurt and mixed berries.",
     ingredients: [
@@ -478,7 +542,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "b-cottage-pancakes", name: "Cottage Cheese Pancakes with Blueberries", type: "breakfast",
     cuisine: "american", mainProtein: "dairy",
-    calories: 400, proteinGrams: 30, carbsGrams: 42, fatGrams: 12, fiberGrams: 6, timeMinutes: 15, approxCost: 2,
+    timeMinutes: 15, approxCost: 2,
     dietTags: ["vegetarian"],
     description: "Fluffy high-protein pancakes with blueberries.",
     ingredients: [
@@ -492,7 +556,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "b-salmon-eggs", name: "Smoked Salmon Scrambled Eggs", type: "breakfast",
     cuisine: "american", mainProtein: "fish",
-    calories: 390, proteinGrams: 31, carbsGrams: 22, fatGrams: 20, fiberGrams: 5, timeMinutes: 10, approxCost: 3,
+    timeMinutes: 10, approxCost: 3,
     dietTags: ["mediterranean"],
     description: "Soft scrambled eggs folded with smoked salmon on rye.",
     ingredients: [
@@ -500,13 +564,14 @@ export const RECIPES: Recipe[] = [
       { name: "smoked salmon", quantity: "60 g" },
       { name: "rye bread", quantity: "1 slice" },
       { name: "chives", quantity: "1 tbsp" },
+      { name: "olive oil", quantity: "1 tsp" },
     ],
     steps: ["Softly scramble the eggs.", "Fold in salmon and chives; serve on toasted rye."],
   },
   {
     id: "b-chickpea-omelette", name: "Savory Chickpea Flour Omelette", type: "breakfast",
     cuisine: "indian", mainProtein: "legumes",
-    calories: 370, proteinGrams: 22, carbsGrams: 44, fatGrams: 12, fiberGrams: 11, timeMinutes: 15, approxCost: 1,
+    timeMinutes: 15, approxCost: 1,
     dietTags: ["vegan", "vegetarian", "gluten_free"],
     description: "Protein-rich vegan omelette from chickpea flour with veggies.",
     ingredients: [
@@ -520,7 +585,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "b-turkey-hash", name: "Turkey Sausage & Sweet Potato Hash", type: "breakfast",
     cuisine: "american", mainProtein: "turkey",
-    calories: 430, proteinGrams: 33, carbsGrams: 40, fatGrams: 16, fiberGrams: 8, timeMinutes: 20, approxCost: 2,
+    timeMinutes: 20, approxCost: 2,
     dietTags: ["gluten_free"],
     description: "Skillet hash of turkey sausage, sweet potato and peppers.",
     ingredients: [
@@ -534,7 +599,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "b-pb-shake-bowl", name: "Peanut Butter Banana Shake Bowl", type: "breakfast",
     cuisine: "american", mainProtein: "dairy",
-    calories: 410, proteinGrams: 34, carbsGrams: 44, fatGrams: 12, fiberGrams: 7, timeMinutes: 5, approxCost: 1,
+    timeMinutes: 5, approxCost: 1,
     dietTags: ["vegetarian", "gluten_free"],
     description: "Thick protein shake bowl with banana and peanut butter.",
     ingredients: [
@@ -548,7 +613,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "b-tofu-burrito", name: "Tofu & Black Bean Breakfast Burrito", type: "breakfast",
     cuisine: "mexican", mainProtein: "tofu",
-    calories: 440, proteinGrams: 26, carbsGrams: 52, fatGrams: 15, fiberGrams: 13, timeMinutes: 15, approxCost: 1,
+    timeMinutes: 15, approxCost: 1,
     dietTags: ["vegan", "vegetarian"],
     description: "Turmeric tofu scramble with black beans in a wrap.",
     ingredients: [
@@ -556,13 +621,14 @@ export const RECIPES: Recipe[] = [
       { name: "black beans", quantity: "80 g" },
       { name: "whole-wheat wrap", quantity: "1" },
       { name: "salsa", quantity: "2 tbsp" },
+      { name: "olive oil", quantity: "1 tsp" },
     ],
     steps: ["Scramble crumbled tofu with turmeric; warm the beans.", "Fill the wrap with tofu, beans and salsa; roll."],
   },
   {
     id: "b-yogurt-bark", name: "Greek Yogurt Bark with Almonds", type: "breakfast",
     cuisine: "mediterranean", mainProtein: "dairy",
-    calories: 340, proteinGrams: 24, carbsGrams: 30, fatGrams: 14, fiberGrams: 6, timeMinutes: 10, approxCost: 2,
+    timeMinutes: 10, approxCost: 2,
     dietTags: ["vegetarian", "gluten_free"],
     description: "Frozen yogurt bark studded with raspberries and almonds.",
     ingredients: [
@@ -576,7 +642,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "b-quinoa-bowl", name: "Quinoa Breakfast Bowl with Egg & Avocado", type: "breakfast",
     cuisine: "mediterranean", mainProtein: "eggs",
-    calories: 430, proteinGrams: 25, carbsGrams: 40, fatGrams: 20, fiberGrams: 10, timeMinutes: 15, approxCost: 2,
+    timeMinutes: 15, approxCost: 2,
     dietTags: ["vegetarian", "gluten_free"],
     description: "Warm quinoa topped with a soft egg and avocado.",
     ingredients: [
@@ -592,7 +658,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "l-farro-tabbouleh", name: "Grilled Chicken & Quinoa Tabbouleh", type: "lunch",
     cuisine: "mediterranean", mainProtein: "chicken",
-    calories: 560, proteinGrams: 45, carbsGrams: 48, fatGrams: 18, fiberGrams: 11, timeMinutes: 25, approxCost: 2,
+    timeMinutes: 25, approxCost: 2,
     dietTags: ["mediterranean", "gluten_free"],
     description: "Herby quinoa tabbouleh with sliced grilled chicken.",
     ingredients: [
@@ -601,13 +667,14 @@ export const RECIPES: Recipe[] = [
       { name: "parsley", quantity: "30 g" },
       { name: "cucumber", quantity: "1/2" },
       { name: "lemon", quantity: "1/2" },
+      { name: "olive oil", quantity: "1 tbsp" },
     ],
     steps: ["Cook quinoa; toss with chopped parsley, cucumber and lemon.", "Grill the chicken and slice over the top."],
   },
   {
     id: "l-salmon-poke", name: "Salmon Poke Bowl with Edamame", type: "lunch",
     cuisine: "asian", mainProtein: "fish",
-    calories: 580, proteinGrams: 40, carbsGrams: 56, fatGrams: 20, fiberGrams: 10, timeMinutes: 15, approxCost: 3,
+    timeMinutes: 15, approxCost: 3,
     dietTags: [],
     description: "Fresh salmon over rice with edamame and cucumber.",
     ingredients: [
@@ -622,7 +689,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "l-buddha-bowl", name: "Lentil & Roasted Veg Buddha Bowl", type: "lunch",
     cuisine: "mediterranean", mainProtein: "legumes",
-    calories: 520, proteinGrams: 26, carbsGrams: 70, fatGrams: 14, fiberGrams: 18, timeMinutes: 30, approxCost: 1,
+    timeMinutes: 30, approxCost: 1,
     dietTags: ["vegan", "vegetarian", "gluten_free"],
     description: "Roasted vegetables and lentils with tahini drizzle.",
     ingredients: [
@@ -636,7 +703,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "l-turkey-power-wrap", name: "Turkey & Hummus Power Wrap", type: "lunch",
     cuisine: "mediterranean", mainProtein: "turkey",
-    calories: 500, proteinGrams: 40, carbsGrams: 44, fatGrams: 18, fiberGrams: 10, timeMinutes: 10, approxCost: 2,
+    timeMinutes: 10, approxCost: 2,
     dietTags: [],
     description: "Turkey, hummus and greens rolled in a whole-wheat wrap.",
     ingredients: [
@@ -650,7 +717,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "l-shrimp-burrito", name: "Shrimp & Black Bean Burrito Bowl", type: "lunch",
     cuisine: "mexican", mainProtein: "shrimp",
-    calories: 560, proteinGrams: 40, carbsGrams: 62, fatGrams: 14, fiberGrams: 14, timeMinutes: 20, approxCost: 3,
+    timeMinutes: 20, approxCost: 3,
     dietTags: ["gluten_free"],
     description: "Chili-lime shrimp over rice with black beans and corn.",
     ingredients: [
@@ -665,7 +732,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "l-tuna-bean-salad", name: "Tuna & White Bean Salad", type: "lunch",
     cuisine: "mediterranean", mainProtein: "fish",
-    calories: 480, proteinGrams: 42, carbsGrams: 38, fatGrams: 16, fiberGrams: 12, timeMinutes: 10, approxCost: 2,
+    timeMinutes: 10, approxCost: 2,
     dietTags: ["mediterranean", "gluten_free"],
     description: "Protein-packed tuna and cannellini bean salad.",
     ingredients: [
@@ -680,7 +747,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "l-tofu-banh-mi", name: "Tofu Banh Mi Rice Bowl", type: "lunch",
     cuisine: "asian", mainProtein: "tofu",
-    calories: 540, proteinGrams: 27, carbsGrams: 66, fatGrams: 16, fiberGrams: 12, timeMinutes: 20, approxCost: 2,
+    timeMinutes: 20, approxCost: 2,
     dietTags: ["vegan", "vegetarian"],
     description: "Glazed tofu with pickled carrot over rice.",
     ingredients: [
@@ -688,13 +755,14 @@ export const RECIPES: Recipe[] = [
       { name: "brown rice", quantity: "70 g dry" },
       { name: "carrot", quantity: "1" },
       { name: "soy sauce", quantity: "2 tbsp" },
+      { name: "sesame oil", quantity: "1 tbsp" },
     ],
     steps: ["Pan-fry tofu and glaze with soy.", "Serve over rice with quick-pickled carrot."],
   },
   {
     id: "l-chicken-shawarma", name: "Chicken Shawarma Bowl with Tahini", type: "lunch",
     cuisine: "middle_eastern", mainProtein: "chicken",
-    calories: 580, proteinGrams: 46, carbsGrams: 48, fatGrams: 20, fiberGrams: 11, timeMinutes: 25, approxCost: 2,
+    timeMinutes: 25, approxCost: 2,
     dietTags: ["gluten_free"],
     description: "Spiced chicken over rice with chickpeas and tahini.",
     ingredients: [
@@ -709,7 +777,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "l-beef-broccoli", name: "Beef & Broccoli Brown Rice Bowl", type: "lunch",
     cuisine: "asian", mainProtein: "beef",
-    calories: 600, proteinGrams: 44, carbsGrams: 58, fatGrams: 20, fiberGrams: 9, timeMinutes: 20, approxCost: 3,
+    timeMinutes: 20, approxCost: 3,
     dietTags: [],
     description: "Classic beef and broccoli in soy-ginger over rice.",
     ingredients: [
@@ -717,13 +785,14 @@ export const RECIPES: Recipe[] = [
       { name: "broccoli", quantity: "150 g" },
       { name: "brown rice", quantity: "70 g dry" },
       { name: "soy-ginger sauce", quantity: "2 tbsp" },
+      { name: "sesame oil", quantity: "1 tbsp" },
     ],
     steps: ["Cook rice.", "Stir-fry beef and broccoli with the sauce; serve over rice."],
   },
   {
     id: "l-chickpea-spinach-curry", name: "Chickpea & Spinach Curry with Rice", type: "lunch",
     cuisine: "indian", mainProtein: "legumes",
-    calories: 540, proteinGrams: 22, carbsGrams: 82, fatGrams: 12, fiberGrams: 16, timeMinutes: 25, approxCost: 1,
+    timeMinutes: 25, approxCost: 1,
     dietTags: ["vegan", "vegetarian", "gluten_free"],
     description: "Comforting chickpea and spinach curry over rice.",
     ingredients: [
@@ -740,7 +809,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "d-cod-quinoa", name: "Baked Cod with Lemon Quinoa & Asparagus", type: "dinner",
     cuisine: "mediterranean", mainProtein: "fish",
-    calories: 540, proteinGrams: 45, carbsGrams: 42, fatGrams: 18, fiberGrams: 10, timeMinutes: 25, approxCost: 3,
+    timeMinutes: 25, approxCost: 3,
     dietTags: ["mediterranean", "gluten_free"],
     description: "Flaky baked cod with lemony quinoa and asparagus.",
     ingredients: [
@@ -748,13 +817,14 @@ export const RECIPES: Recipe[] = [
       { name: "quinoa", quantity: "70 g dry" },
       { name: "asparagus", quantity: "150 g" },
       { name: "lemon", quantity: "1/2" },
+      { name: "olive oil", quantity: "1 tbsp" },
     ],
     steps: ["Bake cod and asparagus at 200°C for 15 min.", "Serve over lemon-dressed quinoa."],
   },
   {
     id: "d-turkey-meatballs", name: "Turkey Meatballs with Whole-Wheat Pasta", type: "dinner",
     cuisine: "italian", mainProtein: "turkey",
-    calories: 620, proteinGrams: 46, carbsGrams: 62, fatGrams: 18, fiberGrams: 12, timeMinutes: 30, approxCost: 2,
+    timeMinutes: 30, approxCost: 2,
     dietTags: [],
     description: "Lean turkey meatballs in tomato sauce over whole-wheat pasta.",
     ingredients: [
@@ -762,13 +832,14 @@ export const RECIPES: Recipe[] = [
       { name: "whole-wheat pasta", quantity: "80 g dry" },
       { name: "tomato sauce", quantity: "150 g" },
       { name: "parmesan", quantity: "15 g" },
+      { name: "olive oil", quantity: "1 tbsp" },
     ],
     steps: ["Roll and bake turkey meatballs 15 min.", "Simmer in sauce; serve over pasta with parmesan."],
   },
   {
     id: "d-sheet-fajitas", name: "Sheet-Pan Chicken Fajitas", type: "dinner",
     cuisine: "mexican", mainProtein: "chicken",
-    calories: 560, proteinGrams: 46, carbsGrams: 48, fatGrams: 18, fiberGrams: 11, timeMinutes: 25, approxCost: 2,
+    timeMinutes: 25, approxCost: 2,
     dietTags: [],
     description: "One-pan chicken and peppers with warm tortillas.",
     ingredients: [
@@ -777,13 +848,14 @@ export const RECIPES: Recipe[] = [
       { name: "corn tortillas", quantity: "2" },
       { name: "black beans", quantity: "60 g" },
       { name: "fajita spice", quantity: "1 tbsp" },
+      { name: "olive oil", quantity: "1 tbsp" },
     ],
     steps: ["Roast spiced chicken and peppers on a sheet 20 min.", "Serve in tortillas with beans."],
   },
   {
     id: "d-lentil-bolognese", name: "Lentil Bolognese over Whole-Wheat Spaghetti", type: "dinner",
     cuisine: "italian", mainProtein: "legumes",
-    calories: 560, proteinGrams: 26, carbsGrams: 88, fatGrams: 10, fiberGrams: 18, timeMinutes: 30, approxCost: 1,
+    timeMinutes: 30, approxCost: 1,
     dietTags: ["vegan", "vegetarian"],
     description: "Rich lentil ragu over whole-wheat spaghetti.",
     ingredients: [
@@ -797,7 +869,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "d-teriyaki-salmon", name: "Teriyaki Salmon with Broccoli & Rice", type: "dinner",
     cuisine: "asian", mainProtein: "fish",
-    calories: 600, proteinGrams: 42, carbsGrams: 58, fatGrams: 20, fiberGrams: 9, timeMinutes: 25, approxCost: 3,
+    timeMinutes: 25, approxCost: 3,
     dietTags: [],
     description: "Glazed salmon with steamed broccoli over rice.",
     ingredients: [
@@ -805,13 +877,14 @@ export const RECIPES: Recipe[] = [
       { name: "broccoli", quantity: "150 g" },
       { name: "brown rice", quantity: "70 g dry" },
       { name: "teriyaki sauce", quantity: "2 tbsp" },
+      { name: "sesame oil", quantity: "1 tbsp" },
     ],
     steps: ["Bake salmon glazed with teriyaki 12 min.", "Serve with steamed broccoli and rice."],
   },
   {
     id: "d-beef-chili", name: "Beef & Bean Chili with Sweet Potato", type: "dinner",
     cuisine: "american", mainProtein: "beef",
-    calories: 580, proteinGrams: 42, carbsGrams: 56, fatGrams: 18, fiberGrams: 16, timeMinutes: 35, approxCost: 2,
+    timeMinutes: 35, approxCost: 2,
     dietTags: ["gluten_free"],
     description: "Hearty chili with lean beef, beans and sweet potato.",
     ingredients: [
@@ -826,7 +899,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "d-tofu-katsu", name: "Baked Tofu Katsu with Cabbage Slaw", type: "dinner",
     cuisine: "asian", mainProtein: "tofu",
-    calories: 560, proteinGrams: 28, carbsGrams: 62, fatGrams: 18, fiberGrams: 12, timeMinutes: 30, approxCost: 2,
+    timeMinutes: 30, approxCost: 2,
     dietTags: ["vegan", "vegetarian"],
     description: "Crispy baked tofu cutlet with a crunchy slaw and rice.",
     ingredients: [
@@ -834,13 +907,14 @@ export const RECIPES: Recipe[] = [
       { name: "panko", quantity: "40 g" },
       { name: "cabbage", quantity: "100 g" },
       { name: "brown rice", quantity: "70 g dry" },
+      { name: "sesame oil", quantity: "1 tbsp" },
     ],
     steps: ["Coat tofu slabs in panko; bake at 210°C for 20 min.", "Serve with slaw and rice."],
   },
   {
     id: "d-chickpea-tagine", name: "Moroccan Chickpea & Vegetable Tagine", type: "dinner",
     cuisine: "middle_eastern", mainProtein: "legumes",
-    calories: 520, proteinGrams: 20, carbsGrams: 84, fatGrams: 10, fiberGrams: 18, timeMinutes: 30, approxCost: 1,
+    timeMinutes: 30, approxCost: 1,
     dietTags: ["vegan", "vegetarian"], // NOT gluten_free: it is served over couscous (wheat)
     description: "Fragrant chickpea and vegetable tagine over couscous.",
     ingredients: [
@@ -855,7 +929,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "d-pork-brussels", name: "Pork Tenderloin with Brussels & Rice", type: "dinner",
     cuisine: "american", mainProtein: "pork",
-    calories: 580, proteinGrams: 46, carbsGrams: 46, fatGrams: 22, fiberGrams: 12, timeMinutes: 30, approxCost: 3,
+    timeMinutes: 30, approxCost: 3,
     dietTags: ["gluten_free"],
     description: "Roast pork with caramelized Brussels sprouts and brown rice.",
     ingredients: [
@@ -869,7 +943,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "d-chicken-souvlaki", name: "Grilled Chicken Souvlaki with Greek Salad", type: "dinner",
     cuisine: "mediterranean", mainProtein: "chicken",
-    calories: 560, proteinGrams: 48, carbsGrams: 38, fatGrams: 24, fiberGrams: 9, timeMinutes: 25, approxCost: 2,
+    timeMinutes: 25, approxCost: 2,
     dietTags: ["mediterranean", "gluten_free"],
     description: "Lemon-oregano chicken skewers with a crisp Greek salad.",
     ingredients: [
@@ -888,7 +962,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "b-mushroom-frittata", name: "Mushroom & Goat Cheese Frittata", type: "breakfast",
     cuisine: "mediterranean", mainProtein: "eggs",
-    calories: 370, proteinGrams: 27, carbsGrams: 12, fatGrams: 24, fiberGrams: 4, timeMinutes: 20, approxCost: 2,
+    timeMinutes: 20, approxCost: 2,
     dietTags: ["vegetarian", "keto", "gluten_free"],
     description: "Oven frittata with mushrooms, spinach and goat cheese.",
     ingredients: [
@@ -896,13 +970,14 @@ export const RECIPES: Recipe[] = [
       { name: "mushrooms", quantity: "100 g" },
       { name: "spinach", quantity: "50 g" },
       { name: "goat cheese", quantity: "40 g" },
+      { name: "olive oil", quantity: "1 tsp" },
     ],
     steps: ["Sauté mushrooms and spinach.", "Add whisked eggs and goat cheese; bake at 190°C for 12 min."],
   },
   {
     id: "b-apple-porridge", name: "Apple Cinnamon Protein Porridge", type: "breakfast",
     cuisine: "american", mainProtein: "dairy",
-    calories: 410, proteinGrams: 30, carbsGrams: 56, fatGrams: 8, fiberGrams: 9, timeMinutes: 10, approxCost: 1,
+    timeMinutes: 10, approxCost: 1,
     dietTags: ["vegetarian", "gluten_free"],
     description: "Creamy oats with grated apple, cinnamon and protein.",
     ingredients: [
@@ -917,7 +992,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "b-huevos-rancheros", name: "Huevos Rancheros", type: "breakfast",
     cuisine: "mexican", mainProtein: "eggs",
-    calories: 420, proteinGrams: 24, carbsGrams: 44, fatGrams: 18, fiberGrams: 12, timeMinutes: 15, approxCost: 1,
+    timeMinutes: 15, approxCost: 1,
     dietTags: ["vegetarian", "gluten_free"],
     description: "Fried eggs over black beans and salsa on a corn tortilla.",
     ingredients: [
@@ -925,13 +1000,14 @@ export const RECIPES: Recipe[] = [
       { name: "black beans", quantity: "100 g" },
       { name: "corn tortillas", quantity: "2" },
       { name: "salsa", quantity: "3 tbsp" },
+      { name: "olive oil", quantity: "1 tsp" },
     ],
     steps: ["Warm beans and tortillas.", "Top with fried eggs and salsa."],
   },
   {
     id: "b-tofu-kale-toast", name: "Scrambled Tofu & Kale Toast", type: "breakfast",
     cuisine: "american", mainProtein: "tofu",
-    calories: 380, proteinGrams: 25, carbsGrams: 34, fatGrams: 16, fiberGrams: 9, timeMinutes: 12, approxCost: 1,
+    timeMinutes: 12, approxCost: 1,
     dietTags: ["vegan", "vegetarian"],
     description: "Turmeric tofu scramble with kale on whole-grain toast.",
     ingredients: [
@@ -939,13 +1015,14 @@ export const RECIPES: Recipe[] = [
       { name: "kale", quantity: "50 g" },
       { name: "whole-grain toast", quantity: "1 slice" },
       { name: "turmeric", quantity: "1 tsp" },
+      { name: "olive oil", quantity: "1 tsp" },
     ],
     steps: ["Scramble crumbled tofu with turmeric and kale.", "Serve on toasted bread."],
   },
   {
     id: "b-salmon-breakfast-bowl", name: "Savory Salmon & Avocado Breakfast Bowl", type: "breakfast",
     cuisine: "asian", mainProtein: "fish",
-    calories: 440, proteinGrams: 30, carbsGrams: 38, fatGrams: 20, fiberGrams: 8, timeMinutes: 12, approxCost: 3,
+    timeMinutes: 12, approxCost: 3,
     dietTags: ["gluten_free"],
     description: "Rice bowl with flaked salmon, avocado and sesame.",
     ingredients: [
@@ -959,7 +1036,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "b-banana-muffins", name: "Banana Walnut Protein Muffins", type: "breakfast",
     cuisine: "american", mainProtein: "dairy", servings: 3, // a muffin-tin batch (~6 muffins, 2 per serving)
-    calories: 360, proteinGrams: 24, carbsGrams: 42, fatGrams: 12, fiberGrams: 7, timeMinutes: 25, approxCost: 1,
+    timeMinutes: 25, approxCost: 1,
     dietTags: ["vegetarian"],
     description: "Oat-based banana muffins boosted with protein and walnuts.",
     ingredients: [
@@ -968,13 +1045,14 @@ export const RECIPES: Recipe[] = [
       { name: "eggs", quantity: "2" },
       { name: "protein powder", quantity: "1 scoop" },
       { name: "walnuts", quantity: "20 g" },
+      { name: "olive oil", quantity: "1 tsp" },
     ],
     steps: ["Mash bananas; mix with all ingredients.", "Bake in a muffin tin at 180°C for 18 min."],
   },
   {
     id: "b-menemen", name: "Turkish Menemen", type: "breakfast",
     cuisine: "middle_eastern", mainProtein: "eggs",
-    calories: 380, proteinGrams: 22, carbsGrams: 26, fatGrams: 22, fiberGrams: 7, timeMinutes: 15, approxCost: 1,
+    timeMinutes: 15, approxCost: 1,
     dietTags: ["vegetarian", "gluten_free"],
     description: "Soft eggs cooked in a spiced pepper and tomato base.",
     ingredients: [
@@ -988,7 +1066,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "b-edamame-egg-bowl", name: "Edamame & Egg Breakfast Bowl", type: "breakfast",
     cuisine: "asian", mainProtein: "eggs",
-    calories: 400, proteinGrams: 30, carbsGrams: 36, fatGrams: 16, fiberGrams: 10, timeMinutes: 12, approxCost: 2,
+    timeMinutes: 12, approxCost: 2,
     dietTags: ["vegetarian"],
     description: "Soft-boiled eggs over rice with edamame and soy.",
     ingredients: [
@@ -1002,7 +1080,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "b-pumpkin-muesli", name: "Pumpkin Seed Muesli with Yogurt", type: "breakfast",
     cuisine: "mediterranean", mainProtein: "dairy",
-    calories: 390, proteinGrams: 26, carbsGrams: 44, fatGrams: 13, fiberGrams: 9, timeMinutes: 5, approxCost: 2,
+    timeMinutes: 5, approxCost: 2,
     dietTags: ["vegetarian"],
     description: "Toasted muesli with pumpkin seeds over Greek yogurt.",
     ingredients: [
@@ -1018,7 +1096,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "l-chicken-caesar-wrap", name: "Grilled Chicken Caesar Wrap", type: "lunch",
     cuisine: "american", mainProtein: "chicken",
-    calories: 520, proteinGrams: 44, carbsGrams: 42, fatGrams: 18, fiberGrams: 9, timeMinutes: 15, approxCost: 2,
+    timeMinutes: 15, approxCost: 2,
     dietTags: [],
     description: "Grilled chicken, romaine and light Caesar in a wrap.",
     ingredients: [
@@ -1027,13 +1105,14 @@ export const RECIPES: Recipe[] = [
       { name: "romaine", quantity: "60 g" },
       { name: "light Caesar dressing", quantity: "1 tbsp" },
       { name: "parmesan", quantity: "10 g" },
+      { name: "olive oil", quantity: "1 tbsp" },
     ],
     steps: ["Grill and slice the chicken.", "Toss with romaine, dressing and parmesan; wrap."],
   },
   {
     id: "l-miso-soba", name: "Miso Salmon Soba Bowl", type: "lunch",
     cuisine: "asian", mainProtein: "fish",
-    calories: 580, proteinGrams: 40, carbsGrams: 62, fatGrams: 18, fiberGrams: 10, timeMinutes: 20, approxCost: 3,
+    timeMinutes: 20, approxCost: 3,
     dietTags: [],
     description: "Miso-glazed salmon over soba noodles with greens.",
     ingredients: [
@@ -1041,13 +1120,14 @@ export const RECIPES: Recipe[] = [
       { name: "soba noodles", quantity: "80 g dry" },
       { name: "pak choi", quantity: "100 g" },
       { name: "miso paste", quantity: "1 tbsp" },
+      { name: "sesame oil", quantity: "1 tbsp" },
     ],
     steps: ["Cook soba; glaze and bake salmon with miso.", "Serve over noodles with wilted greens."],
   },
   {
     id: "l-falafel-plate", name: "Falafel & Tabbouleh Plate", type: "lunch",
     cuisine: "middle_eastern", mainProtein: "legumes",
-    calories: 540, proteinGrams: 22, carbsGrams: 68, fatGrams: 18, fiberGrams: 16, timeMinutes: 25, approxCost: 1,
+    timeMinutes: 25, approxCost: 1,
     dietTags: ["vegan", "vegetarian"],
     description: "Baked falafel with bulgur tabbouleh and tahini.",
     ingredients: [
@@ -1061,7 +1141,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "l-stuffed-peppers", name: "Turkey & Quinoa Stuffed Peppers", type: "lunch",
     cuisine: "american", mainProtein: "turkey",
-    calories: 520, proteinGrams: 42, carbsGrams: 48, fatGrams: 15, fiberGrams: 12, timeMinutes: 35, approxCost: 2,
+    timeMinutes: 35, approxCost: 2,
     dietTags: ["gluten_free"],
     description: "Bell peppers stuffed with turkey, quinoa and tomato.",
     ingredients: [
@@ -1069,13 +1149,14 @@ export const RECIPES: Recipe[] = [
       { name: "quinoa", quantity: "60 g dry" },
       { name: "bell peppers", quantity: "2" },
       { name: "tomato sauce", quantity: "100 g" },
+      { name: "olive oil", quantity: "1 tbsp" },
     ],
     steps: ["Brown turkey; mix with cooked quinoa and sauce.", "Stuff peppers; bake at 190°C for 20 min."],
   },
   {
     id: "l-thai-peanut-chicken", name: "Thai Peanut Chicken Rice Bowl", type: "lunch",
     cuisine: "asian", mainProtein: "chicken",
-    calories: 600, proteinGrams: 44, carbsGrams: 58, fatGrams: 22, fiberGrams: 9, timeMinutes: 20, approxCost: 2,
+    timeMinutes: 20, approxCost: 2,
     dietTags: ["gluten_free"],
     description: "Chicken and crunchy veg with peanut sauce over rice.",
     ingredients: [
@@ -1089,7 +1170,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "l-med-tuna-quinoa", name: "Mediterranean Tuna Quinoa Salad", type: "lunch",
     cuisine: "mediterranean", mainProtein: "fish",
-    calories: 500, proteinGrams: 40, carbsGrams: 46, fatGrams: 16, fiberGrams: 11, timeMinutes: 15, approxCost: 2,
+    timeMinutes: 15, approxCost: 2,
     dietTags: ["mediterranean", "gluten_free"],
     description: "Quinoa salad with tuna, olives and cherry tomatoes.",
     ingredients: [
@@ -1104,7 +1185,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "l-sweet-potato-tacos", name: "Black Bean & Sweet Potato Tacos", type: "lunch",
     cuisine: "mexican", mainProtein: "legumes",
-    calories: 520, proteinGrams: 20, carbsGrams: 82, fatGrams: 12, fiberGrams: 18, timeMinutes: 25, approxCost: 1,
+    timeMinutes: 25, approxCost: 1,
     dietTags: ["vegan", "vegetarian", "gluten_free"],
     description: "Roasted sweet potato and black bean tacos with slaw.",
     ingredients: [
@@ -1112,13 +1193,14 @@ export const RECIPES: Recipe[] = [
       { name: "black beans", quantity: "120 g" },
       { name: "corn tortillas", quantity: "3" },
       { name: "cabbage", quantity: "60 g" },
+      { name: "olive oil", quantity: "1 tbsp" },
     ],
     steps: ["Roast diced sweet potato with spices.", "Fill tortillas with beans, potato and slaw."],
   },
   {
     id: "l-beef-kofta-bulgur", name: "Beef Kofta & Bulgur Bowl", type: "lunch",
     cuisine: "middle_eastern", mainProtein: "beef",
-    calories: 600, proteinGrams: 42, carbsGrams: 52, fatGrams: 22, fiberGrams: 11, timeMinutes: 25, approxCost: 3,
+    timeMinutes: 25, approxCost: 3,
     dietTags: [],
     description: "Spiced beef kofta over bulgur with cucumber-yogurt.",
     ingredients: [
@@ -1126,13 +1208,14 @@ export const RECIPES: Recipe[] = [
       { name: "bulgur", quantity: "70 g dry" },
       { name: "cucumber", quantity: "1/2" },
       { name: "yogurt", quantity: "2 tbsp" },
+      { name: "olive oil", quantity: "1 tbsp" },
     ],
     steps: ["Shape spiced beef into kofta; grill.", "Serve over bulgur with cucumber-yogurt."],
   },
   {
     id: "l-egg-avocado-salad", name: "Egg & Avocado Protein Salad", type: "lunch",
     cuisine: "american", mainProtein: "eggs",
-    calories: 480, proteinGrams: 30, carbsGrams: 30, fatGrams: 28, fiberGrams: 12, timeMinutes: 12, approxCost: 1,
+    timeMinutes: 12, approxCost: 1,
     dietTags: ["vegetarian", "gluten_free"],
     description: "Hearty salad of egg, avocado, chickpeas and greens.",
     ingredients: [
@@ -1146,7 +1229,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "l-tempeh-teriyaki", name: "Tempeh Teriyaki Rice Bowl", type: "lunch",
     cuisine: "asian", mainProtein: "tofu",
-    calories: 560, proteinGrams: 30, carbsGrams: 64, fatGrams: 18, fiberGrams: 12, timeMinutes: 20, approxCost: 2,
+    timeMinutes: 20, approxCost: 2,
     dietTags: ["vegan", "vegetarian"],
     description: "Caramelized tempeh with broccoli over rice.",
     ingredients: [
@@ -1154,6 +1237,7 @@ export const RECIPES: Recipe[] = [
       { name: "brown rice", quantity: "70 g dry" },
       { name: "broccoli", quantity: "120 g" },
       { name: "teriyaki sauce", quantity: "2 tbsp" },
+      { name: "sesame oil", quantity: "1 tbsp" },
     ],
     steps: ["Cook rice; pan-fry tempeh and glaze with teriyaki.", "Serve with steamed broccoli."],
   },
@@ -1162,7 +1246,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "d-chicken-parm", name: "Baked Chicken Parmesan with Zucchini", type: "dinner",
     cuisine: "italian", mainProtein: "chicken",
-    calories: 580, proteinGrams: 50, carbsGrams: 40, fatGrams: 22, fiberGrams: 9, timeMinutes: 30, approxCost: 2,
+    timeMinutes: 30, approxCost: 2,
     dietTags: [],
     description: "Lighter baked chicken parm with roasted zucchini.",
     ingredients: [
@@ -1171,13 +1255,14 @@ export const RECIPES: Recipe[] = [
       { name: "mozzarella", quantity: "40 g" },
       { name: "zucchini", quantity: "1" },
       { name: "panko", quantity: "30 g" },
+      { name: "olive oil", quantity: "1 tbsp" },
     ],
     steps: ["Coat chicken in panko; bake 15 min.", "Top with sauce and mozzarella; bake 8 min with zucchini."],
   },
   {
     id: "d-garlic-shrimp-quinoa", name: "Garlic Shrimp & Quinoa with Spinach", type: "dinner",
     cuisine: "mediterranean", mainProtein: "shrimp",
-    calories: 520, proteinGrams: 40, carbsGrams: 46, fatGrams: 16, fiberGrams: 10, timeMinutes: 20, approxCost: 3,
+    timeMinutes: 20, approxCost: 3,
     dietTags: ["mediterranean", "gluten_free"],
     description: "Garlicky shrimp over quinoa with wilted spinach.",
     ingredients: [
@@ -1191,7 +1276,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "d-turkey-taco-skillet", name: "Turkey Taco Skillet with Beans", type: "dinner",
     cuisine: "mexican", mainProtein: "turkey",
-    calories: 560, proteinGrams: 44, carbsGrams: 54, fatGrams: 16, fiberGrams: 15, timeMinutes: 25, approxCost: 2,
+    timeMinutes: 25, approxCost: 2,
     dietTags: ["gluten_free"],
     description: "One-pan turkey taco filling with beans, corn and rice.",
     ingredients: [
@@ -1206,7 +1291,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "d-miso-cod", name: "Miso-Glazed Cod with Bok Choy & Rice", type: "dinner",
     cuisine: "asian", mainProtein: "fish",
-    calories: 500, proteinGrams: 42, carbsGrams: 48, fatGrams: 12, fiberGrams: 8, timeMinutes: 25, approxCost: 3,
+    timeMinutes: 25, approxCost: 3,
     dietTags: [],
     description: "Sweet-savory miso cod with bok choy over rice.",
     ingredients: [
@@ -1214,13 +1299,14 @@ export const RECIPES: Recipe[] = [
       { name: "bok choy", quantity: "120 g" },
       { name: "brown rice", quantity: "70 g dry" },
       { name: "miso paste", quantity: "1 tbsp" },
+      { name: "sesame oil", quantity: "1 tbsp" },
     ],
     steps: ["Glaze cod with miso; bake 12 min.", "Serve with steamed bok choy and rice."],
   },
   {
     id: "d-red-lentil-dahl", name: "Red Lentil Dahl with Brown Rice", type: "dinner",
     cuisine: "indian", mainProtein: "legumes",
-    calories: 540, proteinGrams: 24, carbsGrams: 88, fatGrams: 8, fiberGrams: 18, timeMinutes: 30, approxCost: 1,
+    timeMinutes: 30, approxCost: 1,
     dietTags: ["vegan", "vegetarian", "gluten_free"],
     description: "Silky spiced red lentil dahl over brown rice.",
     ingredients: [
@@ -1234,7 +1320,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "d-steak-sweet-fries", name: "Steak with Sweet Potato Fries & Broccoli", type: "dinner",
     cuisine: "american", mainProtein: "beef",
-    calories: 620, proteinGrams: 46, carbsGrams: 46, fatGrams: 26, fiberGrams: 11, timeMinutes: 30, approxCost: 3,
+    timeMinutes: 30, approxCost: 3,
     dietTags: ["gluten_free"],
     description: "Lean steak with oven sweet potato fries and broccoli.",
     ingredients: [
@@ -1248,7 +1334,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "d-tofu-pad-thai", name: "Tofu Pad Thai", type: "dinner",
     cuisine: "asian", mainProtein: "tofu",
-    calories: 580, proteinGrams: 26, carbsGrams: 74, fatGrams: 18, fiberGrams: 10, timeMinutes: 25, approxCost: 2,
+    timeMinutes: 25, approxCost: 2,
     dietTags: ["vegan", "vegetarian"],
     description: "Rice noodles with tofu, bean sprouts and peanuts.",
     ingredients: [
@@ -1257,13 +1343,14 @@ export const RECIPES: Recipe[] = [
       { name: "bean sprouts", quantity: "80 g" },
       { name: "peanuts", quantity: "15 g" },
       { name: "tamarind sauce", quantity: "2 tbsp" },
+      { name: "sesame oil", quantity: "1 tbsp" },
     ],
     steps: ["Soak noodles; stir-fry tofu.", "Toss with noodles, sprouts and sauce; top with peanuts."],
   },
   {
     id: "d-harissa-salmon", name: "Harissa Salmon Traybake with Chickpeas", type: "dinner",
     cuisine: "middle_eastern", mainProtein: "fish",
-    calories: 600, proteinGrams: 42, carbsGrams: 44, fatGrams: 26, fiberGrams: 13, timeMinutes: 30, approxCost: 3,
+    timeMinutes: 30, approxCost: 3,
     dietTags: ["gluten_free"],
     description: "Spicy harissa salmon roasted with chickpeas and peppers.",
     ingredients: [
@@ -1271,13 +1358,14 @@ export const RECIPES: Recipe[] = [
       { name: "chickpeas", quantity: "120 g" },
       { name: "bell pepper", quantity: "1" },
       { name: "harissa", quantity: "1 tbsp" },
+      { name: "olive oil", quantity: "1 tbsp" },
     ],
     steps: ["Toss chickpeas and peppers with harissa; roast 15 min.", "Add salmon; roast 12 min more."],
   },
   {
     id: "d-chicken-veg-stirfry", name: "Chicken & Vegetable Stir-Fry with Rice", type: "dinner",
     cuisine: "asian", mainProtein: "chicken",
-    calories: 560, proteinGrams: 46, carbsGrams: 56, fatGrams: 14, fiberGrams: 10, timeMinutes: 20, approxCost: 2,
+    timeMinutes: 20, approxCost: 2,
     dietTags: ["gluten_free"],
     description: "Quick chicken stir-fry with mixed vegetables over rice.",
     ingredients: [
@@ -1285,13 +1373,14 @@ export const RECIPES: Recipe[] = [
       { name: "brown rice", quantity: "70 g dry" },
       { name: "mixed stir-fry veg", quantity: "160 g" },
       { name: "soy-ginger sauce", quantity: "2 tbsp" },
+      { name: "sesame oil", quantity: "1 tbsp" },
     ],
     steps: ["Cook rice.", "Stir-fry chicken and veg with sauce; serve over rice."],
   },
   {
     id: "d-stuffed-portobello", name: "Stuffed Portobello with Quinoa & Feta", type: "dinner",
     cuisine: "mediterranean", mainProtein: "dairy",
-    calories: 500, proteinGrams: 24, carbsGrams: 52, fatGrams: 20, fiberGrams: 12, timeMinutes: 30, approxCost: 2,
+    timeMinutes: 30, approxCost: 2,
     dietTags: ["vegetarian", "gluten_free"],
     description: "Roasted portobello caps stuffed with quinoa, spinach and feta.",
     ingredients: [
@@ -1299,6 +1388,7 @@ export const RECIPES: Recipe[] = [
       { name: "quinoa", quantity: "70 g dry" },
       { name: "spinach", quantity: "60 g" },
       { name: "feta", quantity: "40 g" },
+      { name: "olive oil", quantity: "1 tbsp" },
     ],
     steps: ["Cook quinoa; mix with wilted spinach and feta.", "Fill mushrooms; roast at 200°C for 18 min."],
   },
@@ -1309,7 +1399,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "b-egg-bean-quesadilla", name: "Cheesy Egg & Black Bean Quesadilla", type: "breakfast",
     cuisine: "mexican", mainProtein: "eggs",
-    calories: 430, proteinGrams: 27, carbsGrams: 44, fatGrams: 18, fiberGrams: 11, timeMinutes: 12, approxCost: 1,
+    timeMinutes: 12, approxCost: 1,
     dietTags: ["vegetarian"],
     description: "Griddled quesadilla with scrambled egg, beans and cheese.",
     ingredients: [
@@ -1317,13 +1407,14 @@ export const RECIPES: Recipe[] = [
       { name: "black beans", quantity: "80 g" },
       { name: "whole-wheat tortilla", quantity: "1" },
       { name: "cheddar", quantity: "30 g" },
+      { name: "olive oil", quantity: "1 tsp" },
     ],
     steps: ["Scramble eggs; mash beans.", "Fill tortilla with egg, beans and cheese; griddle until crisp."],
   },
   {
     id: "b-protein-french-toast", name: "Protein French Toast with Berries", type: "breakfast",
     cuisine: "american", mainProtein: "eggs",
-    calories: 420, proteinGrams: 30, carbsGrams: 46, fatGrams: 12, fiberGrams: 7, timeMinutes: 12, approxCost: 1,
+    timeMinutes: 12, approxCost: 1,
     dietTags: ["vegetarian"],
     description: "Egg-and-protein soaked toast topped with berries.",
     ingredients: [
@@ -1331,13 +1422,14 @@ export const RECIPES: Recipe[] = [
       { name: "eggs", quantity: "2" },
       { name: "milk", quantity: "60 ml" },
       { name: "mixed berries", quantity: "80 g" },
+      { name: "olive oil", quantity: "1 tsp" },
     ],
     steps: ["Soak bread in egg-milk mix.", "Pan-fry until golden; top with berries."],
   },
   {
     id: "b-trout-bagel", name: "Smoked Trout & Cream Cheese Bagel", type: "breakfast",
     cuisine: "american", mainProtein: "fish",
-    calories: 440, proteinGrams: 30, carbsGrams: 42, fatGrams: 18, fiberGrams: 6, timeMinutes: 8, approxCost: 3,
+    timeMinutes: 8, approxCost: 3,
     dietTags: [],
     description: "Wholegrain bagel with smoked trout and light cream cheese.",
     ingredients: [
@@ -1351,7 +1443,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "b-sweet-potato-skillet", name: "Sweet Potato & Egg Breakfast Skillet", type: "breakfast",
     cuisine: "american", mainProtein: "eggs",
-    calories: 400, proteinGrams: 24, carbsGrams: 40, fatGrams: 17, fiberGrams: 9, timeMinutes: 20, approxCost: 1,
+    timeMinutes: 20, approxCost: 1,
     dietTags: ["vegetarian", "gluten_free"],
     description: "Skillet of sweet potato, peppers and baked eggs.",
     ingredients: [
@@ -1365,7 +1457,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "b-blueberry-cottage", name: "Blueberry Cottage Cheese Bowl", type: "breakfast",
     cuisine: "american", mainProtein: "dairy",
-    calories: 330, proteinGrams: 28, carbsGrams: 32, fatGrams: 8, fiberGrams: 6, timeMinutes: 5, approxCost: 2,
+    timeMinutes: 5, approxCost: 2,
     dietTags: ["vegetarian", "gluten_free"],
     description: "High-protein cottage cheese with blueberries and seeds.",
     ingredients: [
@@ -1379,7 +1471,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "b-zucchini-fritters", name: "Zucchini & Feta Egg Fritters", type: "breakfast",
     cuisine: "mediterranean", mainProtein: "eggs",
-    calories: 360, proteinGrams: 22, carbsGrams: 22, fatGrams: 20, fiberGrams: 6, timeMinutes: 18, approxCost: 1,
+    timeMinutes: 18, approxCost: 1,
     dietTags: ["vegetarian", "gluten_free"],
     description: "Pan-fried zucchini and feta fritters bound with egg.",
     ingredients: [
@@ -1387,13 +1479,14 @@ export const RECIPES: Recipe[] = [
       { name: "eggs", quantity: "2" },
       { name: "feta", quantity: "40 g" },
       { name: "chickpea flour", quantity: "2 tbsp" },
+      { name: "olive oil", quantity: "1 tsp" },
     ],
     steps: ["Grate and squeeze zucchini; mix with egg, feta and flour.", "Fry spoonfuls until golden."],
   },
   {
     id: "b-ab-banana-toast", name: "Almond Butter & Banana Protein Toast", type: "breakfast",
     cuisine: "american", mainProtein: "dairy",
-    calories: 400, proteinGrams: 24, carbsGrams: 46, fatGrams: 16, fiberGrams: 8, timeMinutes: 6, approxCost: 1,
+    timeMinutes: 6, approxCost: 1,
     dietTags: ["vegetarian"],
     description: "Toast with almond butter, banana and a yogurt side.",
     ingredients: [
@@ -1407,7 +1500,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "b-tofu-breakfast-tacos", name: "Chorizo-Style Tofu Breakfast Tacos", type: "breakfast",
     cuisine: "mexican", mainProtein: "tofu",
-    calories: 410, proteinGrams: 24, carbsGrams: 46, fatGrams: 15, fiberGrams: 12, timeMinutes: 15, approxCost: 1,
+    timeMinutes: 15, approxCost: 1,
     dietTags: ["vegan", "vegetarian", "gluten_free"],
     description: "Spiced tofu crumble with beans in corn tortillas.",
     ingredients: [
@@ -1415,13 +1508,14 @@ export const RECIPES: Recipe[] = [
       { name: "corn tortillas", quantity: "2" },
       { name: "black beans", quantity: "60 g" },
       { name: "smoked paprika", quantity: "1 tsp" },
+      { name: "olive oil", quantity: "1 tsp" },
     ],
     steps: ["Fry crumbled tofu with paprika and spices.", "Fill tortillas with tofu and beans."],
   },
   {
     id: "b-matcha-chia", name: "Matcha Chia Protein Pudding", type: "breakfast",
     cuisine: "asian", mainProtein: "dairy",
-    calories: 350, proteinGrams: 26, carbsGrams: 34, fatGrams: 12, fiberGrams: 12, timeMinutes: 5, approxCost: 2,
+    timeMinutes: 5, approxCost: 2,
     dietTags: ["vegetarian", "gluten_free"],
     description: "Chia pudding whisked with matcha and vanilla protein.",
     ingredients: [
@@ -1435,7 +1529,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "b-eggwhite-wrap", name: "Egg White & Veggie Breakfast Wrap", type: "breakfast",
     cuisine: "american", mainProtein: "eggs",
-    calories: 350, proteinGrams: 28, carbsGrams: 34, fatGrams: 10, fiberGrams: 8, timeMinutes: 12, approxCost: 1,
+    timeMinutes: 12, approxCost: 1,
     dietTags: ["vegetarian"],
     description: "Fluffy egg whites with peppers and spinach in a wrap.",
     ingredients: [
@@ -1443,13 +1537,14 @@ export const RECIPES: Recipe[] = [
       { name: "whole-wheat wrap", quantity: "1" },
       { name: "bell pepper", quantity: "1/2" },
       { name: "spinach", quantity: "40 g" },
+      { name: "olive oil", quantity: "1 tsp" },
     ],
     steps: ["Scramble egg whites with peppers and spinach.", "Fill the wrap and roll."],
   },
   {
     id: "b-ricotta-toast", name: "Ricotta & Honey Toast with Walnuts", type: "breakfast",
     cuisine: "italian", mainProtein: "dairy",
-    calories: 380, proteinGrams: 20, carbsGrams: 40, fatGrams: 16, fiberGrams: 6, timeMinutes: 6, approxCost: 2,
+    timeMinutes: 6, approxCost: 2,
     dietTags: ["vegetarian"],
     description: "Creamy ricotta on toast with honey and walnuts.",
     ingredients: [
@@ -1463,7 +1558,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "b-kimchi-tofu", name: "Kimchi Tofu Scramble Bowl", type: "breakfast",
     cuisine: "asian", mainProtein: "tofu",
-    calories: 390, proteinGrams: 26, carbsGrams: 36, fatGrams: 16, fiberGrams: 9, timeMinutes: 12, approxCost: 2,
+    timeMinutes: 12, approxCost: 2,
     dietTags: ["vegan", "vegetarian", "gluten_free"],
     description: "Savory tofu scramble with kimchi over rice.",
     ingredients: [
@@ -1477,7 +1572,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "b-baked-oatmeal", name: "Baked Oatmeal with Apple & Pecan", type: "breakfast",
     cuisine: "american", mainProtein: "dairy",
-    calories: 410, proteinGrams: 22, carbsGrams: 54, fatGrams: 13, fiberGrams: 9, timeMinutes: 30, approxCost: 1,
+    timeMinutes: 30, approxCost: 1,
     dietTags: ["vegetarian"],
     description: "Warm baked oats with apple, cinnamon and pecans.",
     ingredients: [
@@ -1486,13 +1581,14 @@ export const RECIPES: Recipe[] = [
       { name: "egg", quantity: "1" },
       { name: "apple", quantity: "1" },
       { name: "pecans", quantity: "15 g" },
+      { name: "olive oil", quantity: "1 tsp" },
     ],
     steps: ["Mix oats, milk, egg and apple.", "Bake at 180°C for 25 min; top with pecans."],
   },
   {
     id: "b-lentil-egg-skillet", name: "Lentil & Egg Breakfast Skillet", type: "breakfast",
     cuisine: "middle_eastern", mainProtein: "eggs",
-    calories: 420, proteinGrams: 26, carbsGrams: 40, fatGrams: 18, fiberGrams: 13, timeMinutes: 18, approxCost: 1,
+    timeMinutes: 18, approxCost: 1,
     dietTags: ["vegetarian", "gluten_free"],
     description: "Spiced lentils topped with baked eggs.",
     ingredients: [
@@ -1506,7 +1602,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "b-protein-waffles", name: "Berry Protein Waffles", type: "breakfast",
     cuisine: "american", mainProtein: "dairy",
-    calories: 400, proteinGrams: 30, carbsGrams: 48, fatGrams: 10, fiberGrams: 7, timeMinutes: 15, approxCost: 1,
+    timeMinutes: 15, approxCost: 1,
     dietTags: ["vegetarian"],
     description: "Oat-protein waffles topped with berries and yogurt.",
     ingredients: [
@@ -1522,7 +1618,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "l-chicken-fajita-quinoa", name: "Chicken Fajita Quinoa Bowl", type: "lunch",
     cuisine: "mexican", mainProtein: "chicken",
-    calories: 560, proteinGrams: 46, carbsGrams: 52, fatGrams: 16, fiberGrams: 12, timeMinutes: 22, approxCost: 2,
+    timeMinutes: 22, approxCost: 2,
     dietTags: ["gluten_free"],
     description: "Fajita chicken and peppers over quinoa with beans.",
     ingredients: [
@@ -1537,7 +1633,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "l-poached-salmon-lentil", name: "Poached Salmon & Green Lentil Salad", type: "lunch",
     cuisine: "mediterranean", mainProtein: "fish",
-    calories: 540, proteinGrams: 42, carbsGrams: 40, fatGrams: 22, fiberGrams: 14, timeMinutes: 20, approxCost: 3,
+    timeMinutes: 20, approxCost: 3,
     dietTags: ["mediterranean", "gluten_free"],
     description: "Flaked poached salmon over a lemony green lentil salad.",
     ingredients: [
@@ -1551,7 +1647,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "l-sesame-chicken-edamame", name: "Sesame Chicken & Edamame Rice Bowl", type: "lunch",
     cuisine: "asian", mainProtein: "chicken",
-    calories: 580, proteinGrams: 46, carbsGrams: 58, fatGrams: 16, fiberGrams: 10, timeMinutes: 20, approxCost: 2,
+    timeMinutes: 20, approxCost: 2,
     dietTags: [],
     description: "Sesame chicken with edamame over rice.",
     ingredients: [
@@ -1565,7 +1661,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "l-cauli-chickpea-wrap", name: "Roasted Cauliflower & Chickpea Shawarma Wrap", type: "lunch",
     cuisine: "middle_eastern", mainProtein: "legumes",
-    calories: 520, proteinGrams: 20, carbsGrams: 68, fatGrams: 16, fiberGrams: 16, timeMinutes: 25, approxCost: 1,
+    timeMinutes: 25, approxCost: 1,
     dietTags: ["vegan", "vegetarian"],
     description: "Spiced roasted cauliflower and chickpeas in a wrap with tahini.",
     ingredients: [
@@ -1579,7 +1675,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "l-turkey-cobb", name: "Turkey Cobb Salad", type: "lunch",
     cuisine: "american", mainProtein: "turkey",
-    calories: 520, proteinGrams: 44, carbsGrams: 22, fatGrams: 28, fiberGrams: 9, timeMinutes: 15, approxCost: 2,
+    timeMinutes: 15, approxCost: 2,
     dietTags: ["keto", "gluten_free"],
     description: "Turkey, egg, avocado and greens with a light dressing.",
     ingredients: [
@@ -1593,7 +1689,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "l-spicy-tuna-bowl", name: "Spicy Tuna & Avocado Rice Bowl", type: "lunch",
     cuisine: "asian", mainProtein: "fish",
-    calories: 560, proteinGrams: 40, carbsGrams: 58, fatGrams: 18, fiberGrams: 9, timeMinutes: 12, approxCost: 2,
+    timeMinutes: 12, approxCost: 2,
     dietTags: [],
     description: "Tuna with sriracha-yogurt and avocado over rice.",
     ingredients: [
@@ -1607,7 +1703,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "l-white-bean-chicken-soup", name: "White Bean & Kale Soup with Chicken", type: "lunch",
     cuisine: "italian", mainProtein: "chicken",
-    calories: 480, proteinGrams: 42, carbsGrams: 44, fatGrams: 12, fiberGrams: 14, timeMinutes: 30, approxCost: 2,
+    timeMinutes: 30, approxCost: 2,
     dietTags: ["gluten_free"],
     description: "Brothy soup with chicken, white beans and kale.",
     ingredients: [
@@ -1621,7 +1717,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "l-greek-chicken-orzo", name: "Greek Chicken & Orzo Bowl", type: "lunch",
     cuisine: "mediterranean", mainProtein: "chicken",
-    calories: 580, proteinGrams: 44, carbsGrams: 60, fatGrams: 16, fiberGrams: 9, timeMinutes: 25, approxCost: 2,
+    timeMinutes: 25, approxCost: 2,
     dietTags: ["mediterranean"],
     description: "Lemon-oregano chicken over orzo with cucumber and feta.",
     ingredients: [
@@ -1629,13 +1725,14 @@ export const RECIPES: Recipe[] = [
       { name: "orzo", quantity: "70 g dry" },
       { name: "cucumber", quantity: "1/2" },
       { name: "feta", quantity: "30 g" },
+      { name: "olive oil", quantity: "1 tbsp" },
     ],
     steps: ["Cook orzo; grill lemon-oregano chicken.", "Combine with cucumber and feta."],
   },
   {
     id: "l-smoky-bean-quinoa", name: "Smoky Black Bean & Corn Quinoa Salad", type: "lunch",
     cuisine: "mexican", mainProtein: "legumes",
-    calories: 500, proteinGrams: 20, carbsGrams: 78, fatGrams: 12, fiberGrams: 17, timeMinutes: 15, approxCost: 1,
+    timeMinutes: 15, approxCost: 1,
     dietTags: ["vegan", "vegetarian", "gluten_free"],
     description: "Zesty quinoa salad with black beans, corn and lime.",
     ingredients: [
@@ -1649,7 +1746,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "l-prawn-mango-noodle", name: "Prawn & Mango Rice Noodle Salad", type: "lunch",
     cuisine: "asian", mainProtein: "shrimp",
-    calories: 520, proteinGrams: 34, carbsGrams: 66, fatGrams: 12, fiberGrams: 9, timeMinutes: 18, approxCost: 3,
+    timeMinutes: 18, approxCost: 3,
     dietTags: ["gluten_free"],
     description: "Cool rice noodles with prawns, mango and herbs.",
     ingredients: [
@@ -1663,13 +1760,14 @@ export const RECIPES: Recipe[] = [
   {
     id: "l-roast-beef-wrap", name: "Roast Beef & Horseradish Wrap", type: "lunch",
     cuisine: "american", mainProtein: "beef",
-    calories: 520, proteinGrams: 42, carbsGrams: 42, fatGrams: 18, fiberGrams: 9, timeMinutes: 8, approxCost: 3,
+    timeMinutes: 8, approxCost: 3,
     dietTags: [],
     description: "Lean roast beef with horseradish and rocket in a wrap.",
     ingredients: [
       { name: "lean roast beef", quantity: "120 g" },
       { name: "whole-wheat wrap", quantity: "1" },
       { name: "rocket", quantity: "40 g" },
+      { name: "avocado", quantity: "1/2 piece" },
       { name: "horseradish", quantity: "1 tsp" },
     ],
     steps: ["Spread horseradish on the wrap.", "Layer beef and rocket; roll and slice."],
@@ -1677,7 +1775,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "l-halloumi-grain-bowl", name: "Halloumi & Chickpea Grain Bowl", type: "lunch",
     cuisine: "mediterranean", mainProtein: "dairy",
-    calories: 560, proteinGrams: 28, carbsGrams: 56, fatGrams: 24, fiberGrams: 13, timeMinutes: 20, approxCost: 2,
+    timeMinutes: 20, approxCost: 2,
     dietTags: ["vegetarian", "gluten_free"],
     description: "Grilled halloumi with chickpeas and roasted veg over grains.",
     ingredients: [
@@ -1685,13 +1783,14 @@ export const RECIPES: Recipe[] = [
       { name: "chickpeas", quantity: "100 g" },
       { name: "quinoa", quantity: "60 g dry" },
       { name: "roasted peppers", quantity: "80 g" },
+      { name: "olive oil", quantity: "1 tbsp" },
     ],
     steps: ["Grill halloumi; warm chickpeas.", "Serve over quinoa with peppers."],
   },
   {
     id: "l-chicken-tikka-wrap", name: "Chicken Tikka Wrap with Yogurt Slaw", type: "lunch",
     cuisine: "indian", mainProtein: "chicken",
-    calories: 540, proteinGrams: 44, carbsGrams: 48, fatGrams: 18, fiberGrams: 9, timeMinutes: 22, approxCost: 2,
+    timeMinutes: 22, approxCost: 2,
     dietTags: [],
     description: "Tikka-spiced chicken with a yogurt slaw in a wrap.",
     ingredients: [
@@ -1700,13 +1799,14 @@ export const RECIPES: Recipe[] = [
       { name: "cabbage", quantity: "60 g" },
       { name: "yogurt", quantity: "2 tbsp" },
       { name: "tikka spice", quantity: "1 tbsp" },
+      { name: "olive oil", quantity: "1 tbsp" },
     ],
     steps: ["Sear tikka-spiced chicken.", "Fill wrap with chicken and yogurt slaw."],
   },
   {
     id: "l-lentil-feta-tabbouleh", name: "Lentil & Feta Tabbouleh", type: "lunch",
     cuisine: "mediterranean", mainProtein: "legumes",
-    calories: 480, proteinGrams: 22, carbsGrams: 56, fatGrams: 16, fiberGrams: 15, timeMinutes: 15, approxCost: 1,
+    timeMinutes: 15, approxCost: 1,
     dietTags: ["vegetarian"],
     description: "Herby bulgur tabbouleh with lentils and feta.",
     ingredients: [
@@ -1720,7 +1820,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "l-ginger-beef-cups", name: "Ginger Beef Lettuce Cups", type: "lunch",
     cuisine: "asian", mainProtein: "beef",
-    calories: 500, proteinGrams: 40, carbsGrams: 42, fatGrams: 18, fiberGrams: 9, timeMinutes: 18, approxCost: 3,
+    timeMinutes: 18, approxCost: 3,
     dietTags: [],
     description: "Ginger-soy beef in lettuce cups with a side of rice.",
     ingredients: [
@@ -1728,13 +1828,14 @@ export const RECIPES: Recipe[] = [
       { name: "lettuce", quantity: "6 leaves" },
       { name: "brown rice", quantity: "50 g dry" },
       { name: "ginger-soy sauce", quantity: "2 tbsp" },
+      { name: "sesame oil", quantity: "1 tbsp" },
     ],
     steps: ["Stir-fry beef with ginger-soy.", "Spoon into lettuce cups; serve with rice."],
   },
   {
     id: "l-mackerel-beetroot", name: "Smoked Mackerel & Beetroot Salad", type: "lunch",
     cuisine: "mediterranean", mainProtein: "fish",
-    calories: 500, proteinGrams: 34, carbsGrams: 34, fatGrams: 26, fiberGrams: 10, timeMinutes: 10, approxCost: 2,
+    timeMinutes: 10, approxCost: 2,
     dietTags: ["mediterranean", "gluten_free"],
     description: "Omega-rich mackerel with beetroot and lentils.",
     ingredients: [
@@ -1748,7 +1849,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "l-buffalo-chicken-bowl", name: "Buffalo Chicken & Chickpea Bowl", type: "lunch",
     cuisine: "american", mainProtein: "chicken",
-    calories: 560, proteinGrams: 48, carbsGrams: 48, fatGrams: 16, fiberGrams: 13, timeMinutes: 20, approxCost: 2,
+    timeMinutes: 20, approxCost: 2,
     dietTags: ["gluten_free"],
     description: "Buffalo-spiced chicken with chickpeas and slaw over rice.",
     ingredients: [
@@ -1764,7 +1865,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "d-lemon-herb-chicken", name: "Lemon-Herb Chicken with Green Beans & Potatoes", type: "dinner",
     cuisine: "mediterranean", mainProtein: "chicken",
-    calories: 560, proteinGrams: 48, carbsGrams: 44, fatGrams: 18, fiberGrams: 10, timeMinutes: 30, approxCost: 2,
+    timeMinutes: 30, approxCost: 2,
     dietTags: ["mediterranean", "gluten_free"],
     description: "Roast chicken with baby potatoes and green beans.",
     ingredients: [
@@ -1772,13 +1873,14 @@ export const RECIPES: Recipe[] = [
       { name: "baby potatoes", quantity: "200 g" },
       { name: "green beans", quantity: "120 g" },
       { name: "lemon", quantity: "1/2" },
+      { name: "olive oil", quantity: "1 tbsp" },
     ],
     steps: ["Roast potatoes 20 min.", "Add chicken and beans; roast 15 min with lemon."],
   },
   {
     id: "d-shrimp-zoodle-scampi", name: "Shrimp & Zucchini Noodle Scampi", type: "dinner",
     cuisine: "italian", mainProtein: "shrimp",
-    calories: 480, proteinGrams: 38, carbsGrams: 30, fatGrams: 22, fiberGrams: 8, timeMinutes: 20, approxCost: 3,
+    timeMinutes: 20, approxCost: 3,
     dietTags: ["keto", "gluten_free"],
     description: "Garlic-butter shrimp over zucchini noodles.",
     ingredients: [
@@ -1786,13 +1888,14 @@ export const RECIPES: Recipe[] = [
       { name: "zucchini", quantity: "2" },
       { name: "garlic", quantity: "3 cloves" },
       { name: "olive oil", quantity: "1 tbsp" },
+      { name: "butter", quantity: "1 tbsp" },
     ],
     steps: ["Spiralize zucchini.", "Sauté shrimp with garlic; toss with zoodles."],
   },
   {
     id: "d-turkey-meatball-bowl", name: "Turkey & Spinach Meatball Bowl", type: "dinner",
     cuisine: "mediterranean", mainProtein: "turkey",
-    calories: 580, proteinGrams: 46, carbsGrams: 52, fatGrams: 18, fiberGrams: 11, timeMinutes: 28, approxCost: 2,
+    timeMinutes: 28, approxCost: 2,
     dietTags: ["gluten_free"],
     description: "Turkey-spinach meatballs over quinoa with tomato.",
     ingredients: [
@@ -1800,13 +1903,14 @@ export const RECIPES: Recipe[] = [
       { name: "spinach", quantity: "50 g" },
       { name: "quinoa", quantity: "70 g dry" },
       { name: "tomato sauce", quantity: "120 g" },
+      { name: "olive oil", quantity: "1 tbsp" },
     ],
     steps: ["Bake turkey-spinach meatballs 15 min.", "Simmer in sauce; serve over quinoa."],
   },
   {
     id: "d-black-bean-enchilada", name: "Black Bean Enchilada Bake", type: "dinner",
     cuisine: "mexican", mainProtein: "legumes",
-    calories: 560, proteinGrams: 24, carbsGrams: 80, fatGrams: 16, fiberGrams: 18, timeMinutes: 35, approxCost: 1,
+    timeMinutes: 35, approxCost: 1,
     dietTags: ["vegetarian"],
     description: "Baked enchiladas filled with black beans and cheese.",
     ingredients: [
@@ -1814,13 +1918,14 @@ export const RECIPES: Recipe[] = [
       { name: "corn tortillas", quantity: "3" },
       { name: "enchilada sauce", quantity: "150 g" },
       { name: "cheddar", quantity: "40 g" },
+      { name: "olive oil", quantity: "1 tbsp" },
     ],
     steps: ["Fill and roll tortillas with beans.", "Top with sauce and cheese; bake 20 min."],
   },
   {
     id: "d-ginger-tofu-bokchoy", name: "Ginger-Soy Baked Tofu with Bok Choy & Rice", type: "dinner",
     cuisine: "asian", mainProtein: "tofu",
-    calories: 540, proteinGrams: 28, carbsGrams: 60, fatGrams: 18, fiberGrams: 11, timeMinutes: 30, approxCost: 2,
+    timeMinutes: 30, approxCost: 2,
     dietTags: ["vegan", "vegetarian"],
     description: "Baked ginger-soy tofu with bok choy over rice.",
     ingredients: [
@@ -1828,13 +1933,14 @@ export const RECIPES: Recipe[] = [
       { name: "bok choy", quantity: "120 g" },
       { name: "brown rice", quantity: "70 g dry" },
       { name: "ginger-soy sauce", quantity: "2 tbsp" },
+      { name: "sesame oil", quantity: "1 tbsp" },
     ],
     steps: ["Bake glazed tofu 22 min.", "Serve with steamed bok choy and rice."],
   },
   {
     id: "d-cajun-salmon", name: "Cajun Salmon with Dirty Rice & Beans", type: "dinner",
     cuisine: "american", mainProtein: "fish",
-    calories: 620, proteinGrams: 44, carbsGrams: 58, fatGrams: 22, fiberGrams: 12, timeMinutes: 25, approxCost: 3,
+    timeMinutes: 25, approxCost: 3,
     dietTags: ["gluten_free"],
     description: "Cajun-spiced salmon over rice with kidney beans.",
     ingredients: [
@@ -1842,13 +1948,14 @@ export const RECIPES: Recipe[] = [
       { name: "brown rice", quantity: "70 g dry" },
       { name: "kidney beans", quantity: "100 g" },
       { name: "cajun spice", quantity: "1 tbsp" },
+      { name: "olive oil", quantity: "1 tbsp" },
     ],
     steps: ["Pan-sear cajun salmon.", "Stir beans through cooked rice; plate together."],
   },
   {
     id: "d-beef-kebabs-couscous", name: "Beef & Vegetable Kebabs with Couscous", type: "dinner",
     cuisine: "middle_eastern", mainProtein: "beef",
-    calories: 600, proteinGrams: 44, carbsGrams: 52, fatGrams: 22, fiberGrams: 10, timeMinutes: 25, approxCost: 3,
+    timeMinutes: 25, approxCost: 3,
     dietTags: [],
     description: "Grilled beef and pepper kebabs over couscous.",
     ingredients: [
@@ -1856,13 +1963,14 @@ export const RECIPES: Recipe[] = [
       { name: "bell peppers", quantity: "1" },
       { name: "red onion", quantity: "1/2" },
       { name: "couscous", quantity: "60 g dry" },
+      { name: "olive oil", quantity: "1 tbsp" },
     ],
     steps: ["Thread beef and veg; grill.", "Serve over fluffed couscous."],
   },
   {
     id: "d-chicken-tikka-masala", name: "Chicken Tikka Masala with Brown Rice", type: "dinner",
     cuisine: "indian", mainProtein: "chicken",
-    calories: 620, proteinGrams: 46, carbsGrams: 60, fatGrams: 20, fiberGrams: 9, timeMinutes: 30, approxCost: 2,
+    timeMinutes: 30, approxCost: 2,
     dietTags: ["gluten_free"],
     description: "Creamy tomato tikka masala with chicken over rice.",
     ingredients: [
@@ -1876,7 +1984,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "d-cod-bean-stew", name: "Cod & Smoky Bean Stew", type: "dinner",
     cuisine: "mediterranean", mainProtein: "fish",
-    calories: 500, proteinGrams: 42, carbsGrams: 44, fatGrams: 14, fiberGrams: 15, timeMinutes: 25, approxCost: 3,
+    timeMinutes: 25, approxCost: 3,
     dietTags: ["mediterranean", "gluten_free"],
     description: "Cod poached in a smoky tomato and white bean stew.",
     ingredients: [
@@ -1890,7 +1998,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "d-tempeh-peanut-noodles", name: "Tempeh & Broccoli Peanut Noodles", type: "dinner",
     cuisine: "asian", mainProtein: "tofu",
-    calories: 600, proteinGrams: 30, carbsGrams: 66, fatGrams: 24, fiberGrams: 12, timeMinutes: 22, approxCost: 2,
+    timeMinutes: 22, approxCost: 2,
     dietTags: ["vegan", "vegetarian"],
     description: "Tempeh and broccoli tossed in peanut sauce with noodles.",
     ingredients: [
@@ -1904,7 +2012,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "d-stuffed-sweet-potato", name: "Stuffed Sweet Potato with Turkey Chili", type: "dinner",
     cuisine: "american", mainProtein: "turkey",
-    calories: 560, proteinGrams: 42, carbsGrams: 58, fatGrams: 16, fiberGrams: 15, timeMinutes: 35, approxCost: 2,
+    timeMinutes: 35, approxCost: 2,
     dietTags: ["gluten_free"],
     description: "Baked sweet potato loaded with lean turkey chili.",
     ingredients: [
@@ -1912,13 +2020,14 @@ export const RECIPES: Recipe[] = [
       { name: "ground turkey", quantity: "130 g" },
       { name: "kidney beans", quantity: "80 g" },
       { name: "chopped tomatoes", quantity: "1/2 can" },
+      { name: "olive oil", quantity: "1 tbsp" },
     ],
     steps: ["Bake sweet potato until soft.", "Simmer turkey chili; spoon over the split potato."],
   },
   {
     id: "d-pesto-chicken-penne", name: "Pesto Chicken with Whole-Wheat Penne & Peas", type: "dinner",
     cuisine: "italian", mainProtein: "chicken",
-    calories: 620, proteinGrams: 48, carbsGrams: 60, fatGrams: 20, fiberGrams: 11, timeMinutes: 25, approxCost: 2,
+    timeMinutes: 25, approxCost: 2,
     dietTags: [],
     description: "Pesto chicken tossed with whole-wheat penne and peas.",
     ingredients: [
@@ -1932,7 +2041,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "d-falafel-bowl", name: "Baked Falafel Bowl with Roasted Veg & Tahini", type: "dinner",
     cuisine: "middle_eastern", mainProtein: "legumes",
-    calories: 560, proteinGrams: 22, carbsGrams: 74, fatGrams: 18, fiberGrams: 18, timeMinutes: 30, approxCost: 1,
+    timeMinutes: 30, approxCost: 1,
     dietTags: ["vegan", "vegetarian"],
     description: "Baked falafel over grains with roasted vegetables and tahini.",
     ingredients: [
@@ -1946,7 +2055,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "d-garlic-shrimp-farro", name: "Garlic Butter Shrimp with Rice & Asparagus", type: "dinner",
     cuisine: "mediterranean", mainProtein: "shrimp",
-    calories: 540, proteinGrams: 40, carbsGrams: 50, fatGrams: 18, fiberGrams: 11, timeMinutes: 25, approxCost: 3,
+    timeMinutes: 25, approxCost: 3,
     dietTags: ["mediterranean", "gluten_free"],
     description: "Garlicky shrimp with brown rice and asparagus.",
     ingredients: [
@@ -1960,7 +2069,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "d-sausage-bean-traybake", name: "Pork Sausage, Peppers & White Bean Traybake", type: "dinner",
     cuisine: "italian", mainProtein: "pork",
-    calories: 620, proteinGrams: 40, carbsGrams: 48, fatGrams: 28, fiberGrams: 14, timeMinutes: 35, approxCost: 2,
+    timeMinutes: 35, approxCost: 2,
     dietTags: ["gluten_free"],
     description: "One-tray lean pork sausage with peppers and white beans.",
     ingredients: [
@@ -1968,6 +2077,7 @@ export const RECIPES: Recipe[] = [
       { name: "cannellini beans", quantity: "150 g" },
       { name: "bell peppers", quantity: "2" },
       { name: "red onion", quantity: "1" },
+      { name: "olive oil", quantity: "1 tbsp" },
     ],
     steps: ["Toss sausage, peppers and onion on a tray; roast 25 min.", "Stir in beans; roast 8 min more."],
   },
@@ -1976,7 +2086,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "s-roasted-chickpeas", name: "Crunchy Roasted Chickpeas", type: "snack",
     cuisine: "mediterranean", mainProtein: "legumes",
-    calories: 200, proteinGrams: 11, carbsGrams: 28, fatGrams: 6, fiberGrams: 8, timeMinutes: 5, approxCost: 1,
+    timeMinutes: 5, approxCost: 1,
     dietTags: ["vegan", "vegetarian", "gluten_free"],
     description: "Crispy spiced roasted chickpeas.",
     ingredients: [
@@ -1989,7 +2099,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "s-tuna-cucumber-boats", name: "Tuna Cucumber Boats", type: "snack",
     cuisine: "american", mainProtein: "fish",
-    calories: 180, proteinGrams: 22, carbsGrams: 8, fatGrams: 7, fiberGrams: 4, timeMinutes: 5, approxCost: 2,
+    timeMinutes: 5, approxCost: 2,
     dietTags: ["gluten_free"],
     description: "Cucumber halves loaded with lemony tuna.",
     ingredients: [
@@ -2002,7 +2112,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "s-protein-balls", name: "Chocolate Peanut Protein Balls", type: "snack",
     cuisine: "american", mainProtein: "dairy", servings: 2, // a tray of balls (~6 balls, 3 per serving)
-    calories: 220, proteinGrams: 14, carbsGrams: 22, fatGrams: 10, fiberGrams: 5, timeMinutes: 8, approxCost: 1,
+    timeMinutes: 8, approxCost: 1,
     dietTags: ["vegetarian"],
     description: "No-bake oat, peanut and protein bites.",
     ingredients: [
@@ -2019,7 +2129,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "s-keto-eggs-avocado", name: "Boiled Eggs & Avocado", type: "snack",
     cuisine: "american", mainProtein: "eggs",
-    calories: 300, proteinGrams: 15, carbsGrams: 6, fatGrams: 25, fiberGrams: 6, timeMinutes: 10, approxCost: 1,
+    timeMinutes: 10, approxCost: 1,
     dietTags: ["keto", "vegetarian", "gluten_free"],
     description: "Jammy boiled eggs with avocado and olive oil.",
     ingredients: [
@@ -2032,7 +2142,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "s-keto-cheese-almonds", name: "Cheddar & Almonds", type: "snack",
     cuisine: "american", mainProtein: "dairy",
-    calories: 300, proteinGrams: 14, carbsGrams: 5, fatGrams: 26, fiberGrams: 3, timeMinutes: 2, approxCost: 2,
+    timeMinutes: 2, approxCost: 2,
     dietTags: ["keto", "vegetarian", "gluten_free"],
     description: "Sharp cheddar with toasted almonds.",
     ingredients: [
@@ -2046,7 +2156,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "t-pizza", name: "Pepperoni & Mozzarella Pizza", type: "dinner",
     cuisine: "italian", mainProtein: "dairy", treatOnly: true,
-    calories: 780, proteinGrams: 32, carbsGrams: 82, fatGrams: 34, fiberGrams: 4, timeMinutes: 20, approxCost: 2,
+    timeMinutes: 20, approxCost: 2,
     dietTags: [],
     description: "Proper cheat-day pizza — crisp base, tomato, mozzarella.",
     ingredients: [
@@ -2060,7 +2170,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "t-cheeseburger", name: "Cheeseburger & Fries", type: "dinner",
     cuisine: "american", mainProtein: "beef", treatOnly: true,
-    calories: 850, proteinGrams: 40, carbsGrams: 70, fatGrams: 44, fiberGrams: 5, timeMinutes: 25, approxCost: 2,
+    timeMinutes: 25, approxCost: 2,
     dietTags: [],
     description: "Beef patty, melted cheddar, soft bun and oven fries.",
     ingredients: [
@@ -2068,13 +2178,14 @@ export const RECIPES: Recipe[] = [
       { name: "burger bun", quantity: "1" },
       { name: "cheddar", quantity: "30 g" },
       { name: "baby potatoes", quantity: "200 g" },
+      { name: "olive oil", quantity: "1 tbsp" },
     ],
     steps: ["Roast the potato fries 20 min.", "Sear the patty 3 min a side; melt cheddar on top.", "Build the burger."],
   },
   {
     id: "t-mac-cheese", name: "Baked Mac and Cheese", type: "dinner",
     cuisine: "american", mainProtein: "dairy", treatOnly: true,
-    calories: 720, proteinGrams: 28, carbsGrams: 78, fatGrams: 32, fiberGrams: 4, timeMinutes: 30, approxCost: 1,
+    timeMinutes: 30, approxCost: 1,
     dietTags: ["vegetarian"],
     description: "Molten cheddar sauce, baked until bubbling.",
     ingredients: [
@@ -2088,7 +2199,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "t-fried-chicken", name: "Crispy Fried Chicken", type: "dinner",
     cuisine: "american", mainProtein: "chicken", treatOnly: true,
-    calories: 760, proteinGrams: 45, carbsGrams: 48, fatGrams: 42, fiberGrams: 3, timeMinutes: 30, approxCost: 2,
+    timeMinutes: 30, approxCost: 2,
     dietTags: [],
     description: "Buttermilk-style crunch, unapologetically fried.",
     ingredients: [
@@ -2102,7 +2213,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "t-nachos", name: "Loaded Cheesy Nachos", type: "dinner",
     cuisine: "mexican", mainProtein: "dairy", treatOnly: true,
-    calories: 700, proteinGrams: 24, carbsGrams: 68, fatGrams: 36, fiberGrams: 9, timeMinutes: 15, approxCost: 1,
+    timeMinutes: 15, approxCost: 1,
     dietTags: ["vegetarian"],
     description: "Tortilla chips buried under cheddar, beans and salsa.",
     ingredients: [
@@ -2110,13 +2221,14 @@ export const RECIPES: Recipe[] = [
       { name: "cheddar", quantity: "60 g" },
       { name: "black beans", quantity: "100 g" },
       { name: "salsa", quantity: "60 g" },
+      { name: "olive oil", quantity: "1 tbsp" },
     ],
     steps: ["Cut and bake the tortillas into chips.", "Layer with beans and cheddar; bake until melted.", "Spoon over salsa."],
   },
   {
     id: "t-ice-cream", name: "Chocolate Ice Cream Sundae", type: "snack",
     cuisine: "american", mainProtein: "dairy", treatOnly: true,
-    calories: 420, proteinGrams: 7, carbsGrams: 52, fatGrams: 20, fiberGrams: 2, timeMinutes: 3, approxCost: 1,
+    timeMinutes: 3, approxCost: 1,
     dietTags: ["vegetarian"],
     description: "Ice cream, chocolate sauce, done.",
     ingredients: [
@@ -2127,6 +2239,9 @@ export const RECIPES: Recipe[] = [
     steps: ["Scoop the ice cream.", "Dust with cocoa and scatter peanuts."],
   },
 ];
+
+/** The library the whole engine uses. Macros come from the food, not from a card. */
+export const RECIPES: Recipe[] = SEED_RECIPES.map(deriveMacros);
 
 // --- Selection engine ------------------------------------------------------
 
@@ -3158,11 +3273,11 @@ function substituteNote(
     if (Math.abs(dCal) >= 15) cost.push(`${Math.abs(dCal)} ${dCal > 0 ? "more" : "fewer"} kcal`);
     if (Math.abs(dPro) >= 3) cost.push(`${Math.abs(dPro)}g ${dPro > 0 ? "more" : "less"} protein`);
     parts.push(
-      `Use ${best} instead of the ${found.quantity} of ${key} in ${found.day}'s ${found.meal.type}` +
+      `Use ${best} instead of the ${portion(found.quantity, key)} in ${found.day}'s ${found.meal.type}` +
         (cost.length ? ` — that's ${listPhrase(cost)} for that portion.` : ` — near enough identical for that portion.`),
     );
   } else if (found) {
-    parts.push(`Use ${best} instead of the ${found.quantity} of ${key} in ${found.day}'s ${found.meal.type}.`);
+    parts.push(`Use ${best} instead of the ${portion(found.quantity, key)} in ${found.day}'s ${found.meal.type}.`);
     parts.push(`I can't put a number on the macro difference — I don't have full data for both.`);
   } else {
     parts.push(`Use ${best} in place of ${key}.`);
@@ -3177,6 +3292,11 @@ function substituteNote(
 }
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/** "150 g of greek yogurt", but "1 egg" — a bare count doesn't take "of". */
+function portion(quantity: string, ingredient: string): string {
+  return /[a-z]/i.test(quantity) ? `${quantity} of ${ingredient}` : `${quantity} ${ingredient}`;
+}
 
 /**
  * "Why is this in my plan?" An assistant that cannot justify its own choices is a black box, and
@@ -3324,6 +3444,85 @@ function reimposeLocks(
   });
 
   return { plan: { ...plan, days }, dropped };
+}
+
+/* ------------------------------------------------------------------------- *
+ * "Use up the salmon and broccoli I have"
+ *
+ * Preferring on-hand food was a BIAS: the selector filtered each slot toward matching recipes, but
+ * the protein-diversity cap could still push fish out of the whole week, so the salmon the user
+ * asked to use up simply didn't appear. Some runs, not others — the test for it could only say
+ * "usually", which is another way of saying nobody knew.
+ *
+ * It is a guarantee now, in the same shape as the nutrient boost: build the week, then check, then
+ * place what's missing. Hard rules still win — nothing on-hand gets used if it breaks the diet or
+ * an allergy, and a pinned meal is never displaced to make room. When an ingredient cannot be
+ * used, the engine says so instead of quietly ignoring it.
+ * ------------------------------------------------------------------------- */
+function guaranteeFridge(p: UserProfile, plan: WeekPlan, wanted: string[], notes: string[]): WeekPlan {
+  const want = wanted.map((x) => x.trim().toLowerCase()).filter(Boolean);
+  if (!want.length) return plan;
+
+  const tokens = exclusionTokens(p);
+  const uses = (m: Meal, ing: string) => m.ingredients.some((i) => i.name.trim().toLowerCase() === ing);
+  const pinned = new Set((p.lockedMeals ?? []).map((l) => lockKey(l.day, l.mealType)));
+  const unusable: string[] = [];
+  const relaxed: string[] = [];
+  let cur = plan;
+
+  for (const ing of want) {
+    if (cur.days.some((d) => d.meals.some((m) => uses(m, ing)))) continue;
+
+    const inWeek = new Set(cur.days.flatMap((d) => d.meals.map((m) => m.name.toLowerCase())));
+    const eligible = RECIPES.filter(
+      (r) =>
+        !r.treatOnly &&
+        passesDiet(r, p.diet) &&
+        !blockedByExclusions(r, tokens) &&
+        !inWeek.has(r.name.toLowerCase()) &&
+        r.ingredients.some((i) => i.name.trim().toLowerCase() === ing),
+    );
+    // Cook time is a preference, so it may be relaxed — but only with disclosure, and only when
+    // nothing quick enough exists.
+    let cands = eligible.filter((r) => r.timeMinutes <= p.maxCookTime);
+    if (!cands.length && eligible.length) {
+      cands = eligible;
+      relaxed.push(ing);
+    }
+    if (!cands.length) {
+      unusable.push(ing);
+      continue;
+    }
+    const score = (r: Recipe) => r.ingredients.filter((i) => want.includes(i.name.trim().toLowerCase())).length;
+    cands.sort((a, b) => score(b) - score(a) || a.approxCost - b.approxCost);
+    const pick = cands[0];
+
+    // Displace a slot of the same type that is neither pinned nor already earning its keep.
+    const target = cur.days.find((d) => {
+      const m = d.meals.find((x) => x.type === pick.type);
+      return !!m && !pinned.has(lockKey(d.day, m.type)) && !want.some((w) => uses(m, w));
+    });
+    if (!target) {
+      unusable.push(ing);
+      continue;
+    }
+
+    const share = localSplit(p.mealsPerDay).find((sp) => sp[0] === pick.type)?.[1] ?? 1 / p.mealsPerDay;
+    const placed = toMeal(scaleRecipeToTarget(pick, Math.round(p.targetCalories * share)));
+    const days = cur.days.map((d) => {
+      if (d.day !== target.day) return d;
+      const meals = d.meals.map((m) => (m.type === pick.type ? { ...placed, type: m.type } : m));
+      const fixed = new Set<Meal["type"]>([pick.type, ...lockedSlotsFor(p, d.day)]);
+      return { ...d, meals: rebalanceDay(meals, p, fixed, namesOnOtherDays(cur, d.day, p)) };
+    });
+    cur = { ...cur, days };
+  }
+
+  if (relaxed.length)
+    notes.push(`Nothing with ${listPhrase(relaxed)} fits your ${p.maxCookTime}-min limit, so that meal takes a little longer.`);
+  if (unusable.length)
+    notes.push(`I couldn't work ${listPhrase(unusable)} into the week — nothing I have with ${unusable.length > 1 ? "them" : "it"} fits your plan.`);
+  return cur;
 }
 
 /**
@@ -3625,6 +3824,7 @@ export function applyOperations(
             if (g.note) notes.push(g.note);
           }
           applyLocks();
+          if (op.useIngredients?.length) curPlan = guaranteeFridge(p, curPlan, op.useIngredients, notes);
           if (keepMacros(op)) notes.push(achievementNote("Your week now averages", weekAverages(curPlan), p));
           if (op.boostNutrient) notes.push(microNote(curPlan, op.boostNutrient));
         }
@@ -3643,6 +3843,7 @@ export function applyOperations(
             if (g.note) notes.push(g.note);
           }
           applyLocks();
+          if (op.useIngredients?.length) curPlan = guaranteeFridge(p, curPlan, op.useIngredients, notes);
           if (keepMacros(op)) notes.push(achievementNote("Your week now averages", weekAverages(curPlan), p));
           if (op.boostNutrient) notes.push(microNote(curPlan, op.boostNutrient));
         }
