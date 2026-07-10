@@ -7,19 +7,59 @@
 
 ---
 
-## RESUME HERE (last updated: 2026-07-10)
+## RESUME HERE (last updated: 2026-07-10, later)
 
-`main` is green: `npm run test:engine` 241 passed / 0 failed, fuzz clean, plus `npm run
-check:recipes` and `npm run check:data`.
+`main` is green: `npm run test:engine` **306 passed / 0 failed** (deterministic — same count every
+run now), fuzz clean, plus `npm run check:recipes` and `npm run check:data`.
 
-**v7 is trained, converted, loaded, and is the production model.** It is the first model whose
-labels contained `age/heightCm/weightKg/sex/activity/goal/loggedCalories/estimatedCalories/
-ingredient/symptom`, and the first trained on all 1030 examples (0 skipped).
+**The four planned tools have all shipped (rate_meal, hydration, scale_portions, undo) and so has
+the plant-protein-powder debt. The model is now due a retrain — v7 does not know any of the four.**
+
+### >>> THE NEXT THING TO DO: train v8 <<<
+
+The training data is built and verified (1282 examples, 0 over MAX_LEN by estimate; the trainer
+aborts if >5% skip). v8 is the first model to see the 4 new tools AND the minimal pairs for v7's
+three real failures. **Training needs the whole 8 GB GPU, so v7 must come out of LM Studio first —
+which takes the site's assistant offline for the ~2.7h run.** That's why it hasn't been launched
+yet; the user was using the site. When clear:
+
+```bash
+# 1. free the GPU (this stops the live site's AI)
+~/.lmstudio/bin/lms.exe unload --all
+# 2. train (~2.7h, 387 steps; watch train-v8.log for "skipped N of 1282" — abort if N is large)
+.venv-ft/Scripts/python.exe scripts/train_lora.py 2>&1 | tee train-v8.log
+# 3. archive the adapter, merge, convert
+cp -r models/nutriflow-lora models/nutriflow-lora-v8
+.venv-ft/Scripts/python.exe scripts/merge_lora.py
+.venv-ft/Scripts/python.exe llama.cpp/convert_hf_to_gguf.py models/nutriflow-merged \
+  --outfile models/nutriflow-assistant-v8-q8_0.gguf --outtype q8_0
+mkdir -p ~/.lmstudio/models/nutriflow/nutriflow-assistant-v8
+cp models/nutriflow-assistant-v8-q8_0.gguf ~/.lmstudio/models/nutriflow/nutriflow-assistant-v8/
+# 4. load + eval on the HELD-OUT set (now 63 cases incl. the 4 new tools)
+~/.lmstudio/bin/lms.exe load nutriflow-assistant-v8 --gpu max --context-length 8192 --identifier nutriflow-v8 -y
+ENFORCE=1 MODEL=nutriflow-v8 npm run eval:assistant
+MODEL=nutriflow-v8 npm run eval:assistant
+# 5. point the site at it
+#    edit .env.local: LOCAL_AI_MODEL=nutriflow-v8   (must match `lms ps`)
+```
+
+v8 targets: tool/field accuracy should hold or climb (the 4 new tools add ~20 held-out cases the
+model has never been scored on), and the three v7 "read the sentence" failures below should clear
+now that minimal pairs teach them.
+
+**The 17 tools:** update_profile, regenerate_week, regenerate_day, swap_meal, compute_targets,
+log_meal, weekly_report, eating_out, explain_meal, substitute_ingredient, symptom_check, lock_meal,
+unlock_meal, **rate_meal, hydration, scale_portions, undo**.
+
+### v7 (the model in production RIGHT NOW)
+
+v7 is loaded and serving the site. It knows the original 13 tools but NONE of the 4 new ones, so
+"rate that dinner 5 stars", "how much water", "smaller portions", "undo" won't work in the live
+chat until v8 lands. Everything else works.
 
 ```bash
 ~/.lmstudio/bin/lms.exe load nutriflow-assistant-v7 --gpu max --context-length 8192 --identifier nutriflow-v7 -y
 ENFORCE=1 MODEL=nutriflow-v7 npm run eval:assistant   # the production path
-MODEL=nutriflow-v7 npm run eval:assistant             # unconstrained stress test
 ```
 
 ### The scoreboard was measuring memory, not skill
@@ -61,15 +101,35 @@ the app still needs it now that the fine-tune emits the envelope natively.
 3. `i feel worn out every afternoon` -> `weekly_report`, not `symptom_check`.
 
 The fix for all three is **minimal pairs in the training data**: same dish, same day, different
-slot; same outing, with and without a calorie estimate; more fatigue phrasings. Queued for v8.
+slot; same outing, with and without a calorie estimate; more fatigue phrasings. **All three are now
+in the training set** (`gen-synthetic.mjs`: the log_meal all-three-slots loop, the eating_out
+with/without-number loop, ten fatigue phrasings) — they take effect when v8 trains.
 
-**The assistant's 13 tools:** `update_profile`, `regenerate_week`, `regenerate_day`, `swap_meal`,
-`compute_targets`, `log_meal`, `weekly_report`, `eating_out`, `explain_meal`,
-`substitute_ingredient`, `symptom_check`, `lock_meal`, `unlock_meal`.
+### The four tools that shipped after v7 (all tested, all pushed, model not yet retrained)
 
-**Next, in order:** `rate_meal` -> hydration (needs `UserProfile.weightKg`, which `compute_targets`
-should persist) -> `scale_portions` -> `undo`. Adding a tool stales the model, so build all four,
-add the v8 minimal-pair data, then train **once**.
+- **rate_meal** — "that salmon was incredible" (5) / "never make the tofu again" (1). A preference,
+  never a hard rule: it biases selection, and a 1-star relaxes if banning it would empty a slot. The
+  ban has to hold on all THREE paths that place a recipe (day selector, protein rebalancer, nutrient
+  boost) — it leaked through two of them until a test caught it (5/25 weeks).
+- **hydration** — "how much water?" 35 mL/kg + a training allowance − the ~20% from food, as a band.
+  Forced compute_targets to finally PERSIST its body stats (it computed and discarded them); the app
+  knew your calories but not your weight.
+- **scale_portions** — "still hungry" / "too much food". The one tool that deliberately leaves the
+  calorie target, so it discloses; and it will not cross the calorie floor no matter how often asked.
+- **undo** — "put it back". The engine is pure and the server stateless, so a one-step snapshot rides
+  the request. Restores the profile wholesale (a pin/rating/weight the last turn ADDED must not
+  survive its own undo). Also flipped `planChanged` from inferred-from-tool-name to MEASURED — a swap
+  for a dish we don't stock is a no-op that used to say "Done, I updated your plan."
+
+### Debts paid since v7
+
+- **PAID: plant protein powder.** The table's only protein powder was whey, capping vegan breakfasts
+  and (worse, historically) masking vegan B12. Added soy protein powder (fdcId 173181, B12=0) + a
+  "Vegan Berry Protein Shake Bowl" (24g protein). Needed a VEGAN_EXCEPTION because "soy protein
+  powder" contains the substring "protein powder" that flags whey.
+- **Found + fixed while there: swap_meal ignored exact names.** It scored dishes by keyword overlap
+  with no exact-name preference, so "swap in the Veggie Omelette" returned a chickpea omelette. Exact
+  name now wins, still behind the hard filters.
 
 ---
 
