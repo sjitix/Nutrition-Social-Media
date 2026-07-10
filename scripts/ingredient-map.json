@@ -237,6 +237,9 @@
     "protein powder": {
       "q": "Beverages, Protein powder, whey based"
     },
+    "soy protein powder": {
+      "q": "Beverages, Protein powder soy based"
+    },
     "spinach": {
       "q": "Spinach, raw"
     },

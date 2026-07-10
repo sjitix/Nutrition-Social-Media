@@ -171,7 +171,12 @@ const NON_VEGAN = [
   "ice cream",
 ];
 /** Contain a NON_VEGAN word but are plant foods. Without these, peanut butter reads as dairy. */
-const VEGAN_EXCEPTIONS = ["peanut butter", "almond butter", "nut butter", "cocoa butter"];
+// "protein powder" is in NON_VEGAN because the plain kind is whey. A PLANT protein powder is not,
+// the same way "peanut butter" is fine though "butter" is not — the qualifier flips it back.
+const VEGAN_EXCEPTIONS = [
+  "peanut butter", "almond butter", "nut butter", "cocoa butter",
+  "soy protein powder", "pea protein powder", "plant protein powder",
+];
 
 const NON_VEGETARIAN = [
   "chicken", "beef", "pork", "turkey", "salmon", "tuna", "cod", "shrimp", "prawns", "mackerel",

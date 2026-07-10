@@ -1439,6 +1439,27 @@ export const NUTRIENT_TABLE: Record<string, { fdcId: number; desc: string; per10
       "zinc": 6.18
     }
   },
+  "soy protein powder": {
+    "fdcId": 173181,
+    "desc": "Beverages, Protein powder soy based",
+    "per100g": {
+      "fat": 5.56,
+      "carbs": 28.89,
+      "cal": 388,
+      "calcium": 178,
+      "potassium": 933,
+      "zinc": 6.6,
+      "protein": 55.56,
+      "fiber": 6.7,
+      "iron": 12,
+      "magnesium": 64,
+      "sodium": 733,
+      "vitD": 0,
+      "vitC": 0,
+      "folate": 289,
+      "b12": 0
+    }
+  },
   "spinach": {
     "fdcId": 168462,
     "desc": "Spinach, raw",

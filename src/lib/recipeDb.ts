@@ -2361,6 +2361,26 @@ const SEED_RECIPES: RecipeSeed[] = [
     steps: ["Blend the tofu with half the berries and the almond butter.", "Top with the rest and the chia."],
   },
   {
+    // The library's whey "protein powder" is fine for a vegetarian, but a vegan couldn't reach for
+    // a scoop of anything: there was no plant protein in the USDA table, which capped how much
+    // protein a vegan breakfast could carry. Soy protein powder (fdcId 173181, B12-free so it
+    // never masks the one deficiency vegans actually have) fixes that, and this is the dish that
+    // uses it.
+    id: "b-soy-protein-shake-bowl", name: "Vegan Berry Protein Shake Bowl", type: "breakfast",
+    cuisine: "american", mainProtein: "tofu",
+    timeMinutes: 5, approxCost: 2,
+    dietTags: ["vegan", "vegetarian", "gluten_free"],
+    description: "A thick soy-protein shake bowl with banana, berries, almond butter and chia.",
+    ingredients: [
+      { name: "soy protein powder", quantity: "1 scoop" },
+      { name: "banana", quantity: "1" },
+      { name: "mixed berries", quantity: "100 g" },
+      { name: "almond butter", quantity: "1 tbsp" },
+      { name: "chia seeds", quantity: "1 tbsp" },
+    ],
+    steps: ["Blend the soy protein powder, banana, half the berries and the almond butter with a little water.", "Pour into a bowl; top with the rest of the berries and the chia."],
+  },
+  {
     id: "l-tempeh-edamame-salad", name: "Tempeh & Edamame Power Salad", type: "lunch",
     cuisine: "mediterranean", mainProtein: "tofu",
     timeMinutes: 15, approxCost: 2,
@@ -3448,15 +3468,24 @@ function findRecipeForSwap(
   if (words.length === 0) return null;
   const cap = budgetCap(profile.budget);
   const tokens = exclusionTokens(profile);
+  const eligible = (r: Recipe) =>
+    (!type || r.type === type) &&
+    passesDiet(r, profile.diet) &&
+    !blockedByExclusions(r, tokens) &&
+    r.approxCost <= cap &&
+    (!respectSoft || (r.timeMinutes <= profile.maxCookTime + 5 && r.ingredients.length <= profile.maxIngredients + 1));
+
+  // An EXACT name match wins outright. "Swap in the Veggie Omelette" must give the Veggie Omelette,
+  // not the dish that happens to share the most keywords with it — a keyword tie once handed a
+  // request for "Veggie Omelette" a chickpea omelette instead. Still behind the hard filters, so a
+  // vegan who names an egg dish is refused, not served it.
+  const q = query.trim().toLowerCase();
+  const exact = RECIPES.find((r) => r.name.toLowerCase() === q && eligible(r));
+  if (exact) return exact;
+
   const scored: { r: Recipe; kw: number }[] = [];
   for (const r of RECIPES) {
-    if (type && r.type !== type) continue;
-    if (!passesDiet(r, profile.diet) || blockedByExclusions(r, tokens) || r.approxCost > cap) continue;
-    if (
-      respectSoft &&
-      (r.timeMinutes > profile.maxCookTime + 5 || r.ingredients.length > profile.maxIngredients + 1)
-    )
-      continue;
+    if (!eligible(r)) continue;
     const hay = `${r.name} ${r.description} ${r.ingredients.map((i) => i.name).join(" ")}`.toLowerCase();
     let kw = 0;
     for (const w of words) if (hay.includes(w)) kw++;

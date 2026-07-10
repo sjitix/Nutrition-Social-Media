@@ -472,6 +472,24 @@ const TREAT_NAMES = new Set(RECIPES.filter((r) => r.treatOnly).map((r) => r.name
   check("vegan + cheat day: pizza refused (diet is a HARD rule)", !d.meals.some((m) => /pizza/i.test(m.name)), names(d));
   check("vegan + cheat day: engine explains the refusal", r.notes.length > 0, r.notes.join(" | ") || "(none)");
 }
+{
+  // An EXACT recipe name must resolve to THAT recipe. Keyword scoring alone handed a request for
+  // "Veggie Omelette" a chickpea omelette, because both share the word "omelette" and the tie broke
+  // the wrong way. If you name a real dish exactly, you get it.
+  const wk = freshWeek(BASE);
+  const named = RECIPES.find((x) => x.name === "Veggie Omelette");
+  if (named) {
+    const r = applyOperations(BASE, wk, [op({ tool: "swap_meal", day: "Monday", mealType: "breakfast", dish: "Veggie Omelette" })]);
+    const got = r.plan.days.find((x) => x.day === "Monday")!.meals.find((m) => m.type === "breakfast")!.name;
+    check("swap_meal: an exact recipe name resolves to that exact recipe", got === "Veggie Omelette", `got "${got}"`);
+  }
+  // ...but the exact name is still behind the hard filters: a vegan naming an egg dish is refused.
+  const vegan: UserProfile = { ...BASE, diet: "vegan" };
+  const vwk = freshWeek(vegan);
+  const vr = applyOperations(vegan, vwk, [op({ tool: "swap_meal", day: "Monday", mealType: "breakfast", dish: "Veggie Omelette" })]);
+  const vgot = vr.plan.days.find((x) => x.day === "Monday")!.meals.find((m) => m.type === "breakfast")!.name;
+  check("swap_meal: an exact name never overrides the diet", vgot !== "Veggie Omelette", `got "${vgot}"`);
+}
 
 // ---------------------------------------------------------------- 1d. compute_targets
 console.log("\n--- COMPUTE_TARGETS (the engine does the arithmetic) ---");
@@ -869,39 +887,36 @@ console.log("--- SUBSTITUTE INGREDIENT (safe first, honest about the cost) ---")
     /egg whites/i.test(sub("egg").notes.join(" ")) && /cottage cheese|yogurt/i.test(sub("greek yoghurt").notes.join(" ")));
   check("substitute_ingredient asks when told nothing", /which ingredient/i.test(sub("").notes.join(" ")));
 
-  // The macro delta must be arithmetic on the real portion, not a vibe. Read the note for WHICH
-  // meal and WHICH ingredient it actually used — it may match "egg" where we asked for "eggs", and
-  // hard-coding the meal made this test break whenever recipe selection changed.
+  // The macro delta must be arithmetic on the real portion, not a vibe.
   //
-  // The whole block used to sit behind `if (m) { if (g) { check } }`, so on a week that happened
-  // not to contain eggs it asserted NOTHING and the suite still said "passed". Put an egg dish in
-  // the plan on purpose, then assert unconditionally: a check that can quietly not run is not a
-  // check. This is the same lesson as the boost control — prove the test looked at something.
+  // Every earlier version of this test parsed the note's free text to find the meal and ingredient
+  // — and every version was fragile. It sat behind `if (m) { if (g) {`, so a week with no eggs
+  // asserted nothing; then the regex `([a-z ]+?)` over-captured "pieces of eggs" from a portion
+  // phrased "2 pieces of eggs", and adding one recipe (which shifted the random week) tipped it
+  // over. The fix is to stop reading the prose: SCOPE the substitution to a meal we placed
+  // ourselves, then read that meal's egg portion directly and recompute the delta from it.
   {
     const eggRecipe = RECIPES.find((r) => r.type === "breakfast" && r.ingredients.some((i) => /^eggs?$/i.test(i.name.trim())))!;
     const eggPlan = applyOperations(BASE, plan, [op({ tool: "swap_meal", day: "Monday", mealType: "breakfast", dish: eggRecipe.name })]).plan;
-    const eggNote = applyOperations(BASE, eggPlan, [op({ tool: "substitute_ingredient", ingredient: "eggs" })]).notes.join(" ");
+    const meal = eggPlan.days.find((d) => d.day === "Monday")!.meals.find((x) => x.type === "breakfast")!;
+    const egg = meal.ingredients.find((i) => /^eggs?$/i.test(i.name.trim()))!;
+    const eggKey = egg.name.trim().toLowerCase();
+    const g = gramsFor(eggKey, egg.quantity);
 
-    const m = /instead of the (.+?) (?:of )?([a-z ]+?) in (\w+)'s (\w+)/.exec(eggNote);
-    check("substitute_ingredient says which meal and which ingredient it priced", !!m, eggNote.slice(0, 100));
+    // Pin the substitution to THAT meal, so it can't wander to another day's egg dish.
+    const eggNote = applyOperations(BASE, eggPlan, [
+      op({ tool: "substitute_ingredient", ingredient: "eggs", day: "Monday", mealType: "breakfast" }),
+    ]).notes.join(" ");
 
-    let ok = false;
-    let detail = "the note never named a meal";
-    if (m) {
-      const [, qty, ingName, dayName, slot] = m;
-      const meal = eggPlan.days.find((d) => d.day === dayName)?.meals.find((x) => x.type === slot);
-      const ing = meal?.ingredients.find((i) => i.name.trim().toLowerCase() === ingName.trim());
-      const g = ing ? gramsFor(ingName.trim(), ing.quantity) : null;
-      if (!g) detail = `couldn't weigh "${ingName}" from "${ing?.quantity}"`;
-      else {
-        const sub0 = NUTRIENT_TABLE[ingName.trim()]?.per100g.cal ?? 0;
-        const sub1 = NUTRIENT_TABLE["egg whites"]?.per100g.cal ?? 0;
-        const dCal = Math.abs(Math.round(((sub1 - sub0) * g) / 100));
-        ok = dCal < 15 || eggNote.includes(`${dCal} `);
-        detail = `note said "${eggNote.slice(0, 60)}", recomputed ${dCal} kcal from ${qty}`;
-      }
-    }
-    check("substitute_ingredient's calorie delta is computed from the real portion", ok, detail);
+    check("substitute_ingredient priced the meal we asked about", /Monday's breakfast/.test(eggNote), eggNote.slice(0, 90));
+    check("the placed egg dish has a weighable egg portion (control)", !!g, `${egg.quantity} of ${eggKey}`);
+
+    const sub0 = NUTRIENT_TABLE[eggKey]?.per100g.cal ?? 0;
+    const sub1 = NUTRIENT_TABLE["egg whites"]?.per100g.cal ?? 0;
+    const dCal = g ? Math.abs(Math.round(((sub1 - sub0) * g) / 100)) : 0;
+    // The engine only prints a delta of 15 kcal or more; below that it stays silent, which is fine.
+    const ok = !g || dCal < 15 || eggNote.includes(`${dCal} `);
+    check("substitute_ingredient's calorie delta is computed from the real portion", ok, `recomputed ${dCal} kcal from ${egg.quantity}; note "${eggNote.slice(0, 60)}"`);
   }
 }
 
