@@ -17,7 +17,7 @@ import type { UserProfile, Operation, DayPlan, WeekPlan, Meal } from "@/lib/type
 import { microsForIngredients } from "@/lib/nutrients";
 import { haystackBlocked, dietTagConflicts, parseExclusionTokens } from "@/lib/exclusions";
 import { bmr, computeTargets, hydrationTarget } from "@/lib/targets";
-import { composeReply, planWasChanged, READ_ONLY_TOOLS } from "@/lib/reply";
+import { composeReply, planWasChanged, describeOperations, READ_ONLY_TOOLS } from "@/lib/reply";
 import { SUBSTITUTES } from "@/lib/substitutions";
 import { NUTRIENT_TABLE } from "@/lib/nutrientTable.generated";
 import { gramsFor } from "@/lib/nutrients";
@@ -1286,6 +1286,76 @@ console.log("--- LOCK MEAL (a plan you can't pin isn't yours) ---");
   const backTo3 = applyOperations({ ...snackPin, mealsPerDay: 3 }, plan4, [op({ tool: "regenerate_week" })]);
   check("dropping to 3 meals evicts a pinned snack", (backTo3.profile.lockedMeals ?? []).length === 0);
   check("...and says why", /no snack/i.test(backTo3.notes.join(" ")), backTo3.notes.find((n) => /pinned/.test(n))?.slice(0, 80) ?? "");
+}
+
+
+// ---------------------------------------------------------------- undo
+console.log("");
+console.log("--- UNDO (put it back, and put back exactly what changed) ---");
+{
+  const plan = freshWeek(BASE);
+
+  // Nothing to undo yet: say so, change nothing.
+  const cold = applyOperations(BASE, plan, [op({ tool: "undo" })]);
+  check("undo with no history says there's nothing to undo", /nothing to undo/i.test(cold.notes.join(" ")));
+  check("...and changes nothing", JSON.stringify(cold.plan) === JSON.stringify(plan) && !cold.planChanged);
+
+  // The plain case: a change, then undo restores it byte for byte.
+  const snapshot = { plan, profile: BASE, label: "rebuilt your week" };
+  const changed = applyOperations(BASE, plan, [op({ tool: "regenerate_week" })]);
+  check("regenerate_week really does change the plan (control)", JSON.stringify(changed.plan) !== JSON.stringify(plan));
+  const back = applyOperations(changed.profile, changed.plan, [op({ tool: "undo" })], snapshot);
+  check("undo restores the exact plan", JSON.stringify(back.plan) === JSON.stringify(plan));
+  check("undo names what it reversed", /before I rebuilt your week/i.test(back.notes.join(" ")), back.notes.join(" "));
+  check("undo reports the plan as changed", back.planChanged);
+
+  // A pin lives on the PROFILE, not the plan. Undo has to put the profile back too, or the pin
+  // survives an undo of the very turn that created it.
+  {
+    const pinned = applyOperations(BASE, plan, [op({ tool: "lock_meal", day: "Sunday", mealType: "dinner" })]);
+    check("lock_meal changes the profile but not the plan (control)", pinned.profileChanged && !pinned.planChanged);
+    const snap = { plan, profile: BASE, label: "pinned that meal" };
+    const r = applyOperations(pinned.profile, pinned.plan, [op({ tool: "undo" })], snap);
+    check("undo removes a pin the last turn added", !r.profile.lockedMeals?.length, JSON.stringify(r.profile.lockedMeals ?? []));
+  }
+
+  // Same for a rating, and for a stored body weight. Assigning the restored profile field-by-field
+  // would leave anything the last turn ADDED sitting on top of it.
+  {
+    const rated = applyOperations(BASE, plan, [op({ tool: "rate_meal", day: "Monday", mealType: "breakfast", rating: 1 })]);
+    const snap = { plan, profile: BASE, label: "saved that rating" };
+    const r = applyOperations(rated.profile, rated.plan, [op({ tool: "undo" })], snap);
+    check("undo forgets a rating the last turn added", !r.profile.mealRatings?.length);
+  }
+  {
+    const hydrated = applyOperations(BASE, plan, [op({ tool: "hydration", weightKg: 82 })]);
+    const snap = { plan, profile: BASE, label: "saved your weight" };
+    const r = applyOperations(hydrated.profile, hydrated.plan, [op({ tool: "undo" })], snap);
+    check("undo forgets a body stat the last turn added", r.profile.bodyStats === undefined);
+  }
+
+  // undo is not read-only, and it is not idempotent bookkeeping: the caller must forget the
+  // snapshot afterwards, which is what `undone` is for.
+  check("undo signals that the snapshot is spent", back.undone && !cold.undone);
+  check("undo is not a read-only tool", planWasChanged([op({ tool: "undo" })]));
+
+  // planChanged is MEASURED, not inferred from which tools were named. A swap for a dish we don't
+  // stock is a no-op, and it used to answer "Done — I updated your plan."
+  {
+    const noop = applyOperations(BASE, plan, [op({ tool: "swap_meal", day: "Monday", mealType: "breakfast", dish: "unicorn stew" })]);
+    check("a swap for a dish we don't have reports the plan as UNCHANGED", !noop.planChanged, noop.notes.join(" ").slice(0, 70));
+    check("...even though planWasChanged(ops) would have said otherwise", planWasChanged([op({ tool: "swap_meal", dish: "unicorn stew" })]));
+  }
+  check("a real swap reports the plan as changed", (() => {
+    const real = applyOperations(BASE, plan, [op({ tool: "swap_meal", day: "Monday", mealType: "breakfast", dish: RECIPES.find((r) => r.type === "breakfast")!.name })]);
+    return real.planChanged;
+  })());
+
+  // describeOperations is what undo says back to the user, so it must describe the OPS, never the
+  // model's prose.
+  check("describeOperations names a day and a meal", /Monday's breakfast/.test(describeOperations([op({ tool: "swap_meal", day: "Monday", mealType: "breakfast", dish: "x" })])));
+  check("describeOperations joins several changes", /and/.test(describeOperations([op({ tool: "regenerate_week" }), op({ tool: "update_profile", budget: "low" })])));
+  check("describeOperations ignores read-only tools", describeOperations([op({ tool: "weekly_report" })]) === "made that change");
 }
 
 

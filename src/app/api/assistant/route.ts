@@ -8,9 +8,9 @@ import {
   withTargetDefaults,
 } from "@/lib/ai";
 import { applyOperations } from "@/lib/recipeDb";
-import { composeReply, planWasChanged } from "@/lib/reply";
+import { composeReply, describeOperations } from "@/lib/reply";
 import { DEMO_ASSISTANT_REPLY } from "@/lib/demo";
-import type { ChatMessage, UserProfile, WeekPlan } from "@/lib/types";
+import type { ChatMessage, PlanSnapshot, UserProfile, WeekPlan } from "@/lib/types";
 
 export const maxDuration = 300;
 
@@ -18,6 +18,8 @@ interface AssistantRequest {
   profile: UserProfile;
   plan: WeekPlan;
   history: ChatMessage[];
+  /** State from before the last change, so "undo" can restore it. The server keeps no state. */
+  previous?: PlanSnapshot;
 }
 
 // Best-effort append of a COMPLETE training example per line — exactly what the
@@ -75,17 +77,29 @@ export async function POST(request: Request) {
       completion: turn,
     });
     // 3) The database executes the tool calls — accurate, cheap, real recipes.
-    const { plan, profile: newProfile, notes, replyOverride } = applyOperations(profile, body.plan, turn.operations);
+    const { plan, profile: newProfile, notes, replyOverride, planChanged, profileChanged, undone } =
+      applyOperations(profile, body.plan, turn.operations, body.previous);
 
-    // Read-only tools must not flag the plan as changed; the engine owns the reply outright on a
-    // crisis. Both rules live in lib/reply.ts, where tests can reach them.
-    const planChanged = planWasChanged(turn.operations);
+    // planChanged is now what the engine MEASURED, not which tools the model named. A swap for a
+    // dish we don't stock is a no-op, and it used to answer "Done — I updated your plan."
+    // The engine owns the reply outright on a crisis; that rule lives in lib/reply.ts.
     const reply = composeReply({ modelReply: turn.reply, notes, replyOverride, planChanged });
+
+    // The snapshot the client hands back on the next turn. Undo is one level deep: after an undo
+    // there is nothing further to step back to, and a turn that changed nothing must not overwrite
+    // a snapshot the user can still use.
+    const previous: PlanSnapshot | undefined = undone
+      ? undefined
+      : planChanged || profileChanged
+        ? { plan: body.plan, profile, label: describeOperations(turn.operations) }
+        : body.previous;
+
     return NextResponse.json({
       reply,
       planChanged,
       plan,
       profile: newProfile,
+      previous,
       provider,
     });
   } catch (error) {

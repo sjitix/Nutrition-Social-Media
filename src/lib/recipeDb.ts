@@ -9,6 +9,7 @@ import {
   type WeekPlan,
   type LockedMeal,
   type MealRating,
+  type PlanSnapshot,
 } from "./types";
 import { haystackBlocked, parseExclusionTokens, dietTagConflicts, wordMatches } from "./exclusions";
 import {
@@ -4440,10 +4441,24 @@ export function applyOperations(
   profile: UserProfile,
   plan: WeekPlan,
   operations: Operation[],
-): { plan: WeekPlan; profile: UserProfile; notes: string[]; replyOverride?: string } {
+  /** The state before the LAST change, so `undo` can restore it. The server keeps none. */
+  previous?: PlanSnapshot,
+): {
+  plan: WeekPlan;
+  profile: UserProfile;
+  notes: string[];
+  replyOverride?: string;
+  /** What ACTUALLY changed, compared. Not inferred from which tools were named: a swap for a dish
+   *  we don't have is a no-op, and used to report "Done — I updated your plan." */
+  planChanged: boolean;
+  profileChanged: boolean;
+  /** True when this turn restored a snapshot; the caller must then forget it. */
+  undone: boolean;
+} {
   const p: UserProfile = { ...profile };
   let curPlan = plan;
   let profileChanged = false;
+  let undone = false;
   // Set when the engine must own the ENTIRE reply and the model's words are discarded — a
   // crisis or an urgent medical symptom. Nothing the LLM writes may sit in front of it.
   let replyOverride: string | undefined;
@@ -4783,6 +4798,21 @@ export function applyOperations(
         notes.push(`Unpinned ${had.name} — I can change ${op.day} ${op.mealType} again.`);
         break;
       }
+      case "undo": {
+        if (!previous) {
+          notes.push("There's nothing to undo — I haven't changed anything yet.");
+          break;
+        }
+        curPlan = previous.plan;
+        // Replace the working profile wholesale. Assigning field-by-field would leave anything the
+        // last turn ADDED (a pin, a rating, a stored body weight) sitting on the restored profile.
+        for (const k of Object.keys(p)) delete (p as unknown as Record<string, unknown>)[k];
+        Object.assign(p, previous.profile);
+        profileChanged = true;
+        undone = true;
+        notes.push(`Done — I've put things back to how they were before I ${previous.label}.`);
+        break;
+      }
       case "scale_portions": {
         if (!op.portionChange) {
           notes.push("Would you like the portions bigger or smaller?");
@@ -4873,5 +4903,17 @@ export function applyOperations(
     }
   }
 
-  return { plan: curPlan, profile: profileChanged ? p : profile, notes, replyOverride };
+  // Compared, not inferred. `planWasChanged(operations)` asks which tools were NAMED; this asks
+  // what actually moved. A swap for a dish we don't have is a no-op, and used to tell the user
+  // "Done — I updated your plan."
+  const planChanged = JSON.stringify(curPlan) !== JSON.stringify(plan);
+  return {
+    plan: curPlan,
+    profile: profileChanged ? p : profile,
+    notes,
+    replyOverride,
+    planChanged,
+    profileChanged,
+    undone,
+  };
 }

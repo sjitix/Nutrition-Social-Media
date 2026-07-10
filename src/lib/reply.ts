@@ -30,6 +30,36 @@ export function planWasChanged(operations: Operation[]): boolean {
   return operations.some((o) => !READ_ONLY_TOOLS.has(o.tool));
 }
 
+/**
+ * A short phrase for what a turn did, so `undo` can name what it reversed: "put things back to how
+ * they were before I rebuilt your week." Saying only "done" leaves the user to work out what moved.
+ *
+ * Written from the OPERATIONS, not from the model's reply — the reply is untrusted prose, and this
+ * sentence is a claim about what actually happened.
+ */
+export function describeOperations(operations: Operation[]): string {
+  const phrases = operations
+    .filter((o) => !READ_ONLY_TOOLS.has(o.tool) && o.tool !== "undo")
+    .map((o) => {
+      const where = o.day && o.mealType ? `${o.day}'s ${o.mealType}` : o.day ? `${o.day}` : "";
+      switch (o.tool) {
+        case "regenerate_week": return "rebuilt your week";
+        case "regenerate_day": return `rebuilt ${where || "that day"}`;
+        case "swap_meal": return `swapped ${where || "that meal"}`;
+        case "update_profile": return "changed your settings";
+        case "compute_targets": return "worked out your targets";
+        case "log_meal": return `logged ${where || "that meal"}`;
+        case "eating_out": return `set calories aside for ${where || "eating out"}`;
+        case "scale_portions": return `resized ${where || "your portions"}`;
+        default: return "made that change";
+      }
+    });
+  if (!phrases.length) return "made that change";
+  return phrases.length === 1
+    ? phrases[0]
+    : `${phrases.slice(0, -1).join(", ")} and ${phrases[phrases.length - 1]}`;
+}
+
 export function composeReply(args: {
   /** What the LLM wrote. Untrusted prose. */
   modelReply: string | undefined;

@@ -80,6 +80,7 @@ export const OperationSchema = z.object({
     "rate_meal", // "that salmon was incredible" / "hated the tofu" -> learn the taste
     "hydration", // "how much water should i drink?" -> engine computes it from body weight
     "scale_portions", // "i'm still hungry" / "that's way too much food" -> resize the servings
+    "undo", // "actually, put it back" -> restore the state from before the last change
     "answer", // no change — just answering a question
   ]),
   day: z.enum(DAYS).nullable().optional(),
@@ -200,6 +201,22 @@ export interface UserProfile {
   // so the app knew your calorie target but not your weight — and could not tell you how much
   // water to drink, or recompute anything when your goal changed. Kept now.
   bodyStats?: BodyStats;
+}
+
+/**
+ * Everything `undo` needs to put the world back.
+ *
+ * The engine is a pure function of (profile, plan, operations) and the server keeps no state, so
+ * the snapshot travels with the request. One level deep, deliberately: "actually, put it back"
+ * means the last thing, and a stack of whole week-plans on every turn buys little for its weight.
+ *
+ * `label` describes the change that PRODUCED the current state, so undo can name what it reversed
+ * instead of saying "done" and leaving the user to work out what moved.
+ */
+export interface PlanSnapshot {
+  plan: WeekPlan;
+  profile: UserProfile;
+  label: string;
 }
 
 /**

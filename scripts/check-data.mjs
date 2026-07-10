@@ -42,7 +42,7 @@ const TOOLS = [
   "update_profile", "regenerate_week", "regenerate_day", "swap_meal",
   "compute_targets", "log_meal", "weekly_report", "eating_out", "explain_meal",
   "substitute_ingredient", "symptom_check", "lock_meal", "unlock_meal", "rate_meal", "hydration",
-  "scale_portions", "answer",
+  "scale_portions", "undo", "answer",
 ];
 const MIN_PER_TOOL = 15;
 
@@ -99,6 +99,13 @@ for (const r of rows) {
     if ((op.tool === "lock_meal" || op.tool === "unlock_meal") &&
         Object.keys(op).some((k) => !["tool", "day", "mealType"].includes(k)))
       problems.push(`${op.tool} takes only day+mealType: ${r.message}`);
+    // Undo reverses ONE change. Paired with another op, the pair is ambiguous: did the user
+    // want the change undone, or undone and then replaced? A label that does both teaches a
+    // guess. It also carries no fields -- there is only one last change.
+    if (op.tool === "undo") {
+      if (ops.length > 1) problems.push(`undo must be the only operation in its turn: ${r.message}`);
+      if (Object.keys(op).length > 1) problems.push(`undo takes no fields: ${r.message}`);
+    }
     // More food or less food -- never different food, and never a number the model made up.
     if (op.tool === "scale_portions" && Object.keys(op).some((k) => !["tool", "day", "mealType", "portionChange"].includes(k)))
       problems.push(`scale_portions takes only day+mealType+portionChange: ${r.message}`);

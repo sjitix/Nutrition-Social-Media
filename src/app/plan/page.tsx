@@ -28,7 +28,7 @@ import {
   savePlan,
   saveProfile,
 } from "@/lib/storage";
-import { DAYS, type ChatMessage, type Meal, type UserProfile, type WeekPlan } from "@/lib/types";
+import { DAYS, type ChatMessage, type Meal, type PlanSnapshot, type UserProfile, type WeekPlan } from "@/lib/types";
 
 type View = "home" | "week" | "explore" | "groceries" | "assistant";
 
@@ -102,6 +102,9 @@ export default function PlanPage() {
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
+  // One step of history for "undo". Deliberately not persisted: after a reload there is no last
+  // change to take back, and offering one would be a lie.
+  const [previous, setPrevious] = useState<PlanSnapshot | undefined>(undefined);
   const [regenerating, setRegenerating] = useState(false);
   const [regenError, setRegenError] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -162,7 +165,7 @@ export default function PlanPage() {
   }, [plan]);
 
   function addRecipeToToday(recipeName: string, meal: Meal) {
-    if (!plan) return;
+    if (!plan || !profile) return;
     const day = todayName();
     const next: WeekPlan = {
       ...plan,
@@ -170,6 +173,10 @@ export default function PlanPage() {
         d.day === day ? { ...d, meals: [...d.meals, meal] } : d,
       ),
     };
+    // Every path that changes the plan owes `undo` a snapshot. Without this, adding a recipe here
+    // and then saying "undo" in chat restores whatever the last CHAT change was — a plan the user
+    // never asked to come back.
+    setPrevious({ plan, profile, label: `added ${meal.name} to ${day}` });
     setPlan(next);
     savePlan(next);
     setAdded(new Set(added).add(recipeName));
@@ -187,6 +194,7 @@ export default function PlanPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Couldn't regenerate the plan.");
+      if (plan) setPrevious({ plan, profile, label: "rebuilt your week" });
       setPlan(data.plan);
       savePlan(data.plan);
       setChecked(new Set());
@@ -209,7 +217,9 @@ export default function PlanPage() {
       const res = await fetch("/api/assistant", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profile, plan, history }),
+        // `previous` carries the state from before the last change, so "undo" can restore it.
+        // The server keeps no state, so this one-step history lives on the client.
+        body: JSON.stringify({ profile, plan, history, previous }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Something went wrong.");
@@ -227,6 +237,7 @@ export default function PlanPage() {
         setProfile(data.profile);
         saveProfile(data.profile);
       }
+      setPrevious(data.previous ?? undefined);
       if (data.planChanged) setChecked(new Set());
     } catch (err) {
       setChatError(err instanceof Error ? err.message : "Something went wrong.");

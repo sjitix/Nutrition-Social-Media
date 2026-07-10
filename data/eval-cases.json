@@ -71,6 +71,9 @@
     { "msg": "i feel worn out every afternoon", "tool": "symptom_check" },
     { "msg": "my calves cramp up at night", "tool": "symptom_check" },
 
+    { "msg": "hmm no, put that back the way it was", "tool": "undo" },
+    { "msg": "scrap that last change", "tool": "undo" },
+
     { "msg": "i'm ravenous by mid afternoon, the portions are too small", "tool": "scale_portions", "want": { "portionChange": "bigger" } },
     { "msg": "wednesday's dinner is far more than i can eat", "tool": "scale_portions", "want": { "day": "Wednesday", "mealType": "dinner", "portionChange": "smaller" } },
 
