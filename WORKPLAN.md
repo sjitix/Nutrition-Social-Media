@@ -9,47 +9,67 @@
 
 ## RESUME HERE (last updated: 2026-07-10)
 
-`main` is green: `npm run test:engine` ~239 passed / 0 failed, fuzz clean, plus `npm run
+`main` is green: `npm run test:engine` 241 passed / 0 failed, fuzz clean, plus `npm run
 check:recipes` and `npm run check:data`.
 
-**v7 is training** (387 steps, ~2h, 1030 examples, all 13 tools). When it lands:
+**v7 is trained, converted, loaded, and is the production model.** It is the first model whose
+labels contained `age/heightCm/weightKg/sex/activity/goal/loggedCalories/estimatedCalories/
+ingredient/symptom`, and the first trained on all 1030 examples (0 skipped).
 
 ```bash
-python scripts/merge_lora.py
-python llama.cpp/convert_hf_to_gguf.py models/nutriflow-merged \
-  --outfile models/nutriflow-assistant-v7-q8_0.gguf --outtype q8_0
-cp models/nutriflow-assistant-v7-q8_0.gguf ~/.lmstudio/models/nutriflow/nutriflow-assistant-v7/
-~/.lmstudio/bin/lms.exe unload --all
 ~/.lmstudio/bin/lms.exe load nutriflow-assistant-v7 --gpu max --context-length 8192 --identifier nutriflow-v7 -y
 ENFORCE=1 MODEL=nutriflow-v7 npm run eval:assistant   # the production path
 MODEL=nutriflow-v7 npm run eval:assistant             # unconstrained stress test
 ```
 
-**Model scoreboard**, 56 cases. `ENFORCE=1` is what the app actually does with a local model
-(JSON-schema enforcement); the unconstrained column is a stress test.
+### The scoreboard was measuring memory, not skill
 
-| enforced | v5 | v6 | v7 (expected) |
+24 of the 56 eval cases were **verbatim training strings** — "i'm always tired", "make it better",
+"i need more b12", "what can you do". Another 13 differed from a training string by exactly the
+field under test. 66% of the eval was contaminated, and **every score from v4 to v7 was partly a
+recall score.** The eval cases now live in `data/eval-cases.json`; the 24 verbatim ones were
+rewritten to held-out phrasings; `check:data` fails if a training message ever equals an eval
+message again, and `gen-synthetic.mjs` drops (and names) any example that collides.
+
+Re-measured on the honest set, the model comparison did not shrink — **it grew**. v6 had memorized
+the same strings, so the contamination was hiding v7's real advantage.
+
+| enforced (`ENFORCE=1`, the production path) | v5 | v6 | **v7** |
 |---|---|---|---|
-| validJson / schemaOk | 100% | 100% | |
-| noHallucination | 100% | 100% | |
-| **toolAccuracy** | 82% | **95%** | |
-| fieldAccuracy | 86% | 86% | should clear 92% |
-| clarify/answer | 9/10 | 9/10 | |
+| validJson / schemaOk | 100% | 100% | **100%** |
+| noHallucination | 100% | 100% | **100%** |
+| **toolAccuracy** | — | 84% | **95%** |
+| **fieldAccuracy** | — | 79% | **93%** |
+| clarify/answer | — | 8/10 | **8/10** |
 
-v6 knows all 13 tools (toolAccuracy 82% -> 95%). Its remaining failures were almost all the same
-shape: **the right tool with an empty body** — `{"tool":"compute_targets"}` with no age, no weight.
-The cause was not the model. `OP()` in gen-synthetic.mjs had a hardcoded list of fields to copy
-into a label, and it had never been updated for compute_targets' body stats, log_meal's calories,
-eating_out's estimate, substitute_ingredient's `ingredient` or symptom_check's `symptom`. **Every
-one of those fields was silently dropped from every label we ever trained on.** v7 is the first
-model to see them.
+*(v5's honest numbers were never taken; its old contaminated row read 82% / 86% / 9-10. The v6 and
+v7 rows above are on the held-out set and are the only two directly comparable numbers here.)*
+
+v7 unconstrained scores **higher** than enforced — 98% tool / 95% field / 9-10 clarify. JSON-schema
+enforcement costs this model a little accuracy rather than buying it any; worth revisiting whether
+the app still needs it now that the fine-tune emits the envelope natively.
+
+### What v7 still gets wrong (all three are "read the sentence" failures)
+
+1. `i ate pizza for lunch on monday` -> answers **breakfast**. Training contains "i ate pizza for
+   breakfast on Monday". It matches the dish and the day and stops reading. Two generated examples
+   ("Friday breakfast is at a work dinner") had actively taught it that the meal word is noise;
+   those are gone and `check:data` now rejects any message naming a meal it isn't about.
+2. `i'm out for dinner tuesday, probably 1000 calories` -> drops `estimatedCalories`. All 26
+   training examples carrying a number label it correctly, but the closest phrasing it memorized
+   ("i'm going out for dinner on friday") has no number.
+3. `i feel worn out every afternoon` -> `weekly_report`, not `symptom_check`.
+
+The fix for all three is **minimal pairs in the training data**: same dish, same day, different
+slot; same outing, with and without a calorie estimate; more fatigue phrasings. Queued for v8.
 
 **The assistant's 13 tools:** `update_profile`, `regenerate_week`, `regenerate_day`, `swap_meal`,
 `compute_targets`, `log_meal`, `weekly_report`, `eating_out`, `explain_meal`,
 `substitute_ingredient`, `symptom_check`, `lock_meal`, `unlock_meal`.
 
 **Next, in order:** `rate_meal` -> hydration (needs `UserProfile.weightKg`, which `compute_targets`
-should persist) -> `scale_portions` -> `undo`.
+should persist) -> `scale_portions` -> `undo`. Adding a tool stales the model, so build all four,
+add the v8 minimal-pair data, then train **once**.
 
 ---
 
@@ -343,12 +363,21 @@ Each of these was discovered by doing the work, and each earned its place.
    the test output were the failure list, not the score.
 5. **A green mutation test that never mutated is worse than no test.** Assert the edit landed
    before trusting the result.
-6. **Silence is the enemy.** Three bugs this week were silent: a `slice()` that deleted every
-   clarify example, an `OP()` allowlist that dropped five fields from every training label, and a
-   trainer that skipped 1028 of 1030 examples and saved an adapter as though nothing happened.
-   None of them failed anything. All three now abort loudly.
+6. **Silence is the enemy.** Four bugs this week were silent: a `slice()` that deleted every
+   clarify example, an `OP()` allowlist that dropped five fields from every training label, a
+   trainer that skipped 1028 of 1030 examples and saved an adapter as though nothing happened, and
+   an eval set sharing 24 verbatim strings with the training data. None of them failed anything.
+   All four now abort loudly.
 7. **Adversarial audit after every batch of skills.** Two audits, eleven real defects, including
    a live allergen exposure and a pin that could break a diet. My own tests missed all of them.
+8. **A metric you never audited is a number you made up.** I reported toolAccuracy and
+   fieldAccuracy for four model versions before ever checking whether the eval questions appeared
+   in the training set. 43% of them did, verbatim. The eval is now a data file behind a gate,
+   because the thing that measures the work needs the same scrutiny as the work.
+9. **Bad data is a teacher too.** Two nonsense examples — "Friday breakfast is at a work dinner",
+   produced by crossing a random meal slot with a venue named "a work dinner" — taught the model
+   that the meal word in a sentence is unreliable. It then read "i ate pizza for lunch on monday"
+   and answered `breakfast`. Two examples out of 1030 were enough.
 
 ---
 

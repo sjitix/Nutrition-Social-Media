@@ -1,0 +1,90 @@
+{
+  "_comment": [
+    "THE HELD-OUT EVAL SET. Read scripts/eval-assistant.mts for how it is scored.",
+    "",
+    "Rule: no message here may appear VERBATIM in data/finetune.jsonl. `npm run check:data`",
+    "enforces it, and scripts/gen-synthetic.mjs drops any generated example that collides.",
+    "Until 2026-07-10 this file did not exist, the cases lived inside the eval script, and 24 of",
+    "the 56 were verbatim training strings. Every score from v4 to v7 was partly a memorization",
+    "score. The numbers moved when the cases were rewritten; the model did not change.",
+    "",
+    "Near-duplicates ARE allowed, and wanted. 'i ate pizza for breakfast on Monday' in training",
+    "against 'i ate pizza for lunch on monday' here is the whole point: it asks whether the model",
+    "reads the sentence or pattern-matches the dish and the day. v7 answered 'breakfast'.",
+    "",
+    "A case with no `tool` must NOT touch the plan — it answers or asks for clarification."
+  ],
+  "cases": [
+    { "msg": "i'm on a tight budget this month", "tool": "update_profile", "want": { "budget": "low" } },
+    { "msg": "no more meat for me", "tool": "update_profile", "want": { "diet": "vegetarian" } },
+    { "msg": "no onions please", "tool": "update_profile", "expectExclude": "onion" },
+    { "msg": "my oven's broken, stovetop only", "tool": "update_profile", "expectExcludeMethod": true },
+    { "msg": "2200 calories a day", "tool": "update_profile", "want": { "targetCalories": 2200 } },
+    { "msg": "set my protein to 180g", "tool": "update_profile", "want": { "targetProtein": 180 } },
+    { "msg": "i want 30g of fiber daily", "tool": "update_profile", "want": { "targetFiber": 30 } },
+    { "msg": "nothing that takes more than 20 minutes", "tool": "update_profile", "want": { "maxCookTime": 20 } },
+
+    { "msg": "make tuesday vegetarian", "tool": "regenerate_day", "want": { "day": "Tuesday", "diet": "vegetarian" } },
+    { "msg": "change monday to 1500 calories", "tool": "regenerate_day", "want": { "day": "Monday", "targetCalories": 1500 } },
+    { "msg": "give friday an asian theme", "tool": "regenerate_day", "want": { "day": "Friday", "cuisine": "asian" } },
+    { "msg": "saturday's rubbish, do it again", "tool": "regenerate_day", "want": { "day": "Saturday" } },
+
+    { "msg": "scrap all of it and start over", "tool": "regenerate_week" },
+    { "msg": "make the whole week italian", "tool": "regenerate_week", "want": { "cuisine": "italian" } },
+    { "msg": "i've got salmon and broccoli to use up", "tool": "regenerate_week", "expectUseIngredients": true },
+
+    { "msg": "swap monday breakfast for cottage cheese pancakes", "tool": "swap_meal", "want": { "day": "Monday", "mealType": "breakfast" } },
+    { "msg": "i want pancakes tuesday but i'm staying lean", "tool": "swap_meal", "want": { "day": "Tuesday", "mealType": "breakfast" } },
+    { "msg": "it's my cheat day, swap saturday dinner for pizza", "tool": "swap_meal", "want": { "day": "Saturday", "mealType": "dinner", "preserveMacros": false } },
+    { "msg": "replace sunday lunch with grilled salmon", "tool": "swap_meal", "want": { "day": "Sunday", "mealType": "lunch" } },
+
+    { "msg": "i'm on a tight budget this month and going vegetarian", "tool": "update_profile", "want": { "budget": "low", "diet": "vegetarian" } },
+    { "msg": "can u mak the hole week vegitarain", "tool": "update_profile", "want": { "diet": "vegetarian" } },
+    { "msg": "keep mushrroms out of it, hate em", "tool": "update_profile", "expectExclude": "mushroom" },
+
+    { "msg": "my iron levels came back low", "tool": "update_profile", "want": { "boostNutrient": "iron" } },
+    { "msg": "my doctor says my vitamin d is low", "tool": "update_profile", "want": { "boostNutrient": "vitD" } },
+    { "msg": "bump up the b12", "tool": "update_profile", "want": { "boostNutrient": "b12" } },
+
+    { "msg": "i'm 30, 180cm, 80kg, male, i train 4 times a week, i want to lose fat", "tool": "compute_targets", "want": { "age": 30, "heightCm": 180, "weightKg": 80, "sex": "male", "goal": "lose_weight" } },
+    { "msg": "work out my macros: 27 years old, 165 cm, 60 kg, female, desk job no exercise, goal is to maintain", "tool": "compute_targets", "want": { "age": 27, "weightKg": 60, "sex": "female", "activity": "sedentary", "goal": "maintain" } },
+
+    { "msg": "i ate pizza for lunch on monday", "tool": "log_meal", "want": { "day": "Monday", "mealType": "lunch" } },
+    { "msg": "i had a burger for dinner", "tool": "log_meal", "want": { "mealType": "dinner" } },
+    { "msg": "had a takeaway for lunch, roughly 900 kcal", "tool": "log_meal", "want": { "mealType": "lunch", "loggedCalories": 900 } },
+
+    { "msg": "give me a rundown of the week", "tool": "weekly_report" },
+    { "msg": "have i been getting enough protein lately", "tool": "weekly_report" },
+    { "msg": "any nutrients i'm short on?", "tool": "weekly_report" },
+
+    { "msg": "friday night i'll be at a restaurant", "tool": "eating_out", "want": { "day": "Friday", "mealType": "dinner" } },
+    { "msg": "we're eating at a restaurant saturday lunch", "tool": "eating_out", "want": { "day": "Saturday", "mealType": "lunch" } },
+    { "msg": "i'm out for dinner tuesday, probably 1000 calories", "tool": "eating_out", "want": { "day": "Tuesday", "mealType": "dinner", "estimatedCalories": 1000 } },
+
+    { "msg": "why did you give me tuesday's dinner?", "tool": "explain_meal", "want": { "day": "Tuesday", "mealType": "dinner" } },
+    { "msg": "why is that my breakfast on monday?", "tool": "explain_meal", "want": { "day": "Monday", "mealType": "breakfast" } },
+
+    { "msg": "ran out of greek yogurt", "tool": "substitute_ingredient", "want": { "ingredient": "greek yogurt" } },
+    { "msg": "i'm out of chicken breast, what can i use?", "tool": "substitute_ingredient", "want": { "ingredient": "chicken breast" } },
+    { "msg": "mushrooms aren't for me", "tool": "update_profile", "expectExclude": "mushroom" },
+
+    { "msg": "i feel worn out every afternoon", "tool": "symptom_check" },
+    { "msg": "my calves cramp up at night", "tool": "symptom_check" },
+
+    { "msg": "never change my sunday dinner", "tool": "lock_meal", "want": { "day": "Sunday", "mealType": "dinner" } },
+    { "msg": "keep monday's breakfast the same every week", "tool": "lock_meal", "want": { "day": "Monday", "mealType": "breakfast" } },
+    { "msg": "you can change sunday dinner again", "tool": "unlock_meal", "want": { "day": "Sunday", "mealType": "dinner" } },
+
+    { "msg": "what's my average protein?" },
+    { "msg": "how many calories do i eat per day?" },
+    { "msg": "remind me what friday's dinner is" },
+    { "msg": "cheers, that's great" },
+    { "msg": "what are you able to help me with" },
+
+    { "msg": "sort it out for me" },
+    { "msg": "do something different" },
+    { "msg": "1750" },
+    { "msg": "calculate my calorie needs" },
+    { "msg": "tell me my macro split" }
+  ]
+}

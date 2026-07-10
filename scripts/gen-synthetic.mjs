@@ -11,7 +11,7 @@
 // (where the model should ask to clarify), chit-chat, typos, and grounded
 // questions. Labels are hand-authored (correct), NOT the small model's guesses.
 
-import { writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { writeFileSync, mkdirSync, existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -363,7 +363,10 @@ for (const m of ["what should my macros be", "what should my calories be", "how 
 
 // eating_out — FUTURE meal, unknown contents. The tense is the whole signal: "i'm going out for
 // dinner friday" (eating_out) vs "i went out for dinner" / "i had pizza" (log_meal). Minimal pairs.
-const VENUES = ["a restaurant", "an italian place", "sushi", "my parents'", "a work dinner", "a birthday dinner", "the pub", "a steakhouse", "a burger place"];
+// No venue may contain a meal word. "a work dinner" crossed with a random slot produced
+// "Friday breakfast is at a work dinner" — an incoherent sentence teaching the model that the meal
+// word in the sentence is unreliable. check-data.mjs now fails on any such example.
+const VENUES = ["a restaurant", "an italian place", "a sushi place", "my parents'", "a work do", "a birthday party", "the pub", "a steakhouse", "a burger place"];
 for (let i = 0; i < 26; i++) {
   const day = rand(DAYS); const mt = rand(MEALS); const v = rand(VENUES);
   push([u(rand([
@@ -827,9 +830,25 @@ for (const ex of pool) {
   }
 }
 
+// The eval set is held out, and it stays held out. A training example whose message is verbatim an
+// eval case turns that case into a recall test. Drop it here, and NAME it — a silent drop is how
+// this codebase lost every clarify example once. If one is named, rephrase the generator template;
+// don't just accept the smaller set.
+const evalNorm = (s) => s.toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
+const evalMsgs = new Set(
+  JSON.parse(readFileSync(join(root, "data", "eval-cases.json"), "utf8")).cases.map((c) => evalNorm(c.msg)),
+);
+const kept = records.filter((r) => !evalMsgs.has(evalNorm(r.message)));
+if (kept.length !== records.length) {
+  const dropped = [...new Set(records.filter((r) => evalMsgs.has(evalNorm(r.message))).map((r) => r.message))];
+  console.warn(`\nDROPPED ${records.length - kept.length} example(s) that collide with the held-out eval set:`);
+  for (const m of dropped) console.warn(`  "${m}"  <- rephrase this generator template`);
+  console.warn("");
+}
+
 if (!existsSync(dirname(OUT))) mkdirSync(dirname(OUT), { recursive: true });
-writeFileSync(OUT, records.map((r) => JSON.stringify(r)).join("\n") + "\n", "utf8");
-console.log(`Wrote ${records.length} synthetic examples -> ${OUT}`);
+writeFileSync(OUT, kept.map((r) => JSON.stringify(r)).join("\n") + "\n", "utf8");
+console.log(`Wrote ${kept.length} synthetic examples -> ${OUT}`);
 const tools = {};
 for (const r of records) {
   const t = r.completion.operations[0]?.tool ?? "answer";

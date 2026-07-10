@@ -56,77 +56,12 @@ interface Case {
   expectUseIngredients?: boolean;
 }
 
-const CASES: Case[] = [
-  { msg: "make it cheaper", tool: "update_profile", want: { budget: "low" } },
-  { msg: "go vegetarian", tool: "update_profile", want: { diet: "vegetarian" } },
-  { msg: "no onions please", tool: "update_profile", expectExclude: "onion" },
-  { msg: "i don't have an oven", tool: "update_profile", expectExcludeMethod: true },
-  { msg: "2200 calories a day", tool: "update_profile", want: { targetCalories: 2200 } },
-  { msg: "set my protein to 180g", tool: "update_profile", want: { targetProtein: 180 } },
-  { msg: "i want 30g of fiber daily", tool: "update_profile", want: { targetFiber: 30 } },
-  { msg: "nothing that takes more than 20 minutes", tool: "update_profile", want: { maxCookTime: 20 } },
-  { msg: "make tuesday vegetarian", tool: "regenerate_day", want: { day: "Tuesday", diet: "vegetarian" } },
-  { msg: "change monday to 1500 calories", tool: "regenerate_day", want: { day: "Monday", targetCalories: 1500 } },
-  { msg: "give friday an asian theme", tool: "regenerate_day", want: { day: "Friday", cuisine: "asian" } },
-  { msg: "redo saturday", tool: "regenerate_day", want: { day: "Saturday" } },
-  { msg: "give me a whole new plan", tool: "regenerate_week" },
-  { msg: "make the whole week italian", tool: "regenerate_week", want: { cuisine: "italian" } },
-  { msg: "i've got salmon and broccoli to use up", tool: "regenerate_week", expectUseIngredients: true },
-  { msg: "swap monday breakfast for cottage cheese pancakes", tool: "swap_meal", want: { day: "Monday", mealType: "breakfast" } },
-  { msg: "i want pancakes tuesday but i'm staying lean", tool: "swap_meal", want: { day: "Tuesday", mealType: "breakfast" } },
-  { msg: "it's my cheat day, swap saturday dinner for pizza", tool: "swap_meal", want: { day: "Saturday", mealType: "dinner", preserveMacros: false } },
-  { msg: "replace sunday lunch with grilled salmon", tool: "swap_meal", want: { day: "Sunday", mealType: "lunch" } },
-  { msg: "make it cheaper and vegetarian", tool: "update_profile", want: { budget: "low", diet: "vegetarian" } },
-  { msg: "mak it vegitarian pls", tool: "update_profile", want: { diet: "vegetarian" } },
-  { msg: "no mushroms they r gross", tool: "update_profile", expectExclude: "mushroom" },
-  // nutrient boost
-  { msg: "i'm low on iron", tool: "update_profile", want: { boostNutrient: "iron" } },
-  { msg: "my doctor says my vitamin d is low", tool: "update_profile", want: { boostNutrient: "vitD" } },
-  { msg: "i need more b12", tool: "update_profile", want: { boostNutrient: "b12" } },
-  // compute_targets: collect facts, never invent them
-  { msg: "i'm 30, 180cm, 80kg, male, i train 4 times a week, i want to lose fat", tool: "compute_targets", want: { age: 30, heightCm: 180, weightKg: 80, sex: "male", goal: "lose_weight" } },
-  { msg: "work out my macros: 27 years old, 165 cm, 60 kg, female, desk job no exercise, goal is to maintain", tool: "compute_targets", want: { age: 27, weightKg: 60, sex: "female", activity: "sedentary", goal: "maintain" } },
-  // log_meal: real life
-  { msg: "i ate pizza for lunch on monday", tool: "log_meal", want: { day: "Monday", mealType: "lunch" } },
-  { msg: "i had a burger for dinner", tool: "log_meal", want: { mealType: "dinner" } },
-  { msg: "had a takeaway for lunch, roughly 900 kcal", tool: "log_meal", want: { mealType: "lunch", loggedCalories: 900 } },
-
-  // weekly_report: a read-only review. The engine computes; the model must not narrate numbers.
-  { msg: "how am i doing this week?", tool: "weekly_report" },
-  { msg: "am i hitting my protein?", tool: "weekly_report" },
-  { msg: "am i missing any vitamins?", tool: "weekly_report" },
-  // eating_out: a FUTURE meal. Tense is the whole signal — contrast with log_meal above.
-  { msg: "i'm going out for dinner on friday", tool: "eating_out", want: { day: "Friday", mealType: "dinner" } },
-  { msg: "we're eating at a restaurant saturday lunch", tool: "eating_out", want: { day: "Saturday", mealType: "lunch" } },
-  { msg: "i'm out for dinner tuesday, probably 1000 calories", tool: "eating_out", want: { day: "Tuesday", mealType: "dinner", estimatedCalories: 1000 } },
-  // explain_meal: justify, don't change
-  { msg: "why did you give me tuesday's dinner?", tool: "explain_meal", want: { day: "Tuesday", mealType: "dinner" } },
-  { msg: "why is that my breakfast on monday?", tool: "explain_meal", want: { day: "Monday", mealType: "breakfast" } },
-  // substitute_ingredient: ran out. Contrast with "i don't like X" -> a permanent exclusion.
-  { msg: "i don't have any greek yogurt", tool: "substitute_ingredient", want: { ingredient: "greek yogurt" } },
-  { msg: "i'm out of chicken breast, what can i use?", tool: "substitute_ingredient", want: { ingredient: "chicken breast" } },
-  { msg: "i don't like mushrooms", tool: "update_profile", expectExclude: "mushroom" },
-  // symptom_check: pass the words through, never map to a nutrient
-  { msg: "i'm always tired", tool: "symptom_check" },
-  { msg: "i keep getting muscle cramps", tool: "symptom_check" },
-  // lock_meal: a standing instruction, not a one-off swap
-  { msg: "never change my sunday dinner", tool: "lock_meal", want: { day: "Sunday", mealType: "dinner" } },
-  { msg: "keep monday's breakfast the same every week", tool: "lock_meal", want: { day: "Monday", mealType: "breakfast" } },
-  { msg: "you can change sunday dinner again", tool: "unlock_meal", want: { day: "Sunday", mealType: "dinner" } },
-
-  // questions / chit-chat -> must not change the plan
-  { msg: "what's my average protein?" },
-  { msg: "how many calories do i eat per day?" },
-  { msg: "what's for dinner on friday?" },
-  { msg: "thanks!" },
-  { msg: "what can you do?" },
-  // ambiguous -> clarify, don't guess
-  { msg: "make it better" },
-  { msg: "change it" },
-  { msg: "1500" },
-  { msg: "work out my calories" },
-  { msg: "what should my macros be" },
-];
+// The cases live in data/eval-cases.json, NOT here, so gen-synthetic.mjs and check-data.mjs can
+// read the same list and guarantee no training example collides with an eval message. They used to
+// live inline, and 24 of the 56 were verbatim training strings: the model had memorized the answers.
+const CASES: Case[] = JSON.parse(
+  readFileSync(join(ROOT, "data", "eval-cases.json"), "utf8"),
+).cases as Case[];
 
 const PROFILE: UserProfile = {
   goal: "maintain", diet: "none", allergies: "", dislikes: "", budget: "medium",
@@ -251,12 +186,14 @@ for (const c of CASES) {
   if (got.tool === c.tool) stat.toolAcc++;
   else failures.push(`[${c.msg}] tool "${got.tool}" != "${c.tool}"`);
 
+  // `&&=`, not `=`. These used to overwrite the `want` result, so a case carrying both a `want`
+  // and an `expectExclude` silently scored on the exclusion alone.
   let ok = true;
   for (const [k, v] of Object.entries(c.want ?? {}))
     if (String(got[k] ?? "").toLowerCase() !== String(v).toLowerCase()) ok = false;
-  if (c.expectExcludeMethod) ok = (got.excludeFoods as string[] | undefined ?? []).some((f) => /bake|roast|oven/i.test(f));
-  if (c.expectExclude) ok = (got.excludeFoods as string[] | undefined ?? []).some((f) => f.toLowerCase().includes(c.expectExclude!));
-  if (c.expectUseIngredients) ok = ((got.useIngredients as string[] | undefined) ?? []).length > 0;
+  if (c.expectExcludeMethod) ok &&= (got.excludeFoods as string[] | undefined ?? []).some((f) => /bake|roast|oven/i.test(f));
+  if (c.expectExclude) ok &&= (got.excludeFoods as string[] | undefined ?? []).some((f) => f.toLowerCase().includes(c.expectExclude!));
+  if (c.expectUseIngredients) ok &&= ((got.useIngredients as string[] | undefined) ?? []).length > 0;
   if (ok) stat.fieldAcc++;
   else failures.push(`[${c.msg}] fields off: ${JSON.stringify(got).slice(0, 130)}`);
 }
