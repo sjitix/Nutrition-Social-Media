@@ -41,7 +41,7 @@ const FIELDS = new Set([
 const TOOLS = [
   "update_profile", "regenerate_week", "regenerate_day", "swap_meal",
   "compute_targets", "log_meal", "weekly_report", "eating_out", "explain_meal",
-  "substitute_ingredient", "symptom_check", "lock_meal", "unlock_meal", "rate_meal", "answer",
+  "substitute_ingredient", "symptom_check", "lock_meal", "unlock_meal", "rate_meal", "hydration", "answer",
 ];
 const MIN_PER_TOOL = 15;
 
@@ -97,6 +97,9 @@ for (const r of rows) {
     if ((op.tool === "lock_meal" || op.tool === "unlock_meal") &&
         Object.keys(op).some((k) => !["tool", "day", "mealType"].includes(k)))
       problems.push(`${op.tool} takes only day+mealType: ${r.message}`);
+    // Water is not food. hydration takes a body, never a meal.
+    if (op.tool === "hydration" && Object.keys(op).some((k) => !["tool", "weightKg", "activity"].includes(k)))
+      problems.push(`hydration takes only weightKg + activity: ${r.message}`);
     // A rating has to be ABOUT something, and the engine has to be able to find it.
     if (op.tool === "rate_meal") {
       if (!("dish" in op) && !("day" in op && "mealType" in op))

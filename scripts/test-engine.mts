@@ -16,7 +16,7 @@ import { selectWeekFromDb, rebalanceWeek, applyOperations, RECIPES, recipeMicros
 import type { UserProfile, Operation, DayPlan, WeekPlan, Meal } from "@/lib/types";
 import { microsForIngredients } from "@/lib/nutrients";
 import { haystackBlocked, dietTagConflicts, parseExclusionTokens } from "@/lib/exclusions";
-import { bmr, computeTargets } from "@/lib/targets";
+import { bmr, computeTargets, hydrationTarget } from "@/lib/targets";
 import { composeReply, planWasChanged, READ_ONLY_TOOLS } from "@/lib/reply";
 import { SUBSTITUTES } from "@/lib/substitutions";
 import { NUTRIENT_TABLE } from "@/lib/nutrientTable.generated";
@@ -1256,6 +1256,52 @@ console.log("--- LOCK MEAL (a plan you can't pin isn't yours) ---");
   const backTo3 = applyOperations({ ...snackPin, mealsPerDay: 3 }, plan4, [op({ tool: "regenerate_week" })]);
   check("dropping to 3 meals evicts a pinned snack", (backTo3.profile.lockedMeals ?? []).length === 0);
   check("...and says why", /no snack/i.test(backTo3.notes.join(" ")), backTo3.notes.find((n) => /pinned/.test(n))?.slice(0, 80) ?? "");
+}
+
+
+// ---------------------------------------------------------------- hydration
+console.log("");
+console.log("--- HYDRATION (the app knew your calories but not your weight) ---");
+{
+  const plan = freshWeek(BASE);
+
+  // compute_targets used to compute from the body stats and discard them.
+  const ct = applyOperations(BASE, plan, [
+    op({ tool: "compute_targets", age: 30, heightCm: 180, weightKg: 80, sex: "male", activity: "moderate", goal: "lose_weight" }),
+  ]);
+  check("compute_targets remembers the body it computed from", ct.profile.bodyStats?.weightKg === 80 && ct.profile.bodyStats?.activity === "moderate");
+
+  // ...so hydration never has to ask twice.
+  const h = applyOperations(ct.profile, ct.plan, [op({ tool: "hydration" })]);
+  check("hydration uses the stored weight without asking", !/how much do you weigh/i.test(h.notes.join(" ")));
+  check("hydration is read-only", !planWasChanged([op({ tool: "hydration" })]) && JSON.stringify(h.plan) === JSON.stringify(ct.plan));
+
+  // 80kg * 35 = 2800, +500 (moderate) = 3300 total, drinks = 80% = 2640 -> 2650 to a tidy 50.
+  const t = hydrationTarget(80, "moderate");
+  check("hydration: 35 mL/kg + a training allowance", t.totalMl === 3300, `${t.totalMl} mL`);
+  check("hydration: the DRINKS target nets off the water in food", t.drinksMl === 2650, `${t.drinksMl} mL`);
+  check("hydration quotes a band, not false precision", t.lowMl < t.drinksMl && t.drinksMl < t.highMl, `${t.lowMl}-${t.highMl}`);
+  check("hydration scales with body weight", hydrationTarget(60, "sedentary").drinksMl < hydrationTarget(100, "sedentary").drinksMl);
+  check("hydration scales with training", hydrationTarget(80, "sedentary").drinksMl < hydrationTarget(80, "very_active").drinksMl);
+  check("a sedentary person gets no sweat allowance", hydrationTarget(80, "sedentary").activityMl === 0);
+  check("the note states the litres the engine computed", /2\.6|2\.7/.test(h.notes.join(" ")), h.notes.join(" ").slice(0, 90));
+
+  // With no stored weight, it asks rather than guessing one — the compute_targets rule.
+  const cold = applyOperations(BASE, plan, [op({ tool: "hydration" })]);
+  check("hydration asks for a weight rather than guessing one", /how much do you weigh/i.test(cold.notes.join(" ")));
+  check("...and stores nothing when it doesn't know", !cold.profile.bodyStats);
+
+  // The user can supply the weight in the message itself.
+  const inline = applyOperations(BASE, plan, [op({ tool: "hydration", weightKg: 70 })]);
+  check("hydration takes a weight given in the message", !/how much do you weigh/i.test(inline.notes.join(" ")));
+  check("...remembers it, so it never asks again", inline.profile.bodyStats?.weightKg === 70);
+  check("...and never invents the facts it wasn't given", inline.profile.bodyStats?.age === undefined && inline.profile.bodyStats?.heightCm === undefined);
+  check("...and says it assumed a sedentary baseline", /assumed you're not training much/i.test(inline.notes.join(" ")));
+
+  // A known-active user is not told the sedentary caveat.
+  const active = applyOperations(BASE, plan, [op({ tool: "hydration", weightKg: 70, activity: "active" })]);
+  check("no sedentary caveat when the activity is known", !/assumed you're not training much/i.test(active.notes.join(" ")));
+  check("an active user is warned that hot days need more", /drink to thirst/i.test(active.notes.join(" ")));
 }
 
 

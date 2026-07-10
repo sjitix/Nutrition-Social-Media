@@ -90,7 +90,7 @@ function renderSystemPrompt(profile, plan) {
   return (
     "You are the meal-plan assistant. Read the user's message and the recent conversation, then output JSON: a natural 'reply' plus a list of 'operations' (tool calls) the app runs in order. Use the conversation to resolve references ('do that', 'only Tuesday', 'make it 1500').\n\n" +
     "TOOLS — each operation has a 'tool' plus its fields. Every tool below lists what it REQUIRES: a call without those fields does nothing and wastes the user's turn. Beyond the required ones, OMIT every field you are not setting. Never write nulls, and never invent a value for a field the user did not mention.\n" +
-    "REQUIRED FIELDS: compute_targets needs age+heightCm+weightKg+sex+activity+goal. swap_meal needs day+dish. log_meal, eating_out, explain_meal, lock_meal and unlock_meal need day+mealType. substitute_ingredient needs ingredient. symptom_check needs symptom. regenerate_day needs day. rate_meal needs rating, plus dish or day+mealType. If the user gave a number (calories they ate, calories they expect to eat), it goes in loggedCalories or estimatedCalories — never inside the dish name.\n" +
+    "REQUIRED FIELDS: compute_targets needs age+heightCm+weightKg+sex+activity+goal. swap_meal needs day+dish. log_meal, eating_out, explain_meal, lock_meal and unlock_meal need day+mealType. substitute_ingredient needs ingredient. symptom_check needs symptom. regenerate_day needs day. rate_meal needs rating, plus dish or day+mealType. hydration needs nothing unless the user states a weight or activity. If the user gave a number (calories they ate, calories they expect to eat), it goes in loggedCalories or estimatedCalories — never inside the dish name.\n" +
     "- update_profile: change a WEEK-WIDE setting and rebuild the week. Fields: diet, budget, excludeFoods, targetCalories, targetProtein, targetCarbs, targetFat, targetFiber, maxCookTime, cuisine. The plan re-solves to hit any macro target you set.\n" +
     "- regenerate_week: rebuild the whole week (optional cuisine, targetFiber, useIngredients — on-hand foods to prefer, boostNutrient).\n" +
     "- boostNutrient (on update_profile / regenerate_week / regenerate_day): favour foods rich in one nutrient — iron, calcium, magnesium, potassium, zinc, vitD, vitC, folate, b12. The app computes the real amounts from USDA data; never state a nutrient number yourself.\n" +
@@ -104,6 +104,7 @@ function renderSystemPrompt(profile, plan) {
     "- lock_meal: the user wants a meal to stay put ('never change my sunday roast'). Requires day + mealType. The app puts it back on every rebuild.\n" +
     "- unlock_meal: undo a pin. Requires day + mealType.\n" +
     "- rate_meal: what the user THOUGHT of a dish ('that salmon was incredible', 'the tofu was awful, never again'). Requires rating (1-5) plus either dish, or day + mealType. hated/never again = 1, didn't like = 2, ok/fine = 3, liked = 4, loved = 5. Contrast with 'i don't like mushrooms' (an ingredient, forever -> update_profile) and log_meal (what they ATE).\n" +
+    "- hydration: the user asks about water or fluid ('how much water should i drink?'). Changes nothing. Pass weightKg / activity only if the message gives them. The app computes the litres; never state a figure yourself.\n" +
     "- answer: no change; just answering a question.\n\n" +
     "Rules:\n" +
     "- Only a question -> operations: []. Put the answer in reply. For facts use the EXACT numbers below; the AVERAGES line is already per-day.\n" +
@@ -683,6 +684,38 @@ for (let i = 0; i < 14; i++) {
     `Noted — I've set calories aside for ${day} ${mt} and lightened the rest of that day.`,
     [OP({ tool: "eating_out", day, mealType: mt })]);
 }
+// hydration — a question about water, never about food. The app knows the user's weight if they
+// ever worked out their targets, so the DEFAULT call carries no fields at all. The model's only
+// job is to notice a weight or an activity level when the sentence happens to contain one.
+for (const m of [
+  "how much water should i drink", "am i drinking enough water", "what's my water target",
+  "how much should i be drinking a day", "how many litres of water do i need",
+  "do i drink enough", "what about hydration", "how much fluid a day",
+  "should i be drinking more water", "water intake?",
+])
+  push([u(m)], "Let me work that out from your weight.", [OP({ tool: "hydration" })]);
+for (let i = 0; i < 8; i++) {
+  const w = rand([55, 60, 65, 70, 75, 80, 85, 90, 95, 100]);
+  push([u(rand([
+    `i'm ${w}kg, how much water should i drink`,
+    `how much water for a ${w}kg person`,
+    `i weigh ${w} kg — what's my water target`,
+  ]))], "Let me work that out.", [OP({ tool: "hydration", weightKg: w })]);
+}
+const ACT_WORDS = {
+  sedentary: "at a desk all day", light: "training twice a week", moderate: "training 4 times a week",
+  active: "training 6 days a week", very_active: "training twice a day",
+};
+for (let i = 0; i < 8; i++) {
+  const w = rand([60, 70, 80, 90]);
+  const a = rand(Object.keys(ACT_WORDS));
+  push([u(`i'm ${w}kg and ${ACT_WORDS[a]}, how much water do i need`)],
+    "Let me work that out.", [OP({ tool: "hydration", weightKg: w, activity: a })]);
+}
+// CONTRAST: water is not food. A question about drinking must never rebuild the plan.
+for (const m of ["is coffee dehydrating", "does tea count towards my water"])
+  push([u(m)], "Water, tea and coffee all count towards your fluid for the day — caffeine's diuretic effect is far too small to offset the drink itself.", []);
+
 // A vague command is not permission to rebuild the week. v7 heard "do something different" and
 // regenerated everything. Asking one question costs the user a second; guessing costs them a plan.
 for (const m of [

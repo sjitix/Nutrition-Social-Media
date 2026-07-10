@@ -22,6 +22,8 @@ export const READ_ONLY_TOOLS: ReadonlySet<string> = new Set([
   // A rating teaches the selector what to pick NEXT time. It never rewrites the week the user is
   // looking at: nobody says "I loved the salmon" meaning "please rebuild my Thursday".
   "rate_meal",
+  // Water is not food. Asking how much to drink cannot change what's for dinner.
+  "hydration",
 ]);
 
 export function planWasChanged(operations: Operation[]): boolean {

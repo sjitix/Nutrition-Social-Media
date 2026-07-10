@@ -87,6 +87,68 @@ export function computeTargets(input: TargetInput): Targets {
   };
 }
 
+/**
+ * Daily fluid, from body weight and how hard the person trains.
+ *
+ * Method: ~35 mL per kg of body weight for the baseline, which is the figure clinical dietetics
+ * uses for healthy adults under 65, plus an allowance for training losses. Roughly a fifth of what
+ * you take in comes from food, so the number we ask someone to DRINK is 80% of the total — telling
+ * a 70 kg person to drink 2.5 L when 0.5 L of it is in their dinner is telling them to drink too
+ * much.
+ *
+ * Ranges, not points. Sweat rate varies several-fold between people and with the weather, so a
+ * single number would be false precision. We give the band and say what moves it.
+ */
+export interface Hydration {
+  totalMl: number; // everything: drinks + the water in food
+  drinksMl: number; // what to actually drink
+  lowMl: number; // the band we quote, +/- 10%
+  highMl: number;
+  perKgMl: number;
+  activityMl: number; // the training allowance inside totalMl
+}
+
+/** mL added per day for training losses, by activity level. */
+const SWEAT_ALLOWANCE: Record<Activity, number> = {
+  sedentary: 0,
+  light: 250,
+  moderate: 500,
+  active: 750,
+  very_active: 1000,
+};
+
+const ML_PER_KG = 35;
+const FROM_FOOD = 0.2; // a fifth of total water intake arrives as food
+
+export function hydrationTarget(weightKg: number, activity: Activity): Hydration {
+  const perKgMl = Math.round(weightKg * ML_PER_KG);
+  const activityMl = SWEAT_ALLOWANCE[activity];
+  const totalMl = perKgMl + activityMl;
+  const drinksMl = Math.round((totalMl * (1 - FROM_FOOD)) / 50) * 50; // to a tidy 50 mL
+  return {
+    totalMl,
+    drinksMl,
+    lowMl: Math.round((drinksMl * 0.9) / 50) * 50,
+    highMl: Math.round((drinksMl * 1.1) / 50) * 50,
+    perKgMl,
+    activityMl,
+  };
+}
+
+const L = (ml: number) => (ml / 1000).toFixed(1).replace(/\.0$/, "");
+
+/** The engine speaks these numbers; the model never invents them. */
+export function explainHydration(h: Hydration, weightKg: number, activity: Activity): string {
+  let s = `At ${weightKg} kg, aim for about ${L(h.drinksMl)} L of fluid a day — call it ${L(h.lowMl)} to ${L(h.highMl)} L.`;
+  s += ` That's ${ML_PER_KG} mL per kg`;
+  if (h.activityMl) s += `, plus ${h.activityMl} mL for your training`;
+  s += `, less the ~20% of your water that comes from food.`;
+  if (activity === "active" || activity === "very_active")
+    s += ` On heavy or hot training days you'll need more than that — drink to thirst and check your urine is pale.`;
+  s += ` Water, tea and coffee all count.`;
+  return s;
+}
+
 /** A plain-English explanation. The engine speaks these numbers; the model never invents them. */
 export function explainTargets(t: Targets, input: TargetInput): string {
   const goalWord =

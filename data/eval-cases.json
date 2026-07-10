@@ -71,6 +71,9 @@
     { "msg": "i feel worn out every afternoon", "tool": "symptom_check" },
     { "msg": "my calves cramp up at night", "tool": "symptom_check" },
 
+    { "msg": "am i getting enough fluid in", "tool": "hydration" },
+    { "msg": "i'm 78kg, how much water do i need a day", "tool": "hydration", "want": { "weightKg": 78 } },
+
     { "msg": "sunday's dinner was the best thing i've eaten all month", "tool": "rate_meal", "want": { "day": "Sunday", "mealType": "dinner", "rating": 5 } },
     { "msg": "tuesday's lunch was pretty grim, don't give me that again", "tool": "rate_meal", "want": { "day": "Tuesday", "mealType": "lunch", "rating": 1 } },
     { "msg": "the porridge was fine i guess", "tool": "rate_meal", "want": { "rating": 3 } },

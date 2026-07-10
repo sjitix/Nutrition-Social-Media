@@ -11,7 +11,7 @@ import {
   type MealRating,
 } from "./types";
 import { haystackBlocked, parseExclusionTokens, dietTagConflicts, wordMatches } from "./exclusions";
-import { computeTargets, explainTargets } from "./targets";
+import { computeTargets, explainTargets, hydrationTarget, explainHydration } from "./targets";
 import { SUBSTITUTES, INGREDIENT_ALIASES } from "./substitutions";
 import { SYMPTOMS, URGENT_FLAGS, CRISIS_FLAGS, PHRASE_NOISE } from "./symptoms";
 import { NUTRIENT_TABLE } from "./nutrientTable.generated";
@@ -4531,6 +4531,12 @@ export function applyOperations(
         p.proteinGrams = t.proteinGrams;
         p.carbsGrams = t.carbsGrams;
         p.fatGrams = t.fatGrams;
+        // Remember the facts, not just what we computed from them. Without the weight, the app
+        // cannot answer "how much water should I drink?" without asking for it a second time.
+        p.bodyStats = {
+          age: op.age!, heightCm: op.heightCm!, weightKg: op.weightKg!,
+          sex: op.sex!, activity: op.activity!,
+        };
         profileChanged = true;
         const rep = newReport();
         curPlan = rebalanceWeek(selectWeekFromDb(p, undefined, false, undefined, undefined, rep), p);
@@ -4654,6 +4660,32 @@ export function applyOperations(
         p.lockedMeals = (p.lockedMeals ?? []).filter((l) => !(l.day === op.day && l.mealType === op.mealType));
         profileChanged = true;
         notes.push(`Unpinned ${had.name} — I can change ${op.day} ${op.mealType} again.`);
+        break;
+      }
+      case "hydration": {
+        // Read-only. The weight comes from the profile (compute_targets stored it) or from what
+        // the user just said. We never guess a body weight — the same rule compute_targets follows.
+        const weightKg = op.weightKg ?? p.bodyStats?.weightKg;
+        if (!weightKg) {
+          notes.push("How much do you weigh? Fluid needs scale with body weight, and I'd rather ask than guess.");
+          break;
+        }
+        // No stored activity means we don't know it. Assume the least, and say so below — a
+        // sedentary baseline under-promises, where guessing "active" would over-promise.
+        const known = op.activity ?? p.bodyStats?.activity;
+        const activity = known ?? "sedentary";
+        if (op.weightKg || op.activity) {
+          // They just told us something. Keep it, so we never ask twice.
+          p.bodyStats = {
+            ...p.bodyStats,
+            ...(op.weightKg ? { weightKg: op.weightKg } : {}),
+            ...(op.activity ? { activity: op.activity } : {}),
+          };
+          profileChanged = true;
+        }
+        let note = explainHydration(hydrationTarget(weightKg, activity), weightKg, activity);
+        if (!known) note += " I've assumed you're not training much — tell me how active you are and I'll adjust it.";
+        notes.push(note);
         break;
       }
       case "rate_meal": {

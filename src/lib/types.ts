@@ -78,6 +78,7 @@ export const OperationSchema = z.object({
     "lock_meal", // "never change my Sunday roast" -> pin it; every rebuild puts it back
     "unlock_meal", // "you can change Sunday again"
     "rate_meal", // "that salmon was incredible" / "hated the tofu" -> learn the taste
+    "hydration", // "how much water should i drink?" -> engine computes it from body weight
     "answer", // no change — just answering a question
   ]),
   day: z.enum(DAYS).nullable().optional(),
@@ -190,6 +191,25 @@ export interface UserProfile {
   lockedMeals?: LockedMeal[];
   // "I loved that salmon" / "never make me the tofu again." Biases selection; never blocks a meal.
   mealRatings?: MealRating[];
+  // The facts behind the targets. compute_targets used to compute from these and throw them away,
+  // so the app knew your calorie target but not your weight — and could not tell you how much
+  // water to drink, or recompute anything when your goal changed. Kept now.
+  bodyStats?: BodyStats;
+}
+
+/**
+ * What the user told us about their body — the inputs to compute_targets, remembered.
+ *
+ * Every field is optional because the user can arrive at these facts from either direction:
+ * compute_targets fills all five at once, while "I'm 80 kg, how much water should I drink?" fills
+ * exactly one. Nothing here is ever defaulted or inferred: an absent field means they never said.
+ */
+export interface BodyStats {
+  age?: number;
+  heightCm?: number;
+  weightKg?: number;
+  sex?: "male" | "female";
+  activity?: "sedentary" | "light" | "moderate" | "active" | "very_active";
 }
 
 // Sensible starting values for a general healthy adult. Prefilled in onboarding
