@@ -37,9 +37,16 @@ export function planWasChanged(operations: Operation[]): boolean {
  * Written from the OPERATIONS, not from the model's reply — the reply is untrusted prose, and this
  * sentence is a claim about what actually happened.
  */
+// Tools that change NOTHING — a pure question or advice. Undo never has to describe these. NB this
+// is a subset of READ_ONLY_TOOLS: lock/unlock/rate DON'T change the plan (so they're read-only for
+// the plan) but they DO change the profile, so undo can reverse them and must name them.
+const PURE_QUERY_TOOLS: ReadonlySet<string> = new Set([
+  "answer", "weekly_report", "explain_meal", "substitute_ingredient", "symptom_check", "hydration",
+]);
+
 export function describeOperations(operations: Operation[]): string {
   const phrases = operations
-    .filter((o) => !READ_ONLY_TOOLS.has(o.tool) && o.tool !== "undo")
+    .filter((o) => !PURE_QUERY_TOOLS.has(o.tool) && o.tool !== "undo")
     .map((o) => {
       const where = o.day && o.mealType ? `${o.day}'s ${o.mealType}` : o.day ? `${o.day}` : "";
       switch (o.tool) {
@@ -51,6 +58,9 @@ export function describeOperations(operations: Operation[]): string {
         case "log_meal": return `logged ${where || "that meal"}`;
         case "eating_out": return `set calories aside for ${where || "eating out"}`;
         case "scale_portions": return `resized ${where || "your portions"}`;
+        case "lock_meal": return `pinned ${where || "that meal"}`;
+        case "unlock_meal": return `unpinned ${where || "that meal"}`;
+        case "rate_meal": return `saved your rating`;
         default: return "made that change";
       }
     });

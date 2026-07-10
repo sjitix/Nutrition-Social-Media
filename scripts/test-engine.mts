@@ -1370,7 +1370,11 @@ console.log("--- UNDO (put it back, and put back exactly what changed) ---");
   // model's prose.
   check("describeOperations names a day and a meal", /Monday's breakfast/.test(describeOperations([op({ tool: "swap_meal", day: "Monday", mealType: "breakfast", dish: "x" })])));
   check("describeOperations joins several changes", /and/.test(describeOperations([op({ tool: "regenerate_week" }), op({ tool: "update_profile", budget: "low" })])));
-  check("describeOperations ignores read-only tools", describeOperations([op({ tool: "weekly_report" })]) === "made that change");
+  check("describeOperations ignores pure-query tools", describeOperations([op({ tool: "weekly_report" })]) === "made that change");
+  // lock/unlock/rate change the PROFILE, so undo can reverse them — they must get a real label, not
+  // the generic fallback, even though they're read-only for the PLAN.
+  check("describeOperations names a pin (profile change, undoable)", /pinned/.test(describeOperations([op({ tool: "lock_meal", day: "Sunday", mealType: "dinner" })])));
+  check("describeOperations names a rating (profile change, undoable)", /rating/.test(describeOperations([op({ tool: "rate_meal", dish: "x", rating: 5 })])));
 }
 
 

@@ -92,6 +92,14 @@ export const SendIcon = ({ className }: IconProps) => (
   </svg>
 );
 
+// A star that can be outline (unrated) or solid (rated). Same line-icon language as the rest —
+// `filled` just swaps the fill so a rating reads at a glance without any emoji.
+export const StarIcon = ({ className, filled = false }: IconProps & { filled?: boolean }) => (
+  <svg {...base(className)} fill={filled ? "currentColor" : "none"}>
+    <path d="M12 2.5l2.9 5.9 6.6.95-4.75 4.63 1.12 6.52L12 17.9l-5.9 3.1 1.12-6.52L2.5 9.85l6.6-.95z" />
+  </svg>
+);
+
 export const XIcon = ({ className }: IconProps) => (
   <svg {...base(className)}>
     <path d="M18 6L6 18M6 6l12 12" />

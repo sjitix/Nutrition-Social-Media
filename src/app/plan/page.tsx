@@ -15,6 +15,7 @@ import {
   PlusIcon,
   RefreshIcon,
   SendIcon,
+  StarIcon,
   Wordmark,
   XIcon,
   ZapIcon,
@@ -28,7 +29,7 @@ import {
   savePlan,
   saveProfile,
 } from "@/lib/storage";
-import { DAYS, type ChatMessage, type Meal, type PlanSnapshot, type UserProfile, type WeekPlan } from "@/lib/types";
+import { DAYS, type ChatMessage, type Meal, type Operation, type PlanSnapshot, type UserProfile, type WeekPlan } from "@/lib/types";
 
 type View = "home" | "week" | "explore" | "groceries" | "assistant";
 
@@ -105,6 +106,8 @@ export default function PlanPage() {
   // One step of history for "undo". Deliberately not persisted: after a reload there is no last
   // change to take back, and offering one would be a lie.
   const [previous, setPrevious] = useState<PlanSnapshot | undefined>(undefined);
+  // A brief confirmation line after a direct action (rating a meal, undo). Auto-clears.
+  const [toast, setToast] = useState<string | null>(null);
   const [regenerating, setRegenerating] = useState(false);
   const [regenError, setRegenError] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -124,6 +127,12 @@ export default function PlanPage() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chat, thinking, view]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 4000);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   const groceries = useMemo(() => {
     if (!plan) return [];
@@ -181,6 +190,31 @@ export default function PlanPage() {
     savePlan(next);
     setAdded(new Set(added).add(recipeName));
   }
+
+  // A direct action — rate, pin, undo — goes to /api/operation, NOT the assistant. No language
+  // model needed to understand a button, and it keeps working while the model is offline.
+  async function runOperation(operation: Operation) {
+    if (!profile || !plan) return;
+    try {
+      const res = await fetch("/api/operation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profile, plan, operation, previous }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Couldn't do that.");
+      if (data.profile) { setProfile(data.profile); saveProfile(data.profile); }
+      if (data.plan) { setPlan(data.plan); savePlan(data.plan); }
+      setPrevious(data.previous ?? undefined);
+      if (data.planChanged) setChecked(new Set());
+      if (data.reply) setToast(data.reply);
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "Couldn't do that.");
+    }
+  }
+
+  const ratingFor = (name: string) =>
+    profile?.mealRatings?.find((r) => r.name.toLowerCase() === name.toLowerCase())?.rating ?? 0;
 
   async function regeneratePlan() {
     if (!profile || regenerating) return;
@@ -790,6 +824,13 @@ export default function PlanPage() {
         </div>
       </main>
 
+      {/* A brief confirmation after a direct action (rating, undo). */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-plum px-5 py-2.5 text-sm font-medium text-white shadow-lg">
+          {toast}
+        </div>
+      )}
+
       {/* ===== Meal detail drawer ===== */}
       {detail && (
         <>
@@ -812,6 +853,26 @@ export default function PlanPage() {
               </p>
               <h2 className="font-display mt-1 text-2xl font-bold">{detail.name}</h2>
               <p className="mt-2 text-sm leading-relaxed text-mut">{detail.description}</p>
+              {/* Rate the dish. Deterministic — goes straight to /api/operation, no assistant. A
+                  5 gets it planned more often; a 1 stops it coming back (unless a slot would empty). */}
+              <div className="mt-3 flex items-center gap-1">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => runOperation({ tool: "rate_meal", dish: detail.name, rating: n } as Operation)}
+                    className={n <= ratingFor(detail.name) ? "p-0.5 text-vio-deep" : "p-0.5 text-black/20 hover:text-vio-deep/50"}
+                    aria-label={`Rate ${n} of 5`}
+                    title={`Rate ${n} of 5`}
+                  >
+                    <StarIcon className="h-5 w-5" filled={n <= ratingFor(detail.name)} />
+                  </button>
+                ))}
+                {ratingFor(detail.name) > 0 && (
+                  <span className="ml-2 text-xs text-mut">
+                    you rated this {ratingFor(detail.name)}/5
+                  </span>
+                )}
+              </div>
               <div className="mt-4 grid grid-cols-5 gap-2 text-center">
                 {[
                   [detail.calories, "kcal"],
