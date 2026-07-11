@@ -289,12 +289,13 @@ async function localStructuredChat<T>(
   schema: z.ZodType<T>,
   schemaName: string,
   messages: LocalChatMessage[],
+  temperature?: number,
 ): Promise<T> {
   let lastError: Error = new Error("No local AI model configured.");
   for (const model of localModels()) {
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        return await localStructuredChatOnce(schema, schemaName, messages, model);
+        return await localStructuredChatOnce(schema, schemaName, messages, model, temperature);
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
         const retryable = /\(429\)|\(5\d\d\)|Could not reach/.test(lastError.message);
@@ -311,10 +312,16 @@ async function localStructuredChatOnce<T>(
   schemaName: string,
   messages: LocalChatMessage[],
   model: string,
+  temperature?: number,
 ): Promise<T> {
   const jsonSchema = z.toJSONSchema(schema);
-  // Belt and suspenders: response_format enforces the schema on providers that
-  // support it; the prompt instruction covers providers that silently ignore it.
+  // `response_format: json_schema` already GUARANTEES the shape on servers that support it (LM
+  // Studio, Ollama). When it's active, ALSO dumping the whole schema into the prompt is pure noise
+  // — and it measurably hurt: the app appended it while the eval didn't, so the app underperformed
+  // its own 97% eval (hydration/rate_meal missed live but passed the eval). So the text hint is now
+  // ONLY for hosted routes (an API key) that silently ignore response_format; there it's the only
+  // thing keeping output as JSON. Local path = plain messages, identical to what the eval sends.
+  const useResponseFormat = !LOCAL_AI_API_KEY;
   const withSchemaHint = messages.map((m, i) =>
     i === 0 && m.role === "system"
       ? {
@@ -335,21 +342,26 @@ async function localStructuredChatOnce<T>(
       },
       body: JSON.stringify({
         model,
-        messages: withSchemaHint,
+        messages: useResponseFormat ? messages : withSchemaHint,
+        // Tool-calling is classification, not creative writing: the assistant turn passes
+        // temperature 0 so the LIVE app matches the temp-0 eval (deterministic, most accurate)
+        // instead of sampling and occasionally missing a weaker tool. Omitted (LM Studio default)
+        // for model-based plan generation, where a little variety across regenerations is wanted.
+        ...(temperature != null ? { temperature } : {}),
         // Generous budget: reasoning models spend tokens thinking before the JSON.
         max_tokens: 16000,
         // Strict schema mode works reliably on real local servers (LM Studio,
         // Ollama) but several hosted free routes mishandle it and return empty
         // content — for those (detected by the API key) the prompt instruction
         // plus JSON extraction below does the job.
-        ...(LOCAL_AI_API_KEY
-          ? {}
-          : {
+        ...(useResponseFormat
+          ? {
               response_format: {
                 type: "json_schema",
                 json_schema: { name: schemaName, strict: true, schema: jsonSchema },
               },
-            }),
+            }
+          : {}),
       }),
     });
   } catch {
@@ -737,7 +749,7 @@ export async function parseAssistantTurn(
     return localStructuredChat(AssistantTurnSchema, "assistant_turn", [
       { role: "system", content: assistantTurnSystemPrompt(p, plan) },
       ...turns,
-    ]);
+    ], 0);
   }
   return claudeParseAssistantTurn(p, plan, turns);
 }
