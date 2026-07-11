@@ -15,62 +15,46 @@ run now), fuzz clean, plus `npm run check:recipes` and `npm run check:data`.
 **The four planned tools have all shipped (rate_meal, hydration, scale_portions, undo) and so has
 the plant-protein-powder debt. The model is now due a retrain — v7 does not know any of the four.**
 
-### >>> PICK UP HERE (v8 was training when the PC shut down) <<<
+### v8 IS LIVE — it's the production model now
 
-v8 training was at ~84% (step ~406/483) when the session ended. **All code is committed and pushed
-— nothing to recover there.** Only the training run's state is in question. Do this, in order:
+The interrupted run was resumed (from checkpoint-390, RESUME=1 — which needed BOTH torch guards
+bypassed, now fixed and proven), finished, promoted, and loaded. `.env.local` points the site at
+`nutriflow-v8`. `npm run test:engine` is **308 passed / 0 failed, fuzz clean.**
 
-**STEP 1 — find out what state training is in:**
-```bash
-npm run train:status                 # DONE? or a step number?
-ls models/nutriflow-lora/            # a finished adapter is here only if training COMPLETED
-ls -dt models/_ckpt/checkpoint-*     # mid-run checkpoints (every 30 steps); newest is the resume point
-```
+**v8 on the honest held-out set (now 65 cases, incl. the 4 new tools):**
 
-**STEP 2 — branch on what you found:**
+| enforced (`ENFORCE=1`, the production path) | v6 | v7 | **v8** |
+|---|---|---|---|
+| validJson / schemaOk / noHallucination | 100% | 100% | **100%** |
+| **toolAccuracy** | 84% | 95% | **97%** |
+| **fieldAccuracy** | 79% | 93% | **95%** |
+| clarify/answer | 8/10 | 8/10 | **10/10** |
 
-- **A) `train:status` says DONE** (or `train-v8.log` ends with "Saved LoRA adapter") — it finished
-  before shutdown. Promote it, one command:
-  ```bash
-  bash scripts/promote-model.sh v8
-  ```
-  Then point the site at it: edit `.env.local` → `LOCAL_AI_MODEL=nutriflow-v8` (must match `lms ps`).
+Higher than v7 while covering 9 MORE cases (the new tools), and clarify is now perfect. Unconstrained
+(stress test): 92% tool / 91% field.
 
-- **B) It was interrupted** (a step number, no "Saved LoRA adapter"). Resume from the last
-  checkpoint — the RESUME=1 path is fixed to work past the torch CVE guard:
-  ```bash
-  ~/.lmstudio/bin/lms.exe unload --all                 # free the GPU
-  RESUME=1 .venv-ft/Scripts/python.exe scripts/train_lora.py 2>&1 | tee -a train-v8.log
-  # ~40 min to finish from step ~390, then:
-  bash scripts/promote-model.sh v8
-  ```
-  If RESUME=1 errors for any reason, fall to (C).
+### >>> NEXT: v9 — fix the two weak tools <<<
 
-- **C) Resume won't run / both checkpoints look broken** — the checkpoint still holds a usable
-  ~2.5-epoch adapter (safetensors, no CVE guard). Merge it directly:
-  ```bash
-  cp -r models/_ckpt/checkpoint-390 models/nutriflow-lora   # or the newest good checkpoint
-  bash scripts/promote-model.sh v8 --force
-  ```
-  Or, if you'd rather have the full 3 epochs, just retrain from scratch (data is all committed):
-  `.venv-ft/Scripts/python.exe scripts/train_lora.py 2>&1 | tee train-v8.log` (~4h).
+Driving v8 through the LIVE app surfaced its one real gap: **hydration and rate_meal often emit the
+right REPLY TEXT but an EMPTY operations list** — the model recites "Let me work that out from your
+weight" or "Noted — I'll remember that" WITHOUT firing the tool. They're the newest tools with the
+fewest examples, and their reply text reads like a complete answer, so the model learns it can stop
+at the words. Two things for v9:
+1. More hydration/rate_meal examples, and more varied phrasings ("how much water", "am i drinking
+   enough", vague ratings like "it was fine").
+2. Their training reply text must NOT stand alone — it should reference the operation's computed
+   value (like weekly_report's does), so reciting the reply without the op is visibly incomplete.
 
-**STEP 3 — get the site running again** (after a reboot, LM Studio has nothing loaded):
-```bash
-# if you promoted v8, promote-model.sh already loaded it. Otherwise load v7 so the site works NOW:
-~/.lmstudio/bin/lms.exe load nutriflow-assistant-v7 --gpu max --context-length 8192 --identifier nutriflow-v7 -y
-npm run dev                          # http://localhost:3000
-```
+Mitigation already shipped: the deterministic UI (hydration card, rating stars, portion +/-) calls
+`/api/operation` with NO model, so users get these features reliably regardless of the chat weakness.
 
-**STEP 4 — the deferred check:** run the FULL suite once the GPU is free (it was skipped during
-training to avoid CPU contention; only the fuzz-less checks ran, 308/0):
-```bash
-npm run test:engine                  # expect ~306+ passed / 0 failed, fuzz clean
-```
+Two live-path fixes already landed (commit `7151a69`): the assistant call is now temperature 0
+(was sampling at ~0.7, non-deterministic), and it no longer dumps the JSON schema as redundant text
+when `response_format` already enforces it — the app now sends exactly what the eval sends.
 
-v8 is the first model to see the 4 new tools AND the minimal pairs for v7's three "read the
-sentence" failures. Expected: tool/field accuracy holds or climbs; the pizza-for-lunch,
-estimatedCalories, and fatigue misfires clear.
+**Also still open:** eyeball the session's UI in a browser (rating stars, pin toggle, portion +/-,
+Home coach card, onboarding "Calculate my targets", the offline chat message) — all verified by
+tsc + curl but NOT yet looked at rendered.
 
 **The 17 tools:** update_profile, regenerate_week, regenerate_day, swap_meal, compute_targets,
 log_meal, weekly_report, eating_out, explain_meal, substitute_ingredient, symptom_check, lock_meal,
