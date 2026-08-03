@@ -4,10 +4,20 @@
  * The trainer writes a tqdm progress bar (step/total) and, at the very end, a "Saved LoRA adapter"
  * line. This parses whichever is latest and prints RUNNING (with % + ETA) or DONE.
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-const log = process.argv[2] ?? join(process.cwd(), "train-v8.log");
+// Default to the MOST RECENTLY WRITTEN train-*.log, not a hardcoded version — otherwise, mid-v9
+// run, `npm run train:status` read v8's finished log and cheerfully reported "DONE". An explicit
+// path argument still wins.
+function latestTrainLog() {
+  const logs = readdirSync(process.cwd())
+    .filter((f) => /^train-.*\.log$/.test(f))
+    .map((f) => ({ f, t: statSync(join(process.cwd(), f)).mtimeMs }))
+    .sort((a, b) => b.t - a.t);
+  return logs[0] ? join(process.cwd(), logs[0].f) : join(process.cwd(), "train-v8.log");
+}
+const log = process.argv[2] ?? latestTrainLog();
 
 let text;
 try {
