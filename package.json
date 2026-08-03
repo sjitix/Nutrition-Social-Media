@@ -12,7 +12,8 @@
     "eval:assistant": "esbuild scripts/eval-assistant.mts --bundle --platform=node --format=esm --tsconfig=tsconfig.json --outfile=node_modules/.cache/eval-assistant.mjs --log-level=error && node node_modules/.cache/eval-assistant.mjs",
     "check:data": "node scripts/check-data.mjs",
     "check:recipes": "esbuild scripts/check-recipes.mts --bundle --platform=node --format=esm --tsconfig=tsconfig.json --outfile=node_modules/.cache/check-recipes.mjs --log-level=error && node node_modules/.cache/check-recipes.mjs",
-    "train:status": "node scripts/train-status.mjs"
+    "train:status": "node scripts/train-status.mjs",
+    "test:api": "node scripts/test-api.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",
