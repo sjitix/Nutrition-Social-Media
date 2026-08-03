@@ -609,14 +609,19 @@ for (const m of ["never change it", "pin that one", "keep that meal"])
 //   "i had the salmon for dinner"      -> log_meal            (what they ate)
 //   "i don't like mushrooms"           -> update_profile      (an ingredient, forever)
 //   "never change my sunday dinner"    -> lock_meal           (a standing instruction)
+// v8 was weak here too: 66 examples that ALL shared one reply ("Noted — I'll remember that."), so
+// the model could recite that string as an "answer" and skip the operation. v9: the reply is EMPTY
+// for a rating — the engine's confirmation ("you rated X 5/5, I'll reach for it more often") IS the
+// content, so the ONLY thing the label carries is the operation. Plus wider phrasings, and more of
+// the vague middle ("was fine i guess") that v8 missed.
 const RATE_WORDS = [
-  { r: 5, says: ["was incredible", "was amazing", "was the best thing all week", "was outstanding"] },
-  { r: 4, says: ["was really good", "was lovely", "was tasty", "i liked it a lot"] },
-  { r: 3, says: ["was ok", "was fine", "was alright", "was nothing special"] },
-  { r: 2, says: ["wasn't great", "was pretty bland", "i didn't really enjoy it", "was disappointing"] },
-  { r: 1, says: ["was awful", "was horrible, never again", "i hated it", "was inedible"] },
+  { r: 5, says: ["was incredible", "was amazing", "was the best thing all week", "was outstanding", "was absolutely delicious", "was so good", "was a real winner"] },
+  { r: 4, says: ["was really good", "was lovely", "was tasty", "i liked it a lot", "was great", "i really enjoyed it", "was very nice"] },
+  { r: 3, says: ["was ok", "was fine", "was alright", "was nothing special", "was fine i guess", "was ok i suppose", "was decent", "was a bit meh", "didn't mind it", "was average"] },
+  { r: 2, says: ["wasn't great", "was pretty bland", "i didn't really enjoy it", "was disappointing", "wasn't for me", "was a bit boring", "i wasn't keen"] },
+  { r: 1, says: ["was awful", "was horrible, never again", "i hated it", "was inedible", "was terrible", "was grim, don't do it again", "i couldn't finish it"] },
 ];
-for (let i = 0; i < 26; i++) {
+for (let i = 0; i < 34; i++) {
   const day = rand(DAYS); const mt = rand(MEALS);
   const { r, says } = rand(RATE_WORDS);
   const say = rand(says);
@@ -625,7 +630,8 @@ for (let i = 0; i < 26; i++) {
     `${day}'s ${mt} ${say}`,
     `that ${mt} on ${day} ${say}`,
     `the ${mt} you gave me on ${day} ${say}`,
-  ]))], `Noted — I'll remember that.`, [OP({ tool: "rate_meal", day, mealType: mt, rating: r })]);
+    `${mt} on ${day} ${say}`,
+  ]))], "", [OP({ tool: "rate_meal", day, mealType: mt, rating: r })]);
   // ...and by dish name, with no slot at all. DISHES carry articles ("a curry", "an omelette"),
   // so strip them: "the a curry was lovely" is not a sentence, and the label has to be a name the
   // engine can match against a recipe, not a noun phrase.
@@ -634,16 +640,19 @@ for (let i = 0; i < 26; i++) {
     `the ${dish} ${say}`,
     `that ${dish} ${say}`,
     `honestly, the ${dish} ${say}`,
-  ]))], `Noted — I'll remember that.`, [OP({ tool: "rate_meal", dish, rating: r })]);
+    `${dish} ${say}`,
+  ]))], "", [OP({ tool: "rate_meal", dish, rating: r })]);
 }
 // Explicit star ratings, the other way people say it.
-for (let i = 0; i < 10; i++) {
+for (let i = 0; i < 14; i++) {
   const day = rand(DAYS); const mt = rand(MEALS); const r = 1 + Math.floor(Math.random() * 5);
   push([u(rand([
     `${day} ${mt}: ${r}/5`,
     `i'd give ${day}'s ${mt} ${r} out of 5`,
     `${r} stars for ${day} ${mt}`,
-  ]))], `Noted — I'll remember that.`, [OP({ tool: "rate_meal", day, mealType: mt, rating: r })]);
+    `rate ${day}'s ${mt} ${r} out of 5`,
+    `${day} ${mt} gets ${r}/5 from me`,
+  ]))], "", [OP({ tool: "rate_meal", day, mealType: mt, rating: r })]);
 }
 // CONTRAST: an opinion needs a rating AND a subject. "that was great" alone is neither.
 for (const m of ["that was great", "loved it", "that was rank", "didn't like that one"])
@@ -654,7 +663,7 @@ for (const [food, dish] of [["mushrooms", "mushroom risotto"], ["olives", "greek
                             ["cilantro", "chicken curry"], ["feta", "veggie wrap"]]) {
   push([u(`i don't like ${food}`)], `Noted — I'll keep ${food} out of your plan.`,
     [OP({ tool: "update_profile", excludeFoods: [food.replace(/s$/, "")] })]);
-  push([u(`${dish} was awful, don't make it again`)], "Noted — I'll remember that.",
+  push([u(`${dish} was awful, don't make it again`)], "",
     [OP({ tool: "rate_meal", dish, rating: 1 })]);
 }
 
@@ -743,34 +752,55 @@ for (const [m, kc] of [["set my calories to 2500", 2500], ["i should be eating 1
 for (const m of ["i don't want this dinner", "give me something else on friday"])
   push([u(m)], "Sure — what would you like instead?", []);
 
-// hydration — a question about water, never about food. The app knows the user's weight if they
-// ever worked out their targets, so the DEFAULT call carries no fields at all. The model's only
-// job is to notice a weight or an activity level when the sentence happens to contain one.
-for (const m of [
+// hydration — a question about water/fluid, never food. Default call carries no fields; the model
+// adds weightKg/activity only when the sentence states them.
+//
+// v8 was WEAK here: 26 examples, and a reply ("Let me work that out.") that sounded like a finished
+// answer — so the model recited the words and emitted NO operation. v9 triples the examples, widens
+// the phrasings, and uses a LEAD-IN reply that pairs with the engine's computed litres (reciting it
+// alone is visibly unfinished). NB: the exact eval strings ("am i getting enough fluid in", the 78kg
+// case) are deliberately NOT here — check-data would flag them as eval contamination.
+const HYDRATION_ASKS = [
   "how much water should i drink", "am i drinking enough water", "what's my water target",
   "how much should i be drinking a day", "how many litres of water do i need",
   "do i drink enough", "what about hydration", "how much fluid a day",
-  "should i be drinking more water", "water intake?",
-])
-  push([u(m)], "Let me work that out from your weight.", [OP({ tool: "hydration" })]);
-for (let i = 0; i < 8; i++) {
-  const w = rand([55, 60, 65, 70, 75, 80, 85, 90, 95, 100]);
-  push([u(rand([
-    `i'm ${w}kg, how much water should i drink`,
-    `how much water for a ${w}kg person`,
-    `i weigh ${w} kg — what's my water target`,
-  ]))], "Let me work that out.", [OP({ tool: "hydration", weightKg: w })]);
-}
+  "should i be drinking more water", "water intake?", "how much water a day",
+  "how many glasses of water should i have", "what's my daily water goal",
+  "how much water do i actually need", "is my water intake ok", "how much should i hydrate",
+  "daily water amount?", "how much water for me", "tell me my hydration target",
+  "am i hydrated enough", "how much water is right for me", "what should my fluid intake be",
+];
+for (const m of HYDRATION_ASKS)
+  push([u(m)], "Here's your daily fluid target:", [OP({ tool: "hydration" })]);
 const ACT_WORDS = {
   sedentary: "at a desk all day", light: "training twice a week", moderate: "training 4 times a week",
   active: "training 6 days a week", very_active: "training twice a day",
 };
-for (let i = 0; i < 8; i++) {
-  const w = rand([60, 70, 80, 90]);
-  const a = rand(Object.keys(ACT_WORDS));
-  push([u(`i'm ${w}kg and ${ACT_WORDS[a]}, how much water do i need`)],
-    "Let me work that out.", [OP({ tool: "hydration", weightKg: w, activity: a })]);
+for (let i = 0; i < 16; i++) {
+  const w = rand([50, 55, 60, 65, 70, 72, 80, 85, 90, 95, 100, 110]);
+  push([u(rand([
+    `i'm ${w}kg, how much water should i drink`,
+    `how much water for a ${w}kg person`,
+    `i weigh ${w} kg — what's my water target`,
+    `${w}kg, how much fluid a day`,
+    `at ${w} kilos how much water do i need`,
+    `${w} kg here, water target?`,
+  ]))], "Here's your fluid target for that weight:", [OP({ tool: "hydration", weightKg: w })]);
 }
+for (let i = 0; i < 12; i++) {
+  const w = rand([55, 60, 65, 70, 75, 80, 85, 90, 95]);
+  const a = rand(Object.keys(ACT_WORDS));
+  push([u(rand([
+    `i'm ${w}kg and ${ACT_WORDS[a]}, how much water do i need`,
+    `${w}kg, ${ACT_WORDS[a]} — what's my water target`,
+    `i weigh ${w}kg and i'm ${ACT_WORDS[a]}, how much should i drink`,
+  ]))], "Here's your fluid target:", [OP({ tool: "hydration", weightKg: w, activity: a })]);
+}
+// CONTRAST: "am i getting enough WATER/fluid" is hydration; "am i getting enough IRON/vitamins" is
+// a weekly_report question. Teach the split on the noun so they don't collapse. (Protein/fiber are
+// omitted here on purpose — those are tracked metrics answered directly elsewhere, not a review.)
+for (const n of ["iron", "calcium", "vitamins", "nutrients", "magnesium", "zinc"])
+  push([u(`am i getting enough ${n}`)], "Let me review your week.", [OP({ tool: "weekly_report" })]);
 // CONTRAST: water is not food. A question about drinking must never rebuild the plan.
 for (const m of ["is coffee dehydrating", "does tea count towards my water"])
   push([u(m)], "Water, tea and coffee all count towards your fluid for the day — caffeine's diuretic effect is far too small to offset the drink itself.", []);
