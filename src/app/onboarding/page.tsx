@@ -62,12 +62,22 @@ export default function OnboardingPage() {
   const [activity, setActivity] = useState<Activity | "">("");
   const [computed, setComputed] = useState(false);
 
-  const bodyStatsComplete = !!(age && heightCm && weightKg && sex && activity);
+  // A body stat must be a POSITIVE number, not just a non-empty string — otherwise "0" (or any
+  // junk a number field lets through) sails past into computeTargets and produces nonsense targets,
+  // and a stored bodyStats.weightKg of 0 would have hydration prescribe 0 L.
+  const posNum = (s: string) => {
+    const n = Number(s);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  };
+  const ageN = posNum(age);
+  const heightN = posNum(heightCm);
+  const weightN = posNum(weightKg);
+  const bodyStatsComplete = ageN !== null && heightN !== null && weightN !== null && !!sex && !!activity;
 
   function calculateTargets() {
     if (!bodyStatsComplete) return;
     const t = computeTargets({
-      age: Number(age), heightCm: Number(heightCm), weightKg: Number(weightKg),
+      age: ageN, heightCm: heightN, weightKg: weightN,
       sex: sex as "male" | "female", activity: activity as Activity, goal,
     });
     setTargetCalories(t.calories);
@@ -81,12 +91,13 @@ export default function OnboardingPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const bodyStats: BodyStats | undefined = bodyStatsComplete
-      ? {
-          age: Number(age), heightCm: Number(heightCm), weightKg: Number(weightKg),
-          sex: sex as "male" | "female", activity: activity as Activity,
-        }
-      : undefined;
+    const bodyStats: BodyStats | undefined =
+      bodyStatsComplete && ageN !== null && heightN !== null && weightN !== null
+        ? {
+            age: ageN, heightCm: heightN, weightKg: weightN,
+            sex: sex as "male" | "female", activity: activity as Activity,
+          }
+        : undefined;
     const profile: UserProfile = {
       goal,
       diet,
