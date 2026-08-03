@@ -1469,6 +1469,13 @@ console.log("--- SCALE PORTIONS (the one tool allowed to leave the target, and i
     const r = applyOperations(out.profile, out.plan, [op({ tool: "scale_portions", day: "Friday", mealType: "dinner", portionChange: "smaller" })]);
     check("a meal with no recipe behind it can't be resized, and we say so", /isn't a recipe|aren't recipes/i.test(r.notes.join(" ")), r.notes.join(" ").slice(0, 110));
   }
+
+  // Resizing a slot that doesn't exist must NOT claim it did something. (A 3-meal plan has no snack.)
+  {
+    const r = applyOperations(BASE, plan, [op({ tool: "scale_portions", day: "Monday", mealType: "snack", portionChange: "smaller" })]);
+    check("scaling a nonexistent meal says so, doesn't claim a change", /nothing to resize/i.test(r.notes.join(" ")) && !/Made Monday snack/i.test(r.notes.join(" ")), r.notes.join(" ").slice(0, 100));
+    check("...and leaves the plan untouched", JSON.stringify(r.plan) === JSON.stringify(plan));
+  }
 }
 
 

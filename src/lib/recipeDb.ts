@@ -4324,6 +4324,7 @@ function scalePortions(
 
   const unscalable = new Set<string>();
   let atLimit = 0;
+  let changed = 0; // meals actually rescaled — so we never CLAIM a change that didn't happen
   const blockedByFloor: string[] = [];
 
   const days = plan.days.map((d) => {
@@ -4343,6 +4344,7 @@ function scalePortions(
         atLimit++;
         return m;
       }
+      changed++;
       return { ...toMeal(scaleRecipeByFactor(base, clamped)), type: m.type };
     });
 
@@ -4366,6 +4368,18 @@ function scalePortions(
     notes.push(
       `I've left ${scope} as it is. Going smaller would drop ${blockedByFloor.length > 1 ? "those days" : "that day"} under ${floor} kcal, and below that it's very hard to get the nutrients you need. If you want to eat less overall, let's redo your targets properly — tell me your age, height, weight, sex and how active you are.`,
     );
+    return plan;
+  }
+
+  // Nothing actually moved — don't claim it did. Say WHY: already at the sensible limit, nothing
+  // resizable in scope (a restaurant reserve), or no such meal to resize at all.
+  if (changed === 0) {
+    if (atLimit)
+      notes.push(`${scope[0].toUpperCase() + scope.slice(1)} ${atLimit === 1 ? "is" : "are"} already as ${down ? "small" : "big"} as a sensible portion goes — I've left ${atLimit === 1 ? "it" : "them"} be.`);
+    else if (unscalable.size)
+      notes.push(`I can't resize ${listPhrase([...unscalable])} — ${unscalable.size > 1 ? "they aren't recipes" : "that isn't a recipe"} of mine, so there's nothing to scale there.`);
+    else
+      notes.push(`There's nothing to resize on ${scope} — I couldn't find a meal there.`);
     return plan;
   }
 
