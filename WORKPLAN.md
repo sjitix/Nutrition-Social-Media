@@ -13,17 +13,35 @@
 batched for after v9 training — see below), plus `npm run test:api` (17, routes), `check:recipes`,
 `check:data`.
 
-### >>> v9 IS TRAINING NOW <<<
+### v9 is trained, evaluated — and NOT shipped (v8 stays live). >>> NEXT: v10 <<<
 
-v9 targets v8's one live weakness: hydration and rate_meal recite a reply but emit an empty
-operations list. Data strengthened (hydration 26→50 with a lead-in reply; rate_meal 66→86 with an
-EMPTY reply so the label's only content is the op; a water-vs-nutrient contrast). Training: 1329
-examples, 11 skipped (0.8%, the long multi-turn ones). **Auto-promote is armed** (a bg monitor runs
-`promote-model.sh v9` on "Saved LoRA adapter"). When it lands:
-1. Check the held-out hydration/rate_meal eval cases improved (they were v8's misses).
-2. If good: `.env.local` → `LOCAL_AI_MODEL=nutriflow-v9`.
-3. **Run the FULL `npm run test:engine`** (fuzz included) — deferred during training to not steal
-   CPU from the run. Expect ~310+ / 0, fuzz clean.
+v9 did fix its target (hydration and rate_meal dropped out of the failure list), but it REGRESSED
+the aggregate and, worse, bled a **safety tool**:
+
+| enforced | v8 | v9 |
+|---|---|---|
+| toolAccuracy | **97%** | 94% |
+| fieldAccuracy | **95%** | 94% |
+| clarify | **10/10** | 9/10 |
+
+The damaging regression: `i feel worn out every afternoon` → **weekly_report instead of
+symptom_check**. Cause: the "am i getting enough IRON/vitamins → weekly_report" contrast I added
+(to separate it from hydration's "enough water") made weekly_report greedy for health-status
+phrasings and it swallowed a fatigue symptom. symptom_check is the "you're tired → maybe iron, see
+a doctor" tool and has NO UI workaround — whereas hydration/rate_meal (what v9 fixed) already work
+via the drawer buttons. So v9 traded a safety tool for two convenience tools that were already
+covered. **v8 stays the production model** (loaded, `.env.local` = nutriflow-v8). v9 is preserved:
+`models/nutriflow-lora-v9`, `models/nutriflow-assistant-v9-q8_0.gguf`.
+
+**v10 = v9's data MINUS the harmful contrast.** Keep the hydration (26→50, lead-in reply) and
+rate_meal (empty-reply, wider phrasings) improvements — they worked. But DROP or rebalance the
+`am i getting enough {nutrient} → weekly_report` block, and add symptom_check reinforcement so
+fatigue/status phrasings stay with symptom_check. Then retrain and re-eval; the bar to beat is v8's
+97/95/10. Lesson: a contrast that strengthens tool A can quietly steal tool B's territory — check
+the WHOLE failure list after a data change, not just the cases you were targeting.
+
+**Also still open:** run the FULL `npm run test:engine` (fuzz) — deferred during v9 training so it
+wouldn't steal CPU. Engine is at 310/0 fuzz-less; do the fuzz run now that the GPU/CPU are free.
 
 **Hardening done this session (all pushed, tsc-clean, engine at 310/0 fuzz-less):**
 - `npm run test:api` — 17 integration tests over the HTTP routes (the `/api/operation` allowlist,
