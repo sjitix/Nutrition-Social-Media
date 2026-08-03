@@ -13,35 +13,42 @@
 batched for after v9 training — see below), plus `npm run test:api` (17, routes), `check:recipes`,
 `check:data`.
 
-### v9 is trained, evaluated — and NOT shipped (v8 stays live). >>> NEXT: v10 <<<
+### v8 is the best model. v9 and v10 BOTH failed to beat it. >>> STOP tweaking; grow the eval <<<
 
-v9 did fix its target (hydration and rate_meal dropped out of the failure list), but it REGRESSED
-the aggregate and, worse, bled a **safety tool**:
+| enforced | **v8** | v9 | v10 |
+|---|---|---|---|
+| toolAccuracy | **97%** | 94% | 91% |
+| fieldAccuracy | **95%** | 94% | 91% |
+| clarify | **10/10** | 9/10 | 8/10 |
 
-| enforced | v8 | v9 |
-|---|---|---|
-| toolAccuracy | **97%** | 94% |
-| fieldAccuracy | **95%** | 94% |
-| clarify | **10/10** | 9/10 |
+Two data iterations, both worse. The honest read: **the eval (65 cases) is too small to steer
+iteration.** Each case is ~1.5%, so a 3-point move is ~2 cases — inside the run-to-run variance of a
+1.5B QLoRA (shuffle seed, where the weights land). Evidence it was noise, not signal:
 
-The damaging regression: `i feel worn out every afternoon` → **weekly_report instead of
-symptom_check**. Cause: the "am i getting enough IRON/vitamins → weekly_report" contrast I added
-(to separate it from hydration's "enough water") made weekly_report greedy for health-status
-phrasings and it swallowed a fatigue symptom. symptom_check is the "you're tired → maybe iron, see
-a doctor" tool and has NO UI workaround — whereas hydration/rate_meal (what v9 fixed) already work
-via the drawer buttons. So v9 traded a safety tool for two convenience tools that were already
-covered. **v8 stays the production model** (loaded, `.env.local` = nutriflow-v8). v9 is preserved:
-`models/nutriflow-lora-v9`, `models/nutriflow-assistant-v9-q8_0.gguf`.
+- v9's targeted "fix" (rebalance weekly_report/symptom_check) did NOT hold: `i feel worn out` still
+  → weekly_report in v10, even after weekly_report was CUT 35→29 and symptom_check DOUBLED 10→24.
+  A real cause would have moved it; a stable ambiguity or noise does not.
+- v10 sprouted NEW misses (`i want 30g fiber`, `mushrooms aren't for me` → undefined) with no
+  plausible link to what I changed — the run just landed worse on update_profile.
 
-**v10 = v9's data MINUS the harmful contrast.** Keep the hydration (26→50, lead-in reply) and
-rate_meal (empty-reply, wider phrasings) improvements — they worked. But DROP or rebalance the
-`am i getting enough {nutrient} → weekly_report` block, and add symptom_check reinforcement so
-fatigue/status phrasings stay with symptom_check. Then retrain and re-eval; the bar to beat is v8's
-97/95/10. Lesson: a contrast that strengthens tool A can quietly steal tool B's territory — check
-the WHOLE failure list after a data change, not just the cases you were targeting.
+**Decision: v8 stays production** (loaded, `.env.local` = nutriflow-v8). v9/v10 preserved
+(`models/nutriflow-assistant-v{9,10}-q8_0.gguf`). Both DID fix hydration/rate_meal — that data
+change (hydration 26→50 lead-in reply; rate_meal empty-reply) is real and worth keeping — but
+neither is worth shipping over v8's aggregate.
 
-**Also still open:** run the FULL `npm run test:engine` (fuzz) — deferred during v9 training so it
-wouldn't steal CPU. Engine is at 310/0 fuzz-less; do the fuzz run now that the GPU/CPU are free.
+**Before ANY more training, fix the measurement, not the model:**
+1. **Grow the eval to ~150–200 held-out cases** (5–8 per tool, varied phrasing) so a 1–2 point move
+   is signal, not noise. Right now every "improvement" is unfalsifiable.
+2. **Consider N-run variance:** train a config 2–3× and look at the mean, or hold the shuffle seed,
+   before attributing a 2-case swing to a data edit.
+3. Then attack the CONSISTENTLY-hard cases (stable across v8/v9/v10): `scale_portions` not capturing
+   "dinner" as mealType from "wednesday's dinner is far more than i can eat"; over-acting on
+   "what's my macro split" / "tell me my macro split" (should answer, not run weekly_report).
+
+The meta-lesson (for the "learned the hard way" list): **don't run a train→tweak→retrain loop on a
+noisy metric.** I did three runs chasing 2–3 case swings and net-regressed. Fix the ruler first.
+
+**Engine:** `npm run test:engine` is **310 / 0, fuzz clean** (full run done). `npm run test:api` 17/0.
 
 **Hardening done this session (all pushed, tsc-clean, engine at 310/0 fuzz-less):**
 - `npm run test:api` — 17 integration tests over the HTTP routes (the `/api/operation` allowlist,
