@@ -796,11 +796,11 @@ for (let i = 0; i < 12; i++) {
     `i weigh ${w}kg and i'm ${ACT_WORDS[a]}, how much should i drink`,
   ]))], "Here's your fluid target:", [OP({ tool: "hydration", weightKg: w, activity: a })]);
 }
-// CONTRAST: "am i getting enough WATER/fluid" is hydration; "am i getting enough IRON/vitamins" is
-// a weekly_report question. Teach the split on the noun so they don't collapse. (Protein/fiber are
-// omitted here on purpose — those are tracked metrics answered directly elsewhere, not a review.)
-for (const n of ["iron", "calcium", "vitamins", "nutrients", "magnesium", "zinc"])
-  push([u(`am i getting enough ${n}`)], "Let me review your week.", [OP({ tool: "weekly_report" })]);
+// (v9 lesson) NO "am i getting enough {nutrient} -> weekly_report" block here. It was redundant —
+// weekly_report already learns "am i getting enough iron?" elsewhere — and adding six more
+// weekly_report examples tipped the weekly_report/symptom_check balance: v9 then routed the
+// held-out "i feel worn out every afternoon" to weekly_report instead of symptom_check. The
+// hydration examples above already carry enough "water/fluid" signal to stand apart on their own.
 // CONTRAST: water is not food. A question about drinking must never rebuild the plan.
 for (const m of ["is coffee dehydrating", "does tea count towards my water"])
   push([u(m)], "Water, tea and coffee all count towards your fluid for the day — caffeine's diuretic effect is far too small to offset the drink itself.", []);
@@ -820,13 +820,19 @@ for (const m of [
 ])
   push([u(m)], "I can work that out — tell me your age, height, weight, sex, roughly how active you are, and whether you want to lose fat, maintain, or build muscle.", []);
 
-// symptom_check: v7 routed "i feel worn out every afternoon" to weekly_report. Fatigue is the
-// most common thing anyone says to a nutritionist; it needs more than three phrasings.
+// symptom_check: fatigue and body-status statements. v9 lost the held-out "i feel worn out every
+// afternoon" to weekly_report, so v10 reinforces this side of the boundary — more fatigue phrasings,
+// plus other how-i-FEEL statements (a symptom is a statement about the body, not a question about
+// the plan). The exact eval strings are NOT here; the collision filter would drop them anyway.
 for (const s of [
-  "i feel worn out every afternoon", "i'm shattered by 3pm", "i've got no energy in the mornings",
-  "i'm knackered all the time", "i feel sluggish lately", "i'm dragging myself through the day",
-  "i wake up tired", "my energy crashes after lunch", "i feel drained",
-  "i'm exhausted even after a full night's sleep",
+  "i'm shattered by 3pm", "i've got no energy in the mornings", "i'm knackered all the time",
+  "i feel sluggish lately", "i'm dragging myself through the day", "i wake up tired",
+  "my energy crashes after lunch", "i feel drained", "i'm exhausted even after a full night's sleep",
+  "i've been really tired lately", "i've got no stamina", "i feel run down",
+  "i'm always wiped out", "my energy's been terrible", "i feel weak and tired",
+  "i keep feeling lightheaded", "my hair's been falling out", "my nails are brittle",
+  "i bruise really easily", "i keep getting headaches", "i feel foggy and can't concentrate",
+  "my skin's been really dry", "i feel cold all the time", "i've been catching every cold going",
 ])
   push([u(s)], "Let me look at what your week is giving you.", [OP({ tool: "symptom_check", symptom: s })]);
 
