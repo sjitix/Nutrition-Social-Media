@@ -9,13 +9,31 @@
 
 ## RESUME HERE (last updated: 2026-07-10, later)
 
-`main` is green: `npm run test:engine` **306 passed / 0 failed** (deterministic — same count every
-run now), fuzz clean, plus `npm run check:recipes` and `npm run check:data`.
+`main` is green: `npm run test:engine` **310 fuzz-less checks / 0 failed** (a full fuzz run is
+batched for after v9 training — see below), plus `npm run test:api` (17, routes), `check:recipes`,
+`check:data`.
 
-**The four planned tools have all shipped (rate_meal, hydration, scale_portions, undo) and so has
-the plant-protein-powder debt. The model is now due a retrain — v7 does not know any of the four.**
+### >>> v9 IS TRAINING NOW <<<
 
-### v8 IS LIVE — it's the production model now
+v9 targets v8's one live weakness: hydration and rate_meal recite a reply but emit an empty
+operations list. Data strengthened (hydration 26→50 with a lead-in reply; rate_meal 66→86 with an
+EMPTY reply so the label's only content is the op; a water-vs-nutrient contrast). Training: 1329
+examples, 11 skipped (0.8%, the long multi-turn ones). **Auto-promote is armed** (a bg monitor runs
+`promote-model.sh v9` on "Saved LoRA adapter"). When it lands:
+1. Check the held-out hydration/rate_meal eval cases improved (they were v8's misses).
+2. If good: `.env.local` → `LOCAL_AI_MODEL=nutriflow-v9`.
+3. **Run the FULL `npm run test:engine`** (fuzz included) — deferred during training to not steal
+   CPU from the run. Expect ~310+ / 0, fuzz clean.
+
+**Hardening done this session (all pushed, tsc-clean, engine at 310/0 fuzz-less):**
+- `npm run test:api` — 17 integration tests over the HTTP routes (the `/api/operation` allowlist,
+  rate→undo round-trip, graceful-offline), which had no automated coverage.
+- `scale_portions` no longer claims a change when nothing moved (nonexistent slot / all-unscalable).
+- onboarding requires a POSITIVE number for a body stat (a `0` would've made hydration prescribe 0 L).
+- `train:status` tracks the latest `train-*.log` (it hardcoded v8 and falsely said "DONE" mid-v9).
+- Added a README (the repo had none).
+
+### v8 (the model v9 replaces) IS LIVE
 
 The interrupted run was resumed (from checkpoint-390, RESUME=1 — which needed BOTH torch guards
 bypassed, now fixed and proven), finished, promoted, and loaded. `.env.local` points the site at
