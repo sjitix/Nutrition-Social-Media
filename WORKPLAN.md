@@ -13,42 +13,36 @@
 batched for after v9 training — see below), plus `npm run test:api` (17, routes), `check:recipes`,
 `check:data`.
 
-### v8 is the best model. v9 and v10 BOTH failed to beat it. >>> STOP tweaking; grow the eval <<<
+### v9 IS LIVE — the bigger eval reversed the call and it's the best model
 
-| enforced | **v8** | v9 | v10 |
+The 65-case eval said v8 (97/95/10) beat v9 (94) and v10 (91), so I nearly kept v8. **That was
+wrong, and the small eval was why**: it barely tested hydration/rate_meal — exactly where v8 is
+genuinely weak (v8 fails 4 of 6 hydration cases). So it flattered v8 and hid v9's real win. I grew
+the held-out eval **65 → 111** (thin tools to ~5–6 each; 0 training collisions) and made
+`portionChange` direction-aware ("bigger" accepts "much_bigger" — magnitude is a subjective nudge).
+
+On the balanced set, **3 runs each** (temp-0 nondeterminism is ~1–2 pts, so single runs don't decide):
+
+| 111-case enforced | v8 | **v9** | v10 |
 |---|---|---|---|
-| toolAccuracy | **97%** | 94% | 91% |
-| fieldAccuracy | **95%** | 94% | 91% |
-| clarify | **10/10** | 9/10 | 8/10 |
+| toolAccuracy | 91–92% | **94–95%** | 92% |
+| fieldAccuracy | 93–94% | **94–95%** | 92% |
 
-Two data iterations, both worse. The honest read: **the eval (65 cases) is too small to steer
-iteration.** Each case is ~1.5%, so a 3-point move is ~2 cases — inside the run-to-run variance of a
-1.5B QLoRA (shuffle seed, where the weights land). Evidence it was noise, not signal:
+**v9's ~3-point lead is above the noise floor, holds across runs, and is EXPLAINABLE** — it fixes
+the hydration (26→50, lead-in reply) and rate_meal (empty-reply) cases v8 mostly fails, at a cost of
+1 symptom_check case (`i feel worn out` → weekly_report) and ~1 clarify. v10's rebalance didn't help
+(≈tied v8) — that part was noise. **v9 shipped**: loaded, `.env.local` = nutriflow-v9, verified live
+("how much water" → "Here's your daily fluid target: At 78 kg, aim for about 2.6 L…"). v8/v10
+preserved as GGUFs.
 
-- v9's targeted "fix" (rebalance weekly_report/symptom_check) did NOT hold: `i feel worn out` still
-  → weekly_report in v10, even after weekly_report was CUT 35→29 and symptom_check DOUBLED 10→24.
-  A real cause would have moved it; a stable ambiguity or noise does not.
-- v10 sprouted NEW misses (`i want 30g fiber`, `mushrooms aren't for me` → undefined) with no
-  plausible link to what I changed — the run just landed worse on update_profile.
+**The meta-lesson (now in the hard-won list): a metric too small doesn't just add noise — it points
+you the WRONG way.** I nearly kept the worse model off a 65-case eval. Fix the ruler before the
+model, and confirm a decision across multiple runs when the gap is small.
 
-**Decision: v8 stays production** (loaded, `.env.local` = nutriflow-v8). v9/v10 preserved
-(`models/nutriflow-assistant-v{9,10}-q8_0.gguf`). Both DID fix hydration/rate_meal — that data
-change (hydration 26→50 lead-in reply; rate_meal empty-reply) is real and worth keeping — but
-neither is worth shipping over v8's aggregate.
-
-**Before ANY more training, fix the measurement, not the model:**
-1. **Grow the eval to ~150–200 held-out cases** (5–8 per tool, varied phrasing) so a 1–2 point move
-   is signal, not noise. Right now every "improvement" is unfalsifiable.
-2. **Consider N-run variance:** train a config 2–3× and look at the mean, or hold the shuffle seed,
-   before attributing a 2-case swing to a data edit.
-3. Then attack the CONSISTENTLY-hard cases (stable across v8/v9/v10): `scale_portions` not capturing
-   "dinner" as mealType from "wednesday's dinner is far more than i can eat"; over-acting on
-   "what's my macro split" / "tell me my macro split" (should answer, not run weekly_report).
-
-The meta-lesson (for the "learned the hard way" list): **don't run a train→tweak→retrain loop on a
-noisy metric.** I did three runs chasing 2–3 case swings and net-regressed. Fix the ruler first.
-
-**Engine:** `npm run test:engine` is **310 / 0, fuzz clean** (full run done). `npm run test:api` 17/0.
+**Next (real signal now):** attack the STILL-hard cases v9 misses on the 111-set — `scale_portions`
+not capturing "dinner" as mealType ("wednesday's dinner is far more than i can eat"); the residual
+`i feel worn out → weekly_report`; over-acting on "what's my macro split". And keep growing the eval
+toward ~200. `npm run test:engine` **310 / 0, fuzz clean**; `npm run test:api` 17/0.
 
 **Hardening done this session (all pushed, tsc-clean, engine at 310/0 fuzz-less):**
 - `npm run test:api` — 17 integration tests over the HTTP routes (the `/api/operation` allowlist,
