@@ -161,6 +161,25 @@
     { "msg": "put a chicken curry on wednesday dinner", "tool": "swap_meal", "want": { "day": "Wednesday", "mealType": "dinner" } },
 
     { "msg": "what's for lunch tomorrow?" },
-    { "msg": "thanks so much, appreciate it" }
+    { "msg": "thanks so much, appreciate it" },
+
+    { "msg": "i grabbed a sandwich for lunch", "tool": "log_meal", "want": { "mealType": "lunch" } },
+    { "msg": "had eggs and toast this morning", "tool": "log_meal", "want": { "mealType": "breakfast" } },
+    { "msg": "i'll be at a restaurant for dinner tonight", "tool": "eating_out", "want": { "mealType": "dinner" } },
+    { "msg": "we're doing brunch out on sunday", "tool": "eating_out", "want": { "day": "Sunday" } },
+
+    { "msg": "the chicken salad was excellent", "tool": "rate_meal", "want": { "rating": 5 } },
+    { "msg": "i ate a chicken salad for lunch", "tool": "log_meal", "want": { "mealType": "lunch" } },
+
+    { "msg": "i've run out of chicken for tonight, what can i use", "tool": "substitute_ingredient", "want": { "ingredient": "chicken" } },
+    { "msg": "i don't eat chicken", "tool": "update_profile", "expectExclude": "chicken" },
+
+    { "msg": "drop my daily calories to 1600", "tool": "update_profile", "want": { "targetCalories": 1600 } },
+    { "msg": "everything's too much food today, shrink it", "tool": "scale_portions", "want": { "portionChange": "smaller" } },
+
+    { "msg": "swap monday's lunch for a big salad", "tool": "swap_meal", "want": { "day": "Monday", "mealType": "lunch" } },
+    { "msg": "why is monday's breakfast what it is", "tool": "explain_meal", "want": { "day": "Monday", "mealType": "breakfast" } },
+    { "msg": "i've been feeling really tired the last week", "tool": "symptom_check" },
+    { "msg": "set my protein target to 170", "tool": "update_profile", "want": { "targetProtein": 170 } }
   ]
 }
