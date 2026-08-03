@@ -98,6 +98,69 @@
     { "msg": "do something different" },
     { "msg": "1750" },
     { "msg": "calculate my calorie needs" },
-    { "msg": "tell me my macro split" }
+    { "msg": "tell me my macro split" },
+
+    { "msg": "how many litres of water a day", "tool": "hydration" },
+    { "msg": "whats my fluid goal", "tool": "hydration" },
+    { "msg": "i'm 90kg, what's my water target", "tool": "hydration", "want": { "weightKg": 90 } },
+    { "msg": "should i be drinking more water than i am", "tool": "hydration" },
+
+    { "msg": "that stir fry last night was delicious", "tool": "rate_meal", "want": { "rating": 5 } },
+    { "msg": "thursday's lunch was a bit bland", "tool": "rate_meal", "want": { "day": "Thursday", "mealType": "lunch", "rating": 2 } },
+    { "msg": "loved the salmon, five stars", "tool": "rate_meal", "want": { "rating": 5 } },
+
+    { "msg": "monday's breakfast is too small", "tool": "scale_portions", "want": { "day": "Monday", "mealType": "breakfast", "portionChange": "bigger" } },
+    { "msg": "way too much food on friday", "tool": "scale_portions", "want": { "day": "Friday", "portionChange": "smaller" } },
+    { "msg": "shrink tuesday's lunch a bit", "tool": "scale_portions", "want": { "day": "Tuesday", "mealType": "lunch", "portionChange": "smaller" } },
+    { "msg": "i'm still starving after every meal", "tool": "scale_portions", "want": { "portionChange": "bigger" } },
+
+    { "msg": "my hair keeps falling out", "tool": "symptom_check" },
+    { "msg": "i get headaches most afternoons", "tool": "symptom_check" },
+    { "msg": "i feel dizzy when i stand up", "tool": "symptom_check" },
+    { "msg": "i've been so tired recently", "tool": "symptom_check" },
+    { "msg": "my skin's really dry lately", "tool": "symptom_check" },
+
+    { "msg": "actually no, revert that", "tool": "undo" },
+    { "msg": "undo the last thing you did", "tool": "undo" },
+    { "msg": "put it back the way it was before", "tool": "undo" },
+
+    { "msg": "i'm 25, 170cm, 68kg, female, moderately active, want to build muscle", "tool": "compute_targets", "want": { "age": 25, "weightKg": 68, "sex": "female", "goal": "build_muscle" } },
+    { "msg": "figure out my calories: 40 year old male, 90kg, 185cm, desk job, maintaining", "tool": "compute_targets", "want": { "age": 40, "sex": "male", "weightKg": 90, "goal": "maintain" } },
+    { "msg": "work out my targets — 35, female, 62kg, 165cm, run 3x a week, losing weight", "tool": "compute_targets", "want": { "age": 35, "sex": "female", "goal": "lose_weight" } },
+
+    { "msg": "why did you pick tuesday's lunch", "tool": "explain_meal", "want": { "day": "Tuesday", "mealType": "lunch" } },
+    { "msg": "what's the reason for friday's breakfast", "tool": "explain_meal", "want": { "day": "Friday", "mealType": "breakfast" } },
+    { "msg": "why this dinner on saturday", "tool": "explain_meal", "want": { "day": "Saturday", "mealType": "dinner" } },
+
+    { "msg": "i've run out of eggs", "tool": "substitute_ingredient", "want": { "ingredient": "eggs" } },
+    { "msg": "no quinoa in the house, what else can i use", "tool": "substitute_ingredient", "want": { "ingredient": "quinoa" } },
+    { "msg": "can i swap the feta for something", "tool": "substitute_ingredient", "want": { "ingredient": "feta" } },
+
+    { "msg": "i had a burrito for lunch today", "tool": "log_meal", "want": { "mealType": "lunch" } },
+    { "msg": "just ate a big bowl of pasta for dinner", "tool": "log_meal", "want": { "mealType": "dinner" } },
+
+    { "msg": "i've got a dinner reservation friday", "tool": "eating_out", "want": { "day": "Friday", "mealType": "dinner" } },
+    { "msg": "lunch meeting at a cafe on wednesday", "tool": "eating_out", "want": { "day": "Wednesday", "mealType": "lunch" } },
+
+    { "msg": "how's my week looking overall", "tool": "weekly_report" },
+    { "msg": "am i on track this week", "tool": "weekly_report" },
+
+    { "msg": "always give me the same thursday dinner", "tool": "lock_meal", "want": { "day": "Thursday", "mealType": "dinner" } },
+    { "msg": "don't ever change saturday breakfast", "tool": "lock_meal", "want": { "day": "Saturday", "mealType": "breakfast" } },
+
+    { "msg": "you can vary monday lunch now", "tool": "unlock_meal", "want": { "day": "Monday", "mealType": "lunch" } },
+    { "msg": "stop keeping tuesday dinner fixed", "tool": "unlock_meal", "want": { "day": "Tuesday", "mealType": "dinner" } },
+    { "msg": "unpin friday breakfast", "tool": "unlock_meal", "want": { "day": "Friday", "mealType": "breakfast" } },
+
+    { "msg": "redo wednesday from scratch", "tool": "regenerate_day", "want": { "day": "Wednesday" } },
+    { "msg": "i'd like saturday to be keto", "tool": "regenerate_day", "want": { "day": "Saturday", "diet": "keto" } },
+
+    { "msg": "start the whole plan over", "tool": "regenerate_week" },
+    { "msg": "give me a completely fresh week", "tool": "regenerate_week" },
+
+    { "msg": "put a chicken curry on wednesday dinner", "tool": "swap_meal", "want": { "day": "Wednesday", "mealType": "dinner" } },
+
+    { "msg": "what's for lunch tomorrow?" },
+    { "msg": "thanks so much, appreciate it" }
   ]
 }

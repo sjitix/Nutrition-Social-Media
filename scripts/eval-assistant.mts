@@ -191,9 +191,17 @@ for (const c of CASES) {
 
   // `&&=`, not `=`. These used to overwrite the `want` result, so a case carrying both a `want`
   // and an `expectExclude` silently scored on the exclusion alone.
+  // portionChange is judged on DIRECTION, not magnitude: "i'm still starving" is bigger OR
+  // much_bigger — both correct — so a case labelled "bigger" must accept "much_bigger". The
+  // direction is the intent; the magnitude is a subjective nudge and unfair to pin.
+  const dir = (s: unknown) => (/^much_/.test(String(s)) ? String(s).slice(5) : String(s));
   let ok = true;
-  for (const [k, v] of Object.entries(c.want ?? {}))
-    if (String(got[k] ?? "").toLowerCase() !== String(v).toLowerCase()) ok = false;
+  for (const [k, v] of Object.entries(c.want ?? {})) {
+    const match = k === "portionChange"
+      ? dir(got[k]) === dir(v)
+      : String(got[k] ?? "").toLowerCase() === String(v).toLowerCase();
+    if (!match) ok = false;
+  }
   if (c.expectExcludeMethod) ok &&= (got.excludeFoods as string[] | undefined ?? []).some((f) => /bake|roast|oven/i.test(f));
   if (c.expectExclude) ok &&= (got.excludeFoods as string[] | undefined ?? []).some((f) => f.toLowerCase().includes(c.expectExclude!));
   if (c.expectUseIngredients) ok &&= ((got.useIngredients as string[] | undefined) ?? []).length > 0;
