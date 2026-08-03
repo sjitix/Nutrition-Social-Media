@@ -736,6 +736,28 @@ for (let i = 0; i < 6; i++) {
   push([u(rand([`${day}'s ${mt} is nowhere near enough`, `bigger ${mt} on ${day}`, `i need more at ${mt} on ${day}`]))],
     "Done — bigger portion there.", [OP({ tool: "scale_portions", day, mealType: mt, portionChange: "bigger" })]);
 }
+// (v11) Strengthen mealType CAPTURE for the natural "{day}'s {meal} is [too much / not enough]"
+// framing. v9 read "wednesday's dinner is far more than i can eat" but dropped the "dinner" slot,
+// emitting scale_portions with day only. More of these varied phrasings, both directions.
+for (let i = 0; i < 9; i++) {
+  const day = rand(DAYS); const mt = rand(MEALS);
+  push([u(rand([
+    `${day}'s ${mt} is far more than i can eat`,
+    `${day}'s ${mt} is more than i can eat`,
+    `${day}'s ${mt} is way too much`,
+    `${day}'s ${mt} is way too much food`,
+    `i can't finish ${day}'s ${mt}`,
+    `${day}'s ${mt} is huge`,
+    `there's far too much on ${day}'s ${mt}`,
+  ]))], "Done — smaller portion there.", [OP({ tool: "scale_portions", day, mealType: mt, portionChange: "smaller" })]);
+  push([u(rand([
+    `${day}'s ${mt} is far too small`,
+    `${day}'s ${mt} leaves me hungry`,
+    `${day}'s ${mt} isn't enough food`,
+    `i'm still hungry after ${day}'s ${mt}`,
+    `${day}'s ${mt} is tiny`,
+  ]))], "Done — bigger portion there.", [OP({ tool: "scale_portions", day, mealType: mt, portionChange: "bigger" })]);
+}
 // No day named -> the whole week. And the extremes map to much_bigger / much_smaller.
 for (const m of ["i'm still hungry", "these portions are tiny", "there isn't enough food", "i need bigger portions", "everything's too small"])
   push([u(m)], "Done — bigger portions all week.", [OP({ tool: "scale_portions", portionChange: "bigger" })]);
@@ -817,6 +839,10 @@ for (const m of [
 for (const m of [
   "tell me my macros", "what's my macro breakdown", "what should my protein be",
   "how much should i be eating", "give me my macro targets", "what macros do i need",
+  // (v11) "macro split/ratio" phrasings — v9 answered these with weekly_report (a plan review)
+  // instead of asking for the stats needed to work them out.
+  "break my macros down for me", "what are my macro ratios", "how should my macros be split",
+  "give me my macro ratios", "what's the ideal macro split for me", "how do i split my macros",
 ])
   push([u(m)], "I can work that out — tell me your age, height, weight, sex, roughly how active you are, and whether you want to lose fat, maintain, or build muscle.", []);
 
