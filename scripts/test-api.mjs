@@ -95,6 +95,20 @@ async function main() {
     check("assistant offline: friendly message, NOT a raw provider error", /rate, pin/i.test(chat.json?.error ?? "") && !/lms load|No models loaded/i.test(chat.json?.error ?? ""), chat.json?.error);
   }
 
+  // ---- /api/import (Phase 2) — the network-free paths (no real site is fetched) ----
+  // A missing / non-string url is a 400 with a plain-English ask, not a crash.
+  const noUrl = await post("/api/import", {});
+  check("import: missing url -> 400", noUrl.status === 400, `status ${noUrl.status}`);
+  const badType = await post("/api/import", { url: 123 });
+  check("import: non-string url -> 400", badType.status === 400, `status ${badType.status}`);
+  // SSRF guard: a private/loopback or non-url host is rejected BEFORE any fetch — a 422 with the
+  // guard's message, never an attempt to reach it. This is the security-critical route test.
+  const ssrf = await post("/api/import", { url: "http://localhost:3000/secret" });
+  check("import: blocks localhost (SSRF) -> 422", ssrf.status === 422, `status ${ssrf.status}`);
+  check("import: SSRF rejection is the guard message, no fetch attempted", /public recipe link/i.test(ssrf.json?.error ?? ""), ssrf.json?.error);
+  const notUrl = await post("/api/import", { url: "not a url at all" });
+  check("import: a non-url is rejected -> 422", notUrl.status === 422, `status ${notUrl.status}`);
+
   console.log(`\n${pass} passed, ${fail} failed`);
   if (fail) { for (const f of fails) console.log("  " + f); process.exit(1); }
 }
