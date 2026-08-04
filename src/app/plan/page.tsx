@@ -125,6 +125,9 @@ export default function PlanPage() {
   const [imported, setImported] = useState<ImportedRecipe | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [importDay, setImportDay] = useState<(typeof DAYS)[number]>(todayName());
+  // A recipe imported by pasting a link INTO THE CHAT (not the Explore panel). Rendered as a card
+  // under the conversation with the same add-to-slot buttons.
+  const [chatImport, setChatImport] = useState<ImportedRecipe | null>(null);
   const [regenerating, setRegenerating] = useState(false);
   const [regenError, setRegenError] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -298,23 +301,80 @@ export default function PlanPage() {
     }
   }
 
+  // Shared by BOTH import entry points (the Explore panel and the chat). Places the recipe in the
+  // chosen day/slot and reports honestly — including the pin-collision disclosure.
+  function placeImported(recipe: ImportedRecipe, type: Meal["type"]): boolean {
+    const meal = importedToMeal(recipe, type);
+    const when = importDay === todayName() ? "today" : importDay;
+    if (!addRecipeToDay(importDay, `imported:${meal.name}`, meal)) {
+      setToast(`Couldn't add that — ${importDay} isn't in your plan.`);
+      return false;
+    }
+    // Honesty: pins survive a regenerate, so importing over a slot pinned to another dish will be
+    // quietly reverted next rebuild. Say so instead of letting it surprise them.
+    const pin = profile?.lockedMeals?.find((l) => l.day === importDay && l.mealType === type);
+    const pinNote =
+      pin && pin.name !== meal.name
+        ? ` Heads up — ${importDay}'s ${type} is pinned to ${pin.name}, so regenerating the week will bring it back; unpin it to keep this.`
+        : "";
+    setToast(`Added ${meal.name} to ${when}'s ${type}.${pinNote}`);
+    return true;
+  }
+
   function addImportedTo(type: Meal["type"]) {
     if (!imported) return;
-    const meal = importedToMeal(imported, type);
-    const when = importDay === todayName() ? "today" : importDay;
-    if (addRecipeToDay(importDay, `imported:${meal.name}`, meal)) {
-      // Honesty: pins survive a regenerate, so importing over a slot pinned to another dish will be
-      // quietly reverted next rebuild. Say so instead of letting it surprise them.
-      const pin = profile?.lockedMeals?.find((l) => l.day === importDay && l.mealType === type);
-      const pinNote =
-        pin && pin.name !== meal.name
-          ? ` Heads up — ${importDay}'s ${type} is pinned to ${pin.name}, so regenerating the week will bring it back; unpin it to keep this.`
-          : "";
-      setToast(`Added ${meal.name} to ${when}'s ${type}.${pinNote}`);
+    if (placeImported(imported, type)) {
       setImported(null);
       setImportUrl("");
-    } else {
-      setToast(`Couldn't add that — ${importDay} isn't in your plan.`);
+    }
+  }
+
+  function addChatImportedTo(type: Meal["type"]) {
+    if (!chatImport) return;
+    if (placeImported(chatImport, type)) setChatImport(null);
+  }
+
+  // Paste a recipe LINK into the chat and it imports deterministically — no model, no matter the
+  // assistant's state. This is the "share a reel" gesture where people actually paste links.
+  async function importFromChat(url: string, userText: string) {
+    const history: ChatMessage[] = [...chat, { role: "user", text: userText }];
+    setChat(history);
+    saveChat(history);
+    setInput("");
+    setThinking(true);
+    setChatImport(null);
+    try {
+      const res = await fetch("/api/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const c: ChatMessage[] = [...history, { role: "assistant", text: data.error ?? "I couldn't import that link." }];
+        setChat(c);
+        saveChat(c);
+        return;
+      }
+      const r = data.recipe as ImportedRecipe;
+      setChatImport(r);
+      const host = new URL(r.sourceUrl).hostname.replace(/^www\./, "");
+      const macros =
+        r.macrosSource === "site"
+          ? ` About ${r.calories} kcal per serving.`
+          : " The page didn't list nutrition, so it comes in without macros.";
+      const c: ChatMessage[] = [
+        ...history,
+        { role: "assistant", text: `I pulled in "${r.name}" from ${host}.${macros} Pick a slot below to drop it into your plan.` },
+      ];
+      setChat(c);
+      saveChat(c);
+    } catch {
+      const c: ChatMessage[] = [...history, { role: "assistant", text: "I couldn't reach that link — try again, or paste a different recipe." }];
+      setChat(c);
+      saveChat(c);
+    } finally {
+      setThinking(false);
     }
   }
 
@@ -392,6 +452,13 @@ export default function PlanPage() {
   async function sendMessage() {
     const text = input.trim();
     if (!text || thinking || !profile || !plan) return;
+    // A pasted link is an import gesture, not a question — route it to the deterministic importer
+    // instead of the model. (If the link isn't a recipe, the importer says so gracefully.)
+    const urlMatch = text.match(/https?:\/\/[^\s]+/i);
+    if (urlMatch) {
+      void importFromChat(urlMatch[0], text);
+      return;
+    }
     setChatError(null);
     const history: ChatMessage[] = [...chat, { role: "user", text }];
     setChat(history);
@@ -1042,6 +1109,51 @@ export default function PlanPage() {
                       </div>
                     </div>
                   )}
+                  {/* A recipe imported from a link pasted in the chat — add it to a slot from here. */}
+                  {chatImport && (
+                    <div className="flex justify-start">
+                      <div className="max-w-[85%] rounded-2xl rounded-bl-md bg-white p-4 ring-1 ring-line">
+                        <p className="font-semibold leading-snug">{chatImport.name}</p>
+                        <p className="mt-0.5 text-[11px] text-mut">
+                          {new URL(chatImport.sourceUrl).hostname.replace(/^www\./, "")} ·{" "}
+                          {chatImport.ingredients.length} ingredients
+                          {chatImport.macrosSource === "site"
+                            ? ` · ${chatImport.calories} kcal/serving`
+                            : " · no macros listed"}
+                        </p>
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-semibold text-mut">Add to</span>
+                          <select
+                            value={importDay}
+                            onChange={(e) => setImportDay(e.target.value as (typeof DAYS)[number])}
+                            className="rounded-full bg-bgsoft px-2.5 py-1.5 text-xs font-bold text-vio-deep outline-none ring-1 ring-line focus:ring-vio"
+                          >
+                            {DAYS.map((d) => (
+                              <option key={d} value={d}>
+                                {d === todayName() ? `${d} (today)` : d}
+                              </option>
+                            ))}
+                          </select>
+                          {(["breakfast", "lunch", "dinner"] as const).map((t) => (
+                            <button
+                              key={t}
+                              onClick={() => addChatImportedTo(t)}
+                              className="rounded-full bg-vio px-3 py-1.5 text-xs font-bold text-white transition hover:bg-vio-deep"
+                            >
+                              {t}
+                            </button>
+                          ))}
+                          <button
+                            onClick={() => setChatImport(null)}
+                            className="rounded-full p-1 text-mut hover:text-plum"
+                            aria-label="Dismiss"
+                          >
+                            <XIcon className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   {chatError && (
                     <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
                       {chatError}
@@ -1059,7 +1171,7 @@ export default function PlanPage() {
                   <input
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    placeholder="Change anything about your week…"
+                    placeholder="Change anything, or paste a recipe link to import…"
                     className="flex-1 rounded-full border-2 border-transparent bg-bgsoft px-5 py-3 text-sm outline-none focus:border-vio"
                   />
                   <button
