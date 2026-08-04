@@ -1208,6 +1208,14 @@ export default function PlanPage() {
                   </div>
                 ))}
               </div>
+              {/* Honesty: an imported meal whose source listed no nutrition sits at 0 kcal — say so
+                  rather than let a blank meal quietly pull the day's totals down. We never guess. */}
+              {detail.sourceUrl && detail.calories === 0 && (
+                <p className="mt-2 text-xs text-mut">
+                  The source didn&rsquo;t list nutrition, so this meal has no macros — it won&rsquo;t
+                  count toward your day&rsquo;s totals.
+                </p>
+              )}
               <h3 className="mt-6 text-sm font-bold tracking-wide uppercase">Ingredients</h3>
               <ul className="mt-2 space-y-1.5">
                 {detail.ingredients.map((ing) => (
