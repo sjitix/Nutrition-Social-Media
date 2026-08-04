@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server";
 import { importRecipeFromUrl } from "@/lib/import";
+import { videoPlatform, importRecipeFromVideo } from "@/lib/videoImport";
 
-export const maxDuration = 30;
+// The video path makes a model call after fetching the page, so allow more headroom than the
+// deterministic JSON-LD path needs.
+export const maxDuration = 60;
 
 /**
- * Phase 2 — import a recipe from a pasted URL. Deterministic: reads the page's schema.org/Recipe
- * JSON-LD, no model involved. Returns a plan-ready recipe or a plain-English reason it couldn't.
+ * Phase 2 — import a recipe from a pasted URL. Two paths, chosen by the link:
+ *  - a recipe PAGE  -> deterministic schema.org/Recipe JSON-LD, no model (fast, reliable).
+ *  - a VIDEO (YouTube/TikTok/IG) -> read the caption, let the model extract the recipe from prose.
+ * Returns a plan-ready recipe or a plain-English reason it couldn't.
  */
 export async function POST(request: Request) {
   let url: string;
@@ -19,7 +24,10 @@ export async function POST(request: Request) {
   }
 
   try {
-    const recipe = await importRecipeFromUrl(url.trim());
+    const trimmed = url.trim();
+    const recipe = videoPlatform(trimmed)
+      ? await importRecipeFromVideo(trimmed)
+      : await importRecipeFromUrl(trimmed);
     return NextResponse.json({ recipe });
   } catch (error) {
     // importRecipeFromUrl throws user-facing messages ("I couldn't find a recipe…"); surface them.

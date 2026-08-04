@@ -9,10 +9,14 @@
 
 ## RESUME HERE (last updated: 2026-08-04)
 
-`main` is green: `npm run test:engine` **330 checks / 0 failed, fuzz clean**, plus `npm run
-test:api` (**19**, routes — now incl. the `/api/import` SSRF guard + bad-input paths),
-`check:recipes`, `check:data`. v9 is live and serving. No training running (the model line
-concluded at v9 — see the strategy note below; the GPU is free).
+`main` is green: `npm run test:engine` **357 checks / 0 failed, fuzz clean**, plus `npm run
+test:api` (**21**, routes — incl. `/api/import` SSRF guard + `rebalance_day`), `check:recipes`,
+`check:data`. v9 is live and serving. No training running (the model line concluded at v9 — see the
+strategy note below; the GPU is free).
+
+**This session shipped, in order: the URL importer + hardening (Yoast/dual-unit real-world fixes) →
+chat-import + imported-history + `rebalance_day` → the filterable Feed (Phase 3) → video/reel import
+(Phase 2 finish). All pushed as sjitix, all green.**
 
 ### >>> NOW: Roadmap Phase 2 — the share-a-reel importer <<<
 
@@ -107,11 +111,37 @@ reusing `addRecipeToDay`. Defaults the diet filter to the user's own diet. Photo
 matches, a deterministic gradient tile otherwise. `test:engine` **349/0** (10 feed tests incl. "vegan
 never surfaces meat").
 
-### Video / reel import — Phase 2 finish (NEXT)
+### Video / reel import — Phase 2 finish — DONE (pushed with this)
 
-The fragile, model-dependent layer: a YouTube/TikTok/IG link → fetch caption/transcript → the model
-extracts a recipe from prose (no JSON-LD) → validate. Must stay $0 (local model). Graceful failure
-when a platform blocks us or the text has no recipe.
+The "share a reel" mechanic, the fragile model-dependent layer, built HONESTLY within the two-layer
+rule:
+- `src/lib/videoImport.ts`: `videoPlatform(url)` routes YouTube/TikTok/IG links to this path (a
+  recipe *page* still goes to the deterministic JSON-LD importer). `extractVideoText(html, platform)`
+  pulls the caption/description off the page — og:description on all three, plus YouTube's FULL
+  `shortDescription` (og is truncated). Pure and fixture-tested.
+- `ai.ts` `extractRecipeFromText`: the model reads the caption and returns STRUCTURE ONLY — name,
+  ingredients, steps, servings, time. It is FORBIDDEN from producing nutrition (the two-layer rule:
+  the model never does arithmetic), so a video-imported meal comes in without macros rather than with
+  guessed ones. Schema-enforced (local `response_format`, Claude `zodOutputFormat`). $0 on the local
+  model; a clear "off in demo mode" when there's no provider.
+- `/api/import` routes video URLs here; the chat and Explore panel already send any pasted URL to
+  `/api/import`, so a reel pasted in chat "just works".
+- Graceful everywhere: a private video / a caption with no written recipe / a platform that blocks us
+  each returns a plain-English reason, never a crash.
+
+**Verified live:** the loaded model (even v9, a *tool* model — a general model like gpt-oss-20b would
+do better) extracted "Creamy Tomato Pasta" (2 servings, 15 min, correct steps, most ingredients) from
+a realistic caption, and correctly returned found=false for a "no recipe, just vibes" caption. End to
+end through `/api/import`, a real YouTube non-recipe page fetched, extracted, and failed gracefully
+with a 422. `test:engine` **357/0** (9 video tests: platform routing + caption extraction). The known
+limit is the model's ingredient recall on messy captions — partial, but honest and useful; better
+with a bigger base model.
+
+> **State: owner's "do all of them" is COMPLETE** — importer polish (chat-import, history,
+> day-rebalance), the Feed (Phase 3), and video/reel import (Phase 2 finish) are all shipped and
+> green. Remaining backlog is optional: estimate macros for video/no-macro imports from their
+> ingredients via the USDA table (coverage-gated), and grow the video caption parsers as platforms
+> change their markup.
 
 ---
 

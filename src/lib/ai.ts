@@ -737,6 +737,64 @@ async function claudeParseAssistantTurn(profile: UserProfile, plan: WeekPlan, tu
   return parsed;
 }
 
+// ---------------------------------------------------------------------------
+// Phase 2 — read a recipe from a video's caption/description text.
+//
+// The deterministic importer reads schema.org/Recipe JSON-LD; a TikTok/IG/YouTube page has none, so
+// the model reads the prose instead. It extracts STRUCTURE ONLY — name, ingredients, steps, servings,
+// time. It must NOT produce nutrition: the two-layer rule holds (the model never does arithmetic), so
+// video-imported meals come in without macros rather than with guessed ones.
+// ---------------------------------------------------------------------------
+
+export const ExtractedRecipeSchema = z.object({
+  found: z.boolean(), // false when the text carries no cookable recipe
+  name: z.string(),
+  servings: z.number().int().positive().nullable(),
+  timeMinutes: z.number().int().positive().nullable(),
+  ingredients: z.array(z.object({ name: z.string(), quantity: z.string() })),
+  steps: z.array(z.string()),
+});
+export type ExtractedRecipe = z.infer<typeof ExtractedRecipeSchema>;
+
+const EXTRACT_SYSTEM = `You extract exactly ONE cooking recipe from the text of a social-media video (a caption or description).
+Rules:
+- If the text does NOT contain a real, cookable recipe, set found=false and leave the other fields empty.
+- ingredients: each has a quantity ("2 tbsp", "200 g", or "" when none is given) and a name.
+- steps: the method as short ordered sentences. If the caption lists no steps, return an empty list.
+- Do NOT invent nutrition, calories, or macros — none are asked for.
+- Do NOT invent ingredients or steps that the text does not state or clearly imply.
+- Keep the caption's own wording; translate to English only if it is not already.`;
+
+export async function extractRecipeFromText(text: string): Promise<ExtractedRecipe> {
+  const provider = resolveProvider();
+  if (provider === "demo") {
+    throw new Error("Reading a recipe from a video needs the AI assistant, which is off in demo mode.");
+  }
+  const clipped = text.slice(0, 6000); // captions are short; cap defensively
+  if (provider === "local") {
+    return localStructuredChat(
+      ExtractedRecipeSchema,
+      "extracted_recipe",
+      [
+        { role: "system", content: EXTRACT_SYSTEM },
+        { role: "user", content: clipped },
+      ],
+      0,
+    );
+  }
+  const client = new Anthropic();
+  const response = await client.messages.parse({
+    model: CLAUDE_MODEL,
+    max_tokens: 2000,
+    system: EXTRACT_SYSTEM,
+    messages: [{ role: "user", content: clipped }],
+    output_config: { format: zodOutputFormat(ExtractedRecipeSchema) },
+  });
+  const parsed = response.parsed_output;
+  if (!parsed) throw new Error("Couldn't read a recipe from that video.");
+  return parsed;
+}
+
 export async function parseAssistantTurn(
   profile: UserProfile,
   plan: WeekPlan,

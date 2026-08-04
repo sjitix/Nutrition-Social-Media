@@ -897,8 +897,8 @@ export default function PlanPage() {
               <div className="mt-6 rounded-2xl bg-white p-5 card-shadow">
                 <h2 className="font-semibold">Import a recipe</h2>
                 <p className="mt-1 text-sm text-mut">
-                  Paste a link to a recipe page and I&rsquo;ll pull the ingredients, method and
-                  macros into your plan.
+                  Paste a recipe page, or a TikTok / YouTube / Instagram link, and I&rsquo;ll pull the
+                  ingredients and method into your plan.
                 </p>
                 <div className="mt-3 flex gap-2">
                   <input

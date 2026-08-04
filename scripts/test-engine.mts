@@ -16,6 +16,7 @@ import { selectWeekFromDb, rebalanceWeek, applyOperations, RECIPES, recipeMicros
 import type { UserProfile, Operation, DayPlan, WeekPlan, Meal } from "@/lib/types";
 import { MealSchema } from "@/lib/types";
 import { FEED_RECIPES, filterFeed, HIGH_PROTEIN_G, type FeedFilter } from "@/lib/feed";
+import { videoPlatform, extractVideoText } from "@/lib/videoImport";
 import { microsForIngredients } from "@/lib/nutrients";
 import { haystackBlocked, dietTagConflicts, parseExclusionTokens } from "@/lib/exclusions";
 import { bmr, computeTargets, hydrationTarget } from "@/lib/targets";
@@ -1900,6 +1901,27 @@ console.log("--- RECIPE IMPORT (paste a link -> plan-ready meal, deterministic) 
   let threw = false;
   try { parseRecipeHtml("<html><body>just a blog post</body></html>", "https://example.com/x"); } catch { threw = true; }
   check("import: a page with no recipe throws a clear error", threw);
+}
+
+console.log("--- VIDEO IMPORT (Phase 2: read a recipe from a reel's caption) ---");
+{
+  // Platform routing: a video link goes to the model-extraction path; a recipe page stays on JSON-LD.
+  check("video: detects YouTube (watch, youtu.be, m.)", videoPlatform("https://www.youtube.com/watch?v=abc") === "youtube" && videoPlatform("https://youtu.be/abc") === "youtube" && videoPlatform("https://m.youtube.com/watch?v=abc") === "youtube");
+  check("video: detects TikTok", videoPlatform("https://www.tiktok.com/@chef/video/123") === "tiktok");
+  check("video: detects Instagram reels", videoPlatform("https://www.instagram.com/reel/abc/") === "instagram");
+  check("video: a recipe PAGE is not a video (routes to JSON-LD)", videoPlatform("https://www.bbcgoodfood.com/recipes/x") === null);
+  check("video: junk is not a video", videoPlatform("not a url") === null);
+
+  // Caption extraction is pure/fixture-tested (the model step is not — it's exercised live).
+  const tt = `<html><head><meta property="og:description" content="Easy 3-ingredient pasta! You need 200g spaghetti, 2 tbsp olive oil &amp; garlic. Boil, toss, done."></head></html>`;
+  const ttText = extractVideoText(tt, "tiktok");
+  check("video: reads the caption from og:description (entities decoded)", /200g spaghetti/.test(ttText) && /olive oil & garlic/.test(ttText));
+
+  // YouTube: the FULL description ("shortDescription") must beat the truncated og:description.
+  const yt = `<html><head><meta property="og:description" content="short"></head><body><script>var x={"shortDescription":"FULL RECIPE:\\nIngredients:\\n- 2 eggs\\n- 100g flour\\nMethod: mix and fry."};</script></body></html>`;
+  const ytText = extractVideoText(yt, "youtube");
+  check("video: prefers YouTube's full shortDescription over the short og", /FULL RECIPE/.test(ytText) && /100g flour/.test(ytText) && ytText.length > 20);
+  check("video: a caption with no meta yields empty text (-> graceful 'no recipe')", extractVideoText("<html><body>nothing here</body></html>", "instagram") === "");
 }
 
 
