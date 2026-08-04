@@ -6,6 +6,9 @@ const DESCRIPTION =
   "Your week of meals, planned by AI and adjusted by chat. Import any recipe from a link; grocery list included.";
 
 export const metadata: Metadata = {
+  // So Open Graph / Twitter image URLs resolve to the real domain in production instead of
+  // localhost. Set NEXT_PUBLIC_SITE_URL at deploy time; falls back to localhost for dev.
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
   title: TITLE,
   description: DESCRIPTION,
   applicationName: "NutriFlow",
