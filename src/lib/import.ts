@@ -132,8 +132,20 @@ export function parseIngredient(raw: string): { name: string; quantity: string }
     /^([\d¼-¾⅐-⅞./-]+(?:\s*[\d¼-¾⅐-⅞./-]+)?)\s*(tbsp|tbs|tsp|teaspoons?|tablespoons?|cups?|g|kg|ml|l|oz|lb|lbs|cloves?|pieces?|slices?|cans?|handfuls?|pinch(?:es)?|sprigs?)?\s+(.*)$/i,
   );
   if (m && m[3]) {
-    const qty = [m[1], m[2]].filter(Boolean).join(" ").trim();
-    return { name: m[3].trim(), quantity: qty };
+    let qty = [m[1], m[2]].filter(Boolean).join(" ").trim();
+    let name = m[3].trim();
+    // Dual-unit ingredients ("1.2 kg / 2.4lb chuck beef", common on RecipeTinEats and other blogs
+    // that print metric AND imperial) strand the alternate measure at the FRONT of the name. A real
+    // food name never starts with "/ 2.4lb", so this only fires on that stranded case: fold it back
+    // into the quantity and let the name be just the food.
+    const alt = name.match(
+      /^\/\s*([\d¼-¾⅐-⅞.,]+\s*(?:tbsp|tbs|tsp|cups?|g|kg|ml|l|oz|lb|lbs)?)\s+(.+)$/i,
+    );
+    if (alt) {
+      qty = `${qty} / ${alt[1].trim()}`.trim();
+      name = alt[2].trim();
+    }
+    return { name, quantity: qty };
   }
   return { name: text, quantity: "" };
 }

@@ -1783,6 +1783,10 @@ console.log("--- RECIPE IMPORT (paste a link -> plan-ready meal, deterministic) 
   check("import: parses '2 tbsp cumin seeds'", (() => { const p = parseIngredient("2 tbsp cumin seeds"); return p.quantity === "2 tbsp" && p.name === "cumin seeds"; })());
   check("import: parses a unicode fraction '¼ cup olive oil'", (() => { const p = parseIngredient("¼ cup olive oil"); return /¼/.test(p.quantity) && p.name === "olive oil"; })());
   check("import: an ingredient with no amount keeps its whole name", (() => { const p = parseIngredient("salt to taste"); return p.quantity === "" && p.name === "salt to taste"; })());
+  // Dual-unit ingredients (metric + imperial): the alt measure folds into the quantity, not the name.
+  check("import: folds a dual-unit '1.2 kg / 2.4lb chuck beef'", (() => { const p = parseIngredient("1.2 kg / 2.4lb chuck beef"); return p.name === "chuck beef" && /kg/.test(p.quantity) && /2\.4lb/.test(p.quantity); })());
+  // ...but a normal fraction quantity ("1/2 cup") must NOT be mistaken for a dual unit.
+  check("import: a '1/2 cup' fraction is not treated as a dual unit", (() => { const p = parseIngredient("1/2 cup olive oil"); return p.name === "olive oil" && /cup/.test(p.quantity); })());
 
   // The pure parse: JSON-LD (with @graph nesting + HTML entities + per-serving nutrition) -> recipe.
   const HTML = `<html><head>
