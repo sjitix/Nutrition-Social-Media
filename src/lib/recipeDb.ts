@@ -99,6 +99,9 @@ export interface Recipe {
   steps: string[];
 }
 
+/** Public Recipe -> Meal, for surfaces (the browse feed) that show library recipes as plan-ready. */
+export const recipeToMeal = (r: Recipe): Meal => toMeal(r);
+
 // Convert a stored Recipe into the app's Meal shape.
 function toMeal(r: Recipe): Meal {
   return {

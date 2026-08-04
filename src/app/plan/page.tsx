@@ -22,7 +22,7 @@ import {
   XIcon,
   ZapIcon,
 } from "@/components/icons";
-import { EXPLORE_RECIPES } from "@/lib/recipes";
+import { FEED_RECIPES, filterFeed, type FeedFilter, type FeedDiet } from "@/lib/feed";
 import { importedToMeal, type ImportedRecipe } from "@/lib/import";
 import {
   loadChat,
@@ -132,6 +132,11 @@ export default function PlanPage() {
   const [chatImport, setChatImport] = useState<ImportedRecipe | null>(null);
   // History of link-imported recipes (newest first), so they can be re-added without re-fetching.
   const [importHistory, setImportHistory] = useState<ImportedRecipe[]>([]);
+  // Phase 3 — the feed's filter facets.
+  const [feedMealType, setFeedMealType] = useState<FeedFilter["mealType"]>("all");
+  const [feedDiet, setFeedDiet] = useState<FeedDiet>("all");
+  const [feedHighProtein, setFeedHighProtein] = useState(false);
+  const [feedQuick, setFeedQuick] = useState(false); // <= 20 min
   const [regenerating, setRegenerating] = useState(false);
   const [regenError, setRegenError] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -147,6 +152,8 @@ export default function PlanPage() {
     setPlan(w);
     setChat(loadChat());
     setImportHistory(loadImports());
+    // Start the feed on the user's own diet — the most relevant view — with "All" still one tap away.
+    if (p.diet && p.diet !== "none") setFeedDiet(p.diet as FeedDiet);
   }, [router]);
 
   useEffect(() => {
@@ -227,6 +234,17 @@ export default function PlanPage() {
     [groceries],
   );
 
+  const feed = useMemo(
+    () =>
+      filterFeed(FEED_RECIPES, {
+        mealType: feedMealType,
+        diet: feedDiet,
+        highProtein: feedHighProtein,
+        maxTime: feedQuick ? 20 : null,
+      }),
+    [feedMealType, feedDiet, feedHighProtein, feedQuick],
+  );
+
   const weekStats = useMemo(() => {
     if (!plan || plan.days.length === 0) return { kcal: 0, protein: 0 };
     const kcal = plan.days.reduce(
@@ -242,9 +260,6 @@ export default function PlanPage() {
       protein: Math.round(protein / plan.days.length),
     };
   }, [plan]);
-
-  const addRecipeToToday = (recipeName: string, meal: Meal) =>
-    addRecipeToDay(todayName(), recipeName, meal);
 
   function addRecipeToDay(day: (typeof DAYS)[number], recipeName: string, meal: Meal): boolean {
     if (!plan || !profile) return false;
@@ -875,7 +890,7 @@ export default function PlanPage() {
             <>
               <h1 className="font-display text-3xl font-bold tracking-tight">Explore</h1>
               <p className="mt-1 text-sm text-mut">
-                Ideas for your week — every recipe drops straight into today&rsquo;s plan.
+                Browse the whole library — filter it, then drop any recipe onto a day.
               </p>
 
               {/* Phase 2 — import a recipe from a link. */}
@@ -973,58 +988,132 @@ export default function PlanPage() {
                 )}
               </div>
 
-              <div className="mt-6 columns-2 gap-4 lg:columns-3">
-                {EXPLORE_RECIPES.map((r) => {
-                  const isAdded = added.has(r.meal.name);
-                  return (
-                    <div
-                      key={r.meal.name}
-                      className="mb-4 break-inside-avoid overflow-hidden rounded-2xl bg-white card-shadow"
+              {/* Filter bar (Phase 3). All deterministic — filtering a fixed, macro-validated list. */}
+              <div className="mt-6 space-y-2.5">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {([
+                    ["all", "All"],
+                    ["breakfast", "Breakfast"],
+                    ["lunch", "Lunch"],
+                    ["dinner", "Dinner"],
+                    ["snack", "Snack"],
+                  ] as const).map(([v, label]) => (
+                    <button
+                      key={v}
+                      onClick={() => setFeedMealType(v)}
+                      className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${feedMealType === v ? "bg-vio text-white" : "bg-white text-plum ring-1 ring-line hover:ring-vio"}`}
                     >
-                      <button onClick={() => openMeal(r.meal)} className="block w-full">
-                        <div
-                          className="w-full bg-cover bg-center"
-                          style={{ height: r.height, backgroundImage: `url(${r.image})` }}
-                        />
-                      </button>
-                      <div className="p-3">
-                        <p className="text-sm font-bold">{r.meal.name}</p>
-                        <div className="mt-1.5 flex flex-wrap gap-1.5">
-                          <span className="rounded-full bg-lav px-2 py-0.5 text-[10px] font-bold text-vio-deep">
-                            {r.meal.calories} kcal
-                          </span>
-                          <span className="rounded-full bg-lav px-2 py-0.5 text-[10px] font-bold text-vio-deep">
-                            {r.meal.proteinGrams} g protein
-                          </span>
-                          {r.tag && (
-                            <span className="rounded-full bg-mint-soft px-2 py-0.5 text-[10px] font-bold text-mint">
-                              {r.tag}
-                            </span>
-                          )}
-                        </div>
-                        <button
-                          onClick={() => !isAdded && addRecipeToToday(r.meal.name, r.meal)}
-                          className={`mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-full py-1.5 text-xs font-bold transition ${
-                            isAdded
-                              ? "bg-mint-soft text-mint"
-                              : "bg-vio text-white hover:bg-vio-deep"
-                          }`}
-                        >
-                          {isAdded ? (
-                            <>
-                              <CheckIcon className="h-3 w-3" /> In your plan
-                            </>
-                          ) : (
-                            <>
-                              <PlusIcon className="h-3 w-3" /> Add to plan
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {([
+                    ["all", "Any diet"],
+                    ["vegetarian", "Vegetarian"],
+                    ["vegan", "Vegan"],
+                    ["keto", "Keto"],
+                    ["mediterranean", "Mediterranean"],
+                    ["gluten_free", "Gluten-free"],
+                  ] as const).map(([v, label]) => (
+                    <button
+                      key={v}
+                      onClick={() => setFeedDiet(v)}
+                      className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${feedDiet === v ? "bg-vio text-white" : "bg-white text-plum ring-1 ring-line hover:ring-vio"}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                  <span className="mx-1 h-4 w-px bg-line" />
+                  <button
+                    onClick={() => setFeedHighProtein((v) => !v)}
+                    className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${feedHighProtein ? "bg-vio text-white" : "bg-white text-plum ring-1 ring-line hover:ring-vio"}`}
+                  >
+                    High protein
+                  </button>
+                  <button
+                    onClick={() => setFeedQuick((v) => !v)}
+                    className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${feedQuick ? "bg-vio text-white" : "bg-white text-plum ring-1 ring-line hover:ring-vio"}`}
+                  >
+                    Under 20 min
+                  </button>
+                </div>
+                <div className="flex items-center gap-2 pt-0.5 text-xs text-mut">
+                  <span>
+                    {feed.length} recipe{feed.length === 1 ? "" : "s"} · adding to
+                  </span>
+                  <select
+                    value={importDay}
+                    onChange={(e) => setImportDay(e.target.value as (typeof DAYS)[number])}
+                    className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-vio-deep outline-none ring-1 ring-line focus:ring-vio"
+                  >
+                    {DAYS.map((d) => (
+                      <option key={d} value={d}>
+                        {d === todayName() ? `${d} (today)` : d}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
+
+              {feed.length === 0 ? (
+                <p className="mt-8 text-sm text-mut">No recipes match those filters — loosen one.</p>
+              ) : (
+                <div className="mt-4 columns-2 gap-4 lg:columns-3">
+                  {feed.map((r) => {
+                    const isAdded = added.has(r.meal.name);
+                    // Deterministic masonry height from the name, so the wall varies but is stable.
+                    const h = 130 + (Math.abs([...r.meal.name].reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 0)) % 80);
+                    return (
+                      <div
+                        key={r.meal.name}
+                        className="mb-4 break-inside-avoid overflow-hidden rounded-2xl bg-white card-shadow"
+                      >
+                        <button onClick={() => openMeal(r.meal)} className="block w-full">
+                          <div
+                            className="w-full bg-cover bg-center"
+                            style={{ height: h, ...(r.image ? { backgroundImage: `url(${r.image})` } : { background: r.gradient }) }}
+                          />
+                        </button>
+                        <div className="p-3">
+                          <p className="text-sm font-bold">{r.meal.name}</p>
+                          <div className="mt-1.5 flex flex-wrap gap-1.5">
+                            <span className="rounded-full bg-lav px-2 py-0.5 text-[10px] font-bold text-vio-deep">
+                              {r.meal.calories} kcal
+                            </span>
+                            <span className="rounded-full bg-lav px-2 py-0.5 text-[10px] font-bold text-vio-deep">
+                              {r.meal.proteinGrams} g protein
+                            </span>
+                            {r.dietTags.includes("vegan") ? (
+                              <span className="rounded-full bg-mint-soft px-2 py-0.5 text-[10px] font-bold text-mint">vegan</span>
+                            ) : r.dietTags.includes("vegetarian") ? (
+                              <span className="rounded-full bg-mint-soft px-2 py-0.5 text-[10px] font-bold text-mint">veg</span>
+                            ) : null}
+                          </div>
+                          <button
+                            onClick={() => !isAdded && addRecipeToDay(importDay, r.meal.name, r.meal)}
+                            className={`mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-full py-1.5 text-xs font-bold transition ${
+                              isAdded
+                                ? "bg-mint-soft text-mint"
+                                : "bg-vio text-white hover:bg-vio-deep"
+                            }`}
+                          >
+                            {isAdded ? (
+                              <>
+                                <CheckIcon className="h-3 w-3" /> In your plan
+                              </>
+                            ) : (
+                              <>
+                                <PlusIcon className="h-3 w-3" /> Add to plan
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </>
           )}
 

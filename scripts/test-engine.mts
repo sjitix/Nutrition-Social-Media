@@ -15,6 +15,7 @@
 import { selectWeekFromDb, rebalanceWeek, applyOperations, RECIPES, recipeMicros, newReport, reportNotes } from "@/lib/recipeDb";
 import type { UserProfile, Operation, DayPlan, WeekPlan, Meal } from "@/lib/types";
 import { MealSchema } from "@/lib/types";
+import { FEED_RECIPES, filterFeed, HIGH_PROTEIN_G, type FeedFilter } from "@/lib/feed";
 import { microsForIngredients } from "@/lib/nutrients";
 import { haystackBlocked, dietTagConflicts, parseExclusionTokens } from "@/lib/exclusions";
 import { bmr, computeTargets, hydrationTarget } from "@/lib/targets";
@@ -1056,6 +1057,36 @@ console.log("--- REBALANCE_DAY (balance a day around an imported/fixed meal) ---
   check("rebalance_day: no day -> asks, changes nothing", bad.planChanged === false);
 }
 
+
+// ---------------------------------------------------------------- feed (Phase 3)
+console.log("");
+console.log("--- FEED (browse the library, filtered) ---");
+{
+  const all: FeedFilter = { mealType: "all", diet: "all", highProtein: false, maxTime: null };
+  check("feed: has a substantial number of recipes", FEED_RECIPES.length >= 20, String(FEED_RECIPES.length));
+  // A discovery feed must NOT surface treat-only dishes (pizza, burgers) — same rule as the planner.
+  check("feed: excludes treat-only dishes", FEED_RECIPES.every((it) => !/pizza|burger/i.test(it.meal.name)));
+  check("feed: every card is a valid Meal", FEED_RECIPES.every((it) => MealSchema.safeParse(it.meal).success));
+  check("feed: no filter returns everything", filterFeed(FEED_RECIPES, all).length === FEED_RECIPES.length);
+
+  const dinners = filterFeed(FEED_RECIPES, { ...all, mealType: "dinner" });
+  check("feed: mealType filter keeps only that slot", dinners.length > 0 && dinners.every((it) => it.meal.type === "dinner"));
+
+  const vegan = filterFeed(FEED_RECIPES, { ...all, diet: "vegan" });
+  check("feed: diet filter keeps only that diet", vegan.length > 0 && vegan.every((it) => it.dietTags.includes("vegan")));
+  // Correctness that matters: a vegan filter must NEVER surface a meat/fish dish.
+  check("feed: vegan filter never shows chicken/salmon/beef", vegan.every((it) => !/chicken|salmon|beef|turkey|tuna|pork/i.test(it.meal.name)));
+
+  const hp = filterFeed(FEED_RECIPES, { ...all, highProtein: true });
+  check("feed: high-protein filter respects the floor", hp.length > 0 && hp.every((it) => it.meal.proteinGrams >= HIGH_PROTEIN_G));
+
+  const quick = filterFeed(FEED_RECIPES, { ...all, maxTime: 20 });
+  check("feed: time filter respects the cap", quick.every((it) => it.meal.timeMinutes <= 20));
+
+  // Facets AND together, not OR.
+  const combo = filterFeed(FEED_RECIPES, { mealType: "lunch", diet: "vegan", highProtein: false, maxTime: null });
+  check("feed: facets combine (vegan lunches only)", combo.every((it) => it.meal.type === "lunch" && it.dietTags.includes("vegan")));
+}
 
 // ---------------------------------------------------------------- audit regressions
 console.log("");

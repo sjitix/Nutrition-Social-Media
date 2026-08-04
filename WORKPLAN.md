@@ -82,9 +82,36 @@ own nutrition block, not from ingredient parsing, so correctness is unaffected; 
 label and the ingredient display are noisy. A targeted fold-alt-measure-into-quantity pass would
 clean it. Low priority.
 
-> **State: the URL importer is complete and solid.** The remaining Phase 2 items are the fragile
-> video/reel layer (4, model-dependent), low-value polish (5), and a genuine UX fork (6). None is a
-> clear "just do it" — the next substantial move wants owner direction.
+> **Owner said "do all of them"** (importer polish + Feed + video). Progress below.
+
+### Importer polish — ALL THREE DONE (pushed)
+
+1. ✅ **Paste a link in the chat to import it** (`d4d1351`). `sendMessage` spots a URL and routes it
+   to the deterministic `/api/import` instead of the model — the "share a reel" gesture where people
+   actually paste links. Preview card renders under the conversation; both entry points share one
+   `placeImported` helper.
+2. ✅ **Imported-recipes history + dedupe** (`4bd841c`). `rememberImport` stores each import
+   (localStorage, newest-first, deduped by URL, cap 24); the Explore panel shows "Recently imported"
+   chips that re-open a preview with no re-fetch.
+3. ✅ **"Balance my day around this"** (`f965033`). New deterministic `rebalance_day` op: `scaleToTargets`
+   already holds any no-base meal (import / logged / reserve) FIXED and rescales the day's OTHER meals'
+   portions to target around it — never swapping the user's dishes. Drawer button on imported meals with
+   macros. Tested: a 1100-kcal import stays fixed, others trim 1308→900.
+
+### Feed — Phase 3 DONE (pushed with this)
+
+`src/lib/feed.ts`: the whole macro-validated library (**163 recipes**, treat-only excluded) as
+browsable cards, with a pure, unit-tested `filterFeed` (mealType · diet · high-protein ≥25g · ≤20min,
+AND-combined). Explore is now a filterable feed: filter chips, a target-day picker, "Add to plan"
+reusing `addRecipeToDay`. Defaults the diet filter to the user's own diet. Photos where a keyword
+matches, a deterministic gradient tile otherwise. `test:engine` **349/0** (10 feed tests incl. "vegan
+never surfaces meat").
+
+### Video / reel import — Phase 2 finish (NEXT)
+
+The fragile, model-dependent layer: a YouTube/TikTok/IG link → fetch caption/transcript → the model
+extracts a recipe from prose (no JSON-LD) → validate. Must stay $0 (local model). Graceful failure
+when a platform blocks us or the text has no recipe.
 
 ---
 
