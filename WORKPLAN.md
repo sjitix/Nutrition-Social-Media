@@ -39,10 +39,31 @@ preserved as GGUFs.
 you the WRONG way.** I nearly kept the worse model off a 65-case eval. Fix the ruler before the
 model, and confirm a decision across multiple runs when the gap is small.
 
-**Next (real signal now):** attack the STILL-hard cases v9 misses on the 111-set — `scale_portions`
-not capturing "dinner" as mealType ("wednesday's dinner is far more than i can eat"); the residual
-`i feel worn out → weekly_report`; over-acting on "what's my macro split". And keep growing the eval
-toward ~200. `npm run test:engine` **310 / 0, fuzz clean**; `npm run test:api` 17/0.
+**v11 (targeted data fix) ALSO lost to v9 — narrow tweaking has hit diminishing returns.** v11 added
+the exact "{day}'s {meal} is far more than i can eat" pattern to fix v9's scale_portions mealType
+miss, plus macro-split clarify examples. Measured properly (`npm run eval:variance`, **3 runs each**
+on the 125-case set):
+
+| 125-case, 3 runs | **v9** | v11 |
+|---|---|---|
+| toolAccuracy | **94.3** (±0.5) | 91.7 (±2) |
+| fieldAccuracy | **94.0** (±0) | 90.3 (±1.5) |
+| clarify | **91.7** | 88.9 |
+
+v9 wins by 2.6–3.7 points (above noise). And the targeted fix **didn't even work** — "wednesday's
+dinner…" still drops the mealType. **Lesson: on a 1.5B model, adding narrow examples for one case
+perturbs the whole net more than it helps locally** (field regressed 94→90). v10 and v11 BOTH lost
+to v9; the only real model gain this session came from a STRUCTURAL data change (v9's hydration/
+rate_meal reply shape), not case-targeting.
+
+**Strategy going forward — stop tuning the 1.5B on this data.** v9 (94/94/92 on 125 cases) is the
+ceiling for this approach and is a solid production model; its residual misses are minor and several
+have deterministic UI workarounds. A genuinely better model would need a bigger base (the roadmap's
+2–4 GPU path → a 7B/14B) or broadly more data — not more targeted examples. Better near-term ROI is
+in PRODUCT (Phase 2: the share-a-reel importer) than in another ~4h QLoRA that lands inside the noise.
+
+v11 preserved (`models/nutriflow-assistant-v11-q8_0.gguf`). v9 stays live. `npm run test:engine`
+**310 / 0, fuzz clean**; `npm run test:api` 17/0; `npm run eval:variance` for future comparisons.
 
 **Hardening done this session (all pushed, tsc-clean, engine at 310/0 fuzz-less):**
 - `npm run test:api` — 17 integration tests over the HTTP routes (the `/api/operation` allowlist,
