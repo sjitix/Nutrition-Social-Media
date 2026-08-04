@@ -11,12 +11,16 @@ const FEATURES: [string, string][] = [
     "Seven days of meals matched to your goals, allergies and budget — generated in under a minute.",
   ],
   [
+    "Import any recipe",
+    "Paste a recipe page, or a TikTok, YouTube or Instagram link, and it drops straight into your plan.",
+  ],
+  [
     "Chat to adjust",
     "“Swap the salmon” or “make it cheaper” — the assistant rewrites your actual plan, not just its reply.",
   ],
   [
     "Groceries, done",
-    "One consolidated shopping list for the whole week, built automatically from your meals.",
+    "One shopping list for the week, grouped by aisle with a running total — tick it off as you shop.",
   ],
 ];
 
@@ -50,9 +54,9 @@ export default function LandingPage() {
             Your week of meals, planned in one minute.
           </h1>
           <p className="mt-5 max-w-lg text-base leading-relaxed text-mut sm:text-lg">
-            Tell us your goal, diet and budget. The AI builds your whole week —
-            every meal, every macro, the full grocery list. Want changes? Just
-            tell the assistant.
+            Tell us your goal, diet and budget and the AI builds your whole week —
+            every meal, every macro, the full grocery list. Bring your own recipes
+            from a link, and reshape the plan just by chatting.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
@@ -78,7 +82,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="mt-24 grid gap-6 sm:grid-cols-3">
+      <section className="mt-20 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
         {FEATURES.map(([title, text]) => (
           <div key={title} className="rounded-2xl bg-white p-6 card-shadow">
             <h3 className="font-semibold">{title}</h3>
