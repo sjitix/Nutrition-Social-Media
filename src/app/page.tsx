@@ -46,10 +46,10 @@ export default function LandingPage() {
           <p className="text-xs font-bold tracking-widest text-vio-deep uppercase">
             Early preview
           </p>
-          <h1 className="font-display mt-3 text-5xl leading-tight font-bold tracking-tight">
+          <h1 className="font-display mt-3 text-3xl leading-tight font-bold tracking-tight sm:text-4xl lg:text-5xl">
             Your week of meals, planned in one minute.
           </h1>
-          <p className="mt-5 max-w-lg text-lg leading-relaxed text-mut">
+          <p className="mt-5 max-w-lg text-base leading-relaxed text-mut sm:text-lg">
             Tell us your goal, diet and budget. The AI builds your whole week —
             every meal, every macro, the full grocery list. Want changes? Just
             tell the assistant.

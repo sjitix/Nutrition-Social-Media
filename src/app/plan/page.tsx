@@ -549,12 +549,12 @@ export default function PlanPage() {
   const todayKcal = today?.meals.reduce((s, m) => s + m.calories, 0) ?? 0;
   const targetKcal = profile.targetCalories || 2000;
 
-  const NAV: { key: View; label: string; icon: React.ReactNode }[] = [
-    { key: "home", label: "Home", icon: <HomeIcon /> },
-    { key: "week", label: "My week", icon: <CalendarIcon /> },
-    { key: "explore", label: "Explore", icon: <CompassIcon /> },
-    { key: "groceries", label: "Groceries", icon: <CartIcon /> },
-    { key: "assistant", label: "Assistant", icon: <ChatIcon /> },
+  const NAV: { key: View; label: string; short: string; icon: React.ReactNode }[] = [
+    { key: "home", label: "Home", short: "Home", icon: <HomeIcon /> },
+    { key: "week", label: "My week", short: "Week", icon: <CalendarIcon /> },
+    { key: "explore", label: "Explore", short: "Explore", icon: <CompassIcon /> },
+    { key: "groceries", label: "Groceries", short: "Shop", icon: <CartIcon /> },
+    { key: "assistant", label: "Assistant", short: "Chat", icon: <ChatIcon /> },
   ];
 
   return (
@@ -569,6 +569,7 @@ export default function PlanPage() {
             <button
               key={n.key}
               onClick={() => setView(n.key)}
+              aria-current={view === n.key ? "page" : undefined}
               className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition ${
                 view === n.key
                   ? "bg-plum-mid font-semibold text-white"
@@ -594,18 +595,19 @@ export default function PlanPage() {
         </Link>
       </aside>
 
-      {/* mobile top nav */}
-      <nav className="fixed inset-x-0 bottom-0 z-20 flex justify-around border-t border-line bg-white py-2 md:hidden">
+      {/* Mobile bottom nav — full-width, ≥44px touch targets, safe-area aware. */}
+      <nav className="fixed inset-x-0 bottom-0 z-30 flex border-t border-line bg-white pb-[env(safe-area-inset-bottom)] md:hidden">
         {NAV.map((n) => (
           <button
             key={n.key}
             onClick={() => setView(n.key)}
-            className={`flex flex-col items-center gap-1 rounded-lg px-3 py-1 text-[10px] font-semibold ${
+            aria-current={view === n.key ? "page" : undefined}
+            className={`flex min-h-[3.5rem] flex-1 flex-col items-center justify-center gap-1 text-[11px] font-semibold transition ${
               view === n.key ? "text-vio-deep" : "text-mut"
             }`}
           >
             {n.icon}
-            {n.label}
+            {n.short}
           </button>
         ))}
       </nav>
@@ -767,8 +769,44 @@ export default function PlanPage() {
                 </button>
               </div>
               <div className="mt-6 flex min-h-0 flex-col gap-4 lg:h-[calc(100vh-10rem)] lg:flex-row">
-                {/* Timetable — fills space; scrolls when narrow */}
-                <div className="min-h-0 flex-1 overflow-x-auto overflow-y-hidden">
+                {/* Mobile: a vertical day-by-day stack. The 900px timetable below is unusable on a
+                    phone (it becomes a sideways-drag table), so it's desktop-only. */}
+                <div className="space-y-3 lg:hidden">
+                  {plan.days.map((day) => {
+                    const kcal = day.meals.reduce((s, m) => s + m.calories, 0);
+                    const isToday = day.day === todayName();
+                    return (
+                      <div key={day.day} className="rounded-2xl bg-white p-4 card-shadow">
+                        <div className="flex items-baseline justify-between">
+                          <h3 className={`font-bold ${isToday ? "text-vio-deep" : ""}`}>
+                            {day.day}
+                            {isToday && <span className="ml-2 text-xs font-semibold text-vio">Today</span>}
+                          </h3>
+                          <span className="text-xs text-mut tabular-nums">{kcal.toLocaleString()} kcal</span>
+                        </div>
+                        <div className="mt-1 divide-y divide-line">
+                          {day.meals.map((meal) => (
+                            <button
+                              key={meal.type + meal.name}
+                              onClick={() => openMeal(meal, day.day)}
+                              className="flex w-full items-center justify-between gap-3 py-2.5 text-left"
+                            >
+                              <div className="min-w-0">
+                                <p className="text-[11px] font-bold tracking-wide text-mut uppercase">{meal.type}</p>
+                                <p className="truncate text-sm font-semibold leading-snug">{meal.name}</p>
+                              </div>
+                              <span className="flex-none text-xs text-mut tabular-nums">
+                                <span className="font-bold text-vio-deep">{meal.calories}</span> kcal
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {/* Desktop timetable — fills space; scrolls when narrow */}
+                <div className="hidden min-h-0 flex-1 overflow-x-auto overflow-y-hidden lg:block">
                   <div
                     className="grid h-full min-w-[900px] gap-2"
                   style={{
@@ -1309,7 +1347,7 @@ export default function PlanPage() {
       {previous && (
         <button
           onClick={() => void runOperation({ tool: "undo" } as Operation)}
-          className="fixed bottom-6 left-6 z-50 flex items-center gap-2 rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-plum shadow-lg ring-1 ring-line transition hover:bg-bgsoft"
+          className="fixed bottom-20 left-6 z-50 flex items-center gap-2 rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-plum shadow-lg ring-1 ring-line transition hover:bg-bgsoft md:bottom-6"
           title={`Undo: ${previous.label}`}
         >
           <RefreshIcon className="h-3.5 w-3.5 -scale-x-100" />
@@ -1319,7 +1357,7 @@ export default function PlanPage() {
 
       {/* A brief confirmation after a direct action (rating, undo). */}
       {toast && (
-        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-plum px-5 py-2.5 text-sm font-medium text-white shadow-lg">
+        <div className="fixed bottom-20 left-1/2 z-50 max-w-[92vw] -translate-x-1/2 rounded-full bg-plum px-5 py-2.5 text-center text-sm font-medium text-white shadow-lg md:bottom-6">
           {toast}
         </div>
       )}
