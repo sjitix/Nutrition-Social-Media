@@ -11,9 +11,11 @@ const KEYS = {
   imports: "nutriflow.imports",
   saved: "nutriflow.saved",
   groceriesChecked: "nutriflow.groceriesChecked",
+  visits: "nutriflow.visits",
 } as const;
 
 const IMPORTS_CAP = 24;
+const VISITS_CAP = 400; // ~13 months of daily-use history is plenty for a streak
 
 function read<T>(key: string): T | null {
   if (typeof window === "undefined") return null;
@@ -60,6 +62,17 @@ export function toggleSaved(name: string): string[] {
 // Which grocery items are ticked off, by their lowercased name key, so a mid-shop reload keeps them.
 export const loadGroceriesChecked = () => read<string[]>(KEYS.groceriesChecked) ?? [];
 export const saveGroceriesChecked = (keys: string[]) => write(KEYS.groceriesChecked, keys);
+
+// Days the app was opened (ISO "YYYY-MM-DD"), for the daily-use streak. Recording today is
+// idempotent, and the list is capped and kept sorted-newest-first.
+export const loadVisits = () => read<string[]>(KEYS.visits) ?? [];
+export function recordVisit(todayIso: string): string[] {
+  const cur = loadVisits();
+  if (cur.includes(todayIso)) return cur;
+  const next = [todayIso, ...cur].sort((a, b) => (a < b ? 1 : -1)).slice(0, VISITS_CAP);
+  write(KEYS.visits, next);
+  return next;
+}
 
 export function clearAll(): void {
   Object.values(KEYS).forEach((k) => window.localStorage.removeItem(k));

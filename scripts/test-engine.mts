@@ -18,6 +18,7 @@ import { MealSchema } from "@/lib/types";
 import { FEED_RECIPES, filterFeed, sortFeed, HIGH_PROTEIN_G, type FeedFilter } from "@/lib/feed";
 import { videoPlatform, extractVideoText } from "@/lib/videoImport";
 import { aisleFor, groupByAisle, AISLE_ORDER } from "@/lib/grocery";
+import { currentStreak, prevDay, isoDay } from "@/lib/streak";
 import { microsForIngredients } from "@/lib/nutrients";
 import { haystackBlocked, dietTagConflicts, parseExclusionTokens } from "@/lib/exclusions";
 import { bmr, computeTargets, hydrationTarget } from "@/lib/targets";
@@ -1961,6 +1962,22 @@ console.log("--- GROCERY AISLES (shop in one walk, not criss-crossing) ---");
   check("grocery: grouping loses no items", groups.reduce((s, g) => s + g.items.length, 0) === items.length);
   check("grocery: aisles appear in shopping order", groups.map((g) => g.aisle).every((a, i, arr) => i === 0 || AISLE_ORDER.indexOf(arr[i - 1]) < AISLE_ORDER.indexOf(a)));
   check("grocery: an empty list yields no groups", groupByAisle([]).length === 0);
+}
+
+console.log("--- STREAK (daily-use habit hook) ---");
+{
+  check("streak: prevDay steps back one day", prevDay("2026-03-01") === "2026-02-28");
+  check("streak: prevDay crosses a year boundary", prevDay("2026-01-01") === "2025-12-31");
+  check("streak: isoDay formats UTC", isoDay(new Date(Date.UTC(2026, 7, 4))) === "2026-08-04");
+
+  const today = "2026-08-04";
+  check("streak: today alone is 1", currentStreak([today], today) === 1);
+  check("streak: three consecutive days is 3", currentStreak(["2026-08-04", "2026-08-03", "2026-08-02"], today) === 3);
+  check("streak: a gap breaks it", currentStreak(["2026-08-04", "2026-08-03", "2026-08-01"], today) === 2);
+  check("streak: 0 when today isn't recorded", currentStreak(["2026-08-03", "2026-08-02"], today) === 0);
+  check("streak: unordered history still counts", currentStreak(["2026-08-02", "2026-08-04", "2026-08-03"], today) === 3);
+  check("streak: empty history is 0", currentStreak([], today) === 0);
+  check("streak: duplicates don't inflate it", currentStreak(["2026-08-04", "2026-08-04", "2026-08-03"], today) === 2);
 }
 
 console.log("--- VIDEO IMPORT (Phase 2: read a recipe from a reel's caption) ---");

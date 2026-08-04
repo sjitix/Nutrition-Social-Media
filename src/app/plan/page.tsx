@@ -26,6 +26,7 @@ import {
 } from "@/components/icons";
 import { FEED_RECIPES, filterFeed, sortFeed, type FeedFilter, type FeedDiet, type FeedSort } from "@/lib/feed";
 import { groupByAisle } from "@/lib/grocery";
+import { currentStreak, isoDay } from "@/lib/streak";
 import { importedToMeal, type ImportedRecipe } from "@/lib/import";
 import {
   loadChat,
@@ -34,6 +35,7 @@ import {
   loadPlan,
   loadProfile,
   loadSaved,
+  recordVisit,
   rememberImport,
   saveChat,
   saveGroceriesChecked,
@@ -138,6 +140,12 @@ export default function PlanPage() {
   const [chatImport, setChatImport] = useState<ImportedRecipe | null>(null);
   // History of link-imported recipes (newest first), so they can be re-added without re-fetching.
   const [importHistory, setImportHistory] = useState<ImportedRecipe[]>([]);
+  const [streak, setStreak] = useState(0); // consecutive days the app was opened
+
+  useEffect(() => {
+    const todayIso = isoDay(new Date());
+    setStreak(currentStreak(recordVisit(todayIso), todayIso));
+  }, []);
   // Phase 3 — the feed's filter facets, search, sort, favourites, and paging.
   const [feedMealType, setFeedMealType] = useState<FeedFilter["mealType"]>("all");
   const [feedDiet, setFeedDiet] = useState<FeedDiet>("all");
@@ -756,9 +764,19 @@ export default function PlanPage() {
           {/* ---------- HOME ---------- */}
           {view === "home" && (
             <>
-              <h1 className="font-display text-3xl font-bold tracking-tight">
-                {greeting()}{profile.name ? `, ${profile.name}` : ""}
-              </h1>
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="font-display text-3xl font-bold tracking-tight">
+                  {greeting()}{profile.name ? `, ${profile.name}` : ""}
+                </h1>
+                {streak >= 2 && (
+                  <span
+                    className="flex items-center gap-1.5 rounded-full bg-lav px-3 py-1 text-xs font-bold text-vio-deep"
+                    title={`You've opened NutriFlow ${streak} days in a row`}
+                  >
+                    <ZapIcon className="h-3.5 w-3.5" /> {streak}-day streak
+                  </span>
+                )}
+              </div>
               <p className="mt-1 text-sm text-mut">{plan.weekSummary}</p>
 
               {today && (
