@@ -83,6 +83,9 @@ export const OperationSchema = z.object({
     "rate_meal", // "that salmon was incredible" / "hated the tofu" -> learn the taste
     "hydration", // "how much water should i drink?" -> engine computes it from body weight
     "scale_portions", // "i'm still hungry" / "that's way too much food" -> resize the servings
+    "rebalance_day", // "balance my day around this" -> rescale the day's OTHER meals to targets,
+    //                   holding anything without a base recipe (an imported meal, a logged meal,
+    //                   a restaurant reserve) fixed. Portions only — never swaps the user's dishes.
     "undo", // "actually, put it back" -> restore the state from before the last change
     "answer", // no change — just answering a question
   ]),

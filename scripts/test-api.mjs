@@ -80,6 +80,11 @@ async function main() {
   const after = scaled.json?.plan?.days?.[0]?.meals?.reduce((s, m) => s + m.calories, 0) ?? 0;
   check("operation: scale_portions bigger adds calories", after > before, `${before} -> ${after}`);
 
+  // ---- rebalance_day (deterministic; the importer's "balance my day around this") ----
+  const rebal = await post("/api/operation", { profile: PROFILE, plan, operation: { tool: "rebalance_day", day: day0 } });
+  check("operation: rebalance_day is allowed (200), not rejected", rebal.status === 200, `status ${rebal.status}`);
+  check("operation: rebalance_day returns a plan", Array.isArray(rebal.json?.plan?.days), `${typeof rebal.json?.plan}`);
+
   // ---- weekly_report (read-only, deterministic) ----
   const report = await post("/api/operation", { profile: PROFILE, plan, operation: { tool: "weekly_report" } });
   check("operation: weekly_report returns the averages", /average/i.test(report.json?.reply ?? ""), (report.json?.reply ?? "").slice(0, 60));

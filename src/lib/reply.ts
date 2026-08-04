@@ -58,6 +58,7 @@ export function describeOperations(operations: Operation[]): string {
         case "log_meal": return `logged ${where || "that meal"}`;
         case "eating_out": return `set calories aside for ${where || "eating out"}`;
         case "scale_portions": return `resized ${where || "your portions"}`;
+        case "rebalance_day": return `rebalanced ${where || "that day"}`;
         case "lock_meal": return `pinned ${where || "that meal"}`;
         case "unlock_meal": return `unpinned ${where || "that meal"}`;
         case "rate_meal": return `saved your rating`;

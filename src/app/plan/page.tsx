@@ -1333,6 +1333,17 @@ export default function PlanPage() {
                   </button>
                 </div>
               )}
+              {/* The coach move for an imported meal: keep THIS dish, rescale the day's other meals'
+                  portions to hold your targets around it. Only offered when the import has macros —
+                  with no numbers there's nothing to balance against. */}
+              {detailDay && detail.sourceUrl && detail.calories > 0 && (
+                <button
+                  onClick={() => runOperation({ tool: "rebalance_day", day: detailDay } as Operation)}
+                  className="mt-3 flex items-center gap-1.5 rounded-full bg-bgsoft px-3.5 py-1.5 text-xs font-bold text-plum transition hover:bg-lav"
+                >
+                  <RefreshIcon className="h-3.5 w-3.5" /> Balance {detailDay} around this
+                </button>
+              )}
               <div className="mt-4 grid grid-cols-5 gap-2 text-center">
                 {[
                   [detail.calories, "kcal"],

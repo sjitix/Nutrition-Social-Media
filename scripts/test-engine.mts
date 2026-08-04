@@ -1007,7 +1007,7 @@ console.log("--- REPLY COMPOSITION (who gets the last word) ---");
   // Read-only tools must not make the UI think the week was rewritten.
   for (const t of ["answer", "weekly_report", "explain_meal", "substitute_ingredient", "symptom_check"])
     check(`${t} does not flag the plan as changed`, !planWasChanged([op({ tool: t as Operation["tool"] })]));
-  for (const t of ["update_profile", "regenerate_week", "regenerate_day", "swap_meal", "compute_targets", "log_meal", "eating_out"])
+  for (const t of ["update_profile", "regenerate_week", "regenerate_day", "swap_meal", "compute_targets", "log_meal", "eating_out", "rebalance_day"])
     check(`${t} flags the plan as changed`, planWasChanged([op({ tool: t as Operation["tool"] })]));
 
   // Every tool in the schema must be classified deliberately, one way or the other.
@@ -1015,6 +1015,45 @@ console.log("--- REPLY COMPOSITION (who gets the last word) ---");
     "log_meal", "weekly_report", "eating_out", "explain_meal", "substitute_ingredient", "symptom_check", "answer"];
   const unclassified = ALL.filter((t) => !READ_ONLY_TOOLS.has(t) && !planWasChanged([op({ tool: t as Operation["tool"] })]));
   check("no tool is left unclassified", unclassified.length === 0, unclassified.join(", "));
+}
+
+// ---------------------------------------------------------------- rebalance_day (Phase 2 importer)
+console.log("");
+console.log("--- REBALANCE_DAY (balance a day around an imported/fixed meal) ---");
+{
+  const wk = freshWeek(BASE);
+  const day = "Wednesday" as const;
+  const di = wk.days.findIndex((d) => d.day === day);
+  // A heavy imported dinner. It has NO base recipe, so the engine must hold it FIXED and rescale
+  // only the day's OTHER meals to bring the day back toward the 2000 target.
+  const importedDinner = importedToMeal(
+    {
+      name: "Imported Feast Bowl", sourceUrl: "https://example.com/feast", servings: 1,
+      ingredients: [{ name: "rice", quantity: "2 cups" }], steps: ["Cook."],
+      calories: 1100, proteinGrams: 40, carbsGrams: 120, fatGrams: 45, macrosSource: "site",
+    },
+    "dinner",
+  );
+  const withImport: WeekPlan = {
+    ...wk,
+    days: wk.days.map((d) =>
+      d.day === day ? { ...d, meals: d.meals.map((m) => (m.type === "dinner" ? importedDinner : m)) } : d,
+    ),
+  };
+  const others = (dp: DayPlan) => dp.meals.filter((m) => m.type !== "dinner").reduce((s, m) => s + m.calories, 0);
+  const beforeOthers = others(withImport.days[di]);
+
+  const r = applyOperations(BASE, withImport, [op({ tool: "rebalance_day", day })]);
+  const dpAfter = r.plan.days[di];
+  const dinnerAfter = dpAfter.meals.find((m) => m.type === "dinner")!;
+
+  check("rebalance_day: flags the plan as changed", r.planChanged === true);
+  check("rebalance_day: the imported meal is held FIXED", dinnerAfter.calories === importedDinner.calories && dinnerAfter.name === importedDinner.name);
+  check("rebalance_day: the OTHER meals were trimmed toward target", others(dpAfter) < beforeOthers, `${beforeOthers} -> ${others(dpAfter)}`);
+  check("rebalance_day: no meal is dropped or zeroed", dpAfter.meals.length === withImport.days[di].meals.length && dpAfter.meals.every((m) => m.calories > 0));
+  // An unknown day is an honest no-op, not a crash.
+  const bad = applyOperations(BASE, withImport, [op({ tool: "rebalance_day", day: null })]);
+  check("rebalance_day: no day -> asks, changes nothing", bad.planChanged === false);
 }
 
 

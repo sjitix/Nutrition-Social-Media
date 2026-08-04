@@ -4864,6 +4864,37 @@ export function applyOperations(
         curPlan = scalePortions(p, curPlan, op.portionChange, op.day ?? undefined, op.mealType ?? undefined, notes);
         break;
       }
+      case "rebalance_day": {
+        // "Balance my day around this" — the coach move after importing a meal. scaleToTargets holds
+        // anything without a base recipe (an imported meal, a logged meal, a restaurant reserve) as a
+        // FIXED contribution and rescales the day's OTHER meals' portions to hit the calorie/macro
+        // target around it. Portions only — it never swaps the dishes the user chose.
+        if (!op.day) {
+          notes.push("Which day should I balance around your other meals?");
+          break;
+        }
+        const dp = curPlan.days.find((d) => d.day === op.day);
+        if (!dp) {
+          notes.push(`I don't see ${op.day} in your plan.`);
+          break;
+        }
+        const scaled = scaleToTargets(dp.meals, p);
+        const changed = scaled.some((m, i) => JSON.stringify(m) !== JSON.stringify(dp.meals[i]));
+        if (!changed) {
+          notes.push(`${op.day} is already balanced around your targets — nothing to move.`);
+          break;
+        }
+        curPlan = { ...curPlan, days: curPlan.days.map((d) => (d.day === op.day ? { ...d, meals: scaled } : d)) };
+        const total = Math.round(scaled.reduce((s, m) => s + m.calories, 0));
+        const tgt = Math.round(dayTargetMacros(p).cal);
+        const off = total - tgt;
+        notes.push(
+          Math.abs(off) <= 60
+            ? `Balanced ${op.day} around your other meals — the day now lands at about ${total} kcal, on your ${tgt} target.`
+            : `Balanced ${op.day} as far as realistic portions allow: about ${total} kcal, still ${off > 0 ? `${off} over` : `${-off} under`} your ${tgt} target — the fixed meal is too ${off > 0 ? "large" : "small"} for the rest of the day to fully offset.`,
+        );
+        break;
+      }
       case "hydration": {
         // Read-only. The weight comes from the profile (compute_targets stored it) or from what
         // the user just said. We never guess a body weight — the same rule compute_targets follows.

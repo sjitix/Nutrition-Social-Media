@@ -22,6 +22,9 @@ const ALLOWED: ReadonlySet<Operation["tool"]> = new Set([
   "lock_meal",
   "unlock_meal",
   "scale_portions",
+  // Deterministic: rescales a day's other meals' portions to the targets, holding fixed anything
+  // without a base recipe. Button-driven ("balance my day around this import") — no interpretation.
+  "rebalance_day",
   "undo",
   // Read-only and deterministic: the engine computes the week's averages and nutrient gaps. Lets
   // the Home "coach" card show it without a model call — it's just facts about the current plan.
