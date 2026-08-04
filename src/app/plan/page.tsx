@@ -11,7 +11,9 @@ import {
   ClockIcon,
   CompassIcon,
   ExternalLinkIcon,
+  HeartIcon,
   HomeIcon,
+  SearchIcon,
   PinIcon,
   PlayIcon,
   PlusIcon,
@@ -22,17 +24,22 @@ import {
   XIcon,
   ZapIcon,
 } from "@/components/icons";
-import { FEED_RECIPES, filterFeed, type FeedFilter, type FeedDiet } from "@/lib/feed";
+import { FEED_RECIPES, filterFeed, sortFeed, type FeedFilter, type FeedDiet, type FeedSort } from "@/lib/feed";
+import { groupByAisle } from "@/lib/grocery";
 import { importedToMeal, type ImportedRecipe } from "@/lib/import";
 import {
   loadChat,
+  loadGroceriesChecked,
   loadImports,
   loadPlan,
   loadProfile,
+  loadSaved,
   rememberImport,
   saveChat,
+  saveGroceriesChecked,
   savePlan,
   saveProfile,
+  toggleSaved,
 } from "@/lib/storage";
 import { DAYS, type ChatMessage, type Meal, type Operation, type PlanSnapshot, type UserProfile, type WeekPlan } from "@/lib/types";
 
@@ -132,11 +139,16 @@ export default function PlanPage() {
   const [chatImport, setChatImport] = useState<ImportedRecipe | null>(null);
   // History of link-imported recipes (newest first), so they can be re-added without re-fetching.
   const [importHistory, setImportHistory] = useState<ImportedRecipe[]>([]);
-  // Phase 3 — the feed's filter facets.
+  // Phase 3 — the feed's filter facets, search, sort, favourites, and paging.
   const [feedMealType, setFeedMealType] = useState<FeedFilter["mealType"]>("all");
   const [feedDiet, setFeedDiet] = useState<FeedDiet>("all");
   const [feedHighProtein, setFeedHighProtein] = useState(false);
   const [feedQuick, setFeedQuick] = useState(false); // <= 20 min
+  const [feedQuery, setFeedQuery] = useState("");
+  const [feedSort, setFeedSort] = useState<FeedSort>("default");
+  const [feedSavedOnly, setFeedSavedOnly] = useState(false);
+  const [feedLimit, setFeedLimit] = useState(24); // paginate: render a slice, "load more" grows it
+  const [saved, setSaved] = useState<Set<string>>(new Set());
   const [regenerating, setRegenerating] = useState(false);
   const [regenError, setRegenError] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -152,6 +164,8 @@ export default function PlanPage() {
     setPlan(w);
     setChat(loadChat());
     setImportHistory(loadImports());
+    setSaved(new Set(loadSaved()));
+    setChecked(new Set(loadGroceriesChecked()));
     // Start the feed on the user's own diet — the most relevant view — with "All" still one tap away.
     if (p.diet && p.diet !== "none") setFeedDiet(p.diet as FeedDiet);
   }, [router]);
@@ -213,37 +227,86 @@ export default function PlanPage() {
 
   const groceries = useMemo(() => {
     if (!plan) return [];
-    const map = new Map<string, { name: string; quantities: string[] }>();
+    const map = new Map<string, { key: string; name: string; quantities: string[] }>();
     for (const day of plan.days) {
       for (const meal of day.meals) {
         for (const ing of meal.ingredients) {
           const key = ing.name.trim().toLowerCase();
-          const entry = map.get(key) ?? { name: ing.name, quantities: [] };
-          entry.quantities.push(ing.quantity);
+          const entry = map.get(key) ?? { key, name: ing.name, quantities: [] };
+          if (ing.quantity) entry.quantities.push(ing.quantity);
           map.set(key, entry);
         }
       }
     }
     return [...map.values()]
-      .map((e) => ({ ...e, price: estimatePrice(e.name, e.quantities.length) }))
+      .map((e) => ({ ...e, price: estimatePrice(e.name, e.quantities.length || 1) }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [plan]);
+
+  // Aisle-grouped view of the same list, for shopping in one walk instead of criss-crossing.
+  const groceryAisles = useMemo(() => groupByAisle(groceries), [groceries]);
+
+  // When the plan changes the shopping list, keep the ticks for items that are STILL on it and drop
+  // only the ones that left — a plan edit shouldn't wipe a shop in progress. Persisted so a reload
+  // keeps them too.
+  useEffect(() => {
+    const keys = new Set(groceries.map((g) => g.key));
+    setChecked((prev) => {
+      const pruned = new Set([...prev].filter((k) => keys.has(k)));
+      if (pruned.size !== prev.size) saveGroceriesChecked([...pruned]);
+      return pruned;
+    });
+  }, [groceries]);
+
+  function toggleChecked(key: string) {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      saveGroceriesChecked([...next]);
+      return next;
+    });
+  }
 
   const groceriesTotal = useMemo(
     () => groceries.reduce((s, g) => s + g.price, 0),
     [groceries],
   );
 
-  const feed = useMemo(
-    () =>
-      filterFeed(FEED_RECIPES, {
-        mealType: feedMealType,
-        diet: feedDiet,
-        highProtein: feedHighProtein,
-        maxTime: feedQuick ? 20 : null,
-      }),
-    [feedMealType, feedDiet, feedHighProtein, feedQuick],
-  );
+  const feed = useMemo(() => {
+    let items = filterFeed(FEED_RECIPES, {
+      mealType: feedMealType,
+      diet: feedDiet,
+      highProtein: feedHighProtein,
+      maxTime: feedQuick ? 20 : null,
+      query: feedQuery,
+    });
+    if (feedSavedOnly) items = items.filter((it) => saved.has(it.meal.name));
+    return sortFeed(items, feedSort);
+  }, [feedMealType, feedDiet, feedHighProtein, feedQuick, feedQuery, feedSort, feedSavedOnly, saved]);
+
+  // Any filter change resets paging back to the first page.
+  useEffect(() => {
+    setFeedLimit(24);
+  }, [feedMealType, feedDiet, feedHighProtein, feedQuick, feedQuery, feedSort, feedSavedOnly]);
+
+  function toggleSave(name: string) {
+    const next = new Set(toggleSaved(name));
+    setSaved(next);
+    setToast(next.has(name) ? `Saved "${name}"` : `Removed "${name}" from saved`);
+  }
+
+  // Add a feed recipe to the plan, with an honest toast — the card used to change silently and, if
+  // the target day weren't present, fail without a word.
+  function addFeedRecipe(meal: Meal) {
+    if (added.has(meal.name)) return;
+    if (addRecipeToDay(importDay, meal.name, meal)) {
+      const when = importDay === todayName() ? "today" : importDay;
+      setToast(`Added "${meal.name}" to ${when}'s ${meal.type}.`);
+    } else {
+      setToast(`Couldn't add that — ${importDay} isn't in your plan.`);
+    }
+  }
 
   const weekStats = useMemo(() => {
     if (!plan || plan.days.length === 0) return { kcal: 0, protein: 0 };
@@ -426,7 +489,6 @@ export default function PlanPage() {
         }
       }
       setPrevious(data.previous ?? undefined);
-      if (data.planChanged) setChecked(new Set());
       if (data.reply) setToast(data.reply);
     } catch (err) {
       setToast(err instanceof Error ? err.message : "Couldn't do that.");
@@ -464,7 +526,6 @@ export default function PlanPage() {
       if (plan) setPrevious({ plan, profile, label: "rebuilt your week" });
       setPlan(data.plan);
       savePlan(data.plan);
-      setChecked(new Set());
     } catch (err) {
       setRegenError(err instanceof Error ? err.message : "Couldn't regenerate the plan.");
     } finally {
@@ -520,7 +581,6 @@ export default function PlanPage() {
         saveProfile(data.profile);
       }
       setPrevious(data.previous ?? undefined);
-      if (data.planChanged) setChecked(new Set());
     } catch (err) {
       setChatError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
@@ -1028,6 +1088,38 @@ export default function PlanPage() {
 
               {/* Filter bar (Phase 3). All deterministic — filtering a fixed, macro-validated list. */}
               <div className="mt-6 space-y-2.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="relative min-w-[12rem] flex-1">
+                    <SearchIcon className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-mut" />
+                    <input
+                      value={feedQuery}
+                      onChange={(e) => setFeedQuery(e.target.value)}
+                      placeholder="Search recipes or ingredients…"
+                      aria-label="Search recipes"
+                      className="w-full rounded-full bg-white py-2 pr-3 pl-9 text-sm ring-1 ring-line outline-none focus:ring-2 focus:ring-vio"
+                    />
+                    {feedQuery && (
+                      <button
+                        onClick={() => setFeedQuery("")}
+                        aria-label="Clear search"
+                        className="absolute top-1/2 right-2 -translate-y-1/2 rounded-full p-1 text-mut hover:text-plum"
+                      >
+                        <XIcon className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                  <select
+                    value={feedSort}
+                    onChange={(e) => setFeedSort(e.target.value as FeedSort)}
+                    aria-label="Sort recipes"
+                    className="rounded-full bg-white px-3 py-2 text-xs font-bold text-plum ring-1 ring-line outline-none focus:ring-vio"
+                  >
+                    <option value="default">Featured</option>
+                    <option value="protein">Most protein</option>
+                    <option value="calories-low">Fewest calories</option>
+                    <option value="time">Quickest</option>
+                  </select>
+                </div>
                 <div className="flex flex-wrap items-center gap-1.5">
                   {([
                     ["all", "All"],
@@ -1075,6 +1167,12 @@ export default function PlanPage() {
                   >
                     Under 20 min
                   </button>
+                  <button
+                    onClick={() => setFeedSavedOnly((v) => !v)}
+                    className={`flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-bold transition ${feedSavedOnly ? "bg-vio text-white" : "bg-white text-plum ring-1 ring-line hover:ring-vio"}`}
+                  >
+                    <HeartIcon className="h-3.5 w-3.5" filled={feedSavedOnly} /> Saved{saved.size ? ` (${saved.size})` : ""}
+                  </button>
                 </div>
                 <div className="flex items-center gap-2 pt-0.5 text-xs text-mut">
                   <span>
@@ -1095,62 +1193,93 @@ export default function PlanPage() {
               </div>
 
               {feed.length === 0 ? (
-                <p className="mt-8 text-sm text-mut">No recipes match those filters — loosen one.</p>
+                <p className="mt-8 text-sm text-mut">
+                  {feedSavedOnly && saved.size === 0
+                    ? "You haven't saved any recipes yet — tap the heart on a recipe to keep it here."
+                    : "No recipes match those filters — loosen one, or clear the search."}
+                </p>
               ) : (
-                <div className="mt-4 columns-2 gap-4 lg:columns-3">
-                  {feed.map((r) => {
-                    const isAdded = added.has(r.meal.name);
-                    // Deterministic masonry height from the name, so the wall varies but is stable.
-                    const h = 130 + (Math.abs([...r.meal.name].reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 0)) % 80);
-                    return (
-                      <div
-                        key={r.meal.name}
-                        className="mb-4 break-inside-avoid overflow-hidden rounded-2xl bg-white card-shadow"
-                      >
-                        <button onClick={() => openMeal(r.meal)} className="block w-full">
-                          <div
-                            className="w-full bg-cover bg-center"
-                            style={{ height: h, ...(r.image ? { backgroundImage: `url(${r.image})` } : { background: r.gradient }) }}
-                          />
-                        </button>
-                        <div className="p-3">
-                          <p className="text-sm font-bold">{r.meal.name}</p>
-                          <div className="mt-1.5 flex flex-wrap gap-1.5">
-                            <span className="rounded-full bg-lav px-2 py-0.5 text-[10px] font-bold text-vio-deep">
-                              {r.meal.calories} kcal
-                            </span>
-                            <span className="rounded-full bg-lav px-2 py-0.5 text-[10px] font-bold text-vio-deep">
-                              {r.meal.proteinGrams} g protein
-                            </span>
-                            {r.dietTags.includes("vegan") ? (
-                              <span className="rounded-full bg-mint-soft px-2 py-0.5 text-[10px] font-bold text-mint">vegan</span>
-                            ) : r.dietTags.includes("vegetarian") ? (
-                              <span className="rounded-full bg-mint-soft px-2 py-0.5 text-[10px] font-bold text-mint">veg</span>
-                            ) : null}
+                <>
+                  <div className="mt-4 columns-2 gap-4 lg:columns-3">
+                    {feed.slice(0, feedLimit).map((r) => {
+                      const isAdded = added.has(r.meal.name);
+                      const isSaved = saved.has(r.meal.name);
+                      // Deterministic masonry height from the name, so the wall varies but is stable.
+                      const h = 130 + (Math.abs([...r.meal.name].reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 0)) % 80);
+                      return (
+                        <div
+                          key={r.meal.name}
+                          className="mb-4 break-inside-avoid overflow-hidden rounded-2xl bg-white card-shadow"
+                        >
+                          <div className="relative">
+                            <button
+                              onClick={() => openMeal(r.meal)}
+                              aria-label={`View ${r.meal.name}`}
+                              className="block w-full"
+                            >
+                              <div
+                                className="w-full bg-cover bg-center"
+                                style={{ height: h, ...(r.image ? { backgroundImage: `url(${r.image})` } : { background: r.gradient }) }}
+                              />
+                            </button>
+                            <button
+                              onClick={() => toggleSave(r.meal.name)}
+                              aria-label={isSaved ? `Remove ${r.meal.name} from saved` : `Save ${r.meal.name}`}
+                              aria-pressed={isSaved}
+                              className={`absolute top-2 right-2 rounded-full p-2 shadow-sm backdrop-blur transition ${isSaved ? "bg-white text-vio" : "bg-black/35 text-white hover:bg-black/55"}`}
+                            >
+                              <HeartIcon className="h-4 w-4" filled={isSaved} />
+                            </button>
                           </div>
-                          <button
-                            onClick={() => !isAdded && addRecipeToDay(importDay, r.meal.name, r.meal)}
-                            className={`mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-full py-1.5 text-xs font-bold transition ${
-                              isAdded
-                                ? "bg-mint-soft text-mint"
-                                : "bg-vio text-white hover:bg-vio-deep"
-                            }`}
-                          >
-                            {isAdded ? (
-                              <>
-                                <CheckIcon className="h-3 w-3" /> In your plan
-                              </>
-                            ) : (
-                              <>
-                                <PlusIcon className="h-3 w-3" /> Add to plan
-                              </>
-                            )}
-                          </button>
+                          <div className="p-3">
+                            <p className="text-sm font-bold">{r.meal.name}</p>
+                            <div className="mt-1.5 flex flex-wrap gap-1.5">
+                              <span className="rounded-full bg-lav px-2 py-0.5 text-[10px] font-bold text-vio-deep">
+                                {r.meal.calories} kcal
+                              </span>
+                              <span className="rounded-full bg-lav px-2 py-0.5 text-[10px] font-bold text-vio-deep">
+                                {r.meal.proteinGrams} g protein
+                              </span>
+                              {r.dietTags.includes("vegan") ? (
+                                <span className="rounded-full bg-mint-soft px-2 py-0.5 text-[10px] font-bold text-mint">vegan</span>
+                              ) : r.dietTags.includes("vegetarian") ? (
+                                <span className="rounded-full bg-mint-soft px-2 py-0.5 text-[10px] font-bold text-mint">veg</span>
+                              ) : null}
+                            </div>
+                            <button
+                              onClick={() => addFeedRecipe(r.meal)}
+                              className={`mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-full py-1.5 text-xs font-bold transition ${
+                                isAdded
+                                  ? "bg-mint-soft text-mint"
+                                  : "bg-vio text-white hover:bg-vio-deep"
+                              }`}
+                            >
+                              {isAdded ? (
+                                <>
+                                  <CheckIcon className="h-3 w-3" /> In your plan
+                                </>
+                              ) : (
+                                <>
+                                  <PlusIcon className="h-3 w-3" /> Add to plan
+                                </>
+                              )}
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                  {feed.length > feedLimit && (
+                    <div className="mt-2 flex justify-center">
+                      <button
+                        onClick={() => setFeedLimit((n) => n + 24)}
+                        className="rounded-full bg-white px-6 py-2.5 text-sm font-bold text-vio-deep ring-1 ring-line transition hover:ring-vio"
+                      >
+                        Load more ({feed.length - feedLimit} left)
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}
@@ -1158,42 +1287,76 @@ export default function PlanPage() {
           {/* ---------- GROCERIES ---------- */}
           {view === "groceries" && (
             <>
-              <h1 className="font-display text-3xl font-bold tracking-tight">Groceries</h1>
-              <p className="mt-1 text-sm text-mut">
-                {checked.size} of {groceries.length} items · whole week, aggregated
-              </p>
-              <div className="mt-6 rounded-2xl bg-white p-6 card-shadow">
-                <ul className="grid gap-1 sm:grid-cols-2">
-                  {groceries.map((g) => {
-                    const done = checked.has(g.name);
-                    return (
-                      <li key={g.name}>
-                        <label
-                          className={`flex cursor-pointer items-start gap-3 rounded-xl px-3 py-2 transition hover:bg-lav ${done ? "opacity-50" : ""}`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={done}
-                            onChange={() => {
-                              const next = new Set(checked);
-                              if (done) next.delete(g.name);
-                              else next.add(g.name);
-                              setChecked(next);
-                            }}
-                            className="mt-1 h-4 w-4 accent-vio"
-                          />
-                          <span className={done ? "line-through" : ""}>
-                            <span className="text-sm font-medium">{g.name}</span>{" "}
-                            <span className="text-xs text-mut">
-                              ({g.quantities.join(" + ")})
-                            </span>
-                          </span>
-                        </label>
-                      </li>
-                    );
-                  })}
-                </ul>
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <h1 className="font-display text-3xl font-bold tracking-tight">Groceries</h1>
+                  <p className="mt-1 text-sm text-mut">
+                    {checked.size} of {groceries.length} ticked · whole week, aggregated by aisle
+                  </p>
+                </div>
+                {groceries.length > 0 && (
+                  <div className="text-right">
+                    <p className="font-display text-2xl font-bold text-vio-deep tabular-nums">
+                      ${groceriesTotal.toFixed(2)}
+                    </p>
+                    <p className="text-[11px] text-mut">estimated total</p>
+                  </div>
+                )}
               </div>
+
+              {groceries.length === 0 ? (
+                <div className="mt-8 rounded-2xl bg-white p-10 text-center card-shadow">
+                  <CartIcon className="mx-auto h-8 w-8 text-mut" />
+                  <p className="mt-3 text-sm text-mut">Your shopping list fills up once you have a plan.</p>
+                </div>
+              ) : (
+                <>
+                  {/* Progress bar across the whole list. */}
+                  <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-lav">
+                    <div
+                      className="h-full rounded-full bg-vio transition-all"
+                      style={{ width: `${groceries.length ? (checked.size / groceries.length) * 100 : 0}%` }}
+                    />
+                  </div>
+
+                  <div className="mt-4 space-y-4">
+                    {groceryAisles.map((group) => (
+                      <div key={group.aisle} className="rounded-2xl bg-white p-4 card-shadow sm:p-5">
+                        <h2 className="text-xs font-bold tracking-widest text-vio-deep uppercase">
+                          {group.aisle}
+                          <span className="ml-2 font-semibold text-mut">{group.items.length}</span>
+                        </h2>
+                        <ul className="mt-2 grid gap-0.5 sm:grid-cols-2">
+                          {group.items.map((g) => {
+                            const done = checked.has(g.key);
+                            return (
+                              <li key={g.key}>
+                                <label
+                                  className={`flex cursor-pointer items-start gap-3 rounded-xl px-2.5 py-2 transition hover:bg-lav ${done ? "opacity-45" : ""}`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={done}
+                                    onChange={() => toggleChecked(g.key)}
+                                    className="mt-0.5 h-4 w-4 flex-none accent-vio"
+                                  />
+                                  <span className="min-w-0 flex-1">
+                                    <span className={`text-sm font-medium ${done ? "line-through" : ""}`}>{g.name}</span>
+                                    {g.quantities.length > 0 && (
+                                      <span className="ml-1 text-xs text-mut">({g.quantities.join(" + ")})</span>
+                                    )}
+                                  </span>
+                                  <span className="flex-none text-xs text-mut tabular-nums">${g.price.toFixed(2)}</span>
+                                </label>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
             </>
           )}
 
@@ -1396,6 +1559,15 @@ export default function PlanPage() {
                   <ExternalLinkIcon className="h-3.5 w-3.5" /> View original recipe
                 </a>
               )}
+              {/* Save / favourite this dish (works for library and imported recipes). */}
+              <button
+                onClick={() => toggleSave(detail.name)}
+                aria-pressed={saved.has(detail.name)}
+                className={`mt-3 flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold transition ${saved.has(detail.name) ? "bg-vio text-white" : "bg-bgsoft text-plum hover:bg-lav"}`}
+              >
+                <HeartIcon className="h-3.5 w-3.5" filled={saved.has(detail.name)} />
+                {saved.has(detail.name) ? "Saved" : "Save"}
+              </button>
               {/* Rate the dish. Deterministic — goes straight to /api/operation, no assistant. A
                   5 gets it planned more often; a 1 stops it coming back (unless a slot would empty). */}
               <div className="mt-3 flex items-center gap-1">

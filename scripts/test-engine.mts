@@ -15,8 +15,9 @@
 import { selectWeekFromDb, rebalanceWeek, applyOperations, RECIPES, recipeMicros, newReport, reportNotes } from "@/lib/recipeDb";
 import type { UserProfile, Operation, DayPlan, WeekPlan, Meal } from "@/lib/types";
 import { MealSchema } from "@/lib/types";
-import { FEED_RECIPES, filterFeed, HIGH_PROTEIN_G, type FeedFilter } from "@/lib/feed";
+import { FEED_RECIPES, filterFeed, sortFeed, HIGH_PROTEIN_G, type FeedFilter } from "@/lib/feed";
 import { videoPlatform, extractVideoText } from "@/lib/videoImport";
+import { aisleFor, groupByAisle, AISLE_ORDER } from "@/lib/grocery";
 import { microsForIngredients } from "@/lib/nutrients";
 import { haystackBlocked, dietTagConflicts, parseExclusionTokens } from "@/lib/exclusions";
 import { bmr, computeTargets, hydrationTarget } from "@/lib/targets";
@@ -1063,7 +1064,7 @@ console.log("--- REBALANCE_DAY (balance a day around an imported/fixed meal) ---
 console.log("");
 console.log("--- FEED (browse the library, filtered) ---");
 {
-  const all: FeedFilter = { mealType: "all", diet: "all", highProtein: false, maxTime: null };
+  const all: FeedFilter = { mealType: "all", diet: "all", highProtein: false, maxTime: null, query: "" };
   check("feed: has a substantial number of recipes", FEED_RECIPES.length >= 20, String(FEED_RECIPES.length));
   // A discovery feed must NOT surface treat-only dishes (pizza, burgers) — same rule as the planner.
   check("feed: excludes treat-only dishes", FEED_RECIPES.every((it) => !/pizza|burger/i.test(it.meal.name)));
@@ -1085,8 +1086,27 @@ console.log("--- FEED (browse the library, filtered) ---");
   check("feed: time filter respects the cap", quick.every((it) => it.meal.timeMinutes <= 20));
 
   // Facets AND together, not OR.
-  const combo = filterFeed(FEED_RECIPES, { mealType: "lunch", diet: "vegan", highProtein: false, maxTime: null });
+  const combo = filterFeed(FEED_RECIPES, { mealType: "lunch", diet: "vegan", highProtein: false, maxTime: null, query: "" });
   check("feed: facets combine (vegan lunches only)", combo.every((it) => it.meal.type === "lunch" && it.dietTags.includes("vegan")));
+
+  // Search over name + ingredients.
+  const salmon = filterFeed(FEED_RECIPES, { ...all, query: "salmon" });
+  check("feed: search finds a term in name or ingredients", salmon.length > 0 && salmon.every((it) => /salmon/i.test(it.meal.name + " " + it.meal.ingredients.map((i) => i.name).join(" "))));
+  // Multi-term is AND across name+ingredients.
+  const both = filterFeed(FEED_RECIPES, { ...all, query: "chicken rice" });
+  check("feed: multi-term search is AND", both.every((it) => { const h = (it.meal.name + " " + it.meal.ingredients.map((i) => i.name).join(" ")).toLowerCase(); return h.includes("chicken") && h.includes("rice"); }));
+  check("feed: an empty query matches everything", filterFeed(FEED_RECIPES, { ...all, query: "   " }).length === FEED_RECIPES.length);
+  check("feed: gibberish matches nothing", filterFeed(FEED_RECIPES, { ...all, query: "zzxqwlk" }).length === 0);
+
+  // Sorting is a stable, correct re-ordering that preserves the set.
+  const base = filterFeed(FEED_RECIPES, all);
+  const byProtein = sortFeed(base, "protein");
+  check("feed: sort by protein is descending, same count", byProtein.length === base.length && byProtein.every((it, i) => i === 0 || byProtein[i - 1].meal.proteinGrams >= it.meal.proteinGrams));
+  const byCal = sortFeed(base, "calories-low");
+  check("feed: sort by calories is ascending", byCal.every((it, i) => i === 0 || byCal[i - 1].meal.calories <= it.meal.calories));
+  const byTime = sortFeed(base, "time");
+  check("feed: sort by time is ascending", byTime.every((it, i) => i === 0 || byTime[i - 1].meal.timeMinutes <= it.meal.timeMinutes));
+  check("feed: default sort keeps library order", sortFeed(base, "default").map((it) => it.meal.name).join("|") === base.map((it) => it.meal.name).join("|"));
 }
 
 // ---------------------------------------------------------------- audit regressions
@@ -1901,6 +1921,39 @@ console.log("--- RECIPE IMPORT (paste a link -> plan-ready meal, deterministic) 
   let threw = false;
   try { parseRecipeHtml("<html><body>just a blog post</body></html>", "https://example.com/x"); } catch { threw = true; }
   check("import: a page with no recipe throws a clear error", threw);
+}
+
+console.log("--- GROCERY AISLES (shop in one walk, not criss-crossing) ---");
+{
+  const cases: [string, string][] = [
+    ["Chicken breast", "Meat & Fish"],
+    ["Salmon fillet", "Meat & Fish"],
+    ["Greek yogurt", "Dairy & Eggs"],
+    ["Eggs", "Dairy & Eggs"],
+    ["Eggplant", "Produce"], // must NOT read "egg"
+    ["Spinach", "Produce"],
+    ["Bell pepper", "Produce"],
+    ["Black pepper", "Pantry"], // must NOT read as a bell "pepper"
+    ["Sourdough bread", "Bakery"],
+    ["Olive oil", "Pantry"],
+    ["Brown rice", "Pantry"],
+    ["Chickpeas", "Pantry"], // must NOT read as fresh "peas"
+    ["Frozen berries", "Frozen"], // frozen wins over "berries"
+    ["Unicorn dust", "Other"],
+  ];
+  for (const [name, want] of cases) check(`aisle: ${name} -> ${want}`, aisleFor(name) === want, aisleFor(name));
+
+  // Grouping keeps every item and lays aisles out in shopping order.
+  const items = [
+    { name: "Chicken breast", price: 3 },
+    { name: "Spinach", price: 1 },
+    { name: "Brown rice", price: 1 },
+    { name: "Eggs", price: 2 },
+  ];
+  const groups = groupByAisle(items);
+  check("grocery: grouping loses no items", groups.reduce((s, g) => s + g.items.length, 0) === items.length);
+  check("grocery: aisles appear in shopping order", groups.map((g) => g.aisle).every((a, i, arr) => i === 0 || AISLE_ORDER.indexOf(arr[i - 1]) < AISLE_ORDER.indexOf(a)));
+  check("grocery: an empty list yields no groups", groupByAisle([]).length === 0);
 }
 
 console.log("--- VIDEO IMPORT (Phase 2: read a recipe from a reel's caption) ---");

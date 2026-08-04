@@ -92,6 +92,21 @@ export const SendIcon = ({ className }: IconProps) => (
   </svg>
 );
 
+// Save / favourite. Outline when unsaved, solid when saved — same language as the star.
+export const HeartIcon = ({ className, filled = false }: IconProps & { filled?: boolean }) => (
+  <svg {...base(className)} fill={filled ? "currentColor" : "none"}>
+    <path d="M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.6l-1-1a5.5 5.5 0 00-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 000-7.8z" />
+  </svg>
+);
+
+// Magnifier — feed search.
+export const SearchIcon = ({ className }: IconProps) => (
+  <svg {...base(className)}>
+    <circle cx="11" cy="11" r="7" />
+    <path d="M21 21l-4.3-4.3" />
+  </svg>
+);
+
 // Outbound link — used on an imported meal to open its original recipe page.
 export const ExternalLinkIcon = ({ className }: IconProps) => (
   <svg {...base(className)}>

@@ -34,11 +34,21 @@ export interface FeedFilter {
   diet: FeedDiet;
   highProtein: boolean;
   maxTime: number | null; // minutes; null = any
+  query: string; // free text over name + ingredients; "" = no text filter
 }
 
 // "High protein" as an absolute floor, not a ratio — someone filtering for it wants a meal that
 // actually delivers, and a 200 kcal snack at 40% protein still only has 20 g.
 export const HIGH_PROTEIN_G = 25;
+
+/** Every whitespace-separated term must appear in the name or an ingredient (AND), so "chicken rice"
+ *  finds dishes with both. Case-insensitive substring. */
+function matchesQuery(it: FeedItem, query: string): boolean {
+  const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!terms.length) return true;
+  const hay = (it.meal.name + " " + it.meal.ingredients.map((i) => i.name).join(" ")).toLowerCase();
+  return terms.every((t) => hay.includes(t));
+}
 
 /** Pure, so it's unit-tested. Narrows the feed by every active facet (AND, not OR). */
 export function filterFeed(items: FeedItem[], f: FeedFilter): FeedItem[] {
@@ -47,6 +57,24 @@ export function filterFeed(items: FeedItem[], f: FeedFilter): FeedItem[] {
     if (f.diet !== "all" && !it.dietTags.includes(f.diet)) return false;
     if (f.highProtein && it.meal.proteinGrams < HIGH_PROTEIN_G) return false;
     if (f.maxTime != null && it.meal.timeMinutes > f.maxTime) return false;
+    if (!matchesQuery(it, f.query)) return false;
     return true;
   });
+}
+
+export type FeedSort = "default" | "protein" | "calories-low" | "time";
+
+/** Sort a filtered feed. "default" keeps library order; the rest are stable, pure re-orderings. */
+export function sortFeed(items: FeedItem[], sort: FeedSort): FeedItem[] {
+  const copy = items.slice();
+  switch (sort) {
+    case "protein":
+      return copy.sort((a, b) => b.meal.proteinGrams - a.meal.proteinGrams);
+    case "calories-low":
+      return copy.sort((a, b) => a.meal.calories - b.meal.calories);
+    case "time":
+      return copy.sort((a, b) => a.meal.timeMinutes - b.meal.timeMinutes);
+    default:
+      return copy;
+  }
 }

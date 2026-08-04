@@ -9,6 +9,8 @@ const KEYS = {
   plan: "nutriflow.plan",
   chat: "nutriflow.chat",
   imports: "nutriflow.imports",
+  saved: "nutriflow.saved",
+  groceriesChecked: "nutriflow.groceriesChecked",
 } as const;
 
 const IMPORTS_CAP = 24;
@@ -45,6 +47,19 @@ export function rememberImport(r: ImportedRecipe): ImportedRecipe[] {
   write(KEYS.imports, next);
   return next;
 }
+
+// Saved / favorited recipes, by name (works for both library and imported recipes).
+export const loadSaved = () => read<string[]>(KEYS.saved) ?? [];
+export function toggleSaved(name: string): string[] {
+  const cur = loadSaved();
+  const next = cur.includes(name) ? cur.filter((n) => n !== name) : [name, ...cur];
+  write(KEYS.saved, next);
+  return next;
+}
+
+// Which grocery items are ticked off, by their lowercased name key, so a mid-shop reload keeps them.
+export const loadGroceriesChecked = () => read<string[]>(KEYS.groceriesChecked) ?? [];
+export const saveGroceriesChecked = (keys: string[]) => write(KEYS.groceriesChecked, keys);
 
 export function clearAll(): void {
   Object.values(KEYS).forEach((k) => window.localStorage.removeItem(k));
