@@ -9,9 +9,10 @@
 
 ## RESUME HERE (last updated: 2026-08-04)
 
-`main` is green: `npm run test:engine` **328 checks / 0 failed, fuzz clean**, plus `npm run
-test:api` (17, routes), `check:recipes`, `check:data`. v9 is live. No training running (the model
-line concluded at v9 — see the strategy note below; the GPU is free).
+`main` is green: `npm run test:engine` **330 checks / 0 failed, fuzz clean**, plus `npm run
+test:api` (**19**, routes — now incl. the `/api/import` SSRF guard + bad-input paths),
+`check:recipes`, `check:data`. v9 is live and serving. No training running (the model line
+concluded at v9 — see the strategy note below; the GPU is free).
 
 ### >>> NOW: Roadmap Phase 2 — the share-a-reel importer <<<
 
@@ -53,9 +54,20 @@ URL half is shipped (commit `821622c`).
    fetching + the MODEL to extract a recipe from prose (the JSON-LD path won't exist). This is the
    fragile, model-dependent layer; the URL path above is most of the value without it. Defer until
    the deterministic path is fully wired into the plan.
-5. **Dedupe / "already imported"**, and a small imported-recipes history.
-6. **Re-solve the day around an import** (like `log_meal`) so adding a heavy imported dinner rebalances
-   the rest of the day toward target, instead of just replacing the slot and letting the day drift.
+5. **Dedupe / "already imported"**, and a small imported-recipes history. *(low value)*
+6. **Re-solve the day around an import** — NEEDS A UX CALL, not obviously right. `log_meal`
+   rebalances because you ALREADY ATE the thing (a fait accompli the day must absorb). An import is
+   a DELIBERATE choice; silently rescaling the other planned meals is more aggressive than a user
+   may want. Best as an OPT-IN "balance my day around this" action (new deterministic op holding the
+   imported slot fixed + `rebalanceDay`), or skipped. Deferred pending direction.
+
+**Also shipped this pass (all pushed, sjitix):** the no-macros honesty note in the drawer (an
+imported meal from a site with no nutrition sits at 0 kcal — the drawer now says so and that it
+won't count toward the day, instead of a silent 0), and the `/api/import` route tests above.
+
+> **State: the URL importer is complete and solid.** The remaining Phase 2 items are the fragile
+> video/reel layer (4, model-dependent), low-value polish (5), and a genuine UX fork (6). None is a
+> clear "just do it" — the next substantial move wants owner direction.
 
 ---
 
