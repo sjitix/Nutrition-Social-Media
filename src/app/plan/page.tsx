@@ -297,6 +297,43 @@ export default function PlanPage() {
     setToast(next.has(name) ? `Saved "${name}"` : `Removed "${name}" from saved`);
   }
 
+  // Share by copying to the clipboard — no backend, works offline, and is the fastest way to send a
+  // recipe or a shopping list to someone.
+  async function copyText(text: string, ok: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setToast(ok);
+    } catch {
+      setToast("Couldn't copy — your browser blocked clipboard access.");
+    }
+  }
+
+  function shareRecipe(meal: Meal) {
+    const lines = [
+      meal.name,
+      "",
+      "Ingredients:",
+      ...meal.ingredients.map((i) => `- ${[i.quantity, i.name].filter(Boolean).join(" ")}`),
+      "",
+      "Method:",
+      ...meal.steps.map((s, i) => `${i + 1}. ${s}`),
+    ];
+    if (meal.sourceUrl) lines.push("", `Source: ${meal.sourceUrl}`);
+    void copyText(lines.join("\n"), `Copied "${meal.name}" to your clipboard`);
+  }
+
+  function copyGroceries() {
+    const lines: string[] = ["Shopping list"];
+    for (const group of groceryAisles) {
+      lines.push("", group.aisle.toUpperCase());
+      for (const g of group.items) {
+        lines.push(`- ${g.name}${g.quantities.length ? ` (${g.quantities.join(" + ")})` : ""}`);
+      }
+    }
+    lines.push("", `Estimated total: $${groceriesTotal.toFixed(2)}`);
+    void copyText(lines.join("\n"), "Grocery list copied to your clipboard");
+  }
+
   // Add a feed recipe to the plan, with an honest toast — the card used to change silently and, if
   // the target day weren't present, fail without a word.
   function addFeedRecipe(meal: Meal) {
@@ -1273,6 +1310,11 @@ export default function PlanPage() {
                               ) : r.dietTags.includes("vegetarian") ? (
                                 <span className="rounded-full bg-mint-soft px-2 py-0.5 text-[10px] font-bold text-mint">veg</span>
                               ) : null}
+                              {ratingFor(r.meal.name) > 0 && (
+                                <span className="flex items-center gap-0.5 rounded-full bg-lav px-2 py-0.5 text-[10px] font-bold text-vio-deep">
+                                  <StarIcon className="h-3 w-3" filled /> {ratingFor(r.meal.name)}
+                                </span>
+                              )}
                             </div>
                             <button
                               onClick={() => addFeedRecipe(r.meal)}
@@ -1323,11 +1365,19 @@ export default function PlanPage() {
                   </p>
                 </div>
                 {groceries.length > 0 && (
-                  <div className="text-right">
-                    <p className="font-display text-2xl font-bold text-vio-deep tabular-nums">
-                      ${groceriesTotal.toFixed(2)}
-                    </p>
-                    <p className="text-[11px] text-mut">estimated total</p>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={copyGroceries}
+                      className="rounded-full bg-white px-3.5 py-2 text-xs font-bold text-vio-deep ring-1 ring-line transition hover:ring-vio"
+                    >
+                      Copy list
+                    </button>
+                    <div className="text-right">
+                      <p className="font-display text-2xl font-bold text-vio-deep tabular-nums">
+                        ${groceriesTotal.toFixed(2)}
+                      </p>
+                      <p className="text-[11px] text-mut">estimated total</p>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1595,15 +1645,23 @@ export default function PlanPage() {
                   <ExternalLinkIcon className="h-3.5 w-3.5" /> View original recipe
                 </a>
               )}
-              {/* Save / favourite this dish (works for library and imported recipes). */}
-              <button
-                onClick={() => toggleSave(detail.name)}
-                aria-pressed={saved.has(detail.name)}
-                className={`mt-3 flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold transition ${saved.has(detail.name) ? "bg-vio text-white" : "bg-bgsoft text-plum hover:bg-lav"}`}
-              >
-                <HeartIcon className="h-3.5 w-3.5" filled={saved.has(detail.name)} />
-                {saved.has(detail.name) ? "Saved" : "Save"}
-              </button>
+              {/* Save / favourite + share (works for library and imported recipes). */}
+              <div className="mt-3 flex items-center gap-2">
+                <button
+                  onClick={() => toggleSave(detail.name)}
+                  aria-pressed={saved.has(detail.name)}
+                  className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold transition ${saved.has(detail.name) ? "bg-vio text-white" : "bg-bgsoft text-plum hover:bg-lav"}`}
+                >
+                  <HeartIcon className="h-3.5 w-3.5" filled={saved.has(detail.name)} />
+                  {saved.has(detail.name) ? "Saved" : "Save"}
+                </button>
+                <button
+                  onClick={() => shareRecipe(detail)}
+                  className="flex items-center gap-1.5 rounded-full bg-bgsoft px-3.5 py-1.5 text-xs font-bold text-plum transition hover:bg-lav"
+                >
+                  <ExternalLinkIcon className="h-3.5 w-3.5" /> Share
+                </button>
+              </div>
               {/* Rate the dish. Deterministic — goes straight to /api/operation, no assistant. A
                   5 gets it planned more often; a 1 stops it coming back (unless a slot would empty). */}
               <div className="mt-3 flex items-center gap-1">
