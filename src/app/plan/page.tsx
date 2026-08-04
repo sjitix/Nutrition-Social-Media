@@ -109,7 +109,6 @@ export default function PlanPage() {
   const [view, setView] = useState<View>("home");
   const [detail, setDetail] = useState<Meal | null>(null);
   const [checked, setChecked] = useState<Set<string>>(new Set());
-  const [added, setAdded] = useState<Set<string>>(new Set());
 
   const [chat, setChat] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -247,6 +246,14 @@ export default function PlanPage() {
   // Aisle-grouped view of the same list, for shopping in one walk instead of criss-crossing.
   const groceryAisles = useMemo(() => groupByAisle(groceries), [groceries]);
 
+  // Which dish names are in the plan RIGHT NOW — so a feed card's "In your plan" badge is derived
+  // from truth (survives reload, updates the moment you add or remove a meal) instead of a transient
+  // "I clicked add" flag that reset on refresh.
+  const planMealNames = useMemo(
+    () => new Set((plan?.days ?? []).flatMap((d) => d.meals.map((m) => m.name.toLowerCase()))),
+    [plan],
+  );
+
   // When the plan changes the shopping list, keep the ticks for items that are STILL on it and drop
   // only the ones that left — a plan edit shouldn't wipe a shop in progress. Persisted so a reload
   // keeps them too.
@@ -337,8 +344,8 @@ export default function PlanPage() {
   // Add a feed recipe to the plan, with an honest toast — the card used to change silently and, if
   // the target day weren't present, fail without a word.
   function addFeedRecipe(meal: Meal) {
-    if (added.has(meal.name)) return;
-    if (addRecipeToDay(importDay, meal.name, meal)) {
+    if (planMealNames.has(meal.name.toLowerCase())) return;
+    if (addRecipeToDay(importDay, meal)) {
       const when = importDay === todayName() ? "today" : importDay;
       setToast(`Added "${meal.name}" to ${when}'s ${meal.type}.`);
     } else {
@@ -362,7 +369,7 @@ export default function PlanPage() {
     };
   }, [plan]);
 
-  function addRecipeToDay(day: (typeof DAYS)[number], recipeName: string, meal: Meal): boolean {
+  function addRecipeToDay(day: (typeof DAYS)[number], meal: Meal): boolean {
     if (!plan || !profile) return false;
     const target = plan.days.find((d) => d.day === day);
     if (!target) return false; // that day isn't in the plan — don't claim a change we didn't make
@@ -394,7 +401,6 @@ export default function PlanPage() {
     });
     setPlan(next);
     savePlan(next);
-    setAdded(new Set(added).add(recipeName));
     return true;
   }
 
@@ -429,7 +435,7 @@ export default function PlanPage() {
   function placeImported(recipe: ImportedRecipe, type: Meal["type"]): boolean {
     const meal = importedToMeal(recipe, type);
     const when = importDay === todayName() ? "today" : importDay;
-    if (!addRecipeToDay(importDay, `imported:${meal.name}`, meal)) {
+    if (!addRecipeToDay(importDay, meal)) {
       setToast(`Couldn't add that — ${importDay} isn't in your plan.`);
       return false;
     }
@@ -1267,7 +1273,7 @@ export default function PlanPage() {
                 <>
                   <div className="mt-4 columns-2 gap-4 lg:columns-3">
                     {feed.slice(0, feedLimit).map((r) => {
-                      const isAdded = added.has(r.meal.name);
+                      const isAdded = planMealNames.has(r.meal.name.toLowerCase());
                       const isSaved = saved.has(r.meal.name);
                       // Deterministic masonry height from the name, so the wall varies but is stable.
                       const h = 130 + (Math.abs([...r.meal.name].reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 0)) % 80);
