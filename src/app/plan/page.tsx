@@ -26,8 +26,10 @@ import { EXPLORE_RECIPES } from "@/lib/recipes";
 import { importedToMeal, type ImportedRecipe } from "@/lib/import";
 import {
   loadChat,
+  loadImports,
   loadPlan,
   loadProfile,
+  rememberImport,
   saveChat,
   savePlan,
   saveProfile,
@@ -128,6 +130,8 @@ export default function PlanPage() {
   // A recipe imported by pasting a link INTO THE CHAT (not the Explore panel). Rendered as a card
   // under the conversation with the same add-to-slot buttons.
   const [chatImport, setChatImport] = useState<ImportedRecipe | null>(null);
+  // History of link-imported recipes (newest first), so they can be re-added without re-fetching.
+  const [importHistory, setImportHistory] = useState<ImportedRecipe[]>([]);
   const [regenerating, setRegenerating] = useState(false);
   const [regenError, setRegenError] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -142,6 +146,7 @@ export default function PlanPage() {
     setProfile(p);
     setPlan(w);
     setChat(loadChat());
+    setImportHistory(loadImports());
   }, [router]);
 
   useEffect(() => {
@@ -293,7 +298,9 @@ export default function PlanPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Couldn't import that link.");
-      setImported(data.recipe as ImportedRecipe);
+      const recipe = data.recipe as ImportedRecipe;
+      setImported(recipe);
+      setImportHistory(rememberImport(recipe));
     } catch (err) {
       setImportError(err instanceof Error ? err.message : "Couldn't import that link.");
     } finally {
@@ -358,6 +365,7 @@ export default function PlanPage() {
       }
       const r = data.recipe as ImportedRecipe;
       setChatImport(r);
+      setImportHistory(rememberImport(r));
       const host = new URL(r.sourceUrl).hostname.replace(/^www\./, "");
       const macros =
         r.macrosSource === "site"
@@ -894,6 +902,25 @@ export default function PlanPage() {
                   </button>
                 </div>
                 {importError && <p className="mt-2 text-xs text-red-600">{importError}</p>}
+
+                {/* Recently imported — re-open any past import instantly, no re-fetch. */}
+                {importHistory.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-[11px] font-semibold text-mut uppercase tracking-wide">Recently imported</p>
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {importHistory.slice(0, 8).map((r) => (
+                        <button
+                          key={r.sourceUrl}
+                          onClick={() => { setImported(r); setImportUrl(r.sourceUrl); setImportError(null); }}
+                          title={r.sourceUrl}
+                          className="max-w-[14rem] truncate rounded-full bg-lav px-3 py-1 text-xs font-semibold text-vio-deep transition hover:bg-vio hover:text-white"
+                        >
+                          {r.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {imported && (
                   <div className="mt-4 rounded-xl bg-bgsoft p-4">
