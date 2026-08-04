@@ -28,7 +28,10 @@ export const AISLE_ORDER: Aisle[] = [
 // read as a bell "pepper" (produce).
 const RULES: [Aisle, RegExp][] = [
   ["Frozen", /\bfrozen\b|ice cream/i],
-  // Spices/seasonings that collide with produce words — pin them to Pantry BEFORE the produce rule.
+  // Compounds that would otherwise be captured by a broader rule below and filed in the WRONG aisle:
+  // "peanut butter" isn't dairy butter, plant milks aren't dairy milk, "chicken stock" isn't meat,
+  // "egg noodles" aren't eggs. Pin them to Pantry first. Same idea for spice/produce collisions.
+  ["Pantry", /\b(peanut|almond|cashew|sunflower) butter\b|\b(coconut|almond|oat|soy|rice|cashew) milk\b|\b(chicken|beef|vegetable|fish|bone) (stock|broth)\b|\begg noodles\b|\bcocoa butter\b/i],
   ["Pantry", /\b(black|white) pepper|peppercorn|chilli flakes|chili flakes|chili powder|paprika|cumin|garlic powder|onion powder|dried \w+/i],
   ["Meat & Fish", /\b(chicken|beef|pork|lamb|turkey|bacon|ham|sausage|mince|steak|salmon|tuna|cod|haddock|tilapia|shrimp|prawns?|fish|anchov|sardines?|trout|mackerel|chorizo)\b/i],
   ["Dairy & Eggs", /\b(milk|yogurt|yoghurt|cheese|butter|cream|eggs?|kefir|feta|mozzarella|parmesan|ricotta|paneer|halloumi)\b/i],

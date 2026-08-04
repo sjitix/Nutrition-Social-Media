@@ -257,14 +257,21 @@ export default function PlanPage() {
   // When the plan changes the shopping list, keep the ticks for items that are STILL on it and drop
   // only the ones that left — a plan edit shouldn't wipe a shop in progress. Persisted so a reload
   // keeps them too.
+  //
+  // The `!plan` guard is load-bearing: on first mount this effect and the loader effect both run in
+  // the same flush, and `groceries` is still [] here (plan hasn't been applied yet). Without the
+  // guard, this functional updater runs AFTER the loader set `checked` to the persisted keys and
+  // prunes them against an empty list — wiping every tick AND overwriting localStorage with []. Once
+  // the plan is applied, `groceries` is real and this prunes correctly.
   useEffect(() => {
+    if (!plan) return;
     const keys = new Set(groceries.map((g) => g.key));
     setChecked((prev) => {
       const pruned = new Set([...prev].filter((k) => keys.has(k)));
       if (pruned.size !== prev.size) saveGroceriesChecked([...pruned]);
       return pruned;
     });
-  }, [groceries]);
+  }, [groceries, plan]);
 
   function toggleChecked(key: string) {
     setChecked((prev) => {

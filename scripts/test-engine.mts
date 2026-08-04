@@ -1939,6 +1939,13 @@ console.log("--- GROCERY AISLES (shop in one walk, not criss-crossing) ---");
     ["Brown rice", "Pantry"],
     ["Chickpeas", "Pantry"], // must NOT read as fresh "peas"
     ["Frozen berries", "Frozen"], // frozen wins over "berries"
+    ["Peanut butter", "Pantry"], // must NOT read as dairy "butter"
+    ["Almond butter", "Pantry"],
+    ["Coconut milk", "Pantry"], // must NOT read as dairy "milk"
+    ["Oat milk", "Pantry"],
+    ["Chicken stock", "Pantry"], // must NOT read as "chicken" (meat)
+    ["Vegetable broth", "Pantry"],
+    ["Egg noodles", "Pantry"], // must NOT read as "egg" (dairy)
     ["Unicorn dust", "Other"],
   ];
   for (const [name, want] of cases) check(`aisle: ${name} -> ${want}`, aisleFor(name) === want, aisleFor(name));
