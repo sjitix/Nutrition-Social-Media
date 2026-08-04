@@ -22,6 +22,7 @@ import {
   ZapIcon,
 } from "@/components/icons";
 import { EXPLORE_RECIPES } from "@/lib/recipes";
+import { importedToMeal, type ImportedRecipe } from "@/lib/import";
 import {
   loadChat,
   loadPlan,
@@ -117,6 +118,11 @@ export default function PlanPage() {
   const [weekReport, setWeekReport] = useState<string | null>(null);
   // The fluid target, shown on Home only once we know a body weight (from onboarding or compute_targets).
   const [hydration, setHydration] = useState<string | null>(null);
+  // Phase 2 — import a recipe from a pasted link.
+  const [importUrl, setImportUrl] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [imported, setImported] = useState<ImportedRecipe | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
   const [regenerating, setRegenerating] = useState(false);
   const [regenError, setRegenError] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -243,6 +249,39 @@ export default function PlanPage() {
     setPlan(next);
     savePlan(next);
     setAdded(new Set(added).add(recipeName));
+  }
+
+  // Phase 2 — paste a recipe link, get a plan-ready meal. Deterministic (reads the page's
+  // schema.org/Recipe), no model, so it works regardless of the assistant's state.
+  async function importRecipe() {
+    const url = importUrl.trim();
+    if (!url || importing) return;
+    setImporting(true);
+    setImportError(null);
+    setImported(null);
+    try {
+      const res = await fetch("/api/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Couldn't import that link.");
+      setImported(data.recipe as ImportedRecipe);
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : "Couldn't import that link.");
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  function addImportedTo(type: Meal["type"]) {
+    if (!imported) return;
+    const meal = importedToMeal(imported, type);
+    addRecipeToToday(`imported:${meal.name}`, meal);
+    setToast(`Added ${meal.name} to today's ${type}.`);
+    setImported(null);
+    setImportUrl("");
   }
 
   // A direct action — rate, pin, undo — goes to /api/operation, NOT the assistant. No language
@@ -729,6 +768,72 @@ export default function PlanPage() {
               <p className="mt-1 text-sm text-mut">
                 Ideas for your week — every recipe drops straight into today&rsquo;s plan.
               </p>
+
+              {/* Phase 2 — import a recipe from a link. */}
+              <div className="mt-6 rounded-2xl bg-white p-5 card-shadow">
+                <h2 className="font-semibold">Import a recipe</h2>
+                <p className="mt-1 text-sm text-mut">
+                  Paste a link to a recipe page and I&rsquo;ll pull the ingredients, method and
+                  macros into your plan.
+                </p>
+                <div className="mt-3 flex gap-2">
+                  <input
+                    value={importUrl}
+                    onChange={(e) => setImportUrl(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && void importRecipe()}
+                    placeholder="https://…"
+                    className="flex-1 rounded-xl border-2 border-transparent bg-bgsoft px-4 py-2.5 text-sm outline-none focus:border-vio"
+                  />
+                  <button
+                    onClick={() => void importRecipe()}
+                    disabled={importing || !importUrl.trim()}
+                    className="rounded-xl bg-vio px-4 py-2.5 text-sm font-bold text-white transition hover:bg-vio-deep disabled:opacity-50"
+                  >
+                    {importing ? "Reading…" : "Import"}
+                  </button>
+                </div>
+                {importError && <p className="mt-2 text-xs text-red-600">{importError}</p>}
+
+                {imported && (
+                  <div className="mt-4 rounded-xl bg-bgsoft p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-semibold leading-snug">{imported.name}</p>
+                        <p className="mt-0.5 text-[11px] text-mut">
+                          {new URL(imported.sourceUrl).hostname.replace(/^www\./, "")} ·{" "}
+                          {imported.ingredients.length} ingredients
+                          {imported.servings > 1 ? ` · makes ${imported.servings}` : ""}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => { setImported(null); setImportUrl(""); }}
+                        className="flex-none rounded-full p-1 text-mut hover:text-plum"
+                        aria-label="Dismiss"
+                      >
+                        <XIcon />
+                      </button>
+                    </div>
+                    <p className="mt-2 text-xs text-mut">
+                      {imported.macrosSource === "site"
+                        ? `Per serving: ${imported.calories} kcal · P${imported.proteinGrams ?? "—"} · C${imported.carbsGrams ?? "—"} · F${imported.fatGrams ?? "—"}`
+                        : "The page didn't list its nutrition, so this comes in without macros — you can still add it."}
+                    </p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-semibold text-mut">Add to today&rsquo;s</span>
+                      {(["breakfast", "lunch", "dinner"] as const).map((t) => (
+                        <button
+                          key={t}
+                          onClick={() => addImportedTo(t)}
+                          className="rounded-full bg-vio px-3 py-1.5 text-xs font-bold text-white transition hover:bg-vio-deep"
+                        >
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="mt-6 columns-2 gap-4 lg:columns-3">
                 {EXPLORE_RECIPES.map((r) => {
                   const isAdded = added.has(r.meal.name);

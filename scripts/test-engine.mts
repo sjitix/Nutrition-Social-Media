@@ -22,6 +22,7 @@ import { SUBSTITUTES } from "@/lib/substitutions";
 import { NUTRIENT_TABLE } from "@/lib/nutrientTable.generated";
 import { gramsFor } from "@/lib/nutrients";
 import { MICRO_KEYS, DAILY_REFERENCE, MICRO_LABEL } from "@/lib/nutrients";
+import { parseRecipeHtml, parseIngredient, isSafePublicUrl, importedToMeal } from "@/lib/import";
 
 // ---------------------------------------------------------------- harness
 let pass = 0;
@@ -1765,6 +1766,56 @@ console.log("--- RECIPE LIBRARY: can it actually serve each diet? ---");
     }
   }
 }
+
+// ---------------------------------------------------------------- recipe import (Phase 2)
+console.log("");
+console.log("--- RECIPE IMPORT (paste a link -> plan-ready meal, deterministic) ---");
+{
+  // SSRF guard: this fetches a URL the user pasted, so it must refuse local/private hosts.
+  check("import: allows a public https recipe url", isSafePublicUrl("https://www.bbcgoodfood.com/recipes/x"));
+  check("import: blocks localhost", !isSafePublicUrl("http://localhost:3000/secret"));
+  check("import: blocks loopback IP", !isSafePublicUrl("http://127.0.0.1/x"));
+  check("import: blocks private ranges", !isSafePublicUrl("http://192.168.1.1/x") && !isSafePublicUrl("http://10.0.0.5/x") && !isSafePublicUrl("http://169.254.1.1/x"));
+  check("import: blocks non-http schemes", !isSafePublicUrl("ftp://example.com/x") && !isSafePublicUrl("file:///etc/passwd"));
+
+  // Ingredient parsing: quantity vs name, units, fractions, and the no-quantity case.
+  check("import: parses '2 tbsp cumin seeds'", (() => { const p = parseIngredient("2 tbsp cumin seeds"); return p.quantity === "2 tbsp" && p.name === "cumin seeds"; })());
+  check("import: parses a unicode fraction '¼ cup olive oil'", (() => { const p = parseIngredient("¼ cup olive oil"); return /¼/.test(p.quantity) && p.name === "olive oil"; })());
+  check("import: an ingredient with no amount keeps its whole name", (() => { const p = parseIngredient("salt to taste"); return p.quantity === "" && p.name === "salt to taste"; })());
+
+  // The pure parse: JSON-LD (with @graph nesting + HTML entities + per-serving nutrition) -> recipe.
+  const HTML = `<html><head>
+    <script type="application/ld+json">{"@context":"https://schema.org","@graph":[
+      {"@type":"WebPage","name":"page"},
+      {"@type":"Recipe","name":"Smoky &amp; Spiced Chili","recipeYield":"4 servings",
+       "recipeIngredient":["2 tbsp cumin seeds","&frac14; cup olive oil","1 onion, chopped"],
+       "recipeInstructions":[{"@type":"HowToStep","text":"Toast the spices."},{"@type":"HowToStep","text":"Simmer 30 min."}],
+       "totalTime":"PT1H30M",
+       "nutrition":{"@type":"NutritionInformation","calories":"463 kcal","proteinContent":"46 g","carbohydrateContent":"12 g","fatContent":"24 g","fiberContent":"5 g"}}
+    ]}</script></head><body></body></html>`;
+  const r = parseRecipeHtml(HTML, "https://example.com/chili");
+  check("import: extracts the Recipe from @graph", r.name === "Smoky & Spiced Chili", r.name);
+  check("import: reads servings", r.servings === 4, String(r.servings));
+  check("import: parses per-serving macros from the site", r.calories === 463 && r.proteinGrams === 46 && r.fiberGrams === 5, JSON.stringify({ c: r.calories, p: r.proteinGrams }));
+  check("import: macrosSource is 'site' when nutrition is present", r.macrosSource === "site");
+  check("import: parses ISO-8601 totalTime PT1H30M -> 90", r.timeMinutes === 90, String(r.timeMinutes));
+  check("import: keeps all ingredients", r.ingredients.length === 3);
+  check("import: reads the steps", r.steps.length === 2 && /toast the spices/i.test(r.steps[0]));
+
+  // -> a valid Meal (timeMinutes is required by the schema; macros carry through).
+  const meal = importedToMeal(r, "dinner");
+  check("import->meal: valid shape with required timeMinutes", meal.type === "dinner" && meal.calories === 463 && typeof meal.timeMinutes === "number");
+
+  // No nutrition on the page -> no macros, never guessed; still importable.
+  const noNut = parseRecipeHtml(HTML.replace(/,\s*"nutrition":\{[^}]*\}/, ""), "https://example.com/x");
+  check("import: no site nutrition -> macrosSource 'none', macros default to 0 in the meal", noNut.macrosSource === "none" && importedToMeal(noNut, "lunch").calories === 0);
+
+  // A page with no recipe throws a user-facing message (not a crash).
+  let threw = false;
+  try { parseRecipeHtml("<html><body>just a blog post</body></html>", "https://example.com/x"); } catch { threw = true; }
+  check("import: a page with no recipe throws a clear error", threw);
+}
+
 
 // ---------------------------------------------------------------- 3. fuzz
 console.log("\n--- FUZZ (random op sequences, invariants after each) ---");
