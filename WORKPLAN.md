@@ -18,7 +18,36 @@ strategy note below; the GPU is free).
 chat-import + imported-history + `rebalance_day` → the filterable Feed (Phase 3) → video/reel import
 (Phase 2 finish). All pushed as sjitix, all green.**
 
-### >>> NOW: Roadmap Phase 2 — the share-a-reel importer <<<
+### >>> PRODUCT-WIDE UX OVERHAUL (owner: "improve all features → widely-used, convenient, social") <<<
+
+Ran a user-perspective UX audit (31 findings, 6 tiers) and executed it top-down. All pushed as
+sjitix, each tsc-clean + tests green:
+
+- **Mobile (`c023757`)** — the week board was a 900px sideways-drag table on phones; now a vertical
+  day stack below `lg`, timetable at `lg+`. Undo/toast lifted above the bottom nav; nav given ≥44px
+  targets + safe-area + aria-current + short labels; landing headline made responsive.
+- **Feed + Groceries (`44dc73a`)** — feed got **search** (name+ingredients, pure `filterFeed(query)`),
+  **sort** (`sortFeed`), **save/favourites** (heart + "Saved" filter, persisted), and **pagination**
+  (24 + "load more", not all 163 at once). Groceries got **aisle grouping** (pure, tested `grocery.ts`),
+  **persistent check-offs** (survive reload + keep valid ticks across plan edits — a prune effect
+  replaced 3 blanket resets), per-item price, total, progress bar, empty state.
+- **Accessibility (`459b0b0`)** — WCAG AA contrast (muted text 3.2→5.7:1, violet 3.95→4.8:1); the meal
+  drawer is a real `role="dialog"` modal (Escape, scroll-lock, focus, aria); decorative icons
+  aria-hidden.
+- **Onboarding/first-run (`09dc723`)** — asks your **name** (killed the hardcoded "Ana"); **prefills**
+  from the saved profile for a returning user; generation shows a spinner; the plan page has a
+  skeleton loader.
+- **Social + sharing (`3f424ac`)** — your star rating shows on feed cards; **Share** copies a clean
+  recipe and **Copy list** copies the aisle-grouped shopping list (clipboard, no backend).
+
+New tested pure libs: `src/lib/grocery.ts` (aisle categoriser), `filterFeed(query)`/`sortFeed`.
+`test:engine` **382/0 fuzz clean**, `test:api` **21/0**.
+
+Backlog from the audit (lower value / needs a backend): community popularity signals, imagery
+de-duplication, progress/streak history, a stepped onboarding wizard, unifying the week-board's
+at-a-glance shopping aside with the full Groceries view.
+
+### Roadmap Phase 2 — the share-a-reel importer (DONE)
 
 The strategy note below concluded the better near-term ROI is PRODUCT, not another QLoRA inside the
 noise. So the direction is the roadmap's **Phase 2: paste a link → get a plan-ready meal.** The
