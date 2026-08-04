@@ -7,11 +7,59 @@
 
 ---
 
-## RESUME HERE (last updated: 2026-07-10, later)
+## RESUME HERE (last updated: 2026-08-04)
 
-`main` is green: `npm run test:engine` **310 fuzz-less checks / 0 failed** (a full fuzz run is
-batched for after v9 training — see below), plus `npm run test:api` (17, routes), `check:recipes`,
-`check:data`.
+`main` is green: `npm run test:engine` **328 checks / 0 failed, fuzz clean**, plus `npm run
+test:api` (17, routes), `check:recipes`, `check:data`. v9 is live. No training running (the model
+line concluded at v9 — see the strategy note below; the GPU is free).
+
+### >>> NOW: Roadmap Phase 2 — the share-a-reel importer <<<
+
+The strategy note below concluded the better near-term ROI is PRODUCT, not another QLoRA inside the
+noise. So the direction is the roadmap's **Phase 2: paste a link → get a plan-ready meal.** The
+URL half is shipped (commit `821622c`).
+
+**Shipped — import a recipe from a link, DETERMINISTIC (no model):**
+- `src/lib/import.ts` — reads the page's **schema.org/Recipe JSON-LD** (which nearly every recipe
+  site embeds): name, ingredients, steps, per-serving nutrition. SSRF-guarded fetch (http/https
+  only, no localhost/private IPs; 15 s timeout; 3 MB cap) → `findRecipe` across `@graph` nesting →
+  parse ingredients ("2 tbsp cumin seeds" → qty+name, unicode fractions, HTML entities), steps
+  (HowToStep/HowToSection), ISO-8601 times → a `Meal`. **Never guesses macros:** absent nutrition
+  → 0 + a UI note (`macrosSource: "none"`); present → trusted (`"site"`), which sidesteps our
+  nutrient table's thin coverage of exotic ingredients.
+- `POST /api/import` `{url}` → recipe or a plain-English reason (bad link, no recipe, timeout, a
+  site that blocks us).
+- Explore gets an "Import a recipe" panel: paste → preview (macros/ingredients/source) → "Add to
+  today's breakfast/lunch/dinner".
+- **18 unit tests** (fixture HTML, no network): SSRF guard, ingredient/entity/time parsing,
+  `@graph` extraction, the no-nutrition path, the no-recipe error.
+- **Verified live:** BBC Good Food (463 kcal/serving, 20 ingredients, `"site"`) and Cookie & Kate
+  import cleanly. Some sites block scrapers (AllRecipes → 402) — handled with a clear message.
+
+**Next layers of Phase 2, in ROI order:**
+1. ✅ **Persist + place correctly.** Persistence and groceries already worked (`savePlan` +
+   the grocery `useMemo` over every meal's ingredients). The real bug was that "Add to X"
+   **appended** a meal — two breakfasts, double-counted calories, and it broke every
+   `.find(m => m.type === …)` (drawer refresh, Tonight hero). Now it **replaces** the slot's meal;
+   returns honestly (no false "added" toast when the day isn't in the plan); and if the slot is
+   pinned to another dish it says a regenerate will revert it. (commit below)
+2. ✅ **Import into any day.** A day picker on the preview (defaults to today); `addRecipeToDay`
+   generalises the old today-only handler.
+3. ✅ **Source link.** Optional `sourceUrl` on `MealSchema` (model never emits it; stock recipes
+   don't carry it); `importedToMeal` carries it; the drawer shows a "View original recipe" link.
+   `test:engine` now asserts the imported meal passes `MealSchema` and round-trips the URL — **330
+   / 0, fuzz clean.**
+4. **Video platforms (TikTok/IG/YouTube)** — the actual "share-a-reel". Needs transcript/caption
+   fetching + the MODEL to extract a recipe from prose (the JSON-LD path won't exist). This is the
+   fragile, model-dependent layer; the URL path above is most of the value without it. Defer until
+   the deterministic path is fully wired into the plan.
+5. **Dedupe / "already imported"**, and a small imported-recipes history.
+6. **Re-solve the day around an import** (like `log_meal`) so adding a heavy imported dinner rebalances
+   the rest of the day toward target, instead of just replacing the slot and letting the day drift.
+
+---
+
+### (model work — concluded at v9; kept for context)
 
 ### v9 IS LIVE — the bigger eval reversed the call and it's the best model
 

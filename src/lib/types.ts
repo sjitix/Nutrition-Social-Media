@@ -31,6 +31,9 @@ export const MealSchema = z.object({
   // derived from the ingredients must be divided by this or a single muffin claims the
   // iron of the whole tin.
   servings: z.number().optional(),
+  // Set only on meals imported from a link (Phase 2). Lets the drawer show a "View original"
+  // link back to the source. Optional so the model never emits it and stock recipes don't carry it.
+  sourceUrl: z.string().url().optional(),
   ingredients: z.array(IngredientSchema),
   steps: z.array(z.string()),
 });

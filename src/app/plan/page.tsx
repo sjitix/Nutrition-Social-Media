@@ -10,6 +10,7 @@ import {
   CheckIcon,
   ClockIcon,
   CompassIcon,
+  ExternalLinkIcon,
   HomeIcon,
   PinIcon,
   PlayIcon,
@@ -123,6 +124,7 @@ export default function PlanPage() {
   const [importing, setImporting] = useState(false);
   const [imported, setImported] = useState<ImportedRecipe | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const [importDay, setImportDay] = useState<(typeof DAYS)[number]>(todayName());
   const [regenerating, setRegenerating] = useState(false);
   const [regenError, setRegenError] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -233,22 +235,43 @@ export default function PlanPage() {
     };
   }, [plan]);
 
-  function addRecipeToToday(recipeName: string, meal: Meal) {
-    if (!plan || !profile) return;
-    const day = todayName();
+  const addRecipeToToday = (recipeName: string, meal: Meal) =>
+    addRecipeToDay(todayName(), recipeName, meal);
+
+  function addRecipeToDay(day: (typeof DAYS)[number], recipeName: string, meal: Meal): boolean {
+    if (!plan || !profile) return false;
+    const target = plan.days.find((d) => d.day === day);
+    if (!target) return false; // that day isn't in the plan — don't claim a change we didn't make
+    // REPLACE the existing meal in that slot rather than appending. Appending left the day with two
+    // breakfasts and double-counted its calories, and broke every `.find(m => m.type === …)` (the
+    // drawer refresh, the Tonight hero) that assumes one meal per slot. "Make this my lunch" means
+    // exactly one lunch.
+    const replacing = target.meals.some((m) => m.type === meal.type);
     const next: WeekPlan = {
       ...plan,
       days: plan.days.map((d) =>
-        d.day === day ? { ...d, meals: [...d.meals, meal] } : d,
+        d.day === day
+          ? {
+              ...d,
+              meals: replacing
+                ? d.meals.map((m) => (m.type === meal.type ? meal : m))
+                : [...d.meals, meal],
+            }
+          : d,
       ),
     };
     // Every path that changes the plan owes `undo` a snapshot. Without this, adding a recipe here
     // and then saying "undo" in chat restores whatever the last CHAT change was — a plan the user
     // never asked to come back.
-    setPrevious({ plan, profile, label: `added ${meal.name} to ${day}` });
+    setPrevious({
+      plan,
+      profile,
+      label: replacing ? `replaced ${day}'s ${meal.type} with ${meal.name}` : `added ${meal.name} to ${day}`,
+    });
     setPlan(next);
     savePlan(next);
     setAdded(new Set(added).add(recipeName));
+    return true;
   }
 
   // Phase 2 — paste a recipe link, get a plan-ready meal. Deterministic (reads the page's
@@ -278,10 +301,21 @@ export default function PlanPage() {
   function addImportedTo(type: Meal["type"]) {
     if (!imported) return;
     const meal = importedToMeal(imported, type);
-    addRecipeToToday(`imported:${meal.name}`, meal);
-    setToast(`Added ${meal.name} to today's ${type}.`);
-    setImported(null);
-    setImportUrl("");
+    const when = importDay === todayName() ? "today" : importDay;
+    if (addRecipeToDay(importDay, `imported:${meal.name}`, meal)) {
+      // Honesty: pins survive a regenerate, so importing over a slot pinned to another dish will be
+      // quietly reverted next rebuild. Say so instead of letting it surprise them.
+      const pin = profile?.lockedMeals?.find((l) => l.day === importDay && l.mealType === type);
+      const pinNote =
+        pin && pin.name !== meal.name
+          ? ` Heads up — ${importDay}'s ${type} is pinned to ${pin.name}, so regenerating the week will bring it back; unpin it to keep this.`
+          : "";
+      setToast(`Added ${meal.name} to ${when}'s ${type}.${pinNote}`);
+      setImported(null);
+      setImportUrl("");
+    } else {
+      setToast(`Couldn't add that — ${importDay} isn't in your plan.`);
+    }
   }
 
   // A direct action — rate, pin, undo — goes to /api/operation, NOT the assistant. No language
@@ -819,7 +853,18 @@ export default function PlanPage() {
                         : "The page didn't list its nutrition, so this comes in without macros — you can still add it."}
                     </p>
                     <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <span className="text-xs font-semibold text-mut">Add to today&rsquo;s</span>
+                      <span className="text-xs font-semibold text-mut">Add to</span>
+                      <select
+                        value={importDay}
+                        onChange={(e) => setImportDay(e.target.value as (typeof DAYS)[number])}
+                        className="rounded-full bg-white px-2.5 py-1.5 text-xs font-bold text-vio-deep outline-none ring-1 ring-line focus:ring-vio"
+                      >
+                        {DAYS.map((d) => (
+                          <option key={d} value={d}>
+                            {d === todayName() ? `${d} (today)` : d}
+                          </option>
+                        ))}
+                      </select>
                       {(["breakfast", "lunch", "dinner"] as const).map((t) => (
                         <button
                           key={t}
@@ -1073,6 +1118,18 @@ export default function PlanPage() {
               </p>
               <h2 className="font-display mt-1 text-2xl font-bold">{detail.name}</h2>
               <p className="mt-2 text-sm leading-relaxed text-mut">{detail.description}</p>
+              {/* Imported meals link back to where they came from — the macros are the source's own,
+                  and the ingredient list is deliberately simplified, so "view original" matters. */}
+              {detail.sourceUrl && (
+                <a
+                  href={detail.sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-vio hover:text-vio-deep"
+                >
+                  <ExternalLinkIcon className="h-3.5 w-3.5" /> View original recipe
+                </a>
+              )}
               {/* Rate the dish. Deterministic — goes straight to /api/operation, no assistant. A
                   5 gets it planned more often; a 1 stops it coming back (unless a slot would empty). */}
               <div className="mt-3 flex items-center gap-1">

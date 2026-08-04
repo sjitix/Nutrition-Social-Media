@@ -217,6 +217,7 @@ export function importedToMeal(r: ImportedRecipe, type: Meal["type"]): Meal {
     type,
     name: r.name,
     description: `Imported from ${new URL(r.sourceUrl).hostname.replace(/^www\./, "")}`,
+    sourceUrl: r.sourceUrl,
     calories: r.calories ?? 0,
     proteinGrams: r.proteinGrams ?? 0,
     carbsGrams: r.carbsGrams ?? 0,

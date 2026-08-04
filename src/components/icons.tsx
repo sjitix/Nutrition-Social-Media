@@ -92,6 +92,14 @@ export const SendIcon = ({ className }: IconProps) => (
   </svg>
 );
 
+// Outbound link — used on an imported meal to open its original recipe page.
+export const ExternalLinkIcon = ({ className }: IconProps) => (
+  <svg {...base(className)}>
+    <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
+    <path d="M15 3h6v6M10 14L21 3" />
+  </svg>
+);
+
 // A star that can be outline (unrated) or solid (rated). Same line-icon language as the rest —
 // `filled` just swaps the fill so a rating reads at a glance without any emoji.
 export const StarIcon = ({ className, filled = false }: IconProps & { filled?: boolean }) => (

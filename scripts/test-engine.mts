@@ -14,6 +14,7 @@
  */
 import { selectWeekFromDb, rebalanceWeek, applyOperations, RECIPES, recipeMicros, newReport, reportNotes } from "@/lib/recipeDb";
 import type { UserProfile, Operation, DayPlan, WeekPlan, Meal } from "@/lib/types";
+import { MealSchema } from "@/lib/types";
 import { microsForIngredients } from "@/lib/nutrients";
 import { haystackBlocked, dietTagConflicts, parseExclusionTokens } from "@/lib/exclusions";
 import { bmr, computeTargets, hydrationTarget } from "@/lib/targets";
@@ -1805,6 +1806,10 @@ console.log("--- RECIPE IMPORT (paste a link -> plan-ready meal, deterministic) 
   // -> a valid Meal (timeMinutes is required by the schema; macros carry through).
   const meal = importedToMeal(r, "dinner");
   check("import->meal: valid shape with required timeMinutes", meal.type === "dinner" && meal.calories === 463 && typeof meal.timeMinutes === "number");
+  // It must satisfy the real MealSchema so it survives every engine round-trip (rate, swap, undo),
+  // and it must carry the source link so the drawer can offer "view original".
+  check("import->meal: passes MealSchema", MealSchema.safeParse(meal).success);
+  check("import->meal: carries the sourceUrl back to the origin", meal.sourceUrl === "https://example.com/chili");
 
   // No nutrition on the page -> no macros, never guessed; still importable.
   const noNut = parseRecipeHtml(HTML.replace(/,\s*"nutrition":\{[^}]*\}/, ""), "https://example.com/x");
