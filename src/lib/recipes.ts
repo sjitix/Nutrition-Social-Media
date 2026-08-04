@@ -236,11 +236,23 @@ export function imageForMeal(name: string): string | null {
   return null;
 }
 
+// A wide, food-appropriate palette so cards without a bundled photo don't fall into just a handful
+// of repeated tiles — variety is what makes the wall read as a real feed rather than a demo.
 const FALLBACK_GRADIENTS = [
-  "linear-gradient(140deg,#d9b78e,#a87f4f)",
-  "linear-gradient(140deg,#a8cfae,#6c9e74)",
-  "linear-gradient(140deg,#e8b393,#c0714a)",
-  "linear-gradient(140deg,#b7aef5,#7a6ff0)",
+  "linear-gradient(140deg,#d9b78e,#a87f4f)", // wheat / bread
+  "linear-gradient(140deg,#a8cfae,#6c9e74)", // fresh green
+  "linear-gradient(140deg,#e8b393,#c0714a)", // terracotta / roast
+  "linear-gradient(140deg,#b7aef5,#7a6ff0)", // brand violet
+  "linear-gradient(140deg,#f2c1a0,#e07a5f)", // salmon / peach
+  "linear-gradient(140deg,#c7e6c0,#7bbf6a)", // leafy
+  "linear-gradient(140deg,#f6d491,#e0a83e)", // amber / squash
+  "linear-gradient(140deg,#a3d9d4,#4fa89f)", // teal / herby
+  "linear-gradient(140deg,#e6a8be,#c65b83)", // berry
+  "linear-gradient(140deg,#c9c2f0,#8a7ee6)", // lavender
+  "linear-gradient(140deg,#f3b7a3,#d96a4a)", // paprika
+  "linear-gradient(140deg,#bcd39a,#89a95c)", // olive
+  "linear-gradient(140deg,#f0c59a,#cf8b52)", // honey
+  "linear-gradient(140deg,#9cc6e0,#5b8fc0)", // cool blue
 ];
 
 export function gradientForMeal(name: string): string {
