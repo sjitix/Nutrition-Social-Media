@@ -1,9 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { Wordmark } from "@/components/icons";
-import { saveChat, savePlan, saveProfile } from "@/lib/storage";
+import { useEffect, useState } from "react";
+import { RefreshIcon, Wordmark } from "@/components/icons";
+import { loadProfile, saveChat, savePlan, saveProfile } from "@/lib/storage";
 import { DEFAULT_TARGETS, type BodyStats, type UserProfile } from "@/lib/types";
 import { computeTargets, type Activity } from "@/lib/targets";
 
@@ -37,6 +37,7 @@ const BUDGETS: { value: UserProfile["budget"]; label: string }[] = [
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const [name, setName] = useState("");
   const [goal, setGoal] = useState<UserProfile["goal"]>("maintain");
   const [diet, setDiet] = useState<UserProfile["diet"]>("none");
   const [budget, setBudget] = useState<UserProfile["budget"]>("medium");
@@ -74,6 +75,32 @@ export default function OnboardingPage() {
   const weightN = posNum(weightKg);
   const bodyStatsComplete = ageN !== null && heightN !== null && weightN !== null && !!sex && !!activity;
 
+  // Prefill from an existing profile so a returning user ("New plan") isn't re-entering everything.
+  useEffect(() => {
+    const p = loadProfile();
+    if (!p) return;
+    if (p.name) setName(p.name);
+    setGoal(p.goal);
+    setDiet(p.diet);
+    setBudget(p.budget);
+    setMealsPerDay(p.mealsPerDay);
+    setAllergies(p.allergies ?? "");
+    setDislikes(p.dislikes ?? "");
+    setTargetCalories(p.targetCalories);
+    setProteinGrams(p.proteinGrams);
+    setCarbsGrams(p.carbsGrams);
+    setFatGrams(p.fatGrams);
+    setMaxCookTime(p.maxCookTime);
+    setMaxIngredients(p.maxIngredients);
+    if (p.bodyStats) {
+      if (p.bodyStats.age != null) setAge(String(p.bodyStats.age));
+      if (p.bodyStats.heightCm != null) setHeightCm(String(p.bodyStats.heightCm));
+      if (p.bodyStats.weightKg != null) setWeightKg(String(p.bodyStats.weightKg));
+      if (p.bodyStats.sex) setSex(p.bodyStats.sex);
+      if (p.bodyStats.activity) setActivity(p.bodyStats.activity);
+    }
+  }, []);
+
   function calculateTargets() {
     if (!bodyStatsComplete) return;
     const t = computeTargets({
@@ -99,6 +126,7 @@ export default function OnboardingPage() {
           }
         : undefined;
     const profile: UserProfile = {
+      ...(name.trim() ? { name: name.trim() } : {}),
       goal,
       diet,
       allergies,
@@ -147,6 +175,20 @@ export default function OnboardingPage() {
       <p className="mt-2 text-mut">A few quick answers — then the AI builds your plan.</p>
 
       <form onSubmit={handleSubmit} className="mt-10 space-y-10">
+        <section>
+          <label htmlFor="name" className="mb-3 block font-semibold">
+            What should I call you? <span className="font-normal text-mut">(optional)</span>
+          </label>
+          <input
+            id="name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Your name"
+            autoComplete="given-name"
+            className="w-full max-w-xs rounded-xl border-2 border-transparent bg-white px-4 py-3 outline-none focus:border-vio"
+          />
+        </section>
+
         <section>
           <h2 className="mb-3 font-semibold">1. What&rsquo;s your goal?</h2>
           <div className="grid gap-3 sm:grid-cols-3">
@@ -330,10 +372,16 @@ export default function OnboardingPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-full bg-vio px-8 py-4 text-lg font-semibold text-white shadow-lg shadow-vio/30 transition hover:bg-vio-deep disabled:opacity-60"
+          className="flex w-full items-center justify-center gap-2 rounded-full bg-vio px-8 py-4 text-lg font-semibold text-white shadow-lg shadow-vio/30 transition hover:bg-vio-deep disabled:opacity-70"
         >
-          {loading ? "Planning your week — this can take up to a minute" : "Generate my week"}
+          {loading && <RefreshIcon className="h-5 w-5 animate-spin" />}
+          {loading ? "Building your week — up to a minute…" : "Generate my week"}
         </button>
+        {loading && (
+          <p className="text-center text-sm text-mut">
+            The AI is choosing meals, balancing every day&rsquo;s macros and building your grocery list.
+          </p>
+        )}
       </form>
     </main>
   );

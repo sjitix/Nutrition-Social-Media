@@ -183,6 +183,9 @@ export interface MealRating {
 }
 
 export interface UserProfile {
+  // What to call the user on the home screen. Optional — old profiles predate it, and it's never
+  // required to generate a plan.
+  name?: string;
   goal: "lose_weight" | "maintain" | "build_muscle";
   diet: "none" | "vegetarian" | "vegan" | "keto" | "mediterranean";
   allergies: string;

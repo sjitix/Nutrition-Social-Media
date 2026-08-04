@@ -616,8 +616,17 @@ export default function PlanPage() {
 
   if (!plan || !profile) {
     return (
-      <main className="flex min-h-screen items-center justify-center text-mut">
-        Loading your plan…
+      <main className="min-h-screen p-6 md:ml-56">
+        <div className="mx-auto max-w-[1800px] animate-pulse">
+          <div className="h-8 w-56 rounded-lg bg-lav" />
+          <div className="mt-3 h-4 w-80 max-w-full rounded bg-lav" />
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="h-40 rounded-2xl bg-lav" />
+            ))}
+          </div>
+        </div>
+        <span className="sr-only">Loading your plan…</span>
       </main>
     );
   }
@@ -698,7 +707,7 @@ export default function PlanPage() {
           {view === "home" && (
             <>
               <h1 className="font-display text-3xl font-bold tracking-tight">
-                {greeting()}, Ana
+                {greeting()}{profile.name ? `, ${profile.name}` : ""}
               </h1>
               <p className="mt-1 text-sm text-mut">{plan.weekSummary}</p>
 
