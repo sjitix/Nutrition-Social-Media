@@ -1811,6 +1811,13 @@ console.log("--- RECIPE IMPORT (paste a link -> plan-ready meal, deterministic) 
   check("import->meal: passes MealSchema", MealSchema.safeParse(meal).success);
   check("import->meal: carries the sourceUrl back to the origin", meal.sourceUrl === "https://example.com/chili");
 
+  // Yoast SEO (a huge share of recipe blogs) emits an UNQUOTED type attribute and nests the Recipe
+  // in an @graph alongside empty-array members. Requiring quotes skipped every such site (found live
+  // on loveandlemons.com). This is the exact shape, minified.
+  const YOAST = `<html><head><script type=application/ld+json class=yoast-schema-graph>{"@context":"https://schema.org","@graph":[{"@type":"Article","@id":"x"},[],{"@type":"Recipe","name":"BEST Hummus","recipeYield":"6","recipeIngredient":["1 can chickpeas","2 tbsp tahini"],"recipeInstructions":[{"@type":"HowToStep","text":"Blend."}],"nutrition":{"@type":"NutritionInformation","calories":"120 calories"}}]}</script></head><body></body></html>`;
+  const y = parseRecipeHtml(YOAST, "https://www.loveandlemons.com/hummus-recipe/");
+  check("import: reads an UNQUOTED Yoast type=application/ld+json tag", y.name === "BEST Hummus" && y.ingredients.length === 2 && y.calories === 120, JSON.stringify({ n: y.name, i: y.ingredients.length, c: y.calories }));
+
   // No nutrition on the page -> no macros, never guessed; still importable.
   const noNut = parseRecipeHtml(HTML.replace(/,\s*"nutrition":\{[^}]*\}/, ""), "https://example.com/x");
   check("import: no site nutrition -> macrosSource 'none', macros default to 0 in the meal", noNut.macrosSource === "none" && importedToMeal(noNut, "lunch").calories === 0);

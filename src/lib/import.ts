@@ -92,7 +92,11 @@ function findRecipe(node: unknown): Record<string, unknown> | null {
 }
 
 function extractRecipeJsonLd(html: string): Record<string, unknown> | null {
-  const blocks = html.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi) ?? [];
+  // The quotes around the type value are OPTIONAL. Yoast SEO — one of the most common WordPress
+  // plugins, so a huge share of recipe blogs — minifies its output to `<script
+  // type=application/ld+json class=yoast-schema-graph>` with NO quotes. Requiring quotes silently
+  // skipped every one of those sites (found live on loveandlemons.com). `["']?` accepts both.
+  const blocks = html.match(/<script[^>]*\btype=["']?application\/ld\+json["']?[^>]*>([\s\S]*?)<\/script>/gi) ?? [];
   for (const block of blocks) {
     const json = block.replace(/^<script[^>]*>/i, "").replace(/<\/script>$/i, "").trim();
     let data: unknown;

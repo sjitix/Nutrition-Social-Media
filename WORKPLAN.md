@@ -65,6 +65,23 @@ URL half is shipped (commit `821622c`).
 imported meal from a site with no nutrition sits at 0 kcal — the drawer now says so and that it
 won't count toward the day, instead of a silent 0), and the `/api/import` route tests above.
 
+**Live-probed 9 diverse real sites and found a HIGH-impact bug.** Coverage: BBC Good Food, Cookie &
+Kate, RecipeTinEats, Food Network, Delish, Love & Lemons import cleanly; the rest are graceful
+402/404 scraper-blocks with a clear message (0 invalid Meals produced). **The bug: Yoast SEO — one
+of the most common WordPress plugins, so a large share of recipe blogs — minifies its JSON-LD to
+`<script type=application/ld+json …>` with an UNQUOTED type attribute, and the extractor's regex
+required quotes**, so it silently skipped *every* Yoast site (caught live on loveandlemons.com,
+which returns 200 with a real recipe but parsed to nothing). Fixed (`["']?`), regression-tested with
+the exact minified shape; loveandlemons now imports. This is the kind of miss that a fixture-only
+test suite can't find — real HTML in the wild is messier than any fixture. `test:engine` **331 / 0**.
+
+**Known limitation (noted, not yet fixed): dual-unit ingredients.** Sites that print both metric and
+imperial ("1.2 kg / 2.4lb chuck beef", e.g. RecipeTinEats) leave the alternate measure stranded at
+the front of the parsed name ("/ 2.4lb chuck beef …"). It's cosmetic — macros come from the site's
+own nutrition block, not from ingredient parsing, so correctness is unaffected; only the grocery-list
+label and the ingredient display are noisy. A targeted fold-alt-measure-into-quantity pass would
+clean it. Low priority.
+
 > **State: the URL importer is complete and solid.** The remaining Phase 2 items are the fragile
 > video/reel layer (4, model-dependent), low-value polish (5), and a genuine UX fork (6). None is a
 > clear "just do it" — the next substantial move wants owner direction.
