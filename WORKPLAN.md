@@ -40,12 +40,26 @@ sjitix, each tsc-clean + tests green:
 - **Social + sharing (`3f424ac`)** — your star rating shows on feed cards; **Share** copies a clean
   recipe and **Copy list** copies the aisle-grouped shopping list (clipboard, no backend).
 
-New tested pure libs: `src/lib/grocery.ts` (aisle categoriser), `filterFeed(query)`/`sortFeed`.
-`test:engine` **382/0 fuzz clean**, `test:api` **21/0**.
+- **Front-of-house + install (`cc6c533`, `1c68a3a`, `b28b4d3`, `6dca826`, `a6cac6f`)** — landing now
+  showcases the reel-importer + aisle groceries (4-up); the app is an **installable PWA** (branded
+  icon, manifest, standalone display, mobile theme-color) where before it had no favicon at all;
+  **Open Graph / Twitter** cards give shared links a rich preview; a branded **404**; and the feed's
+  gradient fallback went 4→14 tiles so photo-less cards look varied, not demo-like.
+- **Correctness (`731dea3`) + review fixes (`3d764dd`)** — "In your plan" now derives from the real
+  plan (survives reload). Then a code review of all the above caught a **real regression I'd
+  introduced**: grocery check-offs were silently wiped on every reload (the prune effect ran against
+  an empty list before the plan loaded and overwrote localStorage with `[]`). Fixed with a `!plan`
+  guard. Same review found + fixed aisle miscategorisations (peanut butter→dairy, plant milks→dairy,
+  stock→meat, egg noodles→dairy). **Lesson logged: an effect that persists derived state must not run
+  before its source data has loaded.**
 
-Backlog from the audit (lower value / needs a backend): community popularity signals, imagery
-de-duplication, progress/streak history, a stepped onboarding wizard, unifying the week-board's
-at-a-glance shopping aside with the full Groceries view.
+New tested pure libs: `src/lib/grocery.ts` (aisle categoriser), `filterFeed(query)`/`sortFeed`.
+`test:engine` **389/0 fuzz clean**, `test:api` **21/0**. tsc clean; every route serves.
+
+Backlog (lower value / needs a backend or design): progress/streak history (the biggest remaining
+retention hook), a stepped onboarding wizard, community popularity signals, more photo assets to cut
+photo repetition, a full focus-trap in the drawer, unifying the week-board's at-a-glance aside with
+the Groceries view.
 
 ### Roadmap Phase 2 — the share-a-reel importer (DONE)
 

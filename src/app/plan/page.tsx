@@ -813,7 +813,7 @@ export default function PlanPage() {
                           className="flex w-full items-center justify-between gap-4 border-b border-line py-3.5 text-left transition hover:opacity-70"
                         >
                           <div className="min-w-0">
-                            <p className="text-[9px] font-bold tracking-wider text-vio-deep uppercase">
+                            <p className="text-[11px] font-bold tracking-wider text-vio-deep uppercase">
                               {meal.type}
                             </p>
                             <p className="mt-0.5 text-sm font-semibold leading-snug">{meal.name}</p>
