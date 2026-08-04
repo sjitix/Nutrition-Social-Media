@@ -152,6 +152,7 @@ export default function PlanPage() {
   const [regenerating, setRegenerating] = useState(false);
   const [regenError, setRegenError] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const drawerRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     const p = loadProfile();
@@ -508,6 +509,24 @@ export default function PlanPage() {
     setDetail(null);
     setDetailDay(undefined);
   }
+
+  // Make the meal drawer a proper modal: Escape closes it, the page behind it can't scroll, and
+  // focus moves into it on open (and the whole thing is announced as a dialog — see the aside below).
+  useEffect(() => {
+    if (!detail) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeDetail();
+    };
+    document.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    drawerRef.current?.focus();
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detail]);
   const isPinned = (day: string | undefined, mealType: string) =>
     !!day && !!profile?.lockedMeals?.some((l) => l.day === day && l.mealType === mealType);
 
@@ -1531,8 +1550,16 @@ export default function PlanPage() {
           <div
             className="fixed inset-0 z-30 bg-plum/40"
             onClick={closeDetail}
+            aria-hidden="true"
           />
-          <aside className="fixed inset-y-0 right-0 z-40 w-full max-w-md overflow-y-auto bg-white shadow-2xl">
+          <aside
+            ref={drawerRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={detail.name}
+            tabIndex={-1}
+            className="fixed inset-y-0 right-0 z-40 w-full max-w-md overflow-y-auto bg-white shadow-2xl outline-none"
+          >
             <div className="h-20 w-full bg-gradient-to-r from-vio to-vio-deep" />
             <button
               onClick={closeDetail}

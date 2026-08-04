@@ -5,9 +5,12 @@
   --color-plum: #372f55;
   --color-plum-deep: #2d2650;
   --color-plum-mid: #3e3568;
-  --color-mut: #8781ad;
-  --color-vio: #7a6ff0;
-  --color-vio-deep: #5d51d6;
+  /* Darkened for WCAG AA: the old #8781ad muted text was ~3.2:1 on the app background (fails 4.5:1);
+     #605a84 is ~5.7:1. Violet button fills carry white 14px labels, so vio must clear 4.5:1 too —
+     the old #7a6ff0 was 3.95:1; #675ce0 is ~4.8:1. vio-deep darkened for a visible hover + as text. */
+  --color-mut: #605a84;
+  --color-vio: #675ce0;
+  --color-vio-deep: #5044c9;
   --color-lav: #efecfb;
   --color-mint: #2e9e6e;
   --color-mint-soft: #e2f3ea;

@@ -11,6 +11,9 @@ function base(className?: string) {
     strokeLinecap: "round" as const,
     strokeLinejoin: "round" as const,
     viewBox: "0 0 24 24",
+    // Decorative — the accompanying text or the button's aria-label carries the meaning, so screen
+    // readers shouldn't also announce the icon.
+    "aria-hidden": true,
   };
 }
 
