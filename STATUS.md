@@ -1,11 +1,12 @@
 # 🛠️ Live status — assistant v2 (7B rebuild)
 
-**Last updated: 2026-08-05 13:02** · I update this at every stage change and push it, so you can open
+**Last updated: 2026-08-05 18:10** · I update this at every stage change and push it, so you can open
 it on GitHub from your phone anytime.
 
 ## ▶ Current stage
-**Phase 0 — de-risking the environment.** The 7B base model is downloading; I'm about to start wiring
-the engine to the new primitive schema.
+**Phase 2 — dry-running the 7B.** The whole deterministic half is built and green, and the training set
+just scaled **3.1× to 818 engine-validated conversations (0 rejected)**. Next I run Qwen2.5-7B through a
+few real training steps on the 8 GB card to prove it fits and the format flows — *before* the 12 h run.
 
 ## Is it *actually* progressing right now? — check it yourself
 You don't have to take my word for it. Run any of these on the desktop:
@@ -19,16 +20,18 @@ You don't have to take my word for it. Run any of these on the desktop:
 ## Progress checklist
 - [x] Root-cause fixes (whole-week swap, reply de-dup, mealsPerDay) — shipped
 - [x] Design: coverage blueprint + general-primitive schema + hard-case eval — shipped
-- [x] Env verified (CUDA, 104 G free) + 7B download started
-- [ ] **← next:** wire engine to primitives (`constrain`/`swap`/`remember`/…) + memory + per-slot
-- [ ] generate-then-validate data pipeline
-- [ ] generate thousands of realistic convos with `thinking` traces
-- [ ] dry-run 7B end-to-end
+- [x] Env verified (CUDA, 104 G free) + 7B downloaded (15 G)
+- [x] Engine wired to primitives (`constrain`/`swap`/`remember`/…) + memory + executor — 441/0
+- [x] generate-then-validate data pipeline (every example run through the real engine)
+- [x] generated **818** realistic convos with `thinking` traces, 0 rejected
+- [ ] **← next:** dry-run 7B end-to-end (few steps → prove fit + format)
 - [ ] **12 h train** (I'll flag you the moment this starts — keep the desktop awake & off the GPU)
+- [ ] convert LoRA → GGUF → load in LM Studio
 - [ ] test hard vs the eval → **report to you**
 
 ## What's running in the background
-- 7B download (`Qwen/Qwen2.5-7B-Instruct`) → HF cache. Log: `scratchpad/dl7b.log`.
+- Nothing heavy right now — the 7B download finished (15 G in the HF cache). Next OS-level job is the
+  dry-run, then the 12 h train.
 
 ## Honest note on how I work
 I don't think 24/7 — I work in bursts (triggered by you, or when a background job finishes). But the

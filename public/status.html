@@ -75,8 +75,8 @@
 
   <div class="now">
     <div class="label"><span class="dot"></span>Working on now</div>
-    <h2>The v2 turn shape + prompt</h2>
-    <p>The executor (<span class="mono">applyPrimitives</span>) is done and green (422/0). Next: the reason-then-act turn schema (<span class="mono">thinking → reply → operations</span>), the model prompt that teaches the primitives + memory, and the route that runs it — then the big one, the generate-then-validate data pipeline.</p>
+    <h2>Dry-running the 7B end-to-end</h2>
+    <p>Dataset just scaled <b>3.1×</b> — <span class="mono">818</span> engine-validated conversations, 0 rejected. Next I take Qwen2.5-7B through a few real training steps on the 8&nbsp;GB card to prove it fits and the format flows, <i>before</i> committing 12&nbsp;hours to it. I'll ping you distinctly the moment the real train begins.</p>
   </div>
 
   <div class="sec">
@@ -86,24 +86,28 @@
       <li class="done"><span class="g">✓</span><span class="t">Design locked: coverage blueprint, general-primitive schema, hard-case eval <small>ASSISTANT-COVERAGE.md · ASSISTANT-SCHEMA.md · data/hard-cases.json</small></span></li>
       <li class="done"><span class="g">✓</span><span class="t">Environment verified · 7B model downloaded <small>CUDA ok, 104 G free · Qwen2.5-7B-Instruct · 15 GB on disk</small></span></li>
       <li class="done"><span class="g">✓</span><span class="t">General primitives wired: <span class="mono">constrain</span> + <span class="mono">remember</span> → tested engine <small>constrain → update_profile / per-day rebuilds; memory deduped + surfaced</small></span></li>
-      <li class="done"><span class="g">✓</span><span class="t">Executor bridge <span class="mono">applyPrimitives</span> <small>remember + constrain + pass-through verbs, all through the proven engine · fixed a flaky test · 422/0</small></span></li>
+      <li class="done"><span class="g">✓</span><span class="t">Executor complete — <span class="mono">applyPrimitives</span> runs the whole v2 vocabulary <small>constrain + remember + op-verbs (swap/log/rate/pin/report/…) → the proven engine · fixed a flaky test · 426/0</small></span></li>
+      <li class="done"><span class="g">✓</span><span class="t">v2 turn schema validated <small>zod <span class="mono">thinking→reply→operations</span> · a realistic multi-op turn parses + runs end-to-end · rejects garbage · 430/0</small></span></li>
+      <li class="done"><span class="g">✓</span><span class="t">v2 system prompt written <small>reason-then-act; teaches the primitives + memory + the four honest outcomes; folds in the user's facts · used for training AND inference · 432/0</small></span></li>
+      <li class="done"><span class="g">✓</span><span class="t">Data validator — every example checked against the real engine <small>rejects schema-invalid ops, no-op-but-claims-a-change, and unbacked claims · this is what makes the set CORRECT · 439/0</small></span></li>
+      <li class="done"><span class="g">✓</span><span class="t">Conversation generator v1 — <span class="mono">261</span> examples across the taxonomy <small>constrain/remember/swap/log/rate/pin/resize/symptom/report + clarify/decline/refuse + multi-turn · sample validated 53/53 (100%)</small></span></li>
+      <li class="done"><span class="g">✓</span><span class="t">Training file written — <span class="mono">finetune-v2.jsonl</span> <small>every one engine-validated · in the trainer's chat format (loss on the assistant turn)</small></span></li>
+      <li class="done"><span class="g">✓</span><span class="t">Generator scaled <b>3.1×</b> — <span class="mono">818</span> conversations, 0 rejected <small>rotating reasoning + reply banks (no parroting) · casual/typo'd/emotional phrasing · combinatorial diet×exclude×budget×cuisine×macros · +explain/substitute/hydration/answer read-only verbs · the validator surfaced the vegan-b12 honesty case · 441/0</small></span></li>
     </ul>
   </div>
 
   <div class="sec">
     <div class="sec-h">In progress</div>
     <ul>
-      <li class="now-row"><span class="g">▶</span><span class="t">v2 turn schema + model prompt + route <small>thinking→reply→operations · teach primitives + memory · per-slot</small></span></li>
+      <li class="now-row"><span class="g">▶</span><span class="t">Dry-run the 7B end-to-end <small>a few real steps on the 8&nbsp;GB card — prove it fits + the format flows before the 12&nbsp;h commit</small></span></li>
     </ul>
   </div>
 
   <div class="sec">
     <div class="sec-h">Up next</div>
     <ul>
-      <li class="up"><span class="g">○</span><span class="t">Generate-then-validate data pipeline <small>I write realistic convos → engine runs them → keep only the ones that truly do what the reply claims</small></span></li>
-      <li class="up"><span class="g">○</span><span class="t">Generate thousands of conversations with reasoning traces</span></li>
-      <li class="up"><span class="g">○</span><span class="t">Dry-run the 7B end-to-end (download → few steps → merge → infer)</span></li>
       <li class="up"><span class="g">○</span><span class="t">12-hour QLoRA train <small>I'll ping you the moment this starts — keep the desktop awake & off the GPU</small></span></li>
+      <li class="up"><span class="g">○</span><span class="t">Convert LoRA → GGUF → load in LM Studio</span></li>
       <li class="up"><span class="g">○</span><span class="t">Test it hard against the eval → report back to you</span></li>
     </ul>
   </div>
@@ -117,7 +121,7 @@
   </div>
 
   <div class="foot">
-    <span class="mono">updated 2026-08-05 13:46</span>
+    <span class="mono">updated 2026-08-05 18:10</span>
     <span>next surface point: when the 12 h train starts, then a full report</span>
   </div>
 </div>

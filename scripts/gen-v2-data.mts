@@ -30,11 +30,14 @@ const defaults = { profile: BASE, plan: plans[0] };
 const lines: string[] = [];
 let rejected = 0;
 const reasons: Record<string, number> = {};
+const rejects: { text: string; reason: string }[] = [];
 examples.forEach((ex, i) => {
   const v = validateExample(ex, defaults);
   if (!v.ok) {
     rejected++;
     reasons[v.reason ?? "?"] = (reasons[v.reason ?? "?"] ?? 0) + 1;
+    const lastUser = [...ex.turns].reverse().find((t) => t.role === "user");
+    rejects.push({ text: lastUser?.text ?? "(none)", reason: v.reason ?? "?" });
     return;
   }
   const plan = ex.plan ?? plans[i % plans.length];
@@ -48,4 +51,7 @@ examples.forEach((ex, i) => {
 
 writeFileSync(join(process.cwd(), "data", "finetune-v2.jsonl"), lines.join("\n") + "\n", "utf-8");
 console.log(`wrote ${lines.length} examples (rejected ${rejected}) -> data/finetune-v2.jsonl`);
-if (rejected) console.log("reject reasons:", JSON.stringify(reasons));
+if (rejected) {
+  console.log("reject reasons:", JSON.stringify(reasons));
+  for (const r of rejects) console.log(`  REJECT [${r.reason}] <- "${r.text}"`);
+}
