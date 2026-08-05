@@ -75,8 +75,13 @@
 
   <div class="now">
     <div class="label"><span class="dot"></span>Working on now</div>
-    <h2>Dry-running the 7B end-to-end</h2>
-    <p>Dataset just scaled <b>3.1×</b> — <span class="mono">818</span> engine-validated conversations, 0 rejected. Next I take Qwen2.5-7B through a few real training steps on the 8&nbsp;GB card to prove it fits and the format flows, <i>before</i> committing 12&nbsp;hours to it. I'll ping you distinctly the moment the real train begins.</p>
+    <h2>Growing the eval before the 12&nbsp;h train</h2>
+    <p>Dry-run's format half is <b>green</b>: all <span class="mono">818</span> examples fit the length cap (max 1971 / 2560) and every one has a real answer to learn from — no silent drops. The VRAM-fit half + the 12&nbsp;h train both need the desktop's GPU freed, so I'll coordinate that with you. Meanwhile I'm doing GPU-free prep: expanding the hard-case eval so I can judge the trained model honestly (a lesson from earlier runs — a noisy eval can't steer training).</p>
+  </div>
+
+  <div class="now" style="border-left-color:var(--done);margin-top:12px">
+    <div class="label" style="color:var(--done)"><span class="dot" style="background:var(--done)"></span>When you're ready for the 12&nbsp;h train</div>
+    <p style="margin-top:6px">Free the desktop's GPU — close Brave/Cursor there and unload the model in LM Studio — and I'll kick it off and ping you the moment it starts. No rush; everything up to that point keeps moving without it.</p>
   </div>
 
   <div class="sec">
@@ -93,20 +98,22 @@
       <li class="done"><span class="g">✓</span><span class="t">Conversation generator v1 — <span class="mono">261</span> examples across the taxonomy <small>constrain/remember/swap/log/rate/pin/resize/symptom/report + clarify/decline/refuse + multi-turn · sample validated 53/53 (100%)</small></span></li>
       <li class="done"><span class="g">✓</span><span class="t">Training file written — <span class="mono">finetune-v2.jsonl</span> <small>every one engine-validated · in the trainer's chat format (loss on the assistant turn)</small></span></li>
       <li class="done"><span class="g">✓</span><span class="t">Generator scaled <b>3.1×</b> — <span class="mono">818</span> conversations, 0 rejected <small>rotating reasoning + reply banks (no parroting) · casual/typo'd/emotional phrasing · combinatorial diet×exclude×budget×cuisine×macros · +explain/substitute/hydration/answer read-only verbs · the validator surfaced the vegan-b12 honesty case · 441/0</small></span></li>
+      <li class="done"><span class="g">✓</span><span class="t">Dry-run — format/length half proven (GPU-free) <small>all 818 fit the length cap (max 1971 / 2560) · every example has a non-empty unmasked answer → no silent all-masked drops · same tokenizer path the trainer uses</small></span></li>
     </ul>
   </div>
 
   <div class="sec">
     <div class="sec-h">In progress</div>
     <ul>
-      <li class="now-row"><span class="g">▶</span><span class="t">Dry-run the 7B end-to-end <small>a few real steps on the 8&nbsp;GB card — prove it fits + the format flows before the 12&nbsp;h commit</small></span></li>
+      <li class="now-row"><span class="g">▶</span><span class="t">Grow the hard-case eval <small>broaden it across the taxonomy + the four honest outcomes so it can actually judge the trained model — GPU-free prep</small></span></li>
     </ul>
   </div>
 
   <div class="sec">
     <div class="sec-h">Up next</div>
     <ul>
-      <li class="up"><span class="g">○</span><span class="t">12-hour QLoRA train <small>I'll ping you the moment this starts — keep the desktop awake & off the GPU</small></span></li>
+      <li class="up"><span class="g">○</span><span class="t">Build the v2 assistant route (separate endpoint) <small>ready to flip on once the model's trained — won't touch the live assistant</small></span></li>
+      <li class="up"><span class="g">○</span><span class="t">VRAM-fit check + <b>12-hour QLoRA train</b> <small>needs the GPU freed — I'll ping you the moment it starts</small></span></li>
       <li class="up"><span class="g">○</span><span class="t">Convert LoRA → GGUF → load in LM Studio</span></li>
       <li class="up"><span class="g">○</span><span class="t">Test it hard against the eval → report back to you</span></li>
     </ul>
@@ -121,7 +128,7 @@
   </div>
 
   <div class="foot">
-    <span class="mono">updated 2026-08-05 18:10</span>
+    <span class="mono">updated 2026-08-05 18:15</span>
     <span>next surface point: when the 12 h train starts, then a full report</span>
   </div>
 </div>
