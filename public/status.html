@@ -1,0 +1,122 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="refresh" content="20">
+<title>NutriFlow build status</title>
+<style>
+  :root{
+    --bg:#f7f7fb; --panel:#ffffff; --ink:#201c33; --mut:#6f6a89; --line:#e7e5f1;
+    --accent:#6d5cf0; --accent-soft:#efecfe; --done:#2e9e6e; --done-soft:#e4f4ec;
+    --up:#9a95b6; --shadow:0 6px 24px rgba(60,50,120,.09);
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#141220; --panel:#1d1a2c; --ink:#e9e7f4; --mut:#9a94b8; --line:#2b2740;
+      --accent:#9a8bff; --accent-soft:#241f3d; --done:#4dd39b; --done-soft:#16281f;
+      --up:#726d90; --shadow:0 8px 30px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#f7f7fb; --panel:#ffffff; --ink:#201c33; --mut:#6f6a89; --line:#e7e5f1;
+    --accent:#6d5cf0; --accent-soft:#efecfe; --done:#2e9e6e; --done-soft:#e4f4ec;
+    --up:#9a95b6; --shadow:0 6px 24px rgba(60,50,120,.09);
+  }
+  :root[data-theme="dark"]{
+    --bg:#141220; --panel:#1d1a2c; --ink:#e9e7f4; --mut:#9a94b8; --line:#2b2740;
+    --accent:#9a8bff; --accent-soft:#241f3d; --done:#4dd39b; --done-soft:#16281f;
+    --up:#726d90; --shadow:0 8px 30px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    line-height:1.5;-webkit-font-smoothing:antialiased}
+  .mono{font-family:ui-monospace,"Cascadia Code","SF Mono",Consolas,monospace;font-variant-numeric:tabular-nums}
+  .wrap{max-width:720px;margin:0 auto;padding:32px 20px 64px}
+  .eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--mut);font-weight:700}
+  h1{font-size:22px;margin:.25rem 0 0;letter-spacing:-.01em;text-wrap:balance}
+  .sub{color:var(--mut);font-size:14px;margin-top:4px}
+
+  .now{margin-top:24px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);
+    border-radius:14px;padding:18px 20px;box-shadow:var(--shadow)}
+  .now .label{display:flex;align-items:center;gap:8px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:800}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 0 var(--accent);animation:pulse 1.8s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 55%,transparent)}70%{box-shadow:0 0 0 9px transparent}100%{box-shadow:0 0 0 0 transparent}}
+  @media (prefers-reduced-motion:reduce){.dot{animation:none}}
+  .now h2{margin:.5rem 0 0;font-size:19px;letter-spacing:-.01em}
+  .now p{margin:.4rem 0 0;color:var(--mut);font-size:14px}
+
+  .sec{margin-top:30px}
+  .sec-h{font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);font-weight:700;margin-bottom:10px}
+  ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+  li{display:flex;gap:12px;align-items:flex-start;padding:9px 10px;border-radius:9px}
+  li .g{flex:none;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800;margin-top:1px}
+  li.done .g{background:var(--done-soft);color:var(--done)}
+  li.now-row .g{background:var(--accent-soft);color:var(--accent)}
+  li.up .g{background:transparent;color:var(--up);border:1.5px solid var(--line)}
+  li .t{font-size:14.5px}
+  li.done .t{color:var(--ink)}
+  li.up .t{color:var(--up)}
+  li.now-row{background:var(--accent-soft)}
+  li.now-row .t{font-weight:650}
+  li .t small{display:block;color:var(--mut);font-weight:400;font-size:12.5px;margin-top:1px}
+
+  .jobs{margin-top:14px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .job{display:flex;align-items:center;gap:10px;font-size:13.5px}
+  .job .live{width:8px;height:8px;border-radius:50%;background:var(--done);animation:pulse 1.8s infinite;flex:none}
+  .job .k{color:var(--mut)}
+  .verify{margin-top:14px;font-size:13px;color:var(--mut)}
+  .verify code{background:var(--accent-soft);color:var(--ink);padding:2px 6px;border-radius:6px;font-size:12.5px}
+  .foot{margin-top:26px;padding-top:16px;border-top:1px solid var(--line);color:var(--mut);font-size:12.5px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+</style>
+
+<div class="wrap">
+  <div class="eyebrow">NutriFlow · assistant v2</div>
+  <h1>7B rebuild — live build status</h1>
+  <div class="sub">A personal-nutritionist assistant that reasons freely, then executes exactly. This page auto-refreshes; I redeploy it right before moving to each next task.</div>
+
+  <div class="now">
+    <div class="label"><span class="dot"></span>Working on now</div>
+    <h2>Wiring the primitives into the assistant turn</h2>
+    <p><span class="mono">constrain</span> + <span class="mono">remember</span> now map cleanly onto the tested engine (418/0 green). Next: the reason-then-act shape (<span class="mono">thinking → reply → operations</span>), the remaining pass-through verbs, and light per-slot targeting.</p>
+  </div>
+
+  <div class="sec">
+    <div class="sec-h">Done</div>
+    <ul>
+      <li class="done"><span class="g">✓</span><span class="t">Root-cause fixes: whole-week swaps, reply de-duplication, meals/day <small>engine + tests, 409/0 fuzz-clean · shipped</small></span></li>
+      <li class="done"><span class="g">✓</span><span class="t">Design locked: coverage blueprint, general-primitive schema, hard-case eval <small>ASSISTANT-COVERAGE.md · ASSISTANT-SCHEMA.md · data/hard-cases.json</small></span></li>
+      <li class="done"><span class="g">✓</span><span class="t">Environment verified · 7B model downloaded <small>CUDA ok, 104 G free · Qwen2.5-7B-Instruct · 15 GB on disk</small></span></li>
+      <li class="done"><span class="g">✓</span><span class="t">General primitives wired: <span class="mono">constrain</span> + <span class="mono">remember</span> → tested engine <small>constrain → update_profile / per-day rebuilds; memory deduped + surfaced · 418/0 fuzz-clean</small></span></li>
+    </ul>
+  </div>
+
+  <div class="sec">
+    <div class="sec-h">In progress</div>
+    <ul>
+      <li class="now-row"><span class="g">▶</span><span class="t">Wire primitives into the assistant turn <small>thinking→reply→operations · pass-through verbs · per-slot</small></span></li>
+    </ul>
+  </div>
+
+  <div class="sec">
+    <div class="sec-h">Up next</div>
+    <ul>
+      <li class="up"><span class="g">○</span><span class="t">Generate-then-validate data pipeline <small>I write realistic convos → engine runs them → keep only the ones that truly do what the reply claims</small></span></li>
+      <li class="up"><span class="g">○</span><span class="t">Generate thousands of conversations with reasoning traces</span></li>
+      <li class="up"><span class="g">○</span><span class="t">Dry-run the 7B end-to-end (download → few steps → merge → infer)</span></li>
+      <li class="up"><span class="g">○</span><span class="t">12-hour QLoRA train <small>I'll ping you the moment this starts — keep the desktop awake & off the GPU</small></span></li>
+      <li class="up"><span class="g">○</span><span class="t">Test it hard against the eval → report back to you</span></li>
+    </ul>
+  </div>
+
+  <div class="sec">
+    <div class="sec-h">Background jobs</div>
+    <div class="jobs">
+      <div class="job"><span class="g" style="width:8px;height:8px;border-radius:50%;background:var(--done)"></span><span>7B download complete</span><span class="k mono">· 15 GB · training starts after the data pipeline</span></div>
+    </div>
+    <div class="verify">Verify progress yourself on the desktop: <code>git log --oneline</code> · <code>du -sh ~/.cache/huggingface/hub/models--Qwen--Qwen2.5-7B-Instruct</code> · during training <code>nvidia-smi</code></div>
+  </div>
+
+  <div class="foot">
+    <span class="mono">updated 2026-08-05 13:24</span>
+    <span>next surface point: when the 12 h train starts, then a full report</span>
+  </div>
+</div>

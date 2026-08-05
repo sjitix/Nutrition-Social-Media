@@ -213,6 +213,19 @@ export interface UserProfile {
   // so the app knew your calorie target but not your weight — and could not tell you how much
   // water to drink, or recompute anything when your goal changed. Kept now.
   bodyStats?: BodyStats;
+  // The personal-nutritionist MEMORY: durable free-form facts the user tells the assistant over
+  // time ("lactose intolerant", "hates cilantro", "training for a marathon", "IBS + onions",
+  // "on period since Tuesday"). Written by the `remember` primitive, fed into every future turn's
+  // context, and read by the health/cycle features. Never required; older profiles have none.
+  memory?: UserFact[];
+}
+
+/** A durable fact the assistant remembers about the user. */
+export interface UserFact {
+  fact: string;
+  kind?: "preference" | "allergy" | "condition" | "goal" | "context";
+  /** ISO day it was noted, so time-bound facts (e.g. a period) can age out. Optional. */
+  since?: string;
 }
 
 /**

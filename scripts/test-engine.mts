@@ -19,6 +19,7 @@ import { FEED_RECIPES, filterFeed, sortFeed, HIGH_PROTEIN_G, type FeedFilter } f
 import { videoPlatform, extractVideoText } from "@/lib/videoImport";
 import { aisleFor, groupByAisle, AISLE_ORDER } from "@/lib/grocery";
 import { currentStreak, prevDay, isoDay } from "@/lib/streak";
+import { expandConstrain, applyRemember, memoryContext } from "@/lib/primitives";
 import { microsForIngredients } from "@/lib/nutrients";
 import { haystackBlocked, dietTagConflicts, parseExclusionTokens } from "@/lib/exclusions";
 import { bmr, computeTargets, hydrationTarget } from "@/lib/targets";
@@ -1091,6 +1092,32 @@ console.log("--- MEALS PER DAY (\"I want 4 meals a day\" / \"add a daily snack\"
   check("meals/day: it persists to the profile", r.profile.mealsPerDay === 4);
   const back = applyOperations(r.profile, r.plan, [op({ tool: "update_profile", mealsPerDay: 3 })]);
   check("meals/day: back to 3 gives every day 3 meals", back.plan.days.every((d) => d.meals.length === 3));
+}
+
+console.log("");
+console.log("--- PRIMITIVES v2 (constrain / remember -> tested engine) ---");
+{
+  // constrain(week) -> one update_profile the engine already runs. Most edits are this one op.
+  const wk = expandConstrain({ op: "constrain", diet: "vegetarian", budget: "low", exclude: ["mushrooms"] });
+  check("constrain(week): one update_profile op", wk.length === 1 && wk[0].tool === "update_profile");
+  check("constrain(week): carries all the fields", (wk[0] as Operation).diet === "vegetarian" && (wk[0] as Operation).budget === "low" && ((wk[0] as Operation).excludeFoods ?? []).includes("mushrooms"));
+  const rc = applyOperations(BASE, freshWeek(BASE), wk);
+  check("constrain(week): engine applied it (diet persisted)", rc.profile.diet === "vegetarian" && rc.planChanged === true);
+
+  // constrain({days}) -> one regenerate_day each, a per-day override that does NOT persist.
+  const days = expandConstrain({ op: "constrain", scope: { days: ["Monday", "Tuesday"] }, diet: "vegetarian" });
+  check("constrain(days): one regenerate_day per day", days.length === 2 && days.every((o) => o.tool === "regenerate_day"));
+  check("constrain(days): targets exactly those days", days.map((o) => (o as Operation).day).sort().join(",") === "Monday,Tuesday");
+  const rd = applyOperations(BASE, freshWeek(BASE), days);
+  check("constrain(days): a day override does NOT persist to the profile", rd.profile.diet === "none" && rd.planChanged === true);
+
+  // remember -> the personal-nutritionist memory, deduped, surfaced back into the prompt.
+  let pm = applyRemember(BASE, { op: "remember", fact: "lactose intolerant", kind: "allergy" });
+  pm = applyRemember(pm, { op: "remember", fact: "hates cilantro", kind: "preference" });
+  pm = applyRemember(pm, { op: "remember", fact: "Lactose Intolerant" }); // same fact, different case
+  check("remember: stores facts, deduped case-insensitively", (pm.memory ?? []).length === 2);
+  check("remember: memory surfaces in the prompt context", /lactose intolerant/i.test(memoryContext(pm)) && /cilantro/i.test(memoryContext(pm)));
+  check("remember: empty profile has empty context", memoryContext(BASE) === "");
 }
 
 
