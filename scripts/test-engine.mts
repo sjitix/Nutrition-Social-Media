@@ -21,6 +21,7 @@ import { aisleFor, groupByAisle, AISLE_ORDER } from "@/lib/grocery";
 import { currentStreak, prevDay, isoDay } from "@/lib/streak";
 import { expandConstrain, applyRemember, applyPrimitives, memoryContext, AssistantTurnV2Schema, type PrimitiveOp } from "@/lib/primitives";
 import { assistantV2SystemPrompt } from "@/lib/promptV2";
+import { validateExample, validateBatch, type TrainingExample } from "@/lib/dataValidate";
 import { microsForIngredients } from "@/lib/nutrients";
 import { haystackBlocked, dietTagConflicts, parseExclusionTokens } from "@/lib/exclusions";
 import { bmr, computeTargets, hydrationTarget } from "@/lib/targets";
@@ -1173,6 +1174,49 @@ console.log("--- PRIMITIVES v2 (constrain / remember -> tested engine) ---");
   check("v2 prompt: teaches the reason-then-act shape + primitives + outcomes", /thinking/.test(sp) && /constrain/.test(sp) && /remember/.test(sp) && /FOUR OUTCOMES/.test(sp));
   const pmem = applyRemember(BASE, { op: "remember", fact: "lactose intolerant" });
   check("v2 prompt: folds the user's memory into the context", /lactose intolerant/i.test(assistantV2SystemPrompt(pmem, freshWeek(pmem))));
+}
+
+console.log("");
+console.log("--- DATA VALIDATOR (generate-then-validate: keep only correct examples) ---");
+{
+  const defaults = { profile: BASE, plan: freshWeek(BASE) };
+  const ok = (ex: TrainingExample) => validateExample(ex, defaults).ok;
+
+  check("validator: accepts a correct 'go vegetarian' example", ok({
+    turns: [{ role: "user", text: "make my whole week vegetarian" }],
+    thinking: "Whole-week diet change.", reply: "Done — your week is vegetarian now.",
+    operations: [{ op: "constrain", diet: "vegetarian" }], expect: { dietIs: "vegetarian", planChanged: true },
+  }));
+  check("validator: accepts a remember example", ok({
+    turns: [{ role: "user", text: "just so you know i'm lactose intolerant" }],
+    thinking: "A durable allergy to store.", reply: "Noted — I'll keep dairy out.",
+    operations: [{ op: "remember", fact: "lactose intolerant", kind: "allergy" }], expect: { remembers: "lactose", profileChanged: true },
+  }));
+  check("validator: accepts a clarify (no ops, no change)", ok({
+    turns: [{ role: "user", text: "change it" }],
+    thinking: "Too vague — ask.", reply: "Happy to — what should I change: a day, a meal, or a setting?",
+    operations: [], expect: { noChange: true },
+  }));
+
+  // Rejections.
+  check("validator: REJECTS a schema-invalid op", !ok({
+    turns: [{ role: "user", text: "x" }], thinking: "t", reply: "r", operations: [{ op: "teleport" }],
+  }));
+  check("validator: REJECTS a reply that claims a diet change with no op to back it", !ok({
+    turns: [{ role: "user", text: "make it vegetarian" }], thinking: "t", reply: "Done — it's vegetarian!",
+    operations: [], expect: { dietIs: "vegetarian" },
+  }));
+  check("validator: REJECTS an op that claims a change but moves nothing (undo with no history)", !ok({
+    turns: [{ role: "user", text: "undo that" }], thinking: "revert", reply: "Reverted.", operations: [{ op: "undo" }],
+  }));
+
+  // Batch partitions correctly.
+  const batch: TrainingExample[] = [
+    { turns: [{ role: "user", text: "go vegan" }], thinking: "t", reply: "Done — vegan now.", operations: [{ op: "constrain", diet: "vegan" }], expect: { dietIs: "vegan" } },
+    { turns: [{ role: "user", text: "x" }], thinking: "t", reply: "r", operations: [{ op: "teleport" }] },
+  ];
+  const { kept, rejected } = validateBatch(batch, defaults);
+  check("validator: batch keeps the good, drops the bad", kept.length === 1 && rejected.length === 1 && /schema/.test(rejected[0].reason));
 }
 
 
