@@ -75,8 +75,8 @@
 
   <div class="now">
     <div class="label"><span class="dot"></span>Working on now</div>
-    <h2>Dataset at <span class="mono">3,272</span> — growing the eval next</h2>
-    <p><b>12.5×</b> the first cut, all engine-validated (0 rejected), length-clean, tests green — committed. It now spans the whole taxonomy <i>plus</i> the hard stuff: remembering your facts, holding a 3–5 turn conversation, and admitting honest limits. With the corpus in strong shape, I'm turning to the other GPU-free prep — broadening the hard-case eval so I can judge the trained model rigorously (a recorded lesson: a noisy eval can't steer training). The dataset levers stay open if we want it even bigger.</p>
+    <h2>Building the v2 assistant route</h2>
+    <p>Eval doubled — <span class="mono">45</span> hard cases across all four honest outcomes (do / clarify / decline / refuse) + memory + multi-turn + the cycle-aware health behavior — committed. That's the ruler I'll grade the trained model with. Next GPU-free step: wire a <i>separate</i> v2 endpoint (the reason-then-act prompt + <span class="mono">applyPrimitives</span>) that's ready to flip on once the 7B is trained, without disturbing the live assistant.</p>
   </div>
 
   <div class="now" style="border-left-color:var(--done);margin-top:12px">
@@ -100,23 +100,23 @@
       <li class="done"><span class="g">✓</span><span class="t">Generator scaled <b>3.1×</b> — <span class="mono">818</span> conversations, 0 rejected <small>rotating reasoning + reply banks (no parroting) · casual/typo'd/emotional phrasing · combinatorial diet×exclude×budget×cuisine×macros · +explain/substitute/hydration/answer read-only verbs · the validator surfaced the vegan-b12 honesty case · 441/0</small></span></li>
       <li class="done"><span class="g">✓</span><span class="t">Dry-run — format/length half proven (GPU-free) <small>same tokenizer path the trainer uses · every example has a non-empty unmasked answer → no silent all-masked drops</small></span></li>
       <li class="done"><span class="g">✓</span><span class="t">Dataset scaled to <span class="mono">3,272</span> conversations, 0 rejected <small>surface-form multiplier + rotating reasoning/reply banks + wider value ranges + situational classes (memory-application, deeper 3–5 turn threads, messy real-life + honest declines) · length-clean (max 1998 / 2560) · 441/0 · committed</small></span></li>
+      <li class="done"><span class="g">✓</span><span class="t">Hard-case eval doubled → <span class="mono">45</span> cases <small>all four buckets (do 27 / clarify 7 / decline 6 / refuse 5) + memory-application + multi-turn corrections + cycle-aware health · incl. the vegan-b12 honesty case · the ruler for grading the trained 7B · committed</small></span></li>
     </ul>
   </div>
 
   <div class="sec">
     <div class="sec-h">In progress</div>
     <ul>
-      <li class="now-row"><span class="g">▶</span><span class="t">Grow the hard-case eval <small>broaden data/hard-cases.json across the taxonomy + the four honest outcomes so it can rigorously judge the trained model — GPU-free prep</small></span></li>
+      <li class="now-row"><span class="g">▶</span><span class="t">Build the v2 assistant route (separate endpoint) <small>reason-then-act prompt + <span class="mono">applyPrimitives</span> · ready to flip on post-train · won't touch the live assistant</small></span></li>
     </ul>
   </div>
 
   <div class="sec">
     <div class="sec-h">Up next</div>
     <ul>
-      <li class="up"><span class="g">○</span><span class="t">Build the v2 assistant route (separate endpoint) <small>ready to flip on once the model's trained — won't touch the live assistant</small></span></li>
       <li class="up"><span class="g">○</span><span class="t">VRAM-fit check + <b>12-hour QLoRA train</b> <small>needs the GPU freed — I'll ping you the moment it starts</small></span></li>
       <li class="up"><span class="g">○</span><span class="t">Convert LoRA → GGUF → load in LM Studio</span></li>
-      <li class="up"><span class="g">○</span><span class="t">Test it hard against the eval → report back to you</span></li>
+      <li class="up"><span class="g">○</span><span class="t">Test it hard against the 45-case eval → report back to you</span></li>
     </ul>
   </div>
 
@@ -129,7 +129,7 @@
   </div>
 
   <div class="foot">
-    <span class="mono">updated 2026-08-05 19:28</span>
+    <span class="mono">updated 2026-08-05 19:52</span>
     <span>next surface point: when the 12 h train starts, then a full report</span>
   </div>
 </div>
