@@ -1220,11 +1220,13 @@ console.log("--- DATA VALIDATOR (generate-then-validate: keep only correct examp
   check("validator: batch keeps the good, drops the bad", kept.length === 1 && rejected.length === 1 && /schema/.test(rejected[0].reason));
 
   // The generator's examples must validate through the real engine (correct, not just plausible).
-  // Spot-check a representative SAMPLE here (every 5th, spread across intents) — validating all of
-  // them is hundreds of week-rebuilds and belongs in the one-shot data-gen script, not this suite.
+  // Spot-check a fixed-size SAMPLE here (~160, evenly spread across intents) — validating all of
+  // them is thousands of week-rebuilds and belongs in the one-shot data-gen script, not this suite.
+  // A fixed count (not a fixed fraction) keeps this fast as the generator grows toward thousands.
   const gen = generateExamples();
   check("generator: produces a substantial batch", gen.length >= 200, String(gen.length));
-  const sample = gen.filter((_, i) => i % 5 === 0);
+  const step = Math.max(1, Math.ceil(gen.length / 160));
+  const sample = gen.filter((_, i) => i % step === 0);
   const g = validateBatch(sample, { profile: BASE, plan: freshWeek(BASE) });
   const rate = g.kept.length / sample.length;
   check(`generator: sample validates end-to-end (${g.kept.length}/${sample.length})`, rate >= 0.98, g.rejected.slice(0, 6).map((r) => r.reason).join("  |  "));
