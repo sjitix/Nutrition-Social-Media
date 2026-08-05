@@ -73,15 +73,16 @@
   <h1>7B rebuild — live build status</h1>
   <div class="sub">A personal-nutritionist assistant that reasons freely, then executes exactly. This page auto-refreshes; I redeploy it right before moving to each next task.</div>
 
-  <div class="now">
-    <div class="label"><span class="dot"></span>Working on now</div>
-    <h2>GPU-free prep is complete — waiting on the GPU</h2>
-    <p>The whole chain now runs one command at a time: <span class="mono">train_lora.py</span> → <span class="mono">merge_and_gguf.py</span> → load in LM Studio → <span class="mono">eval:hardcases</span>. The eval harness grades the 45 cases through the real v2 pipeline and no-ops cleanly when no model's loaded (verified). <b>Only the 12&nbsp;h train is left, and it needs the desktop GPU freed.</b> Until then I'm on light polish (docs), and I'll ping you the instant the train starts once you free the card.</p>
+  <div class="now" style="border-left-color:var(--done)">
+    <div class="label" style="color:var(--done)"><span class="dot" style="background:var(--done)"></span>TRAINING — LIVE</div>
+    <h2>7B QLoRA is training · epoch 1 of 1</h2>
+    <p>Kicked off <span class="mono">2026-08-05 23:55</span>. Qwen2.5-7B-Instruct, 4-bit QLoRA on all <span class="mono">3,272</span> examples (0 skipped), <b>409 steps</b>. GPU pinned at <b>100%</b>, 7.9/8&nbsp;GB. It runs as a detached process — survives Cursor closing — and checkpoints every ~3.3&nbsp;h, so an interruption is recoverable.</p>
+    <p style="margin-top:6px"><b>Honest ETA: ~5–6 days (≈ Aug&nbsp;11).</b> The RTX&nbsp;2070 does ~20&nbsp;min/step — a 7B is simply slow on this card. You chose the full-7B, multi-day path; this is it. When it finishes I run merge → GGUF → grade automatically and send a full report.</p>
   </div>
 
-  <div class="now" style="border-left-color:var(--done);margin-top:12px">
-    <div class="label" style="color:var(--done)"><span class="dot" style="background:var(--done)"></span>When you're ready for the 12&nbsp;h train</div>
-    <p style="margin-top:6px">Free the desktop's GPU — close Brave/Cursor there and unload the model in LM Studio — and I'll kick it off and ping you the moment it starts. No rush; everything up to that point keeps moving without it.</p>
+  <div class="now" style="margin-top:12px">
+    <div class="label"><span class="dot"></span>Keep it healthy</div>
+    <p style="margin-top:6px">Leave the desktop <b>on &amp; plugged in</b> (never-sleep is set), Cursor open, LM Studio's model unloaded. Don't open anything GPU-heavy — only ~97&nbsp;MB spare. Watch progress here, in <span class="mono">STATUS.md</span> on GitHub, or tail <span class="mono">train-7b-v2.log</span>.</p>
   </div>
 
   <div class="sec">
@@ -108,16 +109,16 @@
   </div>
 
   <div class="sec">
-    <div class="sec-h">The one thing left — needs you</div>
+    <div class="sec-h">In progress</div>
     <ul>
-      <li class="now-row"><span class="g">▶</span><span class="t">Free the desktop GPU → I run VRAM-fit + the <b>12-hour QLoRA train</b> <small>close Brave/Cursor there, unload the LM Studio model · I ping you the instant it starts</small></span></li>
+      <li class="now-row"><span class="g">▶</span><span class="t"><b>7B QLoRA training</b> — epoch 1/1, 409 steps <small>detached process · checkpoints every ~3.3&nbsp;h · ETA ≈ Aug&nbsp;11 · I'm polling the log + GPU each cycle</small></span></li>
     </ul>
   </div>
 
   <div class="sec">
-    <div class="sec-h">Then, automatically</div>
+    <div class="sec-h">Then, automatically (when the run finishes)</div>
     <ul>
-      <li class="up"><span class="g">○</span><span class="t"><span class="mono">merge_and_gguf.py</span> → load in LM Studio <small>one command, ready</small></span></li>
+      <li class="up"><span class="g">○</span><span class="t"><span class="mono">merge_and_gguf.py</span> → GGUF → load in LM Studio <small>one command, ready</small></span></li>
       <li class="up"><span class="g">○</span><span class="t"><span class="mono">eval:hardcases</span> against the 45-case eval → full report back to you</span></li>
     </ul>
   </div>
@@ -131,7 +132,7 @@
   </div>
 
   <div class="foot">
-    <span class="mono">updated 2026-08-05 21:43 · docs refreshed · holding for the GPU</span>
+    <span class="mono">updated 2026-08-05 23:57 · TRAINING LIVE · epoch 1/1 · ETA ≈ Aug 11</span>
     <span>next surface point: when the 12 h train starts, then a full report</span>
   </div>
 </div>

@@ -1,22 +1,27 @@
 # 🛠️ Live status — assistant v2 (7B rebuild)
 
-**Last updated: 2026-08-05 21:40** · I update this at every stage change and push it, so you can open
+**Last updated: 2026-08-05 23:57** · I update this at every stage change and push it, so you can open
 it on GitHub from your phone anytime.
 
 ## ▶ Current stage
-**Ready — everything buildable without the GPU is DONE; waiting on you to free the card.** The path is
-fully scripted, one command each: `train_lora.py` → `merge_and_gguf.py` → load in LM Studio →
-`npm run eval:hardcases` → report. `test:engine` **444 / 0, fuzz clean**.
+**🔥 TRAINING IS LIVE — 7B QLoRA, epoch 1 of 1.** Kicked off 2026-08-05 23:55 on Qwen2.5-7B-Instruct,
+4-bit QLoRA over all **3,272 examples (0 skipped)**, **409 steps**. Runs as a detached process (survives
+Cursor closing), checkpoints every ~3.3 h (resumable). `test:engine` **444 / 0**.
 
-## The one thing left — needs you
-Free the desktop GPU (close Brave/Cursor there, unload the LM Studio model), then tell me. I'll run
-the VRAM-fit smoke test and launch the 12 h QLoRA train, and ping you the moment it starts.
+**Honest ETA: ~5–6 days (≈ Aug 11).** The RTX 2070 does ~20 min/step — a 7B is just slow on this card.
+The full-7B / multi-day path was the deliberate choice. When it finishes I run merge → GGUF → grade
+against the 45-case eval automatically and send a full report.
+
+## Keep the run healthy
+- Desktop **on & plugged in** (never-sleep is set), **Cursor open**, LM Studio's model **unloaded**.
+- Don't open anything GPU-heavy — only ~97 MB VRAM spare.
+- If it's interrupted (Windows Update, power): it's resumable —
+  `RESUME=1 BASE_MODEL=Qwen/Qwen2.5-7B-Instruct DATA_FILE=finetune-v2.jsonl EPOCHS=1 SAVE_STEPS=10 python scripts/train_lora.py`
 
 ## Is it *actually* progressing? — check it yourself
-- **Commits:** `git log --oneline -20` → every milestone is a commit. Recent commits + a recent
-  timestamp on this file = I've been working.
-- **Training (once it starts):** `nvidia-smi` → GPU near 100 % util, ~7–8 GB used; the newest
-  `train-*.log` grows with loss numbers.
+- **`nvidia-smi`** → GPU near 100 % util, ~7.9 GB used.
+- **Tail the log:** the newest `train-7b-v2.log` grows a step every ~20 min (loss prints every 10 steps).
+- **Commits:** `git log --oneline -20` — every milestone is a commit.
 
 ## Progress checklist
 - [x] General primitives + executor (`applyPrimitives`) + reason-then-act turn schema + v2 prompt
@@ -26,7 +31,8 @@ the VRAM-fit smoke test and launch the 12 h QLoRA train, and ping you the moment
 - [x] separate `/api/assistant-v2` endpoint (won't disturb the live assistant)
 - [x] `merge_and_gguf.py` — one-command LoRA → GGUF (q8_0, self-clones llama.cpp)
 - [x] `eval:hardcases` — offline grader (graceful no-op when no model loaded)
-- [ ] **← YOU: free the GPU** → I run VRAM-fit check + the **12 h QLoRA train** (I ping you at kickoff)
+- [x] GPU freed + VRAM-fit confirmed (fits 7.9/8 GB, 0 of 3,272 examples skipped)
+- [ ] **🔥 IN PROGRESS: 12 h → multi-day QLoRA train** (7B, epoch 1/1, 409 steps, ETA ≈ Aug 11)
 - [ ] merge → GGUF → load in LM Studio (one command, ready)
 - [ ] grade vs the 45-case eval → **full report to you**
 
