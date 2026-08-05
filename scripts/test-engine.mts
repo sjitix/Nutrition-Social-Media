@@ -22,6 +22,7 @@ import { currentStreak, prevDay, isoDay } from "@/lib/streak";
 import { expandConstrain, applyRemember, applyPrimitives, memoryContext, AssistantTurnV2Schema, type PrimitiveOp } from "@/lib/primitives";
 import { assistantV2SystemPrompt } from "@/lib/promptV2";
 import { validateExample, validateBatch, type TrainingExample } from "@/lib/dataValidate";
+import { generateExamples } from "@/lib/genV2";
 import { microsForIngredients } from "@/lib/nutrients";
 import { haystackBlocked, dietTagConflicts, parseExclusionTokens } from "@/lib/exclusions";
 import { bmr, computeTargets, hydrationTarget } from "@/lib/targets";
@@ -1217,6 +1218,16 @@ console.log("--- DATA VALIDATOR (generate-then-validate: keep only correct examp
   ];
   const { kept, rejected } = validateBatch(batch, defaults);
   check("validator: batch keeps the good, drops the bad", kept.length === 1 && rejected.length === 1 && /schema/.test(rejected[0].reason));
+
+  // The generator's examples must validate through the real engine (correct, not just plausible).
+  // Spot-check a representative SAMPLE here (every 5th, spread across intents) — validating all of
+  // them is hundreds of week-rebuilds and belongs in the one-shot data-gen script, not this suite.
+  const gen = generateExamples();
+  check("generator: produces a substantial batch", gen.length >= 200, String(gen.length));
+  const sample = gen.filter((_, i) => i % 5 === 0);
+  const g = validateBatch(sample, { profile: BASE, plan: freshWeek(BASE) });
+  const rate = g.kept.length / sample.length;
+  check(`generator: sample validates end-to-end (${g.kept.length}/${sample.length})`, rate >= 0.98, g.rejected.slice(0, 6).map((r) => r.reason).join("  |  "));
 }
 
 
