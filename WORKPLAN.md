@@ -7,16 +7,49 @@
 
 ---
 
-## RESUME HERE (last updated: 2026-08-04)
+## RESUME HERE (last updated: 2026-08-05)
 
-`main` is green: `npm run test:engine` **357 checks / 0 failed, fuzz clean**, plus `npm run
-test:api` (**21**, routes — incl. `/api/import` SSRF guard + `rebalance_day`), `check:recipes`,
-`check:data`. v9 is live and serving. No training running (the model line concluded at v9 — see the
-strategy note below; the GPU is free).
+`main` is green: `npm run test:engine` **444 / 0, fuzz clean**. tsc clean.
 
-**This session shipped, in order: the URL importer + hardening (Yoast/dual-unit real-world fixes) →
-chat-import + imported-history + `rebalance_day` → the filterable Feed (Phase 3) → video/reel import
-(Phase 2 finish). All pushed as sjitix, all green.**
+### >>> ASSISTANT v2 — the 7B reason-then-act rebuild (owner's top priority) <<<
+
+The 1.5B model line concluded at v9 (below). Owner's call: **train a bigger model, a better way —
+a 7B on thousands of varied conversations that force ANY adjustment, flexible not an if-else tree.**
+The design that answers that: a **reason-then-act** model (`{thinking, reply, operations}`) over a
+few **general, composable primitives** (`constrain` the workhorse + `remember` + op-verbs), all
+mapped onto the SAME tested deterministic engine — the two-layer rule holds, the model never does
+arithmetic. The whole build is **code-complete and gated only on a freed desktop GPU** for the 12h
+QLoRA run. Live status board: `public/status.html` (served at `/status.html`) + `STATUS.md`.
+
+**Done + committed as sjitix (all green, all engine-validated):**
+- **General primitives + executor** — `src/lib/primitives.ts`: `applyPrimitives` runs the whole v2
+  vocabulary (constrain/remember/swap/log/rate/pin/report/…) through the proven engine; `previous`
+  threaded so `undo` works. Turn schema `AssistantTurnV2Schema`. `src/lib/promptV2.ts` = the
+  reason-then-act system prompt (used for BOTH training data AND live inference).
+- **Generate-then-validate data pipeline** — `src/lib/dataValidate.ts` runs every example's ops
+  through the REAL engine and keeps only the behaviorally-correct ones. `src/lib/genV2.ts` generates
+  them: a surface-form multiplier (casual openers, you→u/pls, chat register) + rotating reasoning/
+  reply banks (no parroting) + wide value ranges + situational classes (memory-application, deeper
+  3–5 turn threads, honest declines). **`data/finetune-v2.jsonl` = 3,272 examples, 0 rejected,
+  length-clean for the 7B (max 1998/2560, no all-masked drops — `scripts/check_lengths.py`).**
+- **Hard eval** — `data/hard-cases.json` grown to **45 cases** across all four honest outcomes
+  (do/clarify/decline/refuse) + memory + multi-turn + the cycle-aware health behavior. The ruler.
+- **v2 route** — `src/app/api/assistant-v2/route.ts` (`parseAssistantTurnV2` + `applyPrimitives`),
+  SEPARATE from the live `/api/assistant` so nothing breaks until we flip over post-train.
+- **Post-train, one command each:** `scripts/merge_and_gguf.py` (merge LoRA → GGUF q8_0, self-clones
+  llama.cpp, reads base from adapter config); `npm run eval:hardcases` (offline grader, graceful
+  no-op when no model loaded). `scripts/train_lora.py` takes `DATA_FILE`/`BASE_MODEL` env.
+
+**The one remaining step (needs the owner):** free the desktop GPU (close Brave/Cursor there, unload
+the LM Studio model), then it's fully scripted —
+`BASE_MODEL=Qwen/Qwen2.5-7B-Instruct DATA_FILE=finetune-v2.jsonl python scripts/train_lora.py` →
+`python scripts/merge_and_gguf.py` → load in LM Studio → `npm run eval:hardcases` → report.
+
+---
+
+**Prior session (UX/importer, below) shipped, in order: the URL importer + hardening (Yoast/dual-unit
+real-world fixes) → chat-import + imported-history + `rebalance_day` → the filterable Feed (Phase 3)
+→ video/reel import (Phase 2 finish). All pushed as sjitix, all green.**
 
 ### >>> PRODUCT-WIDE UX OVERHAUL (owner: "improve all features → widely-used, convenient, social") <<<
 

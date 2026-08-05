@@ -1,37 +1,37 @@
 # 🛠️ Live status — assistant v2 (7B rebuild)
 
-**Last updated: 2026-08-05 18:10** · I update this at every stage change and push it, so you can open
+**Last updated: 2026-08-05 21:40** · I update this at every stage change and push it, so you can open
 it on GitHub from your phone anytime.
 
 ## ▶ Current stage
-**Phase 2 — dry-running the 7B.** The whole deterministic half is built and green, and the training set
-just scaled **3.1× to 818 engine-validated conversations (0 rejected)**. Next I run Qwen2.5-7B through a
-few real training steps on the 8 GB card to prove it fits and the format flows — *before* the 12 h run.
+**Ready — everything buildable without the GPU is DONE; waiting on you to free the card.** The path is
+fully scripted, one command each: `train_lora.py` → `merge_and_gguf.py` → load in LM Studio →
+`npm run eval:hardcases` → report. `test:engine` **444 / 0, fuzz clean**.
 
-## Is it *actually* progressing right now? — check it yourself
-You don't have to take my word for it. Run any of these on the desktop:
-- **Download (now):** `du -sh ~/.cache/huggingface/hub/models--Qwen--Qwen2.5-7B-Instruct` → should be
-  climbing toward ~15 G. (At 13:02 it was 9.7 G.)
-- **Training (later):** `nvidia-smi` → during training the GPU sits near 100 % util and ~7–8 GB used;
-  and the newest `train-*.log` in the repo keeps growing with loss numbers.
-- **My checkpoints:** `git log --oneline -15` → every milestone is a commit. If commits + this file's
-  timestamp are recent, I've been working.
+## The one thing left — needs you
+Free the desktop GPU (close Brave/Cursor there, unload the LM Studio model), then tell me. I'll run
+the VRAM-fit smoke test and launch the 12 h QLoRA train, and ping you the moment it starts.
+
+## Is it *actually* progressing? — check it yourself
+- **Commits:** `git log --oneline -20` → every milestone is a commit. Recent commits + a recent
+  timestamp on this file = I've been working.
+- **Training (once it starts):** `nvidia-smi` → GPU near 100 % util, ~7–8 GB used; the newest
+  `train-*.log` grows with loss numbers.
 
 ## Progress checklist
-- [x] Root-cause fixes (whole-week swap, reply de-dup, mealsPerDay) — shipped
-- [x] Design: coverage blueprint + general-primitive schema + hard-case eval — shipped
-- [x] Env verified (CUDA, 104 G free) + 7B downloaded (15 G)
-- [x] Engine wired to primitives (`constrain`/`swap`/`remember`/…) + memory + executor — 441/0
+- [x] General primitives + executor (`applyPrimitives`) + reason-then-act turn schema + v2 prompt
 - [x] generate-then-validate data pipeline (every example run through the real engine)
-- [x] generated **818** realistic convos with `thinking` traces, 0 rejected
-- [ ] **← next:** dry-run 7B end-to-end (few steps → prove fit + format)
-- [ ] **12 h train** (I'll flag you the moment this starts — keep the desktop awake & off the GPU)
-- [ ] convert LoRA → GGUF → load in LM Studio
-- [ ] test hard vs the eval → **report to you**
+- [x] **3,272** engine-validated convos with `thinking` traces, 0 rejected, length-clean for the 7B
+- [x] hard-case eval grown to **45** across all four honest outcomes
+- [x] separate `/api/assistant-v2` endpoint (won't disturb the live assistant)
+- [x] `merge_and_gguf.py` — one-command LoRA → GGUF (q8_0, self-clones llama.cpp)
+- [x] `eval:hardcases` — offline grader (graceful no-op when no model loaded)
+- [ ] **← YOU: free the GPU** → I run VRAM-fit check + the **12 h QLoRA train** (I ping you at kickoff)
+- [ ] merge → GGUF → load in LM Studio (one command, ready)
+- [ ] grade vs the 45-case eval → **full report to you**
 
 ## What's running in the background
-- Nothing heavy right now — the 7B download finished (15 G in the HF cache). Next OS-level job is the
-  dry-run, then the 12 h train.
+- Nothing heavy — waiting on the GPU. The 7B base (15 G) is cached and ready.
 
 ## Honest note on how I work
 I don't think 24/7 — I work in bursts (triggered by you, or when a background job finishes). But the
