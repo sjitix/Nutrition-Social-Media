@@ -75,8 +75,8 @@
 
   <div class="now">
     <div class="label"><span class="dot"></span>Working on now</div>
-    <h2>Building the offline eval harness</h2>
-    <p>Post-train conversion is now <b>one command</b> — <span class="mono">merge_and_gguf.py</span> merges the adapter and emits a GGUF (q8_0, no C++ build), self-healing the llama.cpp dependency and reading the base from the adapter config so a base mismatch is impossible. Next: a small harness that runs the <span class="mono">45</span>-case eval through the v2 pipeline the moment a model exists — so grading the 7B is one command too.</p>
+    <h2>GPU-free prep is complete — waiting on the GPU</h2>
+    <p>The whole chain now runs one command at a time: <span class="mono">train_lora.py</span> → <span class="mono">merge_and_gguf.py</span> → load in LM Studio → <span class="mono">eval:hardcases</span>. The eval harness grades the 45 cases through the real v2 pipeline and no-ops cleanly when no model's loaded (verified). <b>Only the 12&nbsp;h train is left, and it needs the desktop GPU freed.</b> Until then I'm on light polish (docs), and I'll ping you the instant the train starts once you free the card.</p>
   </div>
 
   <div class="now" style="border-left-color:var(--done);margin-top:12px">
@@ -103,22 +103,22 @@
       <li class="done"><span class="g">✓</span><span class="t">Hard-case eval doubled → <span class="mono">45</span> cases <small>all four buckets (do 27 / clarify 7 / decline 6 / refuse 5) + memory-application + multi-turn corrections + cycle-aware health · incl. the vegan-b12 honesty case · the ruler for grading the trained 7B · committed</small></span></li>
       <li class="done"><span class="g">✓</span><span class="t">v2 assistant route built — <span class="mono">/api/assistant-v2</span> <small>reason-then-act (parseAssistantTurnV2) → applyPrimitives → engine owns the math · undo threaded through · SEPARATE from the live route · tsc clean · 444/0 · committed</small></span></li>
       <li class="done"><span class="g">✓</span><span class="t">Merge → GGUF is one command — <span class="mono">merge_and_gguf.py</span> <small>merge adapter (fp16) → GGUF q8_0 (no C++ build) · self-clones llama.cpp · reads base from adapter config (no mismatch) · py_compile clean · committed</small></span></li>
+      <li class="done"><span class="g">✓</span><span class="t">Offline eval harness built — <span class="mono">eval:hardcases</span> <small>runs the 45 cases through the real v2 prompt+schema → applyPrimitives · auto-scores schemaOk / acted-right / changed-state + dumps every reply · graceful no-op when no model loaded (verified) · committed</small></span></li>
     </ul>
   </div>
 
   <div class="sec">
-    <div class="sec-h">In progress</div>
+    <div class="sec-h">The one thing left — needs you</div>
     <ul>
-      <li class="now-row"><span class="g">▶</span><span class="t">Build the offline eval harness <small>run the 45-case eval through the v2 pipeline once a model exists — so grading the 7B is one command · GPU-free prep</small></span></li>
+      <li class="now-row"><span class="g">▶</span><span class="t">Free the desktop GPU → I run VRAM-fit + the <b>12-hour QLoRA train</b> <small>close Brave/Cursor there, unload the LM Studio model · I ping you the instant it starts</small></span></li>
     </ul>
   </div>
 
   <div class="sec">
-    <div class="sec-h">Up next</div>
+    <div class="sec-h">Then, automatically</div>
     <ul>
-      <li class="up"><span class="g">○</span><span class="t">VRAM-fit check + <b>12-hour QLoRA train</b> <small>needs the GPU freed — I'll ping you the moment it starts</small></span></li>
-      <li class="up"><span class="g">○</span><span class="t">Merge → GGUF → load in LM Studio (one command, ready)</span></li>
-      <li class="up"><span class="g">○</span><span class="t">Test it hard against the 45-case eval → report back to you</span></li>
+      <li class="up"><span class="g">○</span><span class="t"><span class="mono">merge_and_gguf.py</span> → load in LM Studio <small>one command, ready</small></span></li>
+      <li class="up"><span class="g">○</span><span class="t"><span class="mono">eval:hardcases</span> against the 45-case eval → full report back to you</span></li>
     </ul>
   </div>
 
@@ -131,7 +131,7 @@
   </div>
 
   <div class="foot">
-    <span class="mono">updated 2026-08-05 20:53</span>
+    <span class="mono">updated 2026-08-05 21:19</span>
     <span>next surface point: when the 12 h train starts, then a full report</span>
   </div>
 </div>
