@@ -9,7 +9,7 @@
  * See ASSISTANT-SCHEMA.md for the full design.
  */
 import { z } from "zod";
-import type { Operation, UserProfile, UserFact, WeekPlan } from "./types";
+import type { Operation, UserProfile, UserFact, WeekPlan, PlanSnapshot } from "./types";
 import { DAYS, MEAL_TYPES } from "./types";
 import { applyOperations } from "./recipeDb";
 
@@ -158,7 +158,13 @@ const isVerb = (o: PrimitiveOp): o is VerbOp => "op" in o && (o as { op: string 
  * rest straight through, then hand the flat op list to the proven engine. This bridge is what both
  * the live assistant AND the generate-then-validate data pipeline call.
  */
-export function applyPrimitives(profile: UserProfile, plan: WeekPlan, ops: PrimitiveOp[], today?: string) {
+export function applyPrimitives(
+  profile: UserProfile,
+  plan: WeekPlan,
+  ops: PrimitiveOp[],
+  today?: string,
+  previous?: PlanSnapshot,
+) {
   let p = profile;
   let remembered = false;
   const flat: Operation[] = [];
@@ -176,7 +182,9 @@ export function applyPrimitives(profile: UserProfile, plan: WeekPlan, ops: Primi
       flat.push(o as Operation); // a raw {tool:…} Operation, passed straight through
     }
   }
-  const res = applyOperations(p, plan, flat);
+  // `previous` is threaded to the engine so an `undo` verb can restore the prior snapshot, exactly as
+  // the live route does — omit it (data pipeline, tests) and undo is simply a no-op.
+  const res = applyOperations(p, plan, flat, previous);
   // applyOperations returns the (memory-carrying) profile either way; force profileChanged if a
   // remember happened so the caller persists the new memory even on a plan-only-unchanged turn.
   return { ...res, profileChanged: res.profileChanged || remembered };

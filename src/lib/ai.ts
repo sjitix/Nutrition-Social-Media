@@ -2,6 +2,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import { selectWeekFromDb, rebalanceWeek } from "./recipeDb";
+import { AssistantTurnV2Schema, type AssistantTurnV2 } from "./primitives";
+import { assistantV2SystemPrompt } from "./promptV2";
 import {
   AssistantResponseSchema,
   AssistantTurnSchema,
@@ -811,4 +813,36 @@ export async function parseAssistantTurn(
     ], 0);
   }
   return claudeParseAssistantTurn(p, plan, turns);
+}
+
+/**
+ * v2 — the reason-then-act turn for the retrained assistant. Same provider machinery as
+ * parseAssistantTurn, but the v2 system prompt + the {thinking, reply, operations} schema. Kept
+ * separate so wiring it up (a new /api/assistant-v2 route) never disturbs the live assistant; the
+ * live route keeps calling parseAssistantTurn until the 7B is trained and we flip over.
+ */
+export async function parseAssistantTurnV2(
+  profile: UserProfile,
+  plan: WeekPlan,
+  history: ChatMessage[],
+): Promise<AssistantTurnV2> {
+  const p = withTargetDefaults(profile);
+  const turns: Turn[] = history.slice(-8).map((m) => ({ role: m.role, content: m.text }));
+  if (resolveProvider() === "local") {
+    return localStructuredChat(AssistantTurnV2Schema, "assistant_turn_v2", [
+      { role: "system", content: assistantV2SystemPrompt(p, plan) },
+      ...turns,
+    ], 0);
+  }
+  const client = new Anthropic();
+  const response = await client.messages.parse({
+    model: CLAUDE_MODEL,
+    max_tokens: 2000,
+    system: assistantV2SystemPrompt(p, plan),
+    messages: turns,
+    output_config: { format: zodOutputFormat(AssistantTurnV2Schema) },
+  });
+  const parsed = response.parsed_output;
+  if (!parsed) throw new Error("The assistant could not understand that.");
+  return parsed;
 }

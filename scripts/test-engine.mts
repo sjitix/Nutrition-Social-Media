@@ -1175,6 +1175,21 @@ console.log("--- PRIMITIVES v2 (constrain / remember -> tested engine) ---");
   check("v2 prompt: teaches the reason-then-act shape + primitives + outcomes", /thinking/.test(sp) && /constrain/.test(sp) && /remember/.test(sp) && /FOUR OUTCOMES/.test(sp));
   const pmem = applyRemember(BASE, { op: "remember", fact: "lactose intolerant" });
   check("v2 prompt: folds the user's memory into the context", /lactose intolerant/i.test(assistantV2SystemPrompt(pmem, freshWeek(pmem))));
+
+  // The /api/assistant-v2 route's core logic (minus the network call): a parsed model turn is
+  // executed through the previous-threaded executor, and the engine's notes own the final reply.
+  const startWk = freshWeek(BASE);
+  const doTurn = AssistantTurnV2Schema.safeParse({ thinking: "Whole-week vegan.", reply: "Done — vegan week.", operations: [{ op: "constrain", diet: "vegan" }] });
+  check("v2 route: a do-turn parses", doTurn.success);
+  if (doTurn.success) {
+    const r = applyPrimitives(BASE, startWk, doTurn.data.operations as PrimitiveOp[]);
+    const reply = composeReply({ modelReply: doTurn.data.reply, notes: r.notes, replyOverride: r.replyOverride, planChanged: r.planChanged });
+    check("v2 route: do-turn executes + composes a non-empty reply", r.profile.diet === "vegan" && r.planChanged && reply.trim().length > 0);
+    // undo restores the prior snapshot — the capability the new `previous` arg on applyPrimitives adds.
+    const snap = { plan: startWk, profile: BASE, label: "your last change" };
+    const undo = applyPrimitives(r.profile, r.plan, [{ op: "undo" }], undefined, snap);
+    check("v2 route: undo restores the previous plan+profile via applyPrimitives(previous)", undo.undone === true && undo.profile.diet === "none");
+  }
 }
 
 console.log("");
