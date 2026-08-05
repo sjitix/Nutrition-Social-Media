@@ -8,8 +8,9 @@
  *
  * See ASSISTANT-SCHEMA.md for the full design.
  */
-import type { Operation, UserProfile, UserFact } from "./types";
+import type { Operation, UserProfile, UserFact, WeekPlan } from "./types";
 import { DAYS, MEAL_TYPES } from "./types";
+import { applyOperations } from "./recipeDb";
 
 export type Day = (typeof DAYS)[number];
 export type MealType = (typeof MEAL_TYPES)[number];
@@ -95,6 +96,40 @@ export function applyRemember(profile: UserProfile, r: RememberOp, today?: strin
   const fact: UserFact = { fact: text, ...(r.kind ? { kind: r.kind } : {}), ...(today ? { since: today } : {}) };
   const rest = (profile.memory ?? []).filter((f) => f.fact.toLowerCase() !== text.toLowerCase());
   return { ...profile, memory: [...rest, fact] };
+}
+
+/** A v2 operation is either a general primitive or a pass-through of an existing engine verb
+ *  (swap_meal, log_meal, rate_meal, lock_meal, scale_portions, weekly_report, …). */
+export type PrimitiveOp = ConstrainOp | RememberOp | Operation;
+
+const isConstrain = (o: PrimitiveOp): o is ConstrainOp => (o as ConstrainOp).op === "constrain";
+const isRemember = (o: PrimitiveOp): o is RememberOp => (o as RememberOp).op === "remember";
+
+/**
+ * THE executor. Runs a turn's primitives against the deterministic engine and returns the same shape
+ * as `applyOperations`: apply `remember` to the profile's memory, expand every `constrain`, pass the
+ * rest straight through, then hand the flat op list to the proven engine. This bridge is what both
+ * the live assistant AND the generate-then-validate data pipeline call.
+ */
+export function applyPrimitives(profile: UserProfile, plan: WeekPlan, ops: PrimitiveOp[], today?: string) {
+  let p = profile;
+  let remembered = false;
+  const flat: Operation[] = [];
+  for (const o of ops) {
+    if (isRemember(o)) {
+      const next = applyRemember(p, o, today);
+      remembered = remembered || next !== p;
+      p = next;
+    } else if (isConstrain(o)) {
+      flat.push(...expandConstrain(o));
+    } else {
+      flat.push(o); // an existing engine verb, passed straight through
+    }
+  }
+  const res = applyOperations(p, plan, flat);
+  // applyOperations returns the (memory-carrying) profile either way; force profileChanged if a
+  // remember happened so the caller persists the new memory even on a plan-only-unchanged turn.
+  return { ...res, profileChanged: res.profileChanged || remembered };
 }
 
 /** Render the memory as a compact context line for the model's system prompt each turn. */

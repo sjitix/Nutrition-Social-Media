@@ -19,7 +19,7 @@ import { FEED_RECIPES, filterFeed, sortFeed, HIGH_PROTEIN_G, type FeedFilter } f
 import { videoPlatform, extractVideoText } from "@/lib/videoImport";
 import { aisleFor, groupByAisle, AISLE_ORDER } from "@/lib/grocery";
 import { currentStreak, prevDay, isoDay } from "@/lib/streak";
-import { expandConstrain, applyRemember, memoryContext } from "@/lib/primitives";
+import { expandConstrain, applyRemember, applyPrimitives, memoryContext } from "@/lib/primitives";
 import { microsForIngredients } from "@/lib/nutrients";
 import { haystackBlocked, dietTagConflicts, parseExclusionTokens } from "@/lib/exclusions";
 import { bmr, computeTargets, hydrationTarget } from "@/lib/targets";
@@ -1076,11 +1076,15 @@ console.log("--- WHOLE-WEEK SWAP (\"pancakes every day\") ---");
   check("swap every day: the reply says 'every day', not a single day", r.notes.some((n) => /every day/i.test(n)) && !r.notes.some((n) => /^Kept \w+day on target/.test(n)));
   // Every other day's macros still hold (I5-style sanity): days aren't left wildly off target.
   check("swap every day: days stay near target", r.plan.days.every((d) => Math.abs(d.meals.reduce((s, m) => s + m.calories, 0) - BASE.targetCalories) < 400));
-  // Single-day swap still works exactly as before.
-  const one = applyOperations(BASE, freshWeek(BASE), [op({ tool: "swap_meal", day: "Tuesday", mealType: "breakfast", dish: "pancakes" })]);
-  const tueChanged = /pancake/i.test(one.plan.days.find((d) => d.day === "Tuesday")!.meals.find((m) => m.type === "breakfast")!.name);
-  const othersUntouched = one.plan.days.filter((d) => d.day !== "Tuesday").filter((d) => /pancake/i.test(d.meals.find((m) => m.type === "breakfast")?.name ?? "")).length;
-  check("single-day swap still targets only that day", tueChanged && othersUntouched === 0, `tue=${tueChanged} others=${othersUntouched}`);
+  // Single-day swap still works exactly as before. NB compare each other day's breakfast BEFORE vs
+  // AFTER — asserting "no other day has pancakes" is a coin flip, because a random week can already
+  // contain a pancake breakfast elsewhere. The real property is: only Tuesday moved.
+  const wkBefore = freshWeek(BASE);
+  const bfBefore = (pl: WeekPlan, day: string) => pl.days.find((d) => d.day === day)?.meals.find((m) => m.type === "breakfast")?.name;
+  const one = applyOperations(BASE, wkBefore, [op({ tool: "swap_meal", day: "Tuesday", mealType: "breakfast", dish: "pancakes" })]);
+  check("single-day swap: Tuesday's breakfast is now the pancakes", /pancake/i.test(bfBefore(one.plan, "Tuesday") ?? ""), bfBefore(one.plan, "Tuesday"));
+  const othersUnchanged = one.plan.days.filter((d) => d.day !== "Tuesday").every((d) => bfBefore(one.plan, d.day) === bfBefore(wkBefore, d.day));
+  check("single-day swap: every OTHER day's breakfast is untouched", othersUnchanged);
 }
 
 console.log("");
@@ -1118,6 +1122,21 @@ console.log("--- PRIMITIVES v2 (constrain / remember -> tested engine) ---");
   check("remember: stores facts, deduped case-insensitively", (pm.memory ?? []).length === 2);
   check("remember: memory surfaces in the prompt context", /lactose intolerant/i.test(memoryContext(pm)) && /cilantro/i.test(memoryContext(pm)));
   check("remember: empty profile has empty context", memoryContext(BASE) === "");
+
+  // applyPrimitives — THE executor: remember + constrain + pass-through, all through the real engine.
+  const t1 = applyPrimitives(BASE, freshWeek(BASE), [
+    { op: "remember", fact: "lactose intolerant", kind: "allergy" },
+    { op: "constrain", diet: "vegetarian" },
+  ]);
+  check("applyPrimitives: constrain applied + fact remembered in one turn", t1.profile.diet === "vegetarian" && (t1.profile.memory ?? []).some((f) => /lactose/i.test(f.fact)) && t1.planChanged && t1.profileChanged);
+
+  // A pass-through engine verb still works through the bridge (whole-week swap).
+  const t2 = applyPrimitives(BASE, freshWeek(BASE), [op({ tool: "swap_meal", dish: "pancakes", mealType: "breakfast" })]);
+  check("applyPrimitives: passes existing verbs straight through (every breakfast is pancakes)", t2.plan.days.every((d) => /pancake/i.test(d.meals.find((m) => m.type === "breakfast")?.name ?? "")));
+
+  // A remember-only turn changes nothing in the plan but must still flag the profile for saving.
+  const t3 = applyPrimitives(BASE, freshWeek(BASE), [{ op: "remember", fact: "hates cilantro" }]);
+  check("applyPrimitives: remember-only turn flags profileChanged, leaves the plan", t3.profileChanged === true && t3.planChanged === false && (t3.profile.memory ?? []).some((f) => /cilantro/i.test(f.fact)));
 }
 
 

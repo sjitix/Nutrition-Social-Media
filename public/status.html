@@ -75,8 +75,8 @@
 
   <div class="now">
     <div class="label"><span class="dot"></span>Working on now</div>
-    <h2>Wiring the primitives into the assistant turn</h2>
-    <p><span class="mono">constrain</span> + <span class="mono">remember</span> now map cleanly onto the tested engine (418/0 green). Next: the reason-then-act shape (<span class="mono">thinking → reply → operations</span>), the remaining pass-through verbs, and light per-slot targeting.</p>
+    <h2>The v2 turn shape + prompt</h2>
+    <p>The executor (<span class="mono">applyPrimitives</span>) is done and green (422/0). Next: the reason-then-act turn schema (<span class="mono">thinking → reply → operations</span>), the model prompt that teaches the primitives + memory, and the route that runs it — then the big one, the generate-then-validate data pipeline.</p>
   </div>
 
   <div class="sec">
@@ -85,14 +85,15 @@
       <li class="done"><span class="g">✓</span><span class="t">Root-cause fixes: whole-week swaps, reply de-duplication, meals/day <small>engine + tests, 409/0 fuzz-clean · shipped</small></span></li>
       <li class="done"><span class="g">✓</span><span class="t">Design locked: coverage blueprint, general-primitive schema, hard-case eval <small>ASSISTANT-COVERAGE.md · ASSISTANT-SCHEMA.md · data/hard-cases.json</small></span></li>
       <li class="done"><span class="g">✓</span><span class="t">Environment verified · 7B model downloaded <small>CUDA ok, 104 G free · Qwen2.5-7B-Instruct · 15 GB on disk</small></span></li>
-      <li class="done"><span class="g">✓</span><span class="t">General primitives wired: <span class="mono">constrain</span> + <span class="mono">remember</span> → tested engine <small>constrain → update_profile / per-day rebuilds; memory deduped + surfaced · 418/0 fuzz-clean</small></span></li>
+      <li class="done"><span class="g">✓</span><span class="t">General primitives wired: <span class="mono">constrain</span> + <span class="mono">remember</span> → tested engine <small>constrain → update_profile / per-day rebuilds; memory deduped + surfaced</small></span></li>
+      <li class="done"><span class="g">✓</span><span class="t">Executor bridge <span class="mono">applyPrimitives</span> <small>remember + constrain + pass-through verbs, all through the proven engine · fixed a flaky test · 422/0</small></span></li>
     </ul>
   </div>
 
   <div class="sec">
     <div class="sec-h">In progress</div>
     <ul>
-      <li class="now-row"><span class="g">▶</span><span class="t">Wire primitives into the assistant turn <small>thinking→reply→operations · pass-through verbs · per-slot</small></span></li>
+      <li class="now-row"><span class="g">▶</span><span class="t">v2 turn schema + model prompt + route <small>thinking→reply→operations · teach primitives + memory · per-slot</small></span></li>
     </ul>
   </div>
 
@@ -116,7 +117,7 @@
   </div>
 
   <div class="foot">
-    <span class="mono">updated 2026-08-05 13:24</span>
+    <span class="mono">updated 2026-08-05 13:46</span>
     <span>next surface point: when the 12 h train starts, then a full report</span>
   </div>
 </div>
