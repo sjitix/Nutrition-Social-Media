@@ -75,8 +75,8 @@
 
   <div class="now">
     <div class="label"><span class="dot"></span>Working on now</div>
-    <h2>Drafting the merge → GGUF step</h2>
-    <p>The <span class="mono">/api/assistant-v2</span> endpoint is built &amp; committed — reason-then-act prompt → <span class="mono">applyPrimitives</span> → the engine owns the math, with undo working on the v2 path too. It sits <i>beside</i> the live assistant, untouched, ready to flip on post-train. tsc clean, 444/0. Next GPU-free prep: draft the LoRA→merge→GGUF conversion so the trained adapter drops straight into LM Studio the moment the 12&nbsp;h run finishes.</p>
+    <h2>Building the offline eval harness</h2>
+    <p>Post-train conversion is now <b>one command</b> — <span class="mono">merge_and_gguf.py</span> merges the adapter and emits a GGUF (q8_0, no C++ build), self-healing the llama.cpp dependency and reading the base from the adapter config so a base mismatch is impossible. Next: a small harness that runs the <span class="mono">45</span>-case eval through the v2 pipeline the moment a model exists — so grading the 7B is one command too.</p>
   </div>
 
   <div class="now" style="border-left-color:var(--done);margin-top:12px">
@@ -102,13 +102,14 @@
       <li class="done"><span class="g">✓</span><span class="t">Dataset scaled to <span class="mono">3,272</span> conversations, 0 rejected <small>surface-form multiplier + rotating reasoning/reply banks + wider value ranges + situational classes (memory-application, deeper 3–5 turn threads, messy real-life + honest declines) · length-clean (max 1998 / 2560) · 441/0 · committed</small></span></li>
       <li class="done"><span class="g">✓</span><span class="t">Hard-case eval doubled → <span class="mono">45</span> cases <small>all four buckets (do 27 / clarify 7 / decline 6 / refuse 5) + memory-application + multi-turn corrections + cycle-aware health · incl. the vegan-b12 honesty case · the ruler for grading the trained 7B · committed</small></span></li>
       <li class="done"><span class="g">✓</span><span class="t">v2 assistant route built — <span class="mono">/api/assistant-v2</span> <small>reason-then-act (parseAssistantTurnV2) → applyPrimitives → engine owns the math · undo threaded through · SEPARATE from the live route · tsc clean · 444/0 · committed</small></span></li>
+      <li class="done"><span class="g">✓</span><span class="t">Merge → GGUF is one command — <span class="mono">merge_and_gguf.py</span> <small>merge adapter (fp16) → GGUF q8_0 (no C++ build) · self-clones llama.cpp · reads base from adapter config (no mismatch) · py_compile clean · committed</small></span></li>
     </ul>
   </div>
 
   <div class="sec">
     <div class="sec-h">In progress</div>
     <ul>
-      <li class="now-row"><span class="g">▶</span><span class="t">Draft the LoRA → merge → GGUF step <small>so the trained adapter drops straight into LM Studio when the 12&nbsp;h run finishes — GPU-free prep</small></span></li>
+      <li class="now-row"><span class="g">▶</span><span class="t">Build the offline eval harness <small>run the 45-case eval through the v2 pipeline once a model exists — so grading the 7B is one command · GPU-free prep</small></span></li>
     </ul>
   </div>
 
@@ -116,7 +117,7 @@
     <div class="sec-h">Up next</div>
     <ul>
       <li class="up"><span class="g">○</span><span class="t">VRAM-fit check + <b>12-hour QLoRA train</b> <small>needs the GPU freed — I'll ping you the moment it starts</small></span></li>
-      <li class="up"><span class="g">○</span><span class="t">Merge LoRA → GGUF → load in LM Studio</span></li>
+      <li class="up"><span class="g">○</span><span class="t">Merge → GGUF → load in LM Studio (one command, ready)</span></li>
       <li class="up"><span class="g">○</span><span class="t">Test it hard against the 45-case eval → report back to you</span></li>
     </ul>
   </div>
@@ -130,7 +131,7 @@
   </div>
 
   <div class="foot">
-    <span class="mono">updated 2026-08-05 20:28</span>
+    <span class="mono">updated 2026-08-05 20:53</span>
     <span>next surface point: when the 12 h train starts, then a full report</span>
   </div>
 </div>
