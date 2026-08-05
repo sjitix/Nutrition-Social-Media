@@ -20,6 +20,7 @@ import { videoPlatform, extractVideoText } from "@/lib/videoImport";
 import { aisleFor, groupByAisle, AISLE_ORDER } from "@/lib/grocery";
 import { currentStreak, prevDay, isoDay } from "@/lib/streak";
 import { expandConstrain, applyRemember, applyPrimitives, memoryContext, AssistantTurnV2Schema, type PrimitiveOp } from "@/lib/primitives";
+import { assistantV2SystemPrompt } from "@/lib/promptV2";
 import { microsForIngredients } from "@/lib/nutrients";
 import { haystackBlocked, dietTagConflicts, parseExclusionTokens } from "@/lib/exclusions";
 import { bmr, computeTargets, hydrationTarget } from "@/lib/targets";
@@ -1166,6 +1167,12 @@ console.log("--- PRIMITIVES v2 (constrain / remember -> tested engine) ---");
   }
   check("v2 turn: rejects an unknown op", !AssistantTurnV2Schema.safeParse({ thinking: "x", reply: "y", operations: [{ op: "teleport" }] }).success);
   check("v2 turn: rejects a bad enum value", !AssistantTurnV2Schema.safeParse({ thinking: "x", reply: "y", operations: [{ op: "constrain", diet: "carnivore" }] }).success);
+
+  // The v2 system prompt teaches the shape + primitives, and folds in remembered facts.
+  const sp = assistantV2SystemPrompt(BASE, freshWeek(BASE));
+  check("v2 prompt: teaches the reason-then-act shape + primitives + outcomes", /thinking/.test(sp) && /constrain/.test(sp) && /remember/.test(sp) && /FOUR OUTCOMES/.test(sp));
+  const pmem = applyRemember(BASE, { op: "remember", fact: "lactose intolerant" });
+  check("v2 prompt: folds the user's memory into the context", /lactose intolerant/i.test(assistantV2SystemPrompt(pmem, freshWeek(pmem))));
 }
 
 
