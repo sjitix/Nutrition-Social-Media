@@ -1,5 +1,5 @@
 {
-  "note": "The HARD eval — the ruler for the assistant rebuild, and the ceiling test (run these through a big PROMPTED model vs the small one; if big crushes the hard ones and small can't, model size is the ceiling; if big also fails, it's our design/data). Each case is model- and schema-agnostic on purpose: it states the CORRECT BEHAVIOR in plain language + which of the four buckets it falls in (do | clarify | decline | refuse), so we can grade any model before the new primitive schema exists. Precise operation labels get added once the primitives are designed. Grow this to 40+.",
+  "note": "The HARD eval — the ruler for the assistant rebuild, and the ceiling test (run these through a big PROMPTED model vs the small one; if big crushes the hard ones and small can't, model size is the ceiling; if big also fails, it's our design/data). Each case is model- and schema-agnostic on purpose: it states the CORRECT BEHAVIOR in plain language + which of the four buckets it falls in (do | clarify | decline | refuse), so we can grade any model before the new primitive schema exists. Now 45 cases spanning all four buckets, memory-application, multi-turn corrections, and the health/cycle roadmap behavior. A noisy eval can't steer training (a lesson from earlier runs) — keep it broad and specific.",
   "buckets": {
     "do": "map to supported operation(s) and execute",
     "clarify": "ask ONE question; change nothing",
@@ -138,6 +138,168 @@
       "turns": [{ "role": "user", "text": "what can you actually do?" }],
       "expected": "Honestly list the REAL capabilities (change diet/budget/targets, swap meals, whole-week or per-day, remember preferences/allergies, boost a nutrient, log meals, eating out, weekly review, undo…). Don't over-promise things we can't do.",
       "why_hard": "Must be honest about scope — no inventing abilities."
+    },
+    {
+      "id": "budget-cuisine", "category": "compound", "bucket": "do",
+      "turns": [{ "role": "user", "text": "make it a cheap mexican week" }],
+      "expected": "One rebuild: budget=low AND cuisine=mexican. A cost axis plus a theme, together.",
+      "why_hard": "Two different kinds of constraint (budget + cuisine) fused in a three-word request."
+    },
+    {
+      "id": "macro-pair", "category": "targets", "bucket": "do",
+      "turns": [{ "role": "user", "text": "keep me at 1800 calories with 160g protein" }],
+      "expected": "Set both targets (calories=1800, protein=160) in a single rebuild; the engine rebalances carbs/fat.",
+      "why_hard": "Two macro targets at once — must not set one and forget the other."
+    },
+    {
+      "id": "quick-week", "category": "constraint", "bucket": "do",
+      "turns": [{ "role": "user", "text": "everything under 15 minutes, i have zero time this week" }],
+      "expected": "Cap cook time at 15 minutes across the week and persist it.",
+      "why_hard": "A time constraint that persists and reshapes every meal, not a one-off."
+    },
+    {
+      "id": "single-slot-swap", "category": "scope", "bucket": "do",
+      "turns": [{ "role": "user", "text": "swap just tuesday's dinner for a salmon bowl" }],
+      "expected": "Change Tuesday dinner only to a salmon bowl; leave every other day and slot untouched.",
+      "why_hard": "One slot on one day — the opposite failure of everyday-1; must NOT go week-wide."
+    },
+    {
+      "id": "four-meals", "category": "structure", "bucket": "do",
+      "turns": [{ "role": "user", "text": "add an afternoon snack, i want 4 meals a day now" }],
+      "expected": "Switch to 4 meals/day (adds the snack slot) and rebuild; persist it.",
+      "why_hard": "A structural meal-count change, distinct from portion size."
+    },
+    {
+      "id": "eating-out-future", "category": "real-life", "bucket": "do",
+      "turns": [{ "role": "user", "text": "i've got a dinner reservation friday, save some room for it" }],
+      "expected": "Reserve calories for Friday dinner (eating out) and rebalance the rest of Friday around it. FUTURE meal, not logged as eaten.",
+      "why_hard": "Must distinguish a FUTURE restaurant meal (reserve room) from a PAST eaten meal (log)."
+    },
+    {
+      "id": "pin-keep", "category": "preference", "bucket": "do",
+      "turns": [{ "role": "user", "text": "whatever you change, keep sunday dinner exactly as it is" }],
+      "expected": "Pin/lock Sunday dinner so future rebuilds leave it in place; change nothing else now.",
+      "why_hard": "A constraint on FUTURE edits (lock), not an edit itself."
+    },
+    {
+      "id": "rate-recur", "category": "preference", "bucket": "do",
+      "turns": [{ "role": "user", "text": "monday's breakfast was so good, can i have it more often" }],
+      "expected": "Record a high rating / preference so that dish recurs more; warm reply.",
+      "why_hard": "A satisfaction signal that biases future plans, not an immediate rebuild."
+    },
+    {
+      "id": "substitute-advice", "category": "advice", "bucket": "do",
+      "turns": [{ "role": "user", "text": "i'm out of eggs, what could i use in tomorrow's breakfast instead?" }],
+      "expected": "Suggest realistic egg substitutes for that breakfast (advice); no plan rebuild required unless they ask.",
+      "why_hard": "A question that wants ADVICE, not a silent plan change — over-acting is wrong."
+    },
+    {
+      "id": "hydration-profile", "category": "advice", "bucket": "do",
+      "turns": [{ "role": "user", "text": "how much water should i drink? i'm about 80kg and pretty active" }],
+      "expected": "Compute a sensible daily water target from weight + activity; read-only, no plan change.",
+      "why_hard": "Uses profile data to answer, but must not touch the meal plan."
+    },
+    {
+      "id": "explain-slot", "category": "advice", "bucket": "do",
+      "turns": [{ "role": "user", "text": "why did you put oatmeal on monday?" }],
+      "expected": "Explain the reasoning behind that slot (fits macros/budget/diet); change nothing.",
+      "why_hard": "Introspection — answer, don't 'fix' anything."
+    },
+    {
+      "id": "general-qa", "category": "advice", "bucket": "do",
+      "turns": [{ "role": "user", "text": "is white rice or quinoa better for me?" }],
+      "expected": "Answer the nutrition question plainly; no plan or profile change.",
+      "why_hard": "Pure Q&A — the honest move is to just answer, not trigger an edit."
+    },
+    {
+      "id": "vague-weightloss", "category": "clarify", "bucket": "clarify",
+      "turns": [{ "role": "user", "text": "help me lose weight" }],
+      "expected": "Ask ONE focused question (a calorie target, or a comfortable pace) before changing anything; don't silently pick a deficit.",
+      "why_hard": "A goal with no parameters; inventing a deficit is a wrong, potentially unsafe guess."
+    },
+    {
+      "id": "bare-more", "category": "clarify", "bucket": "clarify",
+      "turns": [{ "role": "user", "text": "can you give me more?" }],
+      "expected": "Ask more of WHAT (food/portions, protein, meals?); change nothing.",
+      "why_hard": "Underspecified axis and amount — must not assume."
+    },
+    {
+      "id": "fasting-window", "category": "structure", "bucket": "decline",
+      "turns": [{ "role": "user", "text": "set me up for 16:8 fasting, no food before noon" }],
+      "expected": "Honest: no fasting-window feature yet; offer the nearest (fewer, later meals). Don't fake a window.",
+      "why_hard": "A real gap — decline honestly and offer the closest supported thing."
+    },
+    {
+      "id": "monthly-plan", "category": "structure", "bucket": "decline",
+      "turns": [{ "role": "user", "text": "plan out my whole month for me" }],
+      "expected": "Honest: one week at a time is supported; offer to rebuild this week however they like.",
+      "why_hard": "Scope beyond the tool; must decline without pretending."
+    },
+    {
+      "id": "vegan-b12", "category": "health", "bucket": "decline",
+      "turns": [{ "role": "user", "text": "my b12 is low, fix it with food but keep me vegan" }],
+      "expected": "Honest: b12 isn't present in plant foods in usable amounts, so food alone can't fix it on a vegan diet. Keep the week vegan, but recommend a supplement / fortified foods (nutritional yeast, fortified plant milk). Never fake a rebuild that 'solves' it.",
+      "why_hard": "A genuine nutrition limit — the tempting wrong answer is to pretend a plan change fixes a deficiency it physically can't."
+    },
+    {
+      "id": "external-sync", "category": "meta", "bucket": "decline",
+      "turns": [{ "role": "user", "text": "can you sync all this to my apple watch?" }],
+      "expected": "Honest: no external-app integration; state what it CAN do (targets, meals, grocery list) instead.",
+      "why_hard": "Out-of-scope integration — decline, then redirect to real capabilities."
+    },
+    {
+      "id": "keto-highcarb", "category": "contradiction", "bucket": "refuse",
+      "turns": [{ "role": "user", "text": "put me on keto but i want pasta and rice every day" }],
+      "expected": "Flag the conflict: keto is low-carb, pasta/rice are high-carb. Offer a choice (keto, or a higher-carb plan). Don't build a broken 'keto' week.",
+      "why_hard": "Diet and requested staples are mutually exclusive; must surface it, not silently pick."
+    },
+    {
+      "id": "vegan-eggs", "category": "contradiction", "bucket": "refuse",
+      "turns": [{ "role": "user", "text": "make it vegan but i need eggs every morning" }],
+      "expected": "Flag it: eggs aren't vegan. Offer a choice (fully vegan, or vegetarian-with-eggs). Don't quietly include eggs in a 'vegan' week.",
+      "why_hard": "Subtler than vegan+meat — eggs read as harmless to some, but they break vegan."
+    },
+    {
+      "id": "impossible-cal-protein", "category": "impossible", "bucket": "refuse",
+      "turns": [{ "role": "user", "text": "i want 250g of protein a day on 1200 calories" }],
+      "expected": "Explain it's not reachable — 250g protein alone is ~1000 cal, leaving almost nothing for fats/carbs; propose a realistic pairing (e.g., how much protein fits 1200 cal, or the calories 250g needs).",
+      "why_hard": "A numeric impossibility disguised as a normal request; must negotiate, not fake."
+    },
+    {
+      "id": "cycle-sync-offer", "category": "health", "bucket": "clarify",
+      "turns": [{ "role": "user", "text": "my period starts in a couple days" }],
+      "expected": "Empathetic, non-diagnostic. OFFER (as a question) to steer the coming days toward what the body tends to want then — e.g. more iron- and magnesium-rich foods — and remember the fact. Don't assume or auto-apply.",
+      "why_hard": "The roadmap behavior: proactively OFFER a cycle-aware adjustment as a question, never diagnose or act unasked."
+    },
+    {
+      "id": "allergy-later-applied", "category": "memory", "bucket": "do",
+      "turns": [
+        { "role": "user", "text": "heads up, i'm allergic to peanuts" },
+        { "role": "assistant", "text": "Noted — I'll keep peanuts out of everything." },
+        { "role": "user", "text": "add a high-protein snack in the afternoons" }
+      ],
+      "expected": "Add a high-protein snack that is NOT peanut-based (avoid peanut butter / PB snacks); apply the remembered allergy and note the choice.",
+      "why_hard": "The obvious high-protein snack (peanut butter) is exactly the one the remembered allergy forbids."
+    },
+    {
+      "id": "clarify-then-do", "category": "multi-turn", "bucket": "do",
+      "turns": [
+        { "role": "user", "text": "change my week" },
+        { "role": "assistant", "text": "Sure — what should I change: a day, a meal, or your overall diet?" },
+        { "role": "user", "text": "make the whole thing vegan" }
+      ],
+      "expected": "Act on the answer — whole-week vegan. Do NOT ask again.",
+      "why_hard": "Must recognize the clarification was answered and now execute, not loop on more questions."
+    },
+    {
+      "id": "correction-replace", "category": "multi-turn", "bucket": "do",
+      "turns": [
+        { "role": "user", "text": "make it keto" },
+        { "role": "assistant", "text": "Done — your week's keto now." },
+        { "role": "user", "text": "wait no, i meant mediterranean" }
+      ],
+      "expected": "Replace keto with mediterranean (switch the diet), not layer both.",
+      "why_hard": "A correction that REPLACES a just-applied change; must swap, not stack."
     }
   ]
 }
