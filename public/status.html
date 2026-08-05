@@ -75,8 +75,8 @@
 
   <div class="now">
     <div class="label"><span class="dot"></span>Working on now</div>
-    <h2>Still growing it — new conversation classes</h2>
-    <p>3,227 is committed &amp; fully de-risked (engine-valid, length-valid, tests green). Not stopping there: I'm adding the kinds of situations that force real reasoning — <b>memory-application</b> (a fact you told me earlier must shape the answer), <b>deeper 3–5 turn threads</b> where the final action depends on the whole conversation, and messier real-life inputs (post-surgery soft foods, a vegan houseguest, medical asks I honestly decline). Regenerating + revalidating now.</p>
+    <h2>Dataset at <span class="mono">3,272</span> — growing the eval next</h2>
+    <p><b>12.5×</b> the first cut, all engine-validated (0 rejected), length-clean, tests green — committed. It now spans the whole taxonomy <i>plus</i> the hard stuff: remembering your facts, holding a 3–5 turn conversation, and admitting honest limits. With the corpus in strong shape, I'm turning to the other GPU-free prep — broadening the hard-case eval so I can judge the trained model rigorously (a recorded lesson: a noisy eval can't steer training). The dataset levers stay open if we want it even bigger.</p>
   </div>
 
   <div class="now" style="border-left-color:var(--done);margin-top:12px">
@@ -99,14 +99,14 @@
       <li class="done"><span class="g">✓</span><span class="t">Training file written — <span class="mono">finetune-v2.jsonl</span> <small>every one engine-validated · in the trainer's chat format (loss on the assistant turn)</small></span></li>
       <li class="done"><span class="g">✓</span><span class="t">Generator scaled <b>3.1×</b> — <span class="mono">818</span> conversations, 0 rejected <small>rotating reasoning + reply banks (no parroting) · casual/typo'd/emotional phrasing · combinatorial diet×exclude×budget×cuisine×macros · +explain/substitute/hydration/answer read-only verbs · the validator surfaced the vegan-b12 honesty case · 441/0</small></span></li>
       <li class="done"><span class="g">✓</span><span class="t">Dry-run — format/length half proven (GPU-free) <small>same tokenizer path the trainer uses · every example has a non-empty unmasked answer → no silent all-masked drops</small></span></li>
-      <li class="done"><span class="g">✓</span><span class="t">Dataset scaled <b>3.9×</b> → <span class="mono">3,227</span> conversations, 0 rejected <small>surface-form multiplier (casual openers, you→u, chat register) + rotating reasoning/reply banks + wider value ranges + new intent classes · length-de-risked (max 1982 / 2560) · 441/0 · committed</small></span></li>
+      <li class="done"><span class="g">✓</span><span class="t">Dataset scaled to <span class="mono">3,272</span> conversations, 0 rejected <small>surface-form multiplier + rotating reasoning/reply banks + wider value ranges + situational classes (memory-application, deeper 3–5 turn threads, messy real-life + honest declines) · length-clean (max 1998 / 2560) · 441/0 · committed</small></span></li>
     </ul>
   </div>
 
   <div class="sec">
     <div class="sec-h">In progress</div>
     <ul>
-      <li class="now-row"><span class="g">▶</span><span class="t">Growing it further — new conversation classes <small>memory-application + deeper multi-turn threads + messy real-life inputs · regenerating &amp; revalidating</small></span></li>
+      <li class="now-row"><span class="g">▶</span><span class="t">Grow the hard-case eval <small>broaden data/hard-cases.json across the taxonomy + the four honest outcomes so it can rigorously judge the trained model — GPU-free prep</small></span></li>
     </ul>
   </div>
 
@@ -129,7 +129,7 @@
   </div>
 
   <div class="foot">
-    <span class="mono">updated 2026-08-05 19:02</span>
+    <span class="mono">updated 2026-08-05 19:28</span>
     <span>next surface point: when the 12 h train starts, then a full report</span>
   </div>
 </div>
