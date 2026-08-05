@@ -4549,6 +4549,7 @@ export function applyOperations(
       case "update_profile": {
         if (op.diet) p.diet = op.diet;
         if (op.budget) p.budget = op.budget;
+        if (op.mealsPerDay === 3 || op.mealsPerDay === 4) p.mealsPerDay = op.mealsPerDay;
         if (op.maxCookTime && op.maxCookTime > 0) p.maxCookTime = op.maxCookTime;
         if (op.targetCalories && op.targetCalories > 0) p.targetCalories = op.targetCalories;
         if (op.targetProtein && op.targetProtein > 0) p.proteinGrams = op.targetProtein;

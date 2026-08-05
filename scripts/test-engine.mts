@@ -1082,6 +1082,17 @@ console.log("--- WHOLE-WEEK SWAP (\"pancakes every day\") ---");
   check("single-day swap still targets only that day", tueChanged && othersUntouched === 0, `tue=${tueChanged} others=${othersUntouched}`);
 }
 
+console.log("");
+console.log("--- MEALS PER DAY (\"I want 4 meals a day\" / \"add a daily snack\") ---");
+{
+  const r = applyOperations(BASE, freshWeek(BASE), [op({ tool: "update_profile", mealsPerDay: 4 })]);
+  check("meals/day: switching to 4 gives every day 4 meals", r.plan.days.every((d) => d.meals.length === 4), r.plan.days.map((d) => d.meals.length).join(","));
+  check("meals/day: 4 adds a snack slot", r.plan.days.every((d) => d.meals.some((m) => m.type === "snack")));
+  check("meals/day: it persists to the profile", r.profile.mealsPerDay === 4);
+  const back = applyOperations(r.profile, r.plan, [op({ tool: "update_profile", mealsPerDay: 3 })]);
+  check("meals/day: back to 3 gives every day 3 meals", back.plan.days.every((d) => d.meals.length === 3));
+}
+
 
 // ---------------------------------------------------------------- feed (Phase 3)
 console.log("");

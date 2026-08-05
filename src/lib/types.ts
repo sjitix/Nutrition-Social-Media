@@ -111,6 +111,9 @@ export const OperationSchema = z.object({
     .nullable()
     .optional(),
   maxCookTime: z.number().nullable().optional(),
+  // update_profile: "I want 4 meals a day" / "add a daily snack" (3) / "just 3 meals". The engine
+  // supports 3 or 4 meals per day; this is how the assistant changes it.
+  mealsPerDay: z.union([z.literal(3), z.literal(4)]).nullable().optional(),
   // compute_targets: the facts the model collects. The ENGINE does the arithmetic
   // (Mifflin-St Jeor + activity factor + goal adjustment); the model never computes.
   age: z.number().nullable().optional(),
