@@ -19,7 +19,7 @@ import { FEED_RECIPES, filterFeed, sortFeed, HIGH_PROTEIN_G, type FeedFilter } f
 import { videoPlatform, extractVideoText } from "@/lib/videoImport";
 import { aisleFor, groupByAisle, AISLE_ORDER } from "@/lib/grocery";
 import { currentStreak, prevDay, isoDay } from "@/lib/streak";
-import { expandConstrain, applyRemember, applyPrimitives, memoryContext } from "@/lib/primitives";
+import { expandConstrain, applyRemember, applyPrimitives, memoryContext, AssistantTurnV2Schema, type PrimitiveOp } from "@/lib/primitives";
 import { microsForIngredients } from "@/lib/nutrients";
 import { haystackBlocked, dietTagConflicts, parseExclusionTokens } from "@/lib/exclusions";
 import { bmr, computeTargets, hydrationTarget } from "@/lib/targets";
@@ -1147,6 +1147,25 @@ console.log("--- PRIMITIVES v2 (constrain / remember -> tested engine) ---");
   check("verb log re-solves the day (plan changed)", v3.planChanged === true);
   const v4 = applyPrimitives(BASE, freshWeek(BASE), [{ op: "pin", day: "Sunday", slot: "dinner" }]);
   check("verb pin locks the slot", (v4.profile.lockedMeals ?? []).some((l) => l.day === "Sunday" && l.mealType === "dinner"));
+
+  // The v2 turn schema: a realistic reason-then-act turn validates AND runs end-to-end.
+  const sampleTurn = {
+    thinking: "They went vegetarian, can't stand mushrooms, and told me they're lactose intolerant. So: remember the intolerance, make the week vegetarian without mushrooms, and set pancakes for breakfast every day like they asked.",
+    reply: "Done — your week's vegetarian and mushroom-free, pancakes every morning, and I'll keep dairy out from now on.",
+    operations: [
+      { op: "remember", fact: "lactose intolerant", kind: "allergy" },
+      { op: "constrain", diet: "vegetarian", exclude: ["mushrooms"] },
+      { op: "swap", dish: "pancakes", slot: "breakfast" },
+    ],
+  };
+  const parsed = AssistantTurnV2Schema.safeParse(sampleTurn);
+  check("v2 turn: a realistic multi-op turn validates", parsed.success);
+  if (parsed.success) {
+    const res = applyPrimitives(BASE, freshWeek(BASE), parsed.data.operations as PrimitiveOp[]);
+    check("v2 turn: runs end-to-end (veg + memory + pancakes every day)", res.profile.diet === "vegetarian" && (res.profile.memory ?? []).some((f) => /lactose/i.test(f.fact)) && res.plan.days.every((d) => /pancake/i.test(d.meals.find((m) => m.type === "breakfast")?.name ?? "")));
+  }
+  check("v2 turn: rejects an unknown op", !AssistantTurnV2Schema.safeParse({ thinking: "x", reply: "y", operations: [{ op: "teleport" }] }).success);
+  check("v2 turn: rejects a bad enum value", !AssistantTurnV2Schema.safeParse({ thinking: "x", reply: "y", operations: [{ op: "constrain", diet: "carnivore" }] }).success);
 }
 
 

@@ -8,6 +8,7 @@
  *
  * See ASSISTANT-SCHEMA.md for the full design.
  */
+import { z } from "zod";
 import type { Operation, UserProfile, UserFact, WeekPlan } from "./types";
 import { DAYS, MEAL_TYPES } from "./types";
 import { applyOperations } from "./recipeDb";
@@ -187,3 +188,57 @@ export function memoryContext(profile: UserProfile): string {
   if (!mem.length) return "";
   return "Known about the user (remember and apply these): " + mem.map((f) => f.fact).join("; ") + ".";
 }
+
+// --- v2 turn schema (validates the model's output; also constrains local json_schema generation) ---
+const dayEnum = z.enum(DAYS);
+const slotEnum = z.enum(MEAL_TYPES);
+const scopeSchema = z.union([
+  z.literal("week"),
+  z.object({ days: z.array(dayEnum) }),
+  z.object({ slot: slotEnum, days: z.array(dayEnum).optional() }),
+]);
+const nutrientEnum = z.enum(["iron", "calcium", "magnesium", "potassium", "zinc", "vitD", "vitC", "folate", "b12"]);
+
+/** The model's operation vocabulary, discriminated on `op`. */
+export const PrimitiveOpSchema = z.discriminatedUnion("op", [
+  z.object({
+    op: z.literal("constrain"),
+    scope: scopeSchema.optional(),
+    diet: z.enum(["none", "vegetarian", "vegan", "keto", "mediterranean"]).optional(),
+    budget: z.enum(["low", "medium", "high"]).optional(),
+    cuisine: z.string().optional(),
+    mealsPerDay: z.union([z.literal(3), z.literal(4)]).optional(),
+    exclude: z.array(z.string()).optional(),
+    use: z.array(z.string()).optional(),
+    targets: z.object({
+      calories: z.number().optional(), protein: z.number().optional(), carbs: z.number().optional(),
+      fat: z.number().optional(), fiber: z.number().optional(),
+    }).optional(),
+    boostNutrient: nutrientEnum.optional(),
+    maxCookTime: z.number().optional(),
+    preserveMacros: z.boolean().optional(),
+  }),
+  z.object({ op: z.literal("remember"), fact: z.string(), kind: z.enum(["preference", "allergy", "condition", "goal", "context"]).optional() }),
+  z.object({ op: z.literal("swap"), dish: z.string(), slot: slotEnum.optional(), days: z.array(dayEnum).optional() }),
+  z.object({ op: z.literal("log"), day: dayEnum, slot: slotEnum, dish: z.string(), calories: z.number().optional(), protein: z.number().optional() }),
+  z.object({ op: z.literal("reserve"), day: dayEnum, slot: slotEnum, calories: z.number().optional() }),
+  z.object({ op: z.literal("resize"), direction: z.enum(["much_smaller", "smaller", "bigger", "much_bigger"]), day: dayEnum.optional(), slot: slotEnum.optional() }),
+  z.object({ op: z.literal("rate"), rating: z.number().int().min(1).max(5), dish: z.string().optional(), day: dayEnum.optional(), slot: slotEnum.optional() }),
+  z.object({ op: z.literal("pin"), day: dayEnum, slot: slotEnum }),
+  z.object({ op: z.literal("unpin"), day: dayEnum, slot: slotEnum }),
+  z.object({ op: z.literal("report") }),
+  z.object({ op: z.literal("explain"), day: dayEnum, slot: slotEnum }),
+  z.object({ op: z.literal("substitute"), ingredient: z.string(), day: dayEnum.optional(), slot: slotEnum.optional() }),
+  z.object({ op: z.literal("symptom"), text: z.string() }),
+  z.object({ op: z.literal("hydration"), weightKg: z.number().optional(), activity: z.enum(["sedentary", "light", "moderate", "active", "very_active"]).optional() }),
+  z.object({ op: z.literal("undo") }),
+  z.object({ op: z.literal("answer") }),
+]);
+
+/** One reason-then-act turn: the model thinks, replies, and emits primitive operations. */
+export const AssistantTurnV2Schema = z.object({
+  thinking: z.string(),
+  reply: z.string(),
+  operations: z.array(PrimitiveOpSchema),
+});
+export type AssistantTurnV2 = z.infer<typeof AssistantTurnV2Schema>;
