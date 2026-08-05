@@ -20,7 +20,7 @@
  *
  * EXPAND controls how many surface forms each base yields — raise it to grow the set further.
  */
-import type { UserProfile } from "./types";
+import type { UserProfile, UserFact } from "./types";
 import type { TrainingExample } from "./dataValidate";
 
 type Diet = UserProfile["diet"];
@@ -513,6 +513,54 @@ export function generateExamples(): TrainingExample[] {
       "Life context + two real edits: quick meals and a protein target. One constrain carries both.",
       "Congrats on the job — everything's under 20 minutes now, and I've set protein to 180g a day.",
       [{ op: "constrain", maxCookTime: 20, targets: { protein: 180 } }], { planChanged: true }); k++;
+  }
+
+  // ================================================================= MEMORY APPLICATION
+  // The profile already carries a stored fact; a new request must be executed while honoring it.
+  // The op is ordinary, but the reasoning + reply must show the fact shaping the answer — this is
+  // what makes the assistant feel like it remembers you, the whole point of the memory layer.
+  {
+    const mem = (fact: string, kind: UserFact["kind"]): UserProfile => ({ ...BASE, memory: [{ fact, kind }] });
+    const cases: [string, UserProfile, string, string, unknown[], TrainingExample["expect"]][] = [
+      ["bump my protein to 180", mem("allergic to peanuts", "allergy"), "They told me before they're allergic to peanuts — hit 180g protein but keep it peanut-free.", "Done — 180g of protein a day, and I've kept it peanut-free like you told me.", [{ op: "constrain", targets: { protein: 180 } }], { planChanged: true }],
+      ["make this week cheaper", mem("i'm lactose intolerant", "allergy"), "Budget down to low, and remember they can't do lactose — no dairy sneaking in.", "Got it — cheaper meals, and still no dairy since you're lactose intolerant.", [{ op: "constrain", budget: "low" }], { profileChanged: true }],
+      ["give me an italian week", mem("i hate mushrooms", "preference"), "Italian theme, but they've told me mushrooms are a hard no — keep them out.", "Yum — an Italian week, and no mushrooms, just how you like it.", [{ op: "constrain", cuisine: "italian" }], { planChanged: true }],
+      ["more iron please", mem("vegetarian for years", "preference"), "Boost iron, and I already know they're a long-time vegetarian — keep it meat-free and pair with vitamin C.", "Done — more iron-rich foods, all vegetarian. I've leaned on lentils and greens with some vitamin C to help you absorb it.", [{ op: "constrain", boostNutrient: "iron" }], { planChanged: true }],
+      ["make it quick, i'm slammed", mem("training for a marathon", "goal"), "Quick meals, but they're marathon training — keep the carbs and calories where they need to be for that.", "Done — everything's under 20 minutes, and I've kept your carbs up for marathon training.", [{ op: "constrain", maxCookTime: 20 }], { profileChanged: true }],
+    ];
+    for (const [base, profile, think, reply, ops, expect] of cases)
+      emit(base, [think], [reply], ops, expect, profile);
+  }
+
+  // ================================================================= DEEPER MULTI-TURN (context carry)
+  // 3–4 turn threads where the final action depends on everything said before — the model has to hold
+  // the conversation, not just the last line.
+  {
+    push([U("i'm trying to eat healthier"), A("Love that. Want me to set a direction — more veggies, a diet like Mediterranean, or a calorie target?"), U("mediterranean sounds good"), A("Great choice. Whole week Mediterranean?"), U("yeah do it")],
+      "Four turns of narrowing; they've now confirmed a whole-week Mediterranean switch.", "Done — your whole week's Mediterranean now. It's a great, sustainable way to eat.",
+      [{ op: "constrain", diet: "mediterranean" }], { dietIs: "mediterranean", planChanged: true }); k++;
+    push([U("make it vegetarian"), A("Done — vegetarian week."), U("and cheaper"), A("Got it — budget-friendly too."), U("oh and no tofu, i'm sick of it")],
+      "Third change in the thread — exclude tofu on top of the vegetarian, cheap week already set.", "No problem — no more tofu.",
+      [{ op: "constrain", exclude: ["tofu"] }], { profileChanged: true }); k++;
+    push([U("i keep getting hungry at night"), A("A few things can cause that. Want me to shift more calories to dinner, or bump your overall intake?"), U("bump it up, i think i'm just not eating enough"), A("How's 2300 a day sound?"), U("perfect")],
+      "They landed on raising intake to 2300 after the back-and-forth.", "Done — 2300 calories a day. That should keep the late-night hunger down.",
+      [{ op: "constrain", targets: { calories: 2300 } }], { planChanged: true }); k++;
+    push([U("my sister's coming to stay, she's vegan"), A("Nice — want the whole week vegan while she's here?"), U("no just make thursday and friday vegan")],
+      "They narrowed it to two specific days — a temporary per-day override, not a profile change.", "Got it — Thursday and Friday are vegan, the rest of your week stays as is.",
+      [{ op: "constrain", scope: { days: ["Thursday", "Friday"] }, diet: "vegan" }], { planChanged: true }); k++;
+    push([U("i had surgery, on a soft foods diet for 2 weeks"), A("I'm sorry to hear that — I hope recovery's smooth. I can't set a dedicated soft-foods mode yet, but I can steer toward softer, easy-to-eat meals. Want that?"), U("yes please, and nothing spicy")],
+      "No soft-foods mode exists, but they accepted the nearest thing and added a real exclusion — apply the spice exclusion honestly and note the soft-food steer in the reply.", "Done — I've kept things mild with no spice, and leaned toward softer meals. Take care of yourself.",
+      [{ op: "constrain", exclude: ["spicy"] }], { profileChanged: true }); k++;
+  }
+
+  // ================================================================= MORE HONEST DECLINES (breadth)
+  {
+    for (const t of ["track my macros in grams to the decimal", "calorie cycle me, high on workout days", "sync this to my apple watch", "order the groceries for me", "count my alcohol calories too"])
+      emit(t, ["Not a supported capability. Decline honestly and, where possible, offer the nearest thing I can do."],
+        ["That's not something I can do yet — I'd rather be straight with you than fake it. Tell me the part I can help with (targets, meals, a grocery list) and I'll take care of that."], [], { noChange: true });
+    for (const t of ["prescribe me a supplement stack", "how many mg of iron should i take", "diagnose why i'm tired"])
+      emit(t, ["This crosses into medical advice / dosing — decline and point to a professional; I can still shape the food side."],
+        ["I can't give medical or dosing advice — that's worth a doctor or dietitian. What I can do is build your meals to support it. Want me to steer your week toward more of that nutrient?"], [], { noChange: true });
   }
 
   // Drop exact duplicates (identical turns + reasoning + reply + ops), which the surface multiplier
