@@ -100,10 +100,56 @@ export function applyRemember(profile: UserProfile, r: RememberOp, today?: strin
 
 /** A v2 operation is either a general primitive or a pass-through of an existing engine verb
  *  (swap_meal, log_meal, rate_meal, lock_meal, scale_portions, weekly_report, …). */
-export type PrimitiveOp = ConstrainOp | RememberOp | Operation;
+// The uniform `op`-based verbs (so the model speaks ONE vocabulary — every op has an `op`), each
+// mapping to an existing tested engine tool. This keeps the model's surface general while the
+// engine keeps its proven internals.
+export interface SwapOp { op: "swap"; dish: string; slot?: MealType; days?: Day[] } // no days = every day
+export interface LogOp { op: "log"; day: Day; slot: MealType; dish: string; calories?: number; protein?: number }
+export interface ReserveOp { op: "reserve"; day: Day; slot: MealType; calories?: number }
+export interface ResizeOp { op: "resize"; direction: "much_smaller" | "smaller" | "bigger" | "much_bigger"; day?: Day; slot?: MealType }
+export interface RateOp { op: "rate"; rating: 1 | 2 | 3 | 4 | 5; dish?: string; day?: Day; slot?: MealType }
+export interface PinOp { op: "pin" | "unpin"; day: Day; slot: MealType }
+export interface ReportOp { op: "report" }
+export interface ExplainOp { op: "explain"; day: Day; slot: MealType }
+export interface SubstituteOp { op: "substitute"; ingredient: string; day?: Day; slot?: MealType }
+export interface SymptomOp { op: "symptom"; text: string }
+export interface HydrationOp { op: "hydration"; weightKg?: number; activity?: string }
+export interface UndoOp { op: "undo" }
+export interface AnswerOp { op: "answer" }
+
+export type VerbOp =
+  | SwapOp | LogOp | ReserveOp | ResizeOp | RateOp | PinOp | ReportOp
+  | ExplainOp | SubstituteOp | SymptomOp | HydrationOp | UndoOp | AnswerOp;
+
+/** A uniform `op` verb → the existing engine Operation. `answer` maps to nothing (pure reply). */
+export function verbToOperation(o: VerbOp): Operation | null {
+  switch (o.op) {
+    case "swap": {
+      const day = o.days && o.days.length === 1 ? o.days[0] : null; // no/none-single day = every day
+      return { tool: "swap_meal", dish: o.dish, mealType: o.slot ?? null, day } as Operation;
+    }
+    case "log": return { tool: "log_meal", day: o.day, mealType: o.slot, dish: o.dish, loggedCalories: o.calories ?? null, loggedProtein: o.protein ?? null } as Operation;
+    case "reserve": return { tool: "eating_out", day: o.day, mealType: o.slot, estimatedCalories: o.calories ?? null } as Operation;
+    case "resize": return { tool: "scale_portions", portionChange: o.direction, day: o.day ?? null, mealType: o.slot ?? null } as Operation;
+    case "rate": return { tool: "rate_meal", rating: o.rating, dish: o.dish ?? null, day: o.day ?? null, mealType: o.slot ?? null } as Operation;
+    case "pin": return { tool: "lock_meal", day: o.day, mealType: o.slot } as Operation;
+    case "unpin": return { tool: "unlock_meal", day: o.day, mealType: o.slot } as Operation;
+    case "report": return { tool: "weekly_report" } as Operation;
+    case "explain": return { tool: "explain_meal", day: o.day, mealType: o.slot } as Operation;
+    case "substitute": return { tool: "substitute_ingredient", ingredient: o.ingredient, day: o.day ?? null, mealType: o.slot ?? null } as Operation;
+    case "symptom": return { tool: "symptom_check", symptom: o.text } as Operation;
+    case "hydration": return { tool: "hydration", weightKg: o.weightKg ?? null, activity: (o.activity ?? null) as Operation["activity"] } as Operation;
+    case "undo": return { tool: "undo" } as Operation;
+    case "answer": return null;
+    default: return null;
+  }
+}
+
+export type PrimitiveOp = ConstrainOp | RememberOp | VerbOp | Operation;
 
 const isConstrain = (o: PrimitiveOp): o is ConstrainOp => (o as ConstrainOp).op === "constrain";
 const isRemember = (o: PrimitiveOp): o is RememberOp => (o as RememberOp).op === "remember";
+const isVerb = (o: PrimitiveOp): o is VerbOp => "op" in o && (o as { op: string }).op !== "constrain" && (o as { op: string }).op !== "remember";
 
 /**
  * THE executor. Runs a turn's primitives against the deterministic engine and returns the same shape
@@ -122,8 +168,11 @@ export function applyPrimitives(profile: UserProfile, plan: WeekPlan, ops: Primi
       p = next;
     } else if (isConstrain(o)) {
       flat.push(...expandConstrain(o));
+    } else if (isVerb(o)) {
+      const mapped = verbToOperation(o);
+      if (mapped) flat.push(mapped);
     } else {
-      flat.push(o); // an existing engine verb, passed straight through
+      flat.push(o as Operation); // a raw {tool:…} Operation, passed straight through
     }
   }
   const res = applyOperations(p, plan, flat);

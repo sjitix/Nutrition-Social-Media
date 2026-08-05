@@ -1137,6 +1137,16 @@ console.log("--- PRIMITIVES v2 (constrain / remember -> tested engine) ---");
   // A remember-only turn changes nothing in the plan but must still flag the profile for saving.
   const t3 = applyPrimitives(BASE, freshWeek(BASE), [{ op: "remember", fact: "hates cilantro" }]);
   check("applyPrimitives: remember-only turn flags profileChanged, leaves the plan", t3.profileChanged === true && t3.planChanged === false && (t3.profile.memory ?? []).some((f) => /cilantro/i.test(f.fact)));
+
+  // op-based verbs (the uniform vocabulary) map to the tested engine tools.
+  const v1 = applyPrimitives(BASE, freshWeek(BASE), [{ op: "swap", dish: "pancakes", slot: "breakfast" }]);
+  check("verb swap (no days = every day) sets all breakfasts", v1.plan.days.every((d) => /pancake/i.test(d.meals.find((m) => m.type === "breakfast")?.name ?? "")));
+  const v2 = applyPrimitives(BASE, freshWeek(BASE), [{ op: "rate", rating: 5, day: "Monday", slot: "breakfast" }]);
+  check("verb rate stores a rating", (v2.profile.mealRatings ?? []).some((r) => r.rating === 5));
+  const v3 = applyPrimitives(BASE, freshWeek(BASE), [{ op: "log", day: "Monday", slot: "lunch", dish: "pizza", calories: 900 }]);
+  check("verb log re-solves the day (plan changed)", v3.planChanged === true);
+  const v4 = applyPrimitives(BASE, freshWeek(BASE), [{ op: "pin", day: "Sunday", slot: "dinner" }]);
+  check("verb pin locks the slot", (v4.profile.lockedMeals ?? []).some((l) => l.day === "Sunday" && l.mealType === "dinner"));
 }
 
 
