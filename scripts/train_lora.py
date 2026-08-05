@@ -31,7 +31,7 @@ from transformers import (
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 
 ROOT = Path(__file__).resolve().parent.parent
-DATA = ROOT / "data" / "finetune.jsonl"
+DATA = ROOT / "data" / os.environ.get("DATA_FILE", "finetune.jsonl")
 OUT = ROOT / "models" / "nutriflow-lora"
 
 BASE = os.environ.get("BASE_MODEL", "Qwen/Qwen2.5-1.5B-Instruct")
