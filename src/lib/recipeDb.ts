@@ -4615,7 +4615,41 @@ export function applyOperations(
         break;
       }
       case "swap_meal": {
-        if (!op.day || !op.dish) break;
+        if (!op.dish) break;
+        // "Pancakes every day", "make every lunch a big salad" — NO specific day means apply the dish
+        // to that slot on ALL days. This is the whole-week operation the model previously couldn't
+        // express: it had to emit seven separate swaps, so it did one (Monday) and falsely claimed
+        // "every day". Now it's a single, honest operation.
+        if (!op.day) {
+          const match = findRecipeForSwap(op.dish, op.mealType ?? undefined, p);
+          if (!match) {
+            notes.push(`I don't have anything like "${op.dish}" that fits your plan, so I left the week as it is.`);
+            break;
+          }
+          const slot = op.mealType ?? match.type;
+          for (const day of DAYS) {
+            const origDay = curPlan.days.find((d) => d.day === day);
+            if (!origDay) continue;
+            // A pin on this slot is overridden by an explicit whole-week swap (and removed, quietly
+            // here — one summary note below covers the week rather than seven pin notices).
+            if (p.lockedMeals?.some((l) => l.day === day && l.mealType === slot)) {
+              p.lockedMeals = p.lockedMeals.filter((l) => !(l.day === day && l.mealType === slot));
+              profileChanged = true;
+            }
+            const dayShare = localSplit(p.mealsPerDay).find((s) => s[0] === match.type)?.[1] ?? 1 / p.mealsPerDay;
+            const dish = toMeal(scaleRecipeToTarget(match, Math.round(p.targetCalories * dayShare)));
+            const swapped = origDay.meals.map((m) => (m.type === match.type ? dish : m));
+            const newMeals = keepMacros(op)
+              ? rebalanceDay(swapped, p, new Set([match.type, ...lockedSlotsFor(p, day)]), namesOnOtherDays(curPlan, day, p))
+              : swapped;
+            curPlan = { ...curPlan, days: curPlan.days.map((d) => (d.day === day ? { ...d, meals: newMeals } : d)) };
+          }
+          const wanted = op.dish.toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 2);
+          if (wanted.length && wanted.some((w) => !match.name.toLowerCase().includes(w)))
+            notes.push(`I didn't have "${op.dish}" — I used ${match.name}.`);
+          notes.push(`Set ${match.name} as your ${slot} every day${keepMacros(op) ? ", and kept each day on your targets" : ""}.`);
+          break;
+        }
         // Macro-aware pick: matches the requested dish, tie-broken toward the slot's
         // macro profile (e.g. the protein-forward pancake on a high-protein plan).
         const match = findRecipeForSwap(op.dish, op.mealType ?? undefined, p);

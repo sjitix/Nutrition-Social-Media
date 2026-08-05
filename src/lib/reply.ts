@@ -85,9 +85,13 @@ export function composeReply(args: {
   // The engine's word is final. Not prepended to, not appended to — the whole reply.
   if (replyOverride) return replyOverride;
 
-  // Fall back to filler ONLY when the engine has nothing to say. Otherwise "Happy to help."
-  // would introduce a paragraph about the user's vitamin D.
-  const base =
-    modelReply?.trim() || (notes.length ? "" : planChanged ? "Done — I updated your plan." : "Happy to help.");
-  return [base, ...notes].filter(Boolean).join(" ");
+  // Engine notes are AUTHORITATIVE computed facts. When the engine has something to say, that IS the
+  // reply — the model's prose is untrusted and, worse, the fine-tune learned to restate the notes,
+  // which duplicated them ("Kept Monday on target. Kept Monday on target — 1993 kcal…"). So notes win
+  // outright; the model's reply is only used when the engine is silent (a pure question / clarify).
+  if (notes.length) return notes.join(" ");
+
+  const base = modelReply?.trim();
+  if (base) return base;
+  return planChanged ? "Done — I updated your plan." : "Happy to help.";
 }

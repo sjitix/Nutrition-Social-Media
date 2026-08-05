@@ -997,8 +997,8 @@ console.log("--- REPLY COMPOSITION (who gets the last word) ---");
   check("a crisis reply discards the model's words entirely",
     composeReply({ modelReply: "Sounds like low iron! Let me fix your week.", notes: [CRISIS], replyOverride: CRISIS, planChanged: false }) === CRISIS);
 
-  check("an ordinary turn keeps the model's reply and appends the engine's facts",
-    composeReply({ modelReply: "Done!", notes: ["Your week averages 2000 kcal."], planChanged: true }) === "Done! Your week averages 2000 kcal.");
+  check("engine notes are authoritative — the model's prose is dropped so it can never duplicate them",
+    composeReply({ modelReply: "Done — kept Monday on target.", notes: ["Kept Monday on target — about 1993 kcal."], planChanged: true }) === "Kept Monday on target — about 1993 kcal.");
 
   check("filler never introduces the engine's facts",
     composeReply({ modelReply: "", notes: ["You're low on vitamin D."], planChanged: false }) === "You're low on vitamin D.");
@@ -1058,6 +1058,28 @@ console.log("--- REBALANCE_DAY (balance a day around an imported/fixed meal) ---
   // An unknown day is an honest no-op, not a crash.
   const bad = applyOperations(BASE, withImport, [op({ tool: "rebalance_day", day: null })]);
   check("rebalance_day: no day -> asks, changes nothing", bad.planChanged === false);
+}
+
+// ---------------------------------------------------------------- whole-week swap ("every day")
+console.log("");
+console.log("--- WHOLE-WEEK SWAP (\"pancakes every day\") ---");
+{
+  // The exact failure from the screenshot: "I want pancakes for breakfast every day". With no day
+  // given, swap_meal must apply the dish to EVERY day's breakfast — not one day with an "every day"
+  // fib. ("pancakes" fuzzy-matches "Cottage Cheese Pancakes with Blueberries".)
+  const r = applyOperations(BASE, freshWeek(BASE), [op({ tool: "swap_meal", dish: "pancakes", mealType: "breakfast" })]);
+  const breakfasts = r.plan.days.map((d) => d.meals.find((m) => m.type === "breakfast")?.name);
+  check("swap every day: it changed the plan", r.planChanged === true);
+  check("swap every day: EVERY day's breakfast is the same requested dish", breakfasts.every(Boolean) && new Set(breakfasts).size === 1, breakfasts.join(" | "));
+  check("swap every day: the dish is the pancakes", /pancake/i.test(breakfasts[0] ?? ""), breakfasts[0] ?? "");
+  check("swap every day: the reply says 'every day', not a single day", r.notes.some((n) => /every day/i.test(n)) && !r.notes.some((n) => /^Kept \w+day on target/.test(n)));
+  // Every other day's macros still hold (I5-style sanity): days aren't left wildly off target.
+  check("swap every day: days stay near target", r.plan.days.every((d) => Math.abs(d.meals.reduce((s, m) => s + m.calories, 0) - BASE.targetCalories) < 400));
+  // Single-day swap still works exactly as before.
+  const one = applyOperations(BASE, freshWeek(BASE), [op({ tool: "swap_meal", day: "Tuesday", mealType: "breakfast", dish: "pancakes" })]);
+  const tueChanged = /pancake/i.test(one.plan.days.find((d) => d.day === "Tuesday")!.meals.find((m) => m.type === "breakfast")!.name);
+  const othersUntouched = one.plan.days.filter((d) => d.day !== "Tuesday").filter((d) => /pancake/i.test(d.meals.find((m) => m.type === "breakfast")?.name ?? "")).length;
+  check("single-day swap still targets only that day", tueChanged && othersUntouched === 0, `tue=${tueChanged} others=${othersUntouched}`);
 }
 
 
