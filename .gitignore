@@ -31,6 +31,7 @@ next-env.d.ts
 # training data away from it.
 /data/*
 !/data/eval-cases.json
+!/data/hard-cases.json
 
 # fine-tuning: local venv, downloaded bases, adapters, merged/GGUF outputs
 /.venv-ft/

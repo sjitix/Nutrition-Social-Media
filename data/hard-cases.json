@@ -1,0 +1,143 @@
+{
+  "note": "The HARD eval — the ruler for the assistant rebuild, and the ceiling test (run these through a big PROMPTED model vs the small one; if big crushes the hard ones and small can't, model size is the ceiling; if big also fails, it's our design/data). Each case is model- and schema-agnostic on purpose: it states the CORRECT BEHAVIOR in plain language + which of the four buckets it falls in (do | clarify | decline | refuse), so we can grade any model before the new primitive schema exists. Precise operation labels get added once the primitives are designed. Grow this to 40+.",
+  "buckets": {
+    "do": "map to supported operation(s) and execute",
+    "clarify": "ask ONE question; change nothing",
+    "decline": "honestly say we can't do it yet + offer the nearest thing we CAN do; never fake it",
+    "refuse": "contradiction / impossible / unsafe — explain, don't silently comply"
+  },
+  "cases": [
+    {
+      "id": "compound-1", "category": "compound", "bucket": "do",
+      "turns": [{ "role": "user", "text": "make it cheaper, vegetarian, and no mushrooms" }],
+      "expected": "One update: budget=low, diet=vegetarian, exclude mushrooms. Three changes in a single turn, one rebuild.",
+      "why_hard": "Three distinct constraints in one sentence; must not drop any."
+    },
+    {
+      "id": "range-1", "category": "scope", "bucket": "do",
+      "turns": [{ "role": "user", "text": "can you make monday through wednesday vegetarian? the rest can stay" }],
+      "expected": "Make Mon, Tue, Wed vegetarian (three day-level changes), leave Thu–Sun untouched.",
+      "why_hard": "A day RANGE — must decompose into three per-day changes and explicitly NOT touch the rest."
+    },
+    {
+      "id": "weekend-1", "category": "scope", "bucket": "do",
+      "turns": [{ "role": "user", "text": "lighter meals on the weekend, i'm less active then" }],
+      "expected": "Lower calories on Saturday and Sunday only (two day-level changes). 'Weekend' = Sat+Sun.",
+      "why_hard": "Must resolve 'weekend' to the two days and scope the change to them."
+    },
+    {
+      "id": "everyday-1", "category": "scope", "bucket": "do",
+      "turns": [{ "role": "user", "text": "i want pancakes for breakfast every day" }],
+      "expected": "Set pancakes as breakfast on ALL seven days (whole-week swap). NOT one day claimed as every day.",
+      "why_hard": "The classic failure: model does one day and lies 'every day'."
+    },
+    {
+      "id": "everyday-correction", "category": "multi-turn", "bucket": "do",
+      "turns": [
+        { "role": "user", "text": "i want pancakes for breakfast every day" },
+        { "role": "assistant", "text": "Done — pancakes for Monday breakfast." },
+        { "role": "user", "text": "no i said EVERY day" }
+      ],
+      "expected": "Recognize the correction; apply pancakes to every day's breakfast, not just Monday.",
+      "why_hard": "Must catch that the prior turn under-delivered and fix the scope, not repeat it."
+    },
+    {
+      "id": "ambiguous-1", "category": "clarify", "bucket": "clarify",
+      "turns": [{ "role": "user", "text": "can you change it" }],
+      "expected": "Ask what to change (which day/meal/setting). Change nothing.",
+      "why_hard": "Genuinely underspecified — guessing is wrong; must ask."
+    },
+    {
+      "id": "contradiction-1", "category": "contradiction", "bucket": "refuse",
+      "turns": [{ "role": "user", "text": "make the whole week vegan but add chicken on friday" }],
+      "expected": "Flag the conflict: vegan excludes chicken. Offer a choice (vegan week, or non-vegan with chicken Friday). Don't silently do a broken thing.",
+      "why_hard": "Two mutually exclusive instructions in one message."
+    },
+    {
+      "id": "impossible-1", "category": "impossible", "bucket": "refuse",
+      "turns": [{ "role": "user", "text": "i want 300g of protein a day, fully vegan, on like 20 bucks a week" }],
+      "expected": "Explain honestly that all three together aren't reachable; propose the closest realistic trade-off (e.g., how much protein IS reachable vegan on that budget).",
+      "why_hard": "Must recognize an over-constrained request and negotiate, not fake success."
+    },
+    {
+      "id": "reference-scope", "category": "multi-turn", "bucket": "do",
+      "turns": [
+        { "role": "user", "text": "make the week italian" },
+        { "role": "assistant", "text": "Done — your whole week has an Italian theme now." },
+        { "role": "user", "text": "actually just tuesday, put the rest back" }
+      ],
+      "expected": "Undo the week-wide change and apply Italian to Tuesday only.",
+      "why_hard": "Reference + correction + scope narrowing + partial revert."
+    },
+    {
+      "id": "health-period", "category": "health", "bucket": "clarify",
+      "turns": [{ "role": "user", "text": "i'm on my period and feeling really drained" }],
+      "expected": "Empathetic, non-diagnostic. ASK if they'd like the week adjusted toward what the body tends to need now (e.g., more iron-rich foods) — offer, don't assume or diagnose. Remember the fact.",
+      "why_hard": "The roadmap behavior: proactively offer a health adjustment as a QUESTION; never diagnose."
+    },
+    {
+      "id": "deficiency-constrained", "category": "health", "bucket": "do",
+      "turns": [{ "role": "user", "text": "my doctor said my iron is low. i'm vegetarian though so keep that" }],
+      "expected": "Boost iron-rich foods WHILE staying vegetarian and holding macros. Report real amounts, never invent a number.",
+      "why_hard": "Two constraints held together (boost a nutrient + keep a diet); must not break veg to add iron."
+    },
+    {
+      "id": "memory-apply", "category": "memory", "bucket": "do",
+      "turns": [
+        { "role": "user", "text": "just so you know i'm lactose intolerant" },
+        { "role": "assistant", "text": "Noted — I'll keep dairy out of your plans." },
+        { "role": "user", "text": "add a creamy pasta for dinner tomorrow" }
+      ],
+      "expected": "Add a creamy pasta that uses a non-dairy cream (apply the remembered fact); note the dairy-free swap.",
+      "why_hard": "Must APPLY a fact from an earlier turn to a later, unrelated request."
+    },
+    {
+      "id": "rambling-multi", "category": "rambling", "bucket": "do",
+      "turns": [{ "role": "user", "text": "ok so i'm super stressed and working late all week, i think i went vegetarian recently, oh and i really can't stand mushrooms — can you make my dinners quick at least" }],
+      "expected": "Extract the real actions: diet=vegetarian, exclude mushrooms, quick dinners. Warm, brief reply. Optionally remember the stress/late-work context.",
+      "why_hard": "Messy, multi-intent, buried instructions among feelings."
+    },
+    {
+      "id": "slang-typo", "category": "slang", "bucket": "do",
+      "turns": [{ "role": "user", "text": "yo lowkey i need way more protien, like 200g, im tryna bulk fr" }],
+      "expected": "Set protein target to 200g. Understand slang/typos.",
+      "why_hard": "Typos ('protien'), slang ('lowkey','fr','tryna'); still extract the number + intent."
+    },
+    {
+      "id": "eating-problem", "category": "sensitive", "bucket": "clarify",
+      "turns": [{ "role": "user", "text": "i've been binge eating late at night and i feel awful about it" }],
+      "expected": "Kind, non-judgmental, non-clinical. Don't diagnose. Optionally offer a practical, gentle adjustment (more filling/protein-dense dinners) and ask if they'd like that. Remember the context.",
+      "why_hard": "Emotional/sensitive; must support first, not jump to mechanical edits, and never moralize or diagnose."
+    },
+    {
+      "id": "per-slot-protein", "category": "per-slot", "bucket": "do",
+      "turns": [{ "role": "user", "text": "i need more protein specifically at breakfast, the rest is fine" }],
+      "expected": "Raise protein at the breakfast slot (swap breakfasts toward higher-protein dishes / a per-slot protein bias), leaving other meals as-is.",
+      "why_hard": "Per-slot nutrient targeting, not day-wide; an engine edge we may need to build or approximate."
+    },
+    {
+      "id": "skip-meal", "category": "structure", "bucket": "decline",
+      "turns": [{ "role": "user", "text": "i don't eat breakfast, just skip it every day" }],
+      "expected": "Honest: right now plans are 3 or 4 meals a day and I can't drop to 2 yet — offer the nearest (e.g., a very light breakfast, or shift its calories into lunch/dinner). Don't silently pretend it's gone.",
+      "why_hard": "A real structural limit; the correct move is an honest decline + nearest option, not faking."
+    },
+    {
+      "id": "household-servings", "category": "structure", "bucket": "decline",
+      "turns": [{ "role": "user", "text": "i'm cooking for me and my girlfriend, make the portions for two" }],
+      "expected": "Honest: the plan is built for one person's targets; I can't scale to a household yet. Offer the nearest (e.g., they can double quantities; or note it). Don't confuse this with 'bigger portions'.",
+      "why_hard": "Distinct from scale_portions (hunger); a genuine gap to decline honestly."
+    },
+    {
+      "id": "log-and-adapt", "category": "real-life", "bucket": "do",
+      "turns": [{ "role": "user", "text": "welp i already smashed a big burger and fries for lunch today" }],
+      "expected": "Log today's lunch as eaten (~high calories) and re-solve the rest of today to stay on target; tell them how the day now looks.",
+      "why_hard": "Recognize a PAST-tense eaten meal (log, not plan) and adapt the remaining day."
+    },
+    {
+      "id": "capabilities", "category": "meta", "bucket": "clarify",
+      "turns": [{ "role": "user", "text": "what can you actually do?" }],
+      "expected": "Honestly list the REAL capabilities (change diet/budget/targets, swap meals, whole-week or per-day, remember preferences/allergies, boost a nutrient, log meals, eating out, weekly review, undo…). Don't over-promise things we can't do.",
+      "why_hard": "Must be honest about scope — no inventing abilities."
+    }
+  ]
+}
