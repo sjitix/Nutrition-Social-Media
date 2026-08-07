@@ -98,11 +98,4 @@ npm run check:data      # training-data integrity
   groceries, chat, meal drawer, coach card).
 - [`scripts/`](scripts/) — data generation, training, evaluation, and integrity gates.
 
-## Project rules
 
-- **No emoji in the UI** — SVG line icons and real photography only.
-- **Commits are authored solely by the owner**; no AI co-author trailers.
-
-Deeper docs: **[CLAUDE.md](CLAUDE.md)** (architecture handoff) ·
-**[VISION.md](VISION.md)** (product north star) · **[WORKPLAN.md](WORKPLAN.md)** (the
-ordered build plan and its lessons) · **[SITE.md](SITE.md)** (running the local site).
