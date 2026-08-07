@@ -12,6 +12,7 @@
     "eval:assistant": "esbuild scripts/eval-assistant.mts --bundle --platform=node --format=esm --tsconfig=tsconfig.json --outfile=node_modules/.cache/eval-assistant.mjs --log-level=error && node node_modules/.cache/eval-assistant.mjs",
     "eval:hardcases": "esbuild scripts/eval-hardcases.mts --bundle --platform=node --format=esm --tsconfig=tsconfig.json --outfile=node_modules/.cache/eval-hardcases.mjs --log-level=error && node node_modules/.cache/eval-hardcases.mjs",
     "check:data": "node scripts/check-data.mjs",
+    "export:recipes": "esbuild scripts/export-recipes.mts --bundle --platform=node --format=esm --tsconfig=tsconfig.json --outfile=node_modules/.cache/export-recipes.mjs --log-level=error && node node_modules/.cache/export-recipes.mjs",
     "check:recipes": "esbuild scripts/check-recipes.mts --bundle --platform=node --format=esm --tsconfig=tsconfig.json --outfile=node_modules/.cache/check-recipes.mjs --log-level=error && node node_modules/.cache/check-recipes.mjs",
     "train:status": "node scripts/train-status.mjs",
     "test:api": "node scripts/test-api.mjs",

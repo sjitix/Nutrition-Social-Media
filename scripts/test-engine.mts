@@ -402,6 +402,16 @@ console.log("\n--- ALLERGENS & DATA INTEGRITY (hard rules) ---");
   const nms = RECIPES.map((r) => r.name.toLowerCase());
   check("no duplicate recipe ids", new Set(ids).size === ids.length);
   check("no duplicate recipe names", new Set(nms).size === nms.length);
+
+  // "eggplant" contains "egg", and dietTagConflicts matches NON_VEGAN on raw substrings. The
+  // ALLERGEN path fixed this exact trap with word-aware matching; the diet-tag path did not,
+  // so a vegan aubergine dish was reported as containing egg. No recipe paired vegan with
+  // eggplant until the library expansion, so the bug sat latent and nothing failed.
+  // Rule 10: prove the presence before trusting the absence — the controls below must still
+  // catch a real egg, or the exception has over-reached and is worse than the bug.
+  check("vegan: eggplant is a vegetable, not an egg", dietTagConflicts("vegan", ["eggplant"]).length === 0);
+  for (const real of ["egg", "eggs", "egg whites", "egg noodles"])
+    check(`vegan: "${real}" IS still caught (control)`, dietTagConflicts("vegan", [real]).length > 0);
 }
 
 // ---------------------------------------------------------------- 1b3. honesty about compromises

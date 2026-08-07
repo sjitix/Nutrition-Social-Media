@@ -173,9 +173,14 @@ const NON_VEGAN = [
 /** Contain a NON_VEGAN word but are plant foods. Without these, peanut butter reads as dairy. */
 // "protein powder" is in NON_VEGAN because the plain kind is whey. A PLANT protein powder is not,
 // the same way "peanut butter" is fine though "butter" is not — the qualifier flips it back.
+// "eggplant" contains the substring "egg" and is a vegetable. This is the same trap the
+// ALLERGEN path fixed with word-aware matching (see the header note: dislikes "egg" matched
+// "eggplant"); the diet-tag path still matches on raw substrings, so it needs the exception
+// listed explicitly. Without it a vegan aubergine dish is reported as containing egg.
 const VEGAN_EXCEPTIONS = [
   "peanut butter", "almond butter", "nut butter", "cocoa butter",
   "soy protein powder", "pea protein powder", "plant protein powder",
+  "eggplant",
 ];
 
 const NON_VEGETARIAN = [

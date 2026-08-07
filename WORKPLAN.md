@@ -756,6 +756,13 @@ Each of these was discovered by doing the work, and each earned its place.
     shifted the random week, which exposed both a fragile note-parsing regex AND that `swap_meal`
     ignored exact recipe names. The test shift was noise; the swap bug was real. Read what a new
     failure is actually telling you before you "fix the test".
+14. **A fix applied to one path is not applied to the sibling path.** `exclusions.ts` opens by
+    documenting that `"egg"` must not match `"eggplant"` — and fixes it, with word-aware matching,
+    on the ALLERGEN path. The DIET-TAG path a hundred lines below still used raw `.includes()`, so
+    `dietTagConflicts("vegan", ["eggplant"])` reported an egg. It sat latent because no recipe in
+    the library paired vegan with eggplant; the 169 -> 293 expansion added one and it surfaced
+    immediately. When you fix a matching bug, grep for every OTHER place that does the same kind of
+    matching — the header comment proved we knew about this class of bug and still shipped it twice.
 
 ---
 
