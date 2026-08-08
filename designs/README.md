@@ -1,0 +1,58 @@
+# Designs
+
+Design candidates and explorations. **Nothing here is wired into the app** — `src/` does not
+import from this folder. It is a reference library: keep what is worth learning from, whether or
+not it ends up shipping.
+
+Every file is a **self-contained HTML page** with no external requests — no CDN fonts, no scripts,
+no images. Double-click to open it in a browser, or serve the repo and open the file directly.
+They stay out of `public/` on purpose so they are not served as part of the product.
+
+The brief these were made against is [`../DESIGN-PROMPT.md`](../DESIGN-PROMPT.md).
+
+---
+
+## `signal-asymmetric.html`
+
+**Rebuild of "C — Signal" from a Figma Make exploration.** An asymmetric two-panel week plan:
+the selected day fills a wide left panel, the week sits in a narrow right rail.
+
+**Status: liked as a design, rejected for this app.** Kept because the craft is worth studying
+even though the layout is not right for NutriFlow.
+
+What it does well, and why it is worth keeping:
+
+- **Extreme scale contrast** — roughly 13:1 between the day's calorie total and the micro labels.
+  That single ratio is most of the difference between a designed screen and a dashboard.
+- **A ghosted `WED` behind the total** — depth and scale built from type alone. This is a genuine
+  answer to the no-photography constraint: texture without an image.
+- **Accent used exactly twice** — the over-target day's number and the active row's left bar.
+  Everything else is black, grey and white. Restraint is what makes the two reds read as signal.
+- **Asymmetric 78/22 split** rather than equal columns, so the eye knows where to start.
+- **Honest reporting in the interface** — "AI adjusted Sat lunch: bumped chicken +20g to hold
+  protein at 120g" sits in the rail, not in a log. That is the product's personality made visible.
+- The data is internally consistent: the seven days sum to the stated week total (11,148 kcal /
+  760 g), and the three meals sum to the day's 1,450.
+
+Known gap: the original uses a specific humanist sans. This rebuild is on a tuned system stack
+because artifacts cannot load external fonts, so the letterforms differ; weights, tracking and
+scale are matched.
+
+## `modern-desktop-study.html`
+
+**A study of app-shell layouts** — sidebar, 7-day timetable, coach rail, Explore and the
+assistant, in three light styles (Aurora / Crisp / Canvas). Interactive: switch style and screen
+from the controls at the top.
+
+**Status: rejected.** Useful as a record of what *not* to do. Its failure is the one named in the
+brief — it is the standard SaaS dashboard, evenly weighted, with nothing leading the eye. Depth,
+gradients and motion were added and did not rescue it, which is the point worth remembering:
+polish does not fix hierarchy.
+
+---
+
+## Adding to this folder
+
+Drop in a self-contained `.html` file and add a section above saying what it is, what it does well,
+and whether it was accepted or rejected **with the reason**. The reasons are the valuable part —
+they are what stops the next attempt walking into the same wall.

@@ -1,0 +1,204 @@
+<title>NutriFlow — C · Signal (rebuild)</title>
+
+<style>
+/* Faithful rebuild of Direction C "Signal — asymmetric two-panel".
+   Committed to one light world on purpose, so no dark-theme inversion. */
+:root{
+  --paper:#ffffff;
+  --ink:#12100f;
+  --ghost:#efedea;          /* the WED watermark */
+  --micro:#a9a5a0;          /* tiny uppercase labels */
+  --muted:#57534e;          /* secondary sentence text */
+  --rule:#e7e4e0;           /* hairlines */
+  --accent:#e8391b;         /* exceptions only: over target, active marker */
+  --rail-line:#e7e4e0;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--paper);color:var(--ink)}
+body{
+  font-family:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,
+    "Helvetica Neue",Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+  font-size:16px;line-height:1.45;
+}
+.num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+
+/* ── the asymmetric split ───────────────────────────────────────────────── */
+.stage{display:grid;grid-template-columns:minmax(0,1fr) 452px;min-height:100vh}
+@media(max-width:1080px){ .stage{grid-template-columns:1fr} }
+
+/* ── left: the day ──────────────────────────────────────────────────────── */
+.day{padding:52px 64px 64px;position:relative;overflow:hidden}
+.wordmark{
+  font-size:11px;font-weight:650;letter-spacing:.34em;text-transform:uppercase;
+  color:var(--micro);
+}
+.hero{position:relative;margin-top:58px}
+.ghost{
+  position:absolute;left:-10px;top:-116px;z-index:0;pointer-events:none;
+  font-size:250px;line-height:.78;font-weight:900;letter-spacing:-.045em;
+  color:var(--ghost);user-select:none;
+}
+.total{position:relative;z-index:1;display:flex;align-items:baseline;gap:14px}
+.total .big{
+  font-size:132px;line-height:.84;font-weight:900;letter-spacing:-.055em;
+}
+.total .unit{font-size:29px;font-weight:750;color:#cbc7c2;letter-spacing:-.02em}
+.against{
+  position:relative;z-index:1;margin-top:20px;font-size:15px;color:var(--muted);
+  display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+}
+.against .dot{color:#cfcbc6}
+
+.meals{margin-top:52px;border-top:1px solid var(--rule)}
+.meal{
+  display:grid;grid-template-columns:1fr auto;align-items:start;gap:24px;
+  padding:30px 0 28px;border-bottom:1px solid var(--rule);
+}
+.slot{
+  font-size:10px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--micro);
+}
+.dish{font-size:27px;font-weight:640;letter-spacing:-.025em;margin-top:9px;line-height:1.16}
+.facts{display:flex;gap:44px;margin-top:19px}
+.fact .fl{font-size:9.5px;font-weight:700;letter-spacing:.19em;text-transform:uppercase;color:var(--micro)}
+.fact .fv{font-size:16.5px;font-weight:750;letter-spacing:-.02em;margin-top:5px}
+.kcal{font-size:56px;font-weight:900;letter-spacing:-.05em;line-height:1;padding-top:16px}
+
+/* ── right: the week rail ───────────────────────────────────────────────── */
+.rail{border-left:1px solid var(--rail-line);padding:52px 0 0;display:flex;flex-direction:column}
+.railhead{
+  font-size:10px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--micro);
+  padding:0 34px 26px;
+}
+.dayrow{
+  display:grid;grid-template-columns:1fr auto;align-items:center;gap:16px;
+  padding:17px 34px;border-left:4px solid transparent;cursor:pointer;
+  transition:background .14s ease;
+}
+.dayrow:hover:not(.on){background:#faf9f8}
+.dayrow .dn{font-size:14px;font-weight:750;letter-spacing:.13em;text-transform:uppercase}
+.dayrow .dp{font-size:12.5px;color:var(--micro);margin-top:3px}
+.dayrow .dv{font-size:29px;font-weight:850;letter-spacing:-.04em}
+.dayrow.over .dv{color:var(--accent)}
+.dayrow.on{background:var(--ink);border-left-color:var(--accent)}
+.dayrow.on .dn{color:#fff}
+.dayrow.on .dp{color:#8d8781}
+.dayrow.on .dv{color:#fff}
+.dayrow:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+
+.railfoot{margin-top:auto;border-top:1px solid var(--rail-line);padding:30px 34px 34px}
+.wt{font-size:10px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--micro)}
+.wtrow{display:flex;align-items:baseline;justify-content:space-between;margin-top:20px}
+.wtrow .l{font-size:15px;color:var(--muted)}
+.wtrow .v{font-size:31px;font-weight:850;letter-spacing:-.04em}
+.wtrow .v small{font-size:14px;font-weight:650;color:#c4c0bb;margin-left:4px;letter-spacing:0}
+.note{margin-top:30px;padding-top:26px;border-top:1px solid var(--rail-line);font-size:13.5px;line-height:1.5}
+.note b{font-weight:700}
+.note span{color:var(--muted);display:block;margin-top:4px}
+
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+@media(max-width:1080px){
+  .day{padding:36px 26px 44px}
+  .ghost{font-size:150px;top:-64px}
+  .total .big{font-size:84px}
+  .rail{border-left:0;border-top:1px solid var(--rail-line)}
+}
+</style>
+
+<div class="stage">
+  <!-- ── the day ─────────────────────────────────────────────────────── -->
+  <section class="day">
+    <div class="wordmark">NutriFlow</div>
+
+    <div class="hero">
+      <div class="ghost" aria-hidden="true">WED</div>
+      <div class="total">
+        <span class="big num">1,450</span><span class="unit">kcal</span>
+      </div>
+      <div class="against">
+        <span class="num">-250 kcal vs target</span>
+        <span class="dot">·</span>
+        <span class="num">104g protein — 16g short</span>
+      </div>
+    </div>
+
+    <div class="meals">
+      <article class="meal">
+        <div>
+          <div class="slot">Breakfast</div>
+          <h2 class="dish">Scrambled Tofu &amp; Rye Toast</h2>
+          <div class="facts">
+            <div class="fact"><div class="fl">Protein</div><div class="fv num">24g</div></div>
+            <div class="fact"><div class="fl">Carbs</div><div class="fv num">40g</div></div>
+            <div class="fact"><div class="fl">Fat</div><div class="fv num">14g</div></div>
+            <div class="fact"><div class="fl">Cook</div><div class="fv num">12 min</div></div>
+          </div>
+        </div>
+        <div class="kcal num">360</div>
+      </article>
+
+      <article class="meal">
+        <div>
+          <div class="slot">Lunch</div>
+          <h2 class="dish">Turkey &amp; Farro Salad</h2>
+          <div class="facts">
+            <div class="fact"><div class="fl">Protein</div><div class="fv num">38g</div></div>
+            <div class="fact"><div class="fl">Carbs</div><div class="fv num">55g</div></div>
+            <div class="fact"><div class="fl">Fat</div><div class="fv num">12g</div></div>
+            <div class="fact"><div class="fl">Cook</div><div class="fv num">20 min</div></div>
+          </div>
+        </div>
+        <div class="kcal num">510</div>
+      </article>
+
+      <article class="meal">
+        <div>
+          <div class="slot">Dinner</div>
+          <h2 class="dish">Miso-Glazed Black Cod</h2>
+          <div class="facts">
+            <div class="fact"><div class="fl">Protein</div><div class="fv num">42g</div></div>
+            <div class="fact"><div class="fl">Carbs</div><div class="fv num">22g</div></div>
+            <div class="fact"><div class="fl">Fat</div><div class="fv num">24g</div></div>
+            <div class="fact"><div class="fl">Cook</div><div class="fv num">25 min</div></div>
+          </div>
+        </div>
+        <div class="kcal num">580</div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ── the week ────────────────────────────────────────────────────── -->
+  <aside class="rail">
+    <div class="railhead">Aug 4–10</div>
+    <div id="week"></div>
+
+    <div class="railfoot">
+      <div class="wt">Week total</div>
+      <div class="wtrow"><span class="l">Calories</span>
+        <span class="v num">11,148<small>kcal</small></span></div>
+      <div class="wtrow"><span class="l">Protein</span>
+        <span class="v num">760<small>g</small></span></div>
+      <p class="note"><b>AI adjusted Sat lunch:</b>
+        <span>bumped chicken +20g to hold protein at 120g.</span></p>
+    </div>
+  </aside>
+</div>
+
+<script>
+/* The seven days sum exactly to the week total shown in the rail:
+   1658+1590+1450+1600+1560+1840+1450 = 11,148 kcal
+    123+ 99+ 104+ 116+ 108+ 114+  96 =    760 g
+   and the three meals sum to the day: 360+510+580 = 1,450. */
+const WEEK=[
+  ["Mon",123,1658,false],["Tue", 99,1590,false],["Wed",104,1450,false],
+  ["Thu",116,1600,false],["Fri",108,1560,false],["Sat",114,1840,true],
+  ["Sun", 96,1450,false],
+];
+const ACTIVE="Wed";
+document.getElementById("week").innerHTML = WEEK.map(([d,p,c,over])=>`
+  <div class="dayrow ${d===ACTIVE?"on":""} ${over?"over":""}" tabindex="0" role="button"
+       aria-pressed="${d===ACTIVE}">
+    <div><div class="dn">${d}</div><div class="dp num">${p}g protein</div></div>
+    <div class="dv num">${c.toLocaleString()}</div>
+  </div>`).join("");
+</script>

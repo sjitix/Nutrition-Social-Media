@@ -1,154 +1,154 @@
-# NutriFlow — design brief / AI prompt
+You are designing **NutriFlow**, a web app built in Next.js 15 + Tailwind CSS v4.
+Design the **desktop** screens first (1440px); phone comes afterwards.
 
-Paste the block below into **v0.dev**, **Google Stitch**, **Lovable**, **bolt.new**, Figma AI, or
-ChatGPT/Claude. It is written to be self-contained: whatever tool reads it gets the product, the
-audience, the constraints and the anti-patterns without needing this repo.
+Explore **several distinct visual directions** — different palettes, typography and layout systems.
+Do not settle on one look. Present each direction as a complete, finished screen rather than a
+sketch, and make each one genuinely different from the others, not a recolour of the same layout.
 
-**How to use it**
-- **v0.dev** (best fit — outputs React + Tailwind, which is what this app is built in): paste the
-  whole block, then add one line naming the screen, e.g. *"Build the WEEK BOARD screen, Direction A."*
-- **Stitch / Uizard**: paste it, then ask for one screen at a time.
-- Ask for **one screen in one direction per generation.** Tools degrade badly when asked for
-  everything at once.
-- Iterate by *subtraction* — "remove the icons, make the numbers twice the size" beats a re-roll.
+## The quality bar
 
----
+This has to look like the apps people screenshot and send to each other — **Revolut, TikTok,
+Linear, Arc, Cash App**. Confident, current, unmistakably designed. Not a template, not an
+admin panel, not a Bootstrap dashboard with rounded corners.
 
-## THE PROMPT (copy from here)
+Revolut is the closest reference for how it should *feel*: enormous confident numbers, tight
+geometry, deep restraint everywhere except one place, and an interface that makes financial data
+feel premium rather than clerical. Do that for food.
 
-You are designing **NutriFlow**, a mobile-first web app (Next.js + Tailwind CSS v4). Design the UI
-described below. Output clean, responsive React + Tailwind components. No placeholder imagery.
+Virality is an explicit design goal. Every screen should answer: *would someone screenshot this?*
 
-### What the product is
+## What the product is
 
-An AI meal planner becoming a social platform. A user shares a recipe video from TikTok or
-Instagram, the AI extracts the recipe into their weekly meal plan, and a grocery list builds
-itself. The user then edits the week by talking to it in plain language — "make Tuesday
-vegetarian", "I want pancakes this week" — and the app **re-solves the whole plan** so their
-calorie, protein, carb, fat and fibre targets still hold.
+An AI meal planner turning into a social platform. You share a recipe video from TikTok or
+Instagram; the AI extracts the recipe into your weekly meal plan and the grocery list builds
+itself. You then edit the week by talking to it — *"make Tuesday vegetarian"*, *"I want pancakes
+this week"* — and the app **re-solves the whole plan** so your calorie, protein, carb, fat and
+fibre targets still hold.
 
 The positioning: **it replaces a nutritionist.** Ask for pancakes and it doesn't refuse — it finds
 a protein-forward pancake and rebalances the rest of the day so nothing slips. Every number shown
-is computed from real USDA food data, never estimated. Honesty is the product's core value: if it
-adjusts something it says so.
+is computed from real USDA food data, never estimated. When it adjusts something it says so, in
+the interface: *"bumped your lunch chicken 20 g to hold protein at 150 g."* That honesty is the
+product's personality and should be visible in the design, not buried in a log.
 
-### Who it is for
+## Who it is for
 
 Young, mobile-first, health-conscious people who save recipe videos and never cook them. They are
-comparison-shopping against Instagram and TikTok, not against other diet apps. **The app must look
-like something they would screenshot and send to a friend** — virality is an explicit design goal,
-not an afterthought.
+comparing this against Instagram and TikTok, not against other diet apps.
 
-### THE CENTRAL CONSTRAINT — read this twice
+## Scale of the content
 
-**There is no food photography, and there will not be. Do not design around images.**
+- **500 recipes** in the library
+- **21 meals per week** on the plan screen (7 days × 3 meals, sometimes 4)
+- Each meal carries: name, calories, protein, carbs, fat, fibre, cook time, cuisine, diet tags
 
-The library holds **292 recipes**. Nobody can photograph 292 dishes, and stock photos meant one
-image standing in for 46 different recipes — the same chicken photo scrolling past again and again,
-showing food that wasn't the recipe. That reads as a template and it is quietly dishonest.
+## Constraint 1 — no imagery. None.
 
-So: **no photos, no illustrations of food, no emoji, no icon-as-mascot.** The visual system must
-carry a recipe card on **typography, colour, number and layout alone.** Treat this as the creative
-brief, not a limitation — this is the same discipline Revolut uses, and it is what will make the
-app look designed rather than assembled.
+**No photographs. No illustrations. No icons standing in for food. No generated colour blocks
+pretending to be pictures. No emoji anywhere, ever.**
 
-Real photography returns later, from users and creators, per recipe. Leave space for it; depend on
-none of it.
+Why: there are 500 recipes. Nobody can photograph 500 dishes. When this app had 12 stock photos,
+keyword rules meant one image was shown for 46 different recipes — the same chicken photo scrolling
+past over and over, of food that wasn't the recipe on the card. That reads as a template, and it is
+quietly dishonest in a product whose entire claim is that its numbers are real.
 
-### Reference points
+The visual system must therefore carry a recipe on **typography, colour, hierarchy, space and
+number alone.** Treat that as the creative brief, not a limitation — it is exactly the discipline
+Revolut and Linear work under.
 
-- **Revolut** — for confidence with numbers. Deep surfaces, huge legible figures, tight card
-  geometry, restraint. A screen full of data that feels premium rather than busy.
-- **TikTok / Instagram** — for feed rhythm and shareability, *not* for their look.
+(Real photography returns much later, from users and creators, per recipe. Leave room for it.
+Depend on none of it.)
 
-### Screens to design
+## Constraint 2 — bright
 
-1. **Week board** — the core screen. 7 days × 3–4 meals. Each meal shows a dish name, calories,
-   protein and cook time. Each day shows its running total against a target. Must work as a
-   vertical stack on mobile and a timetable/grid on desktop. This is the hardest information-design
-   problem in the app and the most likely thing to be screenshotted.
-2. **Explore feed** — a browsable wall of all 292 recipes with filters (meal type, diet,
-   high-protein ≥25 g, ≤20 min) and an "Add to plan" action on every card.
-3. **Landing page** — first impression. The hook is *"share a reel → it becomes your meal plan."*
-4. **Onboarding** — a few questions (goal, diet, allergies, targets). Time-to-first-plan must feel
-   like seconds. No signup wall before the user sees the magic.
+Light backgrounds. Not a dark dashboard. Warm or cool, tinted or near-white — but the product lives
+in the light.
 
-Also present throughout: a **chat assistant** the user talks to to change the plan, and a
-**grocery list** grouped by supermarket aisle with check-offs.
+## Constraint 3 — it must not look evenly weighted
 
-### Existing brand tokens (keep these unless a direction argues otherwise)
+Read this twice; it is the requirement most often failed.
+
+A layout where everything sits at the same visual weight — four equal stat cards in a row, a grid
+of equal cards, a sidebar next to a table — is competent and completely forgettable.
+
+**Good screen design has one strong organising idea and dramatic hierarchy: one element enormous,
+everything else quiet.** For each screen, decide the single most important thing and make it three
+times bigger than seems reasonable. Let everything else recede.
+
+Asymmetry, deliberate negative space and extreme scale contrast are wanted. Even, tidy and balanced
+is not.
+
+## Colour — explore, don't inherit
+
+The app currently uses the palette below. **Treat it as a starting reference, not a requirement.**
+Actively explore other palettes and propose better ones; at least one direction should abandon this
+palette entirely. Choose colour that suits a premium food and health product, not whatever the
+codebase happens to have today.
 
 ```
---color-vio:       #675ce0   /* primary accent (violet) */
+--color-vio:       #675ce0   /* current accent (violet), 4.8:1 on white */
 --color-vio-deep:  #5044c9   /* hover / accent text */
 --color-lav:       #efecfb   /* accent tint surface */
---color-plum:      #372f55   /* deep brand ink */
---color-plum-deep: #2d2650
---color-mut:       #605a84   /* muted text — WCAG AA at 5.7:1 */
---color-mint:      #2e9e6e   /* positive / on-target */
+--color-plum:      #372f55   /* deep ink */
+--color-mut:       #605a84   /* muted text, 5.7:1 */
+--color-mint:      #2e9e6e   /* positive / on target */
 --color-mint-soft: #e2f3ea
 --color-line:      #edeaf8   /* hairline borders */
 --color-bgsoft:    #f3f1fb   /* app background */
 ```
 
-### Hard requirements
+Whatever palette a direction lands on, it must hold **WCAG AA** — 4.5:1 for body text — and it
+needs a clear semantic set for on-target / short / over, kept distinct from the brand accent.
 
-- **Mobile-first.** Phone is the primary device; scale up to desktop.
-- **Accessibility is non-negotiable** — WCAG AA contrast (4.5:1 body text), ≥44 px touch targets,
-  visible keyboard focus, real semantics. The app already meets this and must not regress.
-- **Light and dark themes**, both designed deliberately. Don't invert one to get the other.
+## The screens, in priority order
+
+1. **Week plan (desktop)** — the core screen and the hardest information-design problem: 21 meals,
+   each with a name and macros, plus per-day totals against a target, plus which days are off
+   target. The most likely thing to be screenshotted, so it has to be beautiful, not merely
+   legible. A 7-column timetable is the obvious answer; if there is a better one, take it.
+2. **Explore** — browsing 500 recipes with filters (meal type, diet, high-protein ≥25 g, ≤20 min,
+   cuisine) and "add to plan" on each.
+3. **Assistant** — a conversation that changes the plan. Every reply itemises what actually moved:
+   which meal was swapped, which portion was scaled, what the day now totals.
+4. **Share a reel** — paste a TikTok or Instagram link and watch it become a real meal with real
+   macros. The product's magic moment and its viral hook.
+5. **Onboarding** — goal, diet, allergies, targets. Time-to-first-plan should feel like seconds,
+   with no signup wall before the user feels the magic.
+
+Also present: a **grocery list** grouped by supermarket aisle with check-offs.
+
+## Hard requirements
+
+- **Desktop first** at 1440px, then scale down.
+- **WCAG AA** — 4.5:1 body contrast, ≥44px touch targets, visible keyboard focus, real semantics.
 - **`tabular-nums` on every macro figure** so numbers align in columns.
-- **No emoji anywhere in the UI.** SVG line icons only. Emoji-as-icon reads as AI-generated.
-- Numbers are the hero content. Calories, protein and fibre should be scannable at a glance
-  without reading labels.
+- Numbers are hero content — calories and protein readable at a glance without reading labels.
+- Motion is expected: things ease in, numbers count up, state changes animate. Respect
+  `prefers-reduced-motion`.
 
-### Do NOT produce
+## What has already been rejected — do not repeat these
 
-These are the current default "AI-designed app" tells, and any of them makes the work look
-generated:
+1. **Arbitrary colour blocks per dish** (a hue assigned by cuisine). Colour that encodes nothing is
+   decoration, and decoration reads as unfinished — it looked like a wireframe.
+2. **Ingredient-derived "dish portraits"** (blobs sized by real gram weights). Cleverer, still
+   images. The instruction is no imagery, including generated imagery.
+3. **Austere flat layouts** — hairline borders, 9px padding, system fonts at default settings, no
+   depth. Looked like unstyled HTML.
+4. **The standard SaaS dashboard** — sidebar, top bar, a row of four equal stat cards, a table, a
+   card grid. Competent, generic, evenly weighted, forgettable. **The most important one to
+   avoid.** Adding shadows and gradients does not fix it; it just makes a generic layout with
+   shadows.
 
-- A purple-to-blue gradient hero on white
-- Warm cream (#F4F1EA) + serif display + terracotta accent
-- Near-black with a single acid-green or vermilion pop
-- Inter or Space Grotesk chosen by default
-- Emoji as section markers or icons
-- Everything centred; `rounded-lg` on every surface
-- A coloured accent bar down the left of every card
-- Generic stock food imagery of any kind
+Also avoid the current AI-design tells: a purple-to-blue gradient hero on white; warm cream
+(#F4F1EA) with a serif display and terracotta accent; near-black with a single acid-green pop;
+Inter or Space Grotesk chosen by default; emoji as section markers; everything centred;
+`rounded-lg` on every surface; an accent bar down the left of every card; default shadcn/ui styling
+straight out of the box.
 
-### The direction to design in
+## Deliverable
 
-> Pick ONE per generation and name it explicitly.
+Several complete, distinct directions — each a finished desktop screen, each with its own palette,
+type system and layout idea. Responsive React + Tailwind, or Figma frames.
 
-**Direction A — Instrument.** Dark, dense, precise; Revolut's confidence applied to nutrition.
-Near-black grounds with a slight violet bias, macro figures set large in a tabular face, meals as
-tight modular cells, colour used only to encode state (on target / over / short). The week reads
-like a control surface you trust.
-
-**Direction B — Editorial.** Calm and premium, like a high-end food publication. Generous
-whitespace, a strong display face at large sizes, restrained colour, hairline rules. Dishes are
-named like articles; macros sit quietly as metadata. Reads healthy and considered rather than techy.
-
-**Direction C — Chromatic.** Each dish gets a deterministic colour identity derived from its
-cuisine and main protein, so the feed becomes a mosaic that is recognisably *yours*. Turns the
-absence of photography into the signature. Bold, saturated, high-contrast, extremely screenshotable.
-
-### Deliverable
-
-Responsive React + Tailwind. Real content — use plausible dish names with real-looking macros
-(e.g. *Tempeh & Quinoa Protein Bowl · 612 kcal · 41 g protein · 25 min*). Never lorem ipsum.
-
-## (copy to here)
-
----
-
-## Notes for Ana
-
-- **Don't buy Midjourney for this.** It makes pictures, not interfaces — it cannot give you a
-  layout, a type scale or a component system. If you ever want imagery, free options are Unsplash,
-  Pexels and Foodiesfeed for stock, or Google AI Studio, Leonardo, Ideogram and Bing Image Creator
-  for AI.
-- **The one subscription worth considering is Mobbin** (~$15/mo, free tier available) — a
-  searchable library of real screens and full flows from real apps, Revolut included. Studying the
-  real thing beats prompting for an imitation of it.
-- Generate **one screen in one direction at a time**, then iterate by subtraction.
+Real content throughout: plausible dish names with real macros, e.g. *Tempeh & Quinoa Protein
+Bowl · 698 kcal · 47 g protein · 25 min*. Never lorem ipsum, never placeholder rectangles.
