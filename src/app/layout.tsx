@@ -21,13 +21,15 @@ export const metadata: Metadata = {
     description: DESCRIPTION,
     type: "website",
     siteName: "NutriFlow",
-    images: [{ url: "/food/bowl1.jpg", alt: "A balanced NutriFlow meal" }],
+    // No image: the stock food photos were removed (one stood in for 46 different recipes).
+    // A missing OG image degrades to a text card; a BROKEN one renders as a grey box on every
+    // share, which is worse for the thing this block exists for. Restore with a real branded
+    // share card when the visual language is settled.
   },
   twitter: {
-    card: "summary_large_image",
+    card: "summary",
     title: TITLE,
     description: DESCRIPTION,
-    images: ["/food/bowl1.jpg"],
   },
 };
 

@@ -5,16 +5,21 @@ import type { Meal } from "./types";
 
 export interface ExploreRecipe {
   meal: Meal;
-  image: string;
+  /**
+   * Optional, and currently never set — the bundled stock photos were removed. Twelve photos
+   * across 292 recipes meant ONE image stood in for 46 different dishes (chicken.jpg), which
+   * reads as a demo and shows food that isn't the recipe. The card design carries the visual
+   * weight instead. Kept on the type so real per-recipe imagery can return later.
+   */
+  image?: string;
   tag?: "vegan" | "veg";
-  height: number; // masonry photo height
+  height: number; // masonry tile height
 }
 
 type RawRecipe = Omit<ExploreRecipe, "meal"> & { meal: Omit<Meal, "timeMinutes"> };
 
 const RAW_EXPLORE: RawRecipe[] = [
   {
-    image: "/food/salad1.jpg",
     height: 190,
     meal: {
       name: "Rainbow Poke Bowl",
@@ -39,7 +44,6 @@ const RAW_EXPLORE: RawRecipe[] = [
     },
   },
   {
-    image: "/food/avocado.jpg",
     height: 140,
     tag: "veg",
     meal: {
@@ -63,7 +67,6 @@ const RAW_EXPLORE: RawRecipe[] = [
     },
   },
   {
-    image: "/food/pasta.jpg",
     height: 165,
     meal: {
       name: "Protein Penne Bolognese",
@@ -87,7 +90,6 @@ const RAW_EXPLORE: RawRecipe[] = [
     },
   },
   {
-    image: "/food/smoothie.jpg",
     height: 210,
     tag: "veg",
     meal: {
@@ -108,7 +110,6 @@ const RAW_EXPLORE: RawRecipe[] = [
     },
   },
   {
-    image: "/food/bowl1.jpg",
     height: 155,
     tag: "vegan",
     meal: {
@@ -134,7 +135,6 @@ const RAW_EXPLORE: RawRecipe[] = [
     },
   },
   {
-    image: "/food/chicken.jpg",
     height: 130,
     meal: {
       name: "Grilled Lemon Chicken",
@@ -159,7 +159,6 @@ const RAW_EXPLORE: RawRecipe[] = [
     },
   },
   {
-    image: "/food/soup.jpg",
     height: 160,
     meal: {
       name: "Salmon Couscous Plate",
@@ -183,7 +182,6 @@ const RAW_EXPLORE: RawRecipe[] = [
     },
   },
   {
-    image: "/food/eggdish.jpg",
     height: 185,
     tag: "veg",
     meal: {
@@ -215,19 +213,21 @@ export const EXPLORE_RECIPES: ExploreRecipe[] = RAW_EXPLORE.map((r) => ({
   meal: { ...r.meal, timeMinutes: 20 },
 }));
 
-// Maps a meal to a bundled photo by keyword; falls back to a gradient.
-const IMAGE_RULES: [RegExp, string][] = [
-  [/salmon/i, "/food/soup.jpg"],
-  [/poke|tofu/i, "/food/salad1.jpg"],
-  [/chicken|turkey/i, "/food/chicken.jpg"],
-  [/pasta|penne|bolognese/i, "/food/pasta.jpg"],
-  [/avocado/i, "/food/avocado.jpg"],
-  [/toast|omelette|egg/i, "/food/eggdish.jpg"],
-  [/oat|french|banana/i, "/food/toast.jpg"],
-  [/smoothie|yogurt|berry/i, "/food/smoothie.jpg"],
-  [/salad|bowl|buddha/i, "/food/bowl1.jpg"],
-  [/soup|lentil|curry|chili/i, "/food/veggies.jpg"],
-];
+/**
+ * Maps a meal to a bundled photo by keyword. INTENTIONALLY EMPTY.
+ *
+ * There were 12 stock photos and 292 recipes, so the keyword rules made one image stand in for
+ * dozens of different dishes: `chicken.jpg` was served for 46 recipes, `bowl1.jpg` for 31,
+ * `eggdish.jpg` for 28. Scrolling the feed meant seeing the same photograph over and over, of
+ * food that wasn't the recipe you were looking at — the two things that make a product read as a
+ * template rather than a real app.
+ *
+ * A library this size cannot be photographed, so the design must not depend on photography:
+ * every card is carried by type, colour and layout instead (`gradientForMeal` below). The
+ * function and the rules array stay so that REAL per-recipe imagery — shot or user-submitted —
+ * can be reintroduced later without touching any caller.
+ */
+const IMAGE_RULES: [RegExp, string][] = [];
 
 export function imageForMeal(name: string): string | null {
   for (const [re, img] of IMAGE_RULES) {

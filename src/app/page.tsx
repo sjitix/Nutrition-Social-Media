@@ -68,10 +68,9 @@ export default function LandingPage() {
           </div>
         </div>
         <div className="relative hidden lg:block">
-          <div
-            className="h-105 rounded-3xl bg-cover bg-center card-shadow"
-            style={{ backgroundImage: "url(/food/bowl1.jpg)" }}
-          />
+          {/* Placeholder while the visual language is redesigned — the stock photo that used to
+              sit here was also being shown as 31 different recipes elsewhere in the app. */}
+          <div className="h-105 rounded-3xl card-shadow bg-gradient-to-br from-vio to-vio-deep" />
           <div className="absolute -bottom-6 -left-6 rounded-2xl bg-white p-4 card-shadow">
             <p className="text-xs font-bold tracking-wider text-mut uppercase">
               Tonight
