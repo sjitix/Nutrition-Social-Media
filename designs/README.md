@@ -53,11 +53,16 @@ polish does not fix hierarchy.
 
 ## `midjourney-prompts.md`
 
-Five Midjourney prompts for exploring mood, palette and layout feel, with the parameters that
-matter for interface work (`--style raw`, low `--s`, and `--sref` for matching a reference
-image). Midjourney paints an app rather than designing one — its text is decorative and nothing
-is measurable — so these are for deciding what the product should FEEL like, not for anything
-that ships.
+Six ready-to-run Midjourney prompts (five desktop moods plus a phone screen), each self-contained
+with the product context and the no-food-imagery constraint built in, and each carrying the
+parameters that matter for interface work: `--style raw` to drop Midjourney's default flourish, a
+low `--s` so it stays literal, and a `--no` list steering away from what has already been rejected.
+
+Worth knowing before spending credits: Midjourney paints an app rather than designing one. Its text
+is decorative gibberish at interface sizes and nothing it produces is measurable, so use it to
+decide what the product should FEEL like, then hand the winning image to a designer or to v0.dev
+alongside the brief. Also useful: `--sref <image-url>` matches the style of a reference screenshot
+without you having to describe it.
 
 ---
 
