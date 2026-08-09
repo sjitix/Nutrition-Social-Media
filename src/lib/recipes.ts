@@ -236,27 +236,26 @@ export function imageForMeal(name: string): string | null {
   return null;
 }
 
-// A wide, food-appropriate palette so cards without a bundled photo don't fall into just a handful
-// of repeated tiles — variety is what makes the wall read as a real feed rather than a demo.
-const FALLBACK_GRADIENTS = [
-  "linear-gradient(140deg,#d9b78e,#a87f4f)", // wheat / bread
-  "linear-gradient(140deg,#a8cfae,#6c9e74)", // fresh green
-  "linear-gradient(140deg,#e8b393,#c0714a)", // terracotta / roast
-  "linear-gradient(140deg,#b7aef5,#7a6ff0)", // brand violet
-  "linear-gradient(140deg,#f2c1a0,#e07a5f)", // salmon / peach
-  "linear-gradient(140deg,#c7e6c0,#7bbf6a)", // leafy
-  "linear-gradient(140deg,#f6d491,#e0a83e)", // amber / squash
-  "linear-gradient(140deg,#a3d9d4,#4fa89f)", // teal / herby
-  "linear-gradient(140deg,#e6a8be,#c65b83)", // berry
-  "linear-gradient(140deg,#c9c2f0,#8a7ee6)", // lavender
-  "linear-gradient(140deg,#f3b7a3,#d96a4a)", // paprika
-  "linear-gradient(140deg,#bcd39a,#89a95c)", // olive
-  "linear-gradient(140deg,#f0c59a,#cf8b52)", // honey
-  "linear-gradient(140deg,#9cc6e0,#5b8fc0)", // cool blue
-];
+// How many tile slots the card palette has. The gradients themselves live in globals.css as
+// --tile-1 … --tile-14 so a theme can redefine them; only the COUNT is needed here, to hash a dish
+// name onto a slot. They used to be literal strings in this file, and two of the fourteen were
+// brand violet — which meant the app could not be re-skinned while its largest blocks of colour
+// were baked into JS. Keep this in sync with the variables in globals.css.
+const TILE_COUNT = 14;
 
+/**
+ * Returns a CSS variable, not a literal gradient, so the tile palette is themeable.
+ *
+ * These strings used to be baked in, and two of the fourteen were brand violet. Since every card
+ * falls back to a gradient now that the stock photos are gone, that violet appeared on roughly one
+ * tile in seven no matter what theme was active — the app could not be re-skinned while its
+ * largest blocks of colour were hardcoded in a JS array.
+ *
+ * The values live in globals.css as `--tile-1 … --tile-14`, which a theme can redefine. The
+ * hashing is unchanged, so a given dish still always gets the same slot.
+ */
 export function gradientForMeal(name: string): string {
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0;
-  return FALLBACK_GRADIENTS[Math.abs(hash) % FALLBACK_GRADIENTS.length];
+  return `var(--tile-${(Math.abs(hash) % TILE_COUNT) + 1})`;
 }

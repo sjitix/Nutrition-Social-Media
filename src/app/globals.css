@@ -17,6 +17,27 @@
   --color-line: #edeaf8;
 }
 
+/* Card tile palette. `gradientForMeal` in lib/recipes.ts hashes a dish name to one of these
+   slots, so a dish always gets the same tile. They live here rather than in the JS so a theme
+   can redefine them — before this, two of the fourteen were brand violet and appeared on about
+   one tile in seven regardless of the active theme. */
+:root {
+  --tile-1: linear-gradient(140deg, #d9b78e, #a87f4f);
+  --tile-2: linear-gradient(140deg, #a8cfae, #6c9e74);
+  --tile-3: linear-gradient(140deg, #e8b393, #c0714a);
+  --tile-4: linear-gradient(140deg, #b7aef5, #7a6ff0);
+  --tile-5: linear-gradient(140deg, #f2c1a0, #e07a5f);
+  --tile-6: linear-gradient(140deg, #c7e6c0, #7bbf6a);
+  --tile-7: linear-gradient(140deg, #f6d491, #e0a83e);
+  --tile-8: linear-gradient(140deg, #a3d9d4, #4fa89f);
+  --tile-9: linear-gradient(140deg, #e6a8be, #c65b83);
+  --tile-10: linear-gradient(140deg, #c9c2f0, #8a7ee6);
+  --tile-11: linear-gradient(140deg, #f3b7a3, #d96a4a);
+  --tile-12: linear-gradient(140deg, #bcd39a, #89a95c);
+  --tile-13: linear-gradient(140deg, #f0c59a, #cf8b52);
+  --tile-14: linear-gradient(140deg, #9cc6e0, #5b8fc0);
+}
+
 /* ---------------------------------------------------------------------------
  * Sage theme — an ALTERNATIVE skin, off by default.
  *
@@ -47,6 +68,25 @@
    read as though they are lit from a different room than the page. */
 .theme-sage .card-shadow {
   box-shadow: 0 4px 18px rgba(28, 36, 25, 0.09);
+}
+
+/* Tiles retuned to the sage world: greens, olives, clay and warm neutrals, no violet
+   and nothing that fights the ground. Same fourteen slots, so dishes keep their tile. */
+.theme-sage {
+  --tile-1: linear-gradient(140deg, #cfd6bd, #9aa77e);
+  --tile-2: linear-gradient(140deg, #b6cba4, #6f8f56);
+  --tile-3: linear-gradient(140deg, #ddc3a4, #b08a5f);
+  --tile-4: linear-gradient(140deg, #c2d3ae, #869c62);
+  --tile-5: linear-gradient(140deg, #e0c4ae, #b8846a);
+  --tile-6: linear-gradient(140deg, #c9dcbb, #7ea165);
+  --tile-7: linear-gradient(140deg, #e3d2a6, #b99f5c);
+  --tile-8: linear-gradient(140deg, #b3ccc4, #6d9186);
+  --tile-9: linear-gradient(140deg, #d6c4bd, #a07f76);
+  --tile-10: linear-gradient(140deg, #c6cfba, #8b9a76);
+  --tile-11: linear-gradient(140deg, #e2c0a8, #bb7f5e);
+  --tile-12: linear-gradient(140deg, #c4d2a0, #8a9c58);
+  --tile-13: linear-gradient(140deg, #e6d5b4, #bfa06a);
+  --tile-14: linear-gradient(140deg, #bcc9cc, #7d9195);
 }
 
 body {
