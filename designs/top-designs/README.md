@@ -39,6 +39,23 @@ one. Typographic won.
 
 ---
 
+## 1b. `sage-app.html`
+
+The same language carried across the product: **Plan**, **Explore**, **Groceries**, **Assistant**.
+Companion to the homepage above, not a separate candidate — they are one system.
+
+- **Plan** — four summary cards over a seven-day timetable. All 21 meals visible at once, per-day
+  totals with a protein bar, and Saturday in lime because it is genuinely 16 g short.
+- **Explore** — filters and a four-up card grid over the 500-recipe library.
+- **Groceries** — grouped by aisle so you walk the shop once. The check-offs work: tick an item and
+  the sticky total updates. Keyboard operable.
+- **Assistant** — every reply itemises what actually moved, including the honest ceiling: *"7 g
+  under, the best any vegetarian combination reaches today."*
+
+Photo-ready on the same terms as the homepage — image areas are `.slot`, marked `SLOT:`.
+
+---
+
 ## 2. *open*
 
 ## 3. *open*

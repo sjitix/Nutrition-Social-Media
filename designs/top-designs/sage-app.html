@@ -1,0 +1,383 @@
+<title>NutriFlow — Sage app</title>
+
+<!--
+  The sage typographic language carried across the whole app: Plan, Explore,
+  Groceries, Assistant. Companion to sage-typographic.html, which is the
+  marketing homepage in the same system.
+
+  PHOTO-READY: image areas are <div class="slot"> holding a typographic
+  fallback. Replace the inner .typo with an <img> when photography exists;
+  sizing, radius and overflow already live on .slot. Marked SLOT: in the markup.
+-->
+
+<style>
+:root{
+  --sage:#dfe6da; --paper:#fff; --panel:#f6f8f3;
+  --ink:#1c2419; --ink-soft:#4a5544; --mut:#6f7a68;
+  --forest:#3d5233; --forest-deep:#2e3f26; --lime:#b9d94a; --amber:#c98a1e;
+  --line:#c8d2c1; --hair:#e7ece2; --tint:#e9eee3; --tint-deep:#d6e0cc;
+  --shadow:0 1px 2px rgba(28,36,25,.05), 0 18px 40px -26px rgba(28,36,25,.35);
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--sage);color:var(--ink);
+  font-family:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+  line-height:1.5;-webkit-font-smoothing:antialiased}
+.num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+.serif{font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Times New Roman",serif}
+.shell{max-width:1400px;margin:0 auto;padding:0 30px 80px}
+.eyebrow{font-size:10.5px;font-weight:750;letter-spacing:.22em;text-transform:uppercase;color:var(--mut)}
+.lab{font-size:9.5px;font-weight:750;letter-spacing:.16em;text-transform:uppercase;color:var(--mut)}
+
+/* ── chrome ──────────────────────────────────────────────────────────────── */
+nav{display:flex;align-items:center;gap:28px;padding:24px 0 26px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:9px;font-weight:750;letter-spacing:-.02em;font-size:15px}
+.mark{width:24px;height:24px;border-radius:7px;background:var(--forest);display:grid;place-items:center}
+.tabs{display:flex;gap:4px;margin-left:18px;flex-wrap:wrap}
+.tab{border:0;background:none;font:inherit;font-size:13.5px;font-weight:550;color:var(--ink-soft);
+  padding:8px 15px;border-radius:99px;cursor:pointer;transition:all .16s}
+.tab:hover{background:rgba(61,82,51,.07);color:var(--ink)}
+.tab[aria-current="page"]{background:var(--forest);color:#f2f6ef;font-weight:620}
+.tab:focus-visible{outline:2px solid var(--forest);outline-offset:2px}
+nav .right{margin-left:auto;display:flex;align-items:center;gap:12px}
+.avi{width:30px;height:30px;border-radius:9px;background:var(--forest);color:#f2f6ef;
+  display:grid;place-items:center;font-size:12px;font-weight:700}
+
+.btn{display:inline-flex;align-items:center;gap:8px;border:1px solid transparent;font:inherit;
+  font-size:13px;font-weight:600;padding:10px 19px;border-radius:99px;cursor:pointer;
+  text-decoration:none;transition:all .18s cubic-bezier(.2,.7,.3,1)}
+.btn.solid{background:var(--forest);color:#f2f6ef}
+.btn.solid:hover{background:var(--forest-deep);transform:translateY(-1px)}
+.btn.ghost{background:transparent;border-color:var(--line);color:var(--ink)}
+.btn.ghost:hover{border-color:var(--forest);transform:translateY(-1px)}
+.btn.sm{padding:7px 14px;font-size:12.5px}
+.btn:focus-visible{outline:2px solid var(--forest);outline-offset:2px}
+
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:22px;flex-wrap:wrap}
+.head h1{margin:8px 0 0;font-size:clamp(28px,4vw,44px);letter-spacing:-.04em;line-height:1.02;font-weight:700}
+.card{background:var(--paper);border-radius:20px;box-shadow:var(--shadow)}
+
+/* ── slots ───────────────────────────────────────────────────────────────── */
+.slot{position:relative;overflow:hidden;background:var(--tint);isolation:isolate}
+.slot>img{width:100%;height:100%;object-fit:cover;display:block}
+.slot .typo{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:flex-end;
+  padding:16px;background:linear-gradient(158deg,var(--tint),var(--tint-deep))}
+.slot .dishname{font-size:19px;font-weight:700;letter-spacing:-.03em;line-height:1.08;text-wrap:balance}
+
+/* ── PLAN ────────────────────────────────────────────────────────────────── */
+.summary{display:grid;gap:14px;grid-template-columns:repeat(2,1fr);margin-bottom:20px}
+@media(min-width:820px){ .summary{grid-template-columns:repeat(4,1fr)} }
+.stat{padding:18px 19px}
+.stat .v{font-size:31px;font-weight:750;letter-spacing:-.045em;line-height:1;margin-top:8px;
+  display:flex;align-items:baseline;gap:5px}
+.stat .v em{font-size:13px;font-weight:550;color:var(--mut);font-style:normal;letter-spacing:0}
+.trk{height:5px;border-radius:99px;background:var(--hair);overflow:hidden;margin-top:13px}
+.trk i{display:block;height:100%;border-radius:99px;background:var(--forest);width:0;
+  transition:width 1.1s cubic-bezier(.2,.8,.25,1)}
+.trk i.short{background:var(--lime)}
+.stat .foot{margin-top:10px;font-size:11.5px;color:var(--mut)}
+
+.board{overflow-x:auto;border-radius:20px}
+.grid{display:grid;grid-template-columns:88px repeat(7,minmax(150px,1fr));background:var(--hair);
+  gap:1px;min-width:1120px;border-radius:20px;overflow:hidden}
+.grid>div{background:var(--paper);padding:13px 14px}
+.gh{display:flex;flex-direction:column;gap:2px;justify-content:center;background:var(--panel)!important}
+.gh .dow{font-size:10px;font-weight:750;letter-spacing:.16em;text-transform:uppercase;color:var(--mut)}
+.gh .dn{font-size:17px;font-weight:750;letter-spacing:-.035em;display:flex;align-items:center;gap:7px}
+.today{width:6px;height:6px;border-radius:99px;background:var(--forest);
+  box-shadow:0 0 0 3px rgba(61,82,51,.16)}
+.slotcell{display:flex;align-items:center;background:var(--panel)!important;font-size:9.5px;
+  font-weight:750;letter-spacing:.15em;text-transform:uppercase;color:var(--mut)}
+.cell{min-height:86px;display:flex;flex-direction:column;justify-content:space-between;gap:7px;cursor:pointer}
+.cell:hover{background:var(--panel)!important}
+.cell .cn{font-size:12.8px;font-weight:570;letter-spacing:-.015em;line-height:1.28}
+.cell .cm{display:flex;gap:9px;font-size:11px;color:var(--mut)}
+.cell .cm b{color:var(--ink);font-weight:700}
+.totcell{background:var(--panel)!important}
+.totcell .tv{font-size:17px;font-weight:750;letter-spacing:-.035em}
+.totcell .ts{font-size:11px;color:var(--mut);margin-top:1px}
+.note{display:flex;gap:9px;align-items:flex-start;margin-top:18px;font-size:13px;color:var(--mut)}
+.note b{color:var(--ink)}
+
+/* ── EXPLORE ─────────────────────────────────────────────────────────────── */
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:20px}
+.search{flex:1;min-width:200px;display:flex;align-items:center;gap:9px;padding:10px 16px;
+  border:1px solid var(--line);border-radius:99px;background:var(--paper);color:var(--mut);font-size:13px}
+.chip{font-size:12.5px;padding:8px 15px;border-radius:99px;border:1px solid var(--line);
+  background:var(--paper);color:var(--ink-soft);cursor:pointer;font-family:inherit;transition:all .16s}
+.chip:hover{border-color:var(--forest);color:var(--ink)}
+.chip.on{background:var(--forest);border-color:var(--forest);color:#f2f6ef;font-weight:620}
+.chip:focus-visible{outline:2px solid var(--forest);outline-offset:2px}
+.cards{display:grid;gap:18px;grid-template-columns:1fr}
+@media(min-width:640px){ .cards{grid-template-columns:repeat(2,1fr)} }
+@media(min-width:1000px){ .cards{grid-template-columns:repeat(3,1fr)} }
+@media(min-width:1300px){ .cards{grid-template-columns:repeat(4,1fr)} }
+.rc{background:var(--paper);border-radius:20px;overflow:hidden;box-shadow:var(--shadow);cursor:pointer;
+  transition:transform .22s cubic-bezier(.2,.7,.3,1);display:flex;flex-direction:column}
+.rc:hover{transform:translateY(-4px)}
+.rc:focus-visible{outline:2px solid var(--forest);outline-offset:3px}
+.rc .slot{aspect-ratio:16/10}
+.rc .body{padding:16px 17px 18px;display:flex;flex-direction:column;flex:1}
+.rc .kicker{font-size:9.5px;font-weight:750;letter-spacing:.16em;text-transform:uppercase;color:var(--mut)}
+.rc .row{display:flex;gap:8px;margin-top:13px;border-top:1px solid var(--hair);padding-top:12px}
+.rc .st{flex:1}
+.rc .st b{display:block;font-size:16px;font-weight:700;letter-spacing:-.03em}
+.rc .st span{font-size:9px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--mut)}
+.rc .add{margin-top:13px}
+.pill{position:absolute;top:12px;left:12px;z-index:3;background:rgba(255,255,255,.94);
+  border-radius:99px;padding:5px 11px;font-size:10.5px;font-weight:700;color:var(--forest)}
+
+/* ── GROCERIES ───────────────────────────────────────────────────────────── */
+.groc{display:grid;gap:18px;grid-template-columns:1fr}
+@media(min-width:900px){ .groc{grid-template-columns:1fr 300px;align-items:start} }
+.aisle{padding:20px 22px;border-bottom:1px solid var(--hair)}
+.aisle:last-child{border-bottom:0}
+.aisle h3{margin:0 0 4px;font-size:10.5px;font-weight:750;letter-spacing:.18em;text-transform:uppercase;color:var(--mut)}
+.item{display:flex;align-items:center;gap:13px;padding:11px 0;border-bottom:1px solid var(--hair)}
+.item:last-child{border-bottom:0}
+.box{width:20px;height:20px;border-radius:6px;border:1.6px solid var(--line);flex:0 0 auto;
+  display:grid;place-items:center;cursor:pointer;transition:all .16s;background:var(--paper)}
+.box.on{background:var(--forest);border-color:var(--forest)}
+.box svg{opacity:0;transition:opacity .16s}
+.box.on svg{opacity:1}
+.item .nm{flex:1;font-size:14px;transition:all .16s}
+.item.done .nm{color:var(--mut);text-decoration:line-through}
+.item .qt{font-size:12.5px;color:var(--mut)}
+.item .pr{font-size:13px;font-weight:650;min-width:52px;text-align:right}
+
+/* ── ASSISTANT ───────────────────────────────────────────────────────────── */
+.chat{display:flex;flex-direction:column;gap:16px;max-width:760px}
+.msg{display:flex;gap:12px}
+.msg .who{width:30px;height:30px;border-radius:9px;flex:0 0 auto;display:grid;place-items:center;
+  font-size:11.5px;font-weight:700}
+.msg.u .who{background:var(--tint);color:var(--ink-soft)}
+.msg.a .who{background:var(--forest);color:#f2f6ef}
+.bub{border-radius:18px;padding:15px 18px;font-size:14.5px;line-height:1.55;background:var(--paper);
+  box-shadow:var(--shadow)}
+.msg.u .bub{background:var(--tint);box-shadow:none}
+.chgs{margin-top:13px;display:flex;flex-direction:column;gap:7px}
+.chg{display:flex;gap:11px;font-size:12.5px;align-items:flex-start;padding:10px 13px;
+  background:var(--panel);border-radius:12px}
+.chg .t{font-size:9.5px;font-weight:750;letter-spacing:.13em;text-transform:uppercase;color:var(--mut);
+  flex:0 0 68px;padding-top:2px}
+.composer{margin-top:22px;display:flex;gap:10px;max-width:760px}
+.composer .inp{flex:1;border:1px solid var(--line);background:var(--paper);color:var(--mut);
+  border-radius:99px;padding:13px 20px;font-size:14px}
+
+.screen{display:none}
+.screen.on{display:block;animation:fade .3s ease}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="shell">
+  <nav>
+    <span class="brand">
+      <span class="mark"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dfe6da" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15.5c3.5 0 4.5-7 8-7s4.5 7 8 7"/></svg></span>
+      NutriFlow
+    </span>
+    <div class="tabs" id="tabs"></div>
+    <span class="right"><button class="btn ghost sm" type="button">Undo</button><span class="avi">A</span></span>
+  </nav>
+
+  <section class="screen" id="s-plan"></section>
+  <section class="screen" id="s-explore"></section>
+  <section class="screen" id="s-groceries"></section>
+  <section class="screen" id="s-assistant"></section>
+</div>
+
+<script>
+const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
+const CHECK='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#f2f6ef" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17.5 19 7"/></svg>';
+const INFO='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" style="flex:0 0 auto;margin-top:1px"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>';
+const SRCH='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10.8" cy="10.8" r="6.9"/><path d="m16.2 16.2 4.3 4.3"/></svg>';
+
+const DAYS=[["Mon",8,1957,127],["Tue",9,1934,113],["Wed",10,1965,106],["Thu",11,1991,135],
+            ["Fri",12,2000,116],["Sat",13,2031,94],["Sun",14,2000,109]];
+const SLOTS=["Breakfast","Lunch","Dinner"];
+const GRID=[
+ [["Apple Cinnamon Protein Porridge",563,40],["Peanut Banana Oatmeal",557,21],["Cocoa Hazelnut Oats",593,21],["Egg & Black Bean Quesadilla",600,34],["Shakshuka",600,29],["Quinoa Bowl with Egg & Avocado",600,27],["Overnight Peanut Oats",600,19]],
+ [["Tempeh & Quinoa Protein Bowl",698,47],["Chicken Shawarma Bowl",666,44],["Tempeh Teriyaki Rice Bowl",713,39],["Beef & Broccoli Rice Bowl",700,48],["Turkey & Quinoa Stuffed Peppers",700,42],["Spiced Chickpea Bowl",700,30],["Beef Kofta & Bulgur Bowl",700,52]],
+ [["Tempeh & Broccoli Peanut Noodles",696,40],["Chicken & Vegetable Stir-Fry",711,48],["Chicken Fajitas",659,46],["Turkey & Bean Chilli",691,53],["Turkey & Spinach Meatball Bowl",700,45],["Red Lentil Dahl with Rice",731,37],["Teriyaki Salmon with Rice",700,38]]];
+
+const RECIPES=[
+ ["Lunch","Chicken Shawarma Bowl with Tahini","Middle Eastern",666,44,10,25],
+ ["Dinner","Garlic Butter Salmon with Asparagus","Mediterranean",496,39,3,20],
+ ["Breakfast","Matcha Chia Protein Pudding","Asian",394,37,13,5],
+ ["Dinner","Sheet-Pan Chicken Fajitas","Mexican",586,48,16,25],
+ ["Lunch","Smoky Black Bean & Corn Quinoa Salad","Mexican",527,24,20,15],
+ ["Breakfast","Cottage Cheese Pancakes with Blueberries","American",475,32,7,15],
+ ["Dinner","Miso-Glazed Cod with Bok Choy","Asian",566,40,5,25],
+ ["Lunch","Lentil & Roasted Veg Buddha Bowl","Mediterranean",357,20,18,30],
+];
+
+const AISLES=[
+ ["Produce",[["Spinach","200 g",1.40],["Broccoli","1 head",0.95],["Bell peppers","3",1.80],["Avocado","2",2.20],["Lemons","3",0.90]]],
+ ["Protein",[["Chicken breast","900 g",7.50],["Salmon fillet","320 g",6.80],["Firm tofu","400 g",2.10],["Eggs","12",2.95]]],
+ ["Grains & pulses",[["Brown rice","500 g",1.60],["Red lentils","500 g",1.85],["Quinoa","400 g",3.20],["Rolled oats","1 kg",1.40]]],
+ ["Dairy",[["Greek yogurt","1 kg",2.60],["Feta","200 g",2.40],["Milk","2 L",1.90]]],
+ ["Store cupboard",[["Olive oil","500 ml",4.20],["Tahini","300 g",3.10],["Peanut butter","350 g",2.50],["Soy sauce","250 ml",1.70]]],
+];
+
+/* SLOT: card image. Replace .typo with <img> when photography exists; the pill
+   stays, since it sits on top of whatever fills the slot. */
+const slot=(name,badge="")=>`<div class="slot">
+  <div class="typo"><div class="dishname serif">${esc(name)}</div></div>
+  ${badge?`<span class="pill">${badge}</span>`:""}</div>`;
+
+/* ── screens ─────────────────────────────────────────────────────────────── */
+function plan(){
+  const rows=GRID.map((row,ri)=>
+    `<div class="slotcell">${SLOTS[ri]}</div>`+
+    row.map(m=>`<div class="cell"><div class="cn">${esc(m[0])}</div>
+      <div class="cm"><span><b class="num">${m[1]}</b> kcal</span><span><b class="num">${m[2]}</b>g</span></div></div>`).join("")
+  ).join("");
+  const tot=`<div class="slotcell">Total</div>`+DAYS.map(([,,kc,pr])=>`
+    <div class="cell totcell"><div><div class="tv num">${kc.toLocaleString()}</div>
+      <div class="ts num">${pr} g protein</div></div>
+      <div class="trk"><i class="${pr<110?"short":""}" data-w="${Math.round(pr/150*100)}"></i></div></div>`).join("");
+  return `<div class="head">
+      <div><span class="eyebrow">8–14 August</span><h1 class="serif">Your week, balanced.</h1></div>
+      <div style="display:flex;gap:9px"><button class="btn ghost" type="button">Regenerate</button>
+        <button class="btn solid" type="button">Ask the assistant</button></div>
+    </div>
+    <div class="summary">
+      <div class="card stat"><span class="lab">Avg calories</span>
+        <div class="v"><span class="num">1,983</span><em>/ 2,000</em></div>
+        <div class="trk"><i data-w="99"></i></div><div class="foot">On target every day</div></div>
+      <div class="card stat"><span class="lab">Avg protein</span>
+        <div class="v"><span class="num">114</span><em>/ 150 g</em></div>
+        <div class="trk"><i class="short" data-w="76"></i></div><div class="foot">Saturday is lowest at 94 g</div></div>
+      <div class="card stat"><span class="lab">Avg fibre</span>
+        <div class="v"><span class="num">24</span><em>/ 30 g</em></div>
+        <div class="trk"><i data-w="80"></i></div><div class="foot">Highest Saturday, 26 g</div></div>
+      <div class="card stat"><span class="lab">Variety</span>
+        <div class="v"><span class="num">21</span><em>/ 21 unique</em></div>
+        <div class="trk"><i data-w="100"></i></div><div class="foot">No dish repeats this week</div></div>
+    </div>
+    <div class="board"><div class="grid">
+      <div class="gh"><span class="dow">Slot</span></div>
+      ${DAYS.map(([d,n],i)=>`<div class="gh"><span class="dow">${d}</span>
+        <span class="dn num">${n}${i===2?'<span class="today"></span>':""}</span></div>`).join("")}
+      ${rows}${tot}
+    </div></div>
+    <p class="note">${INFO}<span><b>Saturday is 16 g short on protein.</b> The assistant can lift it without moving your calories.</span></p>`;
+}
+
+function explore(){
+  return `<div class="head">
+      <div><span class="eyebrow">500 recipes · macros from USDA data</span>
+        <h1 class="serif">Find something to cook.</h1></div>
+      <button class="btn ghost" type="button">Import from a link</button>
+    </div>
+    <div class="filters">
+      <div class="search">${SRCH}<span>Search 500 recipes…</span></div>
+      <button class="chip on">All</button><button class="chip">Breakfast</button>
+      <button class="chip">Lunch</button><button class="chip">Dinner</button>
+      <button class="chip">High protein</button><button class="chip">≤20 min</button>
+      <button class="chip">Vegan</button>
+    </div>
+    <div class="cards">${RECIPES.map(([sl,name,cu,kc,pr,fb,min])=>`
+      <article class="rc" tabindex="0">
+        ${slot(name, min+" min")}
+        <div class="body">
+          <div class="kicker">${cu} · ${sl}</div>
+          <div class="row">
+            <div class="st"><b class="num">${kc}</b><span>kcal</span></div>
+            <div class="st"><b class="num">${pr}g</b><span>protein</span></div>
+            <div class="st"><b class="num">${fb}g</b><span>fibre</span></div>
+          </div>
+          <button class="btn ghost add" type="button">Add to plan</button>
+        </div>
+      </article>`).join("")}</div>`;
+}
+
+function groceries(){
+  const total=AISLES.flatMap(a=>a[1]).reduce((s,i)=>s+i[2],0);
+  return `<div class="head">
+      <div><span class="eyebrow">Week of 8 August</span><h1 class="serif">Everything you need.</h1></div>
+      <button class="btn ghost" type="button">Copy list</button>
+    </div>
+    <div class="groc">
+      <div class="card">${AISLES.map(([aisle,items])=>`
+        <div class="aisle"><h3>${aisle}</h3>
+          ${items.map(([nm,qt,pr])=>`
+            <div class="item"><span class="box" role="checkbox" tabindex="0" aria-checked="false">${CHECK}</span>
+              <span class="nm">${esc(nm)}</span><span class="qt num">${qt}</span>
+              <span class="pr num">£${pr.toFixed(2)}</span></div>`).join("")}
+        </div>`).join("")}</div>
+      <div class="card stat" style="position:sticky;top:20px">
+        <span class="lab">Estimated total</span>
+        <div class="v"><span class="num">£${total.toFixed(2)}</span></div>
+        <div class="trk"><i id="gbar" data-w="0"></i></div>
+        <div class="foot"><span id="gcount">0</span> of ${AISLES.flatMap(a=>a[1]).length} ticked</div>
+        <div style="border-top:1px solid var(--hair);margin-top:16px;padding-top:14px;font-size:12.5px;color:var(--mut)">
+          Grouped by aisle so you walk the shop once. Ticks survive a plan change —
+          only items that leave your week are removed.</div>
+      </div>
+    </div>`;
+}
+
+function assistant(){
+  return `<div class="head">
+      <div><span class="eyebrow">It changes the plan, and says what it moved</span>
+        <h1 class="serif">Just tell it.</h1></div>
+    </div>
+    <div class="chat">
+      <div class="msg u"><span class="who">A</span><div class="bub">make thursday vegetarian but keep my protein up</div></div>
+      <div class="msg a"><span class="who">N</span><div class="bub">
+        Thursday is vegetarian and still lands on target.
+        <div class="chgs">
+          <div class="chg"><span class="t">Lunch</span><span>Beef &amp; Broccoli Rice Bowl → <b>Tempeh &amp; Quinoa Protein Bowl</b></span></div>
+          <div class="chg"><span class="t">Dinner</span><span>Turkey &amp; Bean Chilli → <b>Red Lentil Dahl</b>, portion ×1.2</span></div>
+          <div class="chg"><span class="t">Result</span><span class="num"><b>1,988 kcal · 128 g protein</b> — 7 g under, the best any vegetarian combination reaches today</span></div>
+        </div></div></div>
+      <div class="msg u"><span class="who">A</span><div class="bub">i want pancakes on saturday</div></div>
+      <div class="msg a"><span class="who">N</span><div class="bub">
+        Added the protein-forward pancakes, since you're aiming at 150 g.
+        <div class="chgs">
+          <div class="chg"><span class="t">Breakfast</span><span>Quinoa Bowl → <b>Cottage Cheese Pancakes with Blueberries</b></span></div>
+          <div class="chg"><span class="t">Adjusted</span><span>Lunch chicken <b>+20 g</b> to hold the day at 150 g protein</span></div>
+        </div></div></div>
+    </div>
+    <div class="composer"><div class="inp">Tell it what to change…</div>
+      <button class="btn solid" type="button">Send</button></div>`;
+}
+
+/* ── wiring ──────────────────────────────────────────────────────────────── */
+const SCREENS=[["plan","Plan",plan],["explore","Explore",explore],
+               ["groceries","Groceries",groceries],["assistant","Assistant",assistant]];
+let cur="plan";
+function render(){
+  document.getElementById("tabs").innerHTML=SCREENS.map(([id,label])=>
+    `<button class="tab" type="button" data-k="${id}"${cur===id?' aria-current="page"':""}>${label}</button>`).join("");
+  document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{cur=b.dataset.k;render();});
+  SCREENS.forEach(([id,,fn])=>{
+    const el=document.getElementById("s-"+id);
+    el.classList.toggle("on",id===cur);
+    if(id===cur) el.innerHTML=fn();
+  });
+  wire();
+}
+function wire(){
+  requestAnimationFrame(()=>document.querySelectorAll(".trk i[data-w]").forEach(i=>i.style.width=i.dataset.w+"%"));
+  const boxes=[...document.querySelectorAll(".box")];
+  const sync=()=>{
+    const n=boxes.filter(b=>b.classList.contains("on")).length;
+    const c=document.getElementById("gcount"), bar=document.getElementById("gbar");
+    if(c) c.textContent=n;
+    if(bar) bar.style.width=Math.round(n/boxes.length*100)+"%";
+  };
+  boxes.forEach(b=>{
+    const toggle=()=>{
+      b.classList.toggle("on");
+      b.setAttribute("aria-checked",String(b.classList.contains("on")));
+      b.closest(".item").classList.toggle("done",b.classList.contains("on"));
+      sync();
+    };
+    b.onclick=toggle;
+    b.onkeydown=e=>{if(e.key===" "||e.key==="Enter"){e.preventDefault();toggle();}};
+  });
+}
+render();
+</script>
