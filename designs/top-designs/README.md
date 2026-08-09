@@ -41,9 +41,11 @@ one. Typographic won.
 
 ## 1b. `sage-app.html`
 
-The same language carried across the product: **Plan**, **Explore**, **Groceries**, **Assistant**.
-Companion to the homepage above, not a separate candidate — they are one system.
+The whole product in one file: **Home**, **Plan**, **Explore**, **Groceries**, **Assistant**. Start
+here — this is the complete system. `sage-typographic.html` is the same homepage on its own, kept
+because it is the cleanest single artefact to show someone.
 
+- **Home** — the hero with a real dish and its macros, four recipe cards, and the week strip.
 - **Plan** — four summary cards over a seven-day timetable. All 21 meals visible at once, per-day
   totals with a protein bar, and Saturday in lime because it is genuinely 16 g short.
 - **Explore** — filters and a four-up card grid over the 500-recipe library.

@@ -164,6 +164,38 @@ nav .right{margin-left:auto;display:flex;align-items:center;gap:12px}
 .composer .inp{flex:1;border:1px solid var(--line);background:var(--paper);color:var(--mut);
   border-radius:99px;padding:13px 20px;font-size:14px}
 
+/* ── HOME ────────────────────────────────────────────────────────────────── */
+.hero{display:grid;grid-template-columns:1fr;gap:34px;align-items:center;margin-top:6px}
+@media(min-width:900px){ .hero{grid-template-columns:0.92fr 1.08fr;gap:20px} }
+.hero h1{margin:16px 0 0;font-size:clamp(44px,6.6vw,80px);line-height:.94;letter-spacing:-.045em;
+  font-weight:700;text-wrap:balance}
+.hero h1 em{font-style:normal;color:var(--forest)}
+.lede{margin:20px 0 0;max-width:44ch;color:var(--ink-soft);font-size:16px;line-height:1.62}
+.cta{display:flex;gap:11px;margin-top:28px;flex-wrap:wrap}
+.trust{display:flex;align-items:center;gap:9px;margin-top:26px;font-size:12.5px;color:var(--mut)}
+.tdot{width:5px;height:5px;border-radius:99px;background:var(--forest)}
+.heroslot{aspect-ratio:5/4;box-shadow:var(--shadow);border-radius:26px}
+@media(min-width:900px){ .heroslot{margin-right:-30px;border-radius:26px 0 0 26px} }
+.heroslot .typo{justify-content:center;padding:8%}
+.heroslot .kick{font-size:10.5px;font-weight:750;letter-spacing:.22em;text-transform:uppercase;color:var(--mut)}
+.heroslot .big{font-size:clamp(32px,4.8vw,56px);line-height:.99;letter-spacing:-.042em;font-weight:700;
+  margin-top:14px;text-wrap:balance}
+.heroslot .facts{display:flex;gap:28px;margin-top:28px;flex-wrap:wrap}
+.heroslot .facts b{display:block;font-size:26px;font-weight:750;letter-spacing:-.035em;line-height:1}
+.heroslot .facts span{font-size:9.5px;font-weight:750;letter-spacing:.15em;text-transform:uppercase;color:var(--mut)}
+.sec{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin:78px 0 22px}
+.sec h2{margin:8px 0 0;font-size:clamp(26px,3.4vw,38px);letter-spacing:-.035em;line-height:1.06;font-weight:700}
+.strip{display:grid;gap:1px;background:var(--hair);border-radius:16px;overflow:hidden;
+  grid-template-columns:repeat(2,1fr)}
+@media(min-width:760px){ .strip{grid-template-columns:repeat(4,1fr)} }
+@media(min-width:1100px){ .strip{grid-template-columns:repeat(7,1fr)} }
+.sd{background:var(--paper);padding:15px 14px}
+.sd .dow{font-size:10px;font-weight:750;letter-spacing:.16em;text-transform:uppercase;color:var(--mut)}
+.sd .kc{font-size:22px;font-weight:750;letter-spacing:-.04em;margin-top:6px;line-height:1}
+.sd .pr{font-size:11.5px;color:var(--mut);margin-top:3px}
+.sd ul{list-style:none;margin:11px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.sd li{font-size:11.5px;line-height:1.3;color:var(--ink-soft)}
+
 .screen{display:none}
 .screen.on{display:block;animation:fade .3s ease}
 @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
@@ -180,6 +212,7 @@ nav .right{margin-left:auto;display:flex;align-items:center;gap:12px}
     <span class="right"><button class="btn ghost sm" type="button">Undo</button><span class="avi">A</span></span>
   </nav>
 
+  <section class="screen" id="s-home"></section>
   <section class="screen" id="s-plan"></section>
   <section class="screen" id="s-explore"></section>
   <section class="screen" id="s-groceries"></section>
@@ -226,6 +259,71 @@ const slot=(name,badge="")=>`<div class="slot">
   ${badge?`<span class="pill">${badge}</span>`:""}</div>`;
 
 /* ── screens ─────────────────────────────────────────────────────────────── */
+function home(){
+  const MEALS={Mon:["Apple Cinnamon Porridge","Tempeh & Quinoa Bowl","Peanut Noodles"],
+   Tue:["Peanut Banana Oatmeal","Chicken Shawarma Bowl","Vegetable Stir-Fry"],
+   Wed:["Cocoa Hazelnut Oats","Tempeh Teriyaki Bowl","Chicken Fajitas"],
+   Thu:["Egg & Bean Quesadilla","Beef & Broccoli Bowl","Turkey & Bean Chilli"],
+   Fri:["Shakshuka","Stuffed Peppers","Spinach Meatball Bowl"],
+   Sat:["Quinoa Breakfast Bowl","Spiced Chickpea Bowl","Red Lentil Dahl"],
+   Sun:["Overnight Peanut Oats","Beef Kofta & Bulgur","Teriyaki Salmon"]};
+  return `<section class="hero">
+      <div>
+        <span class="eyebrow">Meal planning, solved</span>
+        <h1>Share a reel.<br>Eat the <em>week</em>.</h1>
+        <p class="lede">Paste a recipe video and it becomes a meal in your plan — macros computed
+          from real food data, never guessed. Ask for pancakes and the rest of the day rebalances
+          so your targets still hold.</p>
+        <div class="cta">
+          <button class="btn solid" type="button">Plan my week
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M12 5.5 18.5 12 12 18.5"/></svg></button>
+          <button class="btn ghost" type="button">See a sample plan</button>
+        </div>
+        <div class="trust"><span class="tdot"></span> 500 recipes · every macro from USDA data · no account needed</div>
+      </div>
+      <!-- SLOT: hero. Replace .typo with <img> when a photo exists. -->
+      <div class="slot heroslot">
+        <div class="typo">
+          <div class="kick">Tonight · Wednesday</div>
+          <div class="big serif">Miso-Glazed Cod with Bok Choy &amp; Rice</div>
+          <div class="facts">
+            <div><b class="num">566</b><span>Calories</span></div>
+            <div><b class="num">40g</b><span>Protein</span></div>
+            <div><b class="num">25</b><span>Minutes</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="sec">
+      <div><span class="eyebrow">From the library</span>
+        <h2 class="serif">Five hundred recipes,<br>none of them invented.</h2></div>
+      <button class="btn ghost" type="button">Browse all</button>
+    </div>
+    <div class="cards">${RECIPES.slice(0,4).map(([sl,name,cu,kc,pr,fb,min])=>`
+      <article class="rc" tabindex="0">
+        ${slot(name, min+" min")}
+        <div class="body"><div class="kicker">${cu} · ${sl}</div>
+          <div class="row">
+            <div class="st"><b class="num">${kc}</b><span>kcal</span></div>
+            <div class="st"><b class="num">${pr}g</b><span>protein</span></div>
+            <div class="st"><b class="num">${fb}g</b><span>fibre</span></div>
+          </div></div>
+      </article>`).join("")}</div>
+
+    <div class="sec">
+      <div><span class="eyebrow">Your week</span>
+        <h2 class="serif">Balanced before you cook a thing.</h2></div>
+    </div>
+    <div class="strip">${DAYS.map(([d,,kc,pr])=>`
+      <div class="sd"><div class="dow">${d}</div>
+        <div class="kc num">${kc.toLocaleString()}</div>
+        <div class="pr num">${pr} g protein</div>
+        <div class="trk"><i class="${pr<110?"short":""}" data-w="${Math.round(pr/150*100)}"></i></div>
+        <ul>${MEALS[d].map(m=>`<li>${m}</li>`).join("")}</ul></div>`).join("")}</div>
+    <p class="note">${INFO}<span><b>Saturday is 16 g short on protein.</b> The assistant can lift it without moving your calories.</span></p>`;
+}
+
 function plan(){
   const rows=GRID.map((row,ri)=>
     `<div class="slotcell">${SLOTS[ri]}</div>`+
@@ -345,9 +443,9 @@ function assistant(){
 }
 
 /* ── wiring ──────────────────────────────────────────────────────────────── */
-const SCREENS=[["plan","Plan",plan],["explore","Explore",explore],
+const SCREENS=[["home","Home",home],["plan","Plan",plan],["explore","Explore",explore],
                ["groceries","Groceries",groceries],["assistant","Assistant",assistant]];
-let cur="plan";
+let cur="home";
 function render(){
   document.getElementById("tabs").innerHTML=SCREENS.map(([id,label])=>
     `<button class="tab" type="button" data-k="${id}"${cur===id?' aria-current="page"':""}>${label}</button>`).join("");
