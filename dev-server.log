@@ -2,26 +2,27 @@
 > nutriflow@0.1.0 dev
 > next dev
 
- ⚠ Port 3000 is in use by process 12976, using available port 3001 instead.
+ ⚠ Port 3000 is in use by process 12976, using available port 3002 instead.
    ▲ Next.js 15.5.20
-   - Local:        http://localhost:3001
-   - Network:      http://192.168.0.100:3001
+   - Local:        http://localhost:3002
+   - Network:      http://192.168.0.100:3002
 
  ✓ Starting...
- ✓ Ready in 4.7s
+ ✓ Ready in 2.9s
  ○ Compiling / ...
- ✓ Compiled / in 4.8s (613 modules)
- GET / 200 in 5849ms
- ○ Compiling /plan ...
- ✓ Compiled /plan in 2.3s (806 modules)
- GET /plan 200 in 2861ms
- GET / 200 in 79ms
- GET / 200 in 135ms
- ✓ Compiled in 688ms (708 modules)
- GET / 200 in 283ms
- ✓ Compiled in 441ms (708 modules)
+ ✓ Compiled / in 1376ms (599 modules)
+ GET / 200 in 2297ms
+ ✓ Compiled in 1230ms (613 modules)
  GET / 200 in 213ms
- ✓ Compiled in 541ms (708 modules)
- GET / 200 in 110ms
- ✓ Compiled in 217ms (337 modules)
- GET / 200 in 59ms
+ ○ Compiling /sage ...
+ ✓ Compiled /sage in 1267ms (688 modules)
+ GET /sage 200 in 2431ms
+ GET /sage 200 in 151ms
+ GET /sage 200 in 147ms
+ GET / 200 in 96ms
+ ○ Compiling /plan ...
+ ✓ Compiled /plan in 862ms (881 modules)
+ GET /plan 200 in 2340ms
+ ○ Compiling /onboarding ...
+ ✓ Compiled /onboarding in 1445ms (888 modules)
+ GET /onboarding 200
