@@ -76,16 +76,6 @@ looking rather than arguing.
 
 ---
 
-## `midjourney-explore.md`
-
-Seven prompts built around `--chaos`, which controls how different the four images in a single grid
-are from one another. It defaults to 0, which is why every grid so far came back as near-identical
-variations. These run it at 70-100 and stay deliberately vague about layout, so one generation
-returns four genuinely different answers instead of four versions of one answer. Use these to find
-a direction; use midjourney-week-plan.md to develop it.
-
----
-
 ## Adding to this folder
 
 Drop in a self-contained `.html` file and add a section above saying what it is, what it does well,
