@@ -3,41 +3,41 @@
 ## 1 — Editorial
 
 ```
-premium website design for a meal planning brand, editorial layout, large hero image, refined typography, generous whitespace, warm neutral palette, award winning web design --ar 16:9 --style raw --no phone, laptop, mockup, 3d, device
+single full screen desktop web design for a meal planning brand, one layout filling the entire frame, editorial, large hero image, refined typography, generous whitespace, warm neutral palette, awwwards --ar 16:9 --style raw --no monitor, laptop, phone, device, mockup, multiple screens, collage, floating cards, tilted
 ```
 
 ## 2 — Modern dashboard
 
 ```
-beautiful modern web app for nutrition, clean cards, bold typography, soft shadows, light airy palette, one accent colour, premium product design, dribbble --ar 16:9 --style raw --no phone, laptop, mockup, 3d, device
+single full screen desktop web app for nutrition, one full width layout, clean cards, bold typography, food photography, soft shadows, light airy palette, one accent colour, awwwards --ar 16:9 --style raw --no monitor, laptop, phone, device, mockup, multiple screens, collage, floating cards, tilted
 ```
 
 ## 3 — Warm wellness
 
 ```
-elegant wellness website, soft ivory palette, large lifestyle imagery, calm serif headlines, lots of breathing room, expensive minimal design --ar 16:9 --style raw --no phone, laptop, mockup, 3d, device
+single full screen wellness website, one layout edge to edge, soft ivory palette, large lifestyle imagery, calm serif headlines, lots of breathing room, expensive minimal, awwwards --ar 16:9 --style raw --no monitor, laptop, phone, device, mockup, multiple screens, collage, floating cards, tilted
 ```
 
 ## 4 — Bold and graphic
 
 ```
-striking modern website, oversized headline typography, bold colour blocks, big imagery, confident asymmetric layout, contemporary art direction, awwwards --ar 16:9 --style raw --s 300 --no phone, laptop, mockup, 3d, device
+single full screen website, one bold layout filling the frame, oversized headline typography, colour blocks, big imagery, confident asymmetric composition, awwwards --ar 16:9 --style raw --s 300 --no monitor, laptop, phone, device, mockup, multiple screens, collage, floating cards, tilted
 ```
 
 ## 5 — Dark premium
 
 ```
-sleek dark website for a health brand, near black background, vivid accent, rich imagery, elegant typography, luxurious and modern, award winning --ar 16:9 --style raw --no phone, laptop, mockup, 3d, device
+single full screen dark website for a health brand, one layout edge to edge, near black background, vivid accent, rich food imagery, elegant typography, luxurious modern, awwwards --ar 16:9 --style raw --no monitor, laptop, phone, device, mockup, multiple screens, collage, floating cards, tilted
 ```
 
 ## 6 — Swiss precision
 
 ```
-swiss style web design, strict grid, hairline rules, restrained palette, one bold image, precise typography, gallery quality layout --ar 16:9 --style raw --s 80 --no phone, laptop, mockup, 3d, device
+single full screen swiss web design, one layout filling the frame, strict grid, hairline rules, restrained palette, one bold image, precise typography, awwwards --ar 16:9 --style raw --s 80 --no monitor, laptop, phone, device, mockup, multiple screens, collage, floating cards, tilted
 ```
 
 ## 7 — Mobile
 
 ```
-beautiful mobile app screen for meal planning, clean modern ui, rich imagery, bold typography, soft palette, premium consumer design, dribbble --ar 9:16 --style raw --no phone body, hand, mockup, 3d, device frame
+single mobile app screen for meal planning, one screen filling the entire frame, clean modern ui, rich food imagery, bold typography, soft palette, premium consumer design --ar 9:16 --style raw --no phone body, hand, device frame, mockup, multiple screens, collage, floating cards, tilted
 ```
