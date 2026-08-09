@@ -3,41 +3,41 @@
 ## 1 — Editorial
 
 ```
-beautiful modern nutrition and meal planning website, single full screen desktop layout filling the entire frame, editorial, large hero image, refined typography, generous whitespace, warm neutral palette, awwwards --ar 16:9 --style raw --no monitor, laptop, phone, device, mockup, multiple screens, collage, floating cards, tilted
+web app ui design, single full screen desktop interface filling the entire frame, beautiful modern nutrition and meal planning product, editorial layout, one hero banner image, refined typography, generous whitespace, warm neutral palette, awwwards --ar 16:9 --style raw --no food photography, flat lay, plated meal, bowl, table, monitor, laptop, phone, device, mockup, multiple screens, collage, tilted
 ```
 
 ## 2 — Modern dashboard
 
 ```
-beautiful modern nutrition and meal planning web app, single full screen desktop layout filling the entire frame, clean cards, bold typography, food photography, soft shadows, light airy palette, one accent colour, awwwards --ar 16:9 --style raw --no monitor, laptop, phone, device, mockup, multiple screens, collage, floating cards, tilted
+web app ui design, dashboard interface, single full screen desktop layout filling the entire frame, beautiful modern nutrition and meal planning product, clean cards with small recipe thumbnails, bold typography, soft shadows, light airy palette, one accent colour, awwwards --ar 16:9 --style raw --no food photography, flat lay, plated meal, bowl, table, monitor, laptop, phone, device, mockup, multiple screens, collage, tilted
 ```
 
 ## 3 — Warm wellness
 
 ```
-beautiful modern nutrition and meal planning website, single full screen desktop layout edge to edge, soft ivory palette, large lifestyle imagery, calm serif headlines, lots of breathing room, expensive minimal, awwwards --ar 16:9 --style raw --no monitor, laptop, phone, device, mockup, multiple screens, collage, floating cards, tilted
+web app ui design, single full screen desktop interface edge to edge, beautiful modern nutrition and meal planning product, soft ivory palette, calm serif headlines, small lifestyle thumbnails in cards, lots of breathing room, expensive minimal, awwwards --ar 16:9 --style raw --no food photography, flat lay, plated meal, bowl, table, monitor, laptop, phone, device, mockup, multiple screens, collage, tilted
 ```
 
 ## 4 — Bold and graphic
 
 ```
-beautiful bold modern nutrition and meal planning website, single full screen desktop layout filling the frame, oversized headline typography, colour blocks, big food imagery, confident asymmetric composition, awwwards --ar 16:9 --style raw --s 300 --no monitor, laptop, phone, device, mockup, multiple screens, collage, floating cards, tilted
+web app ui design, single full screen desktop interface filling the frame, beautiful bold modern nutrition and meal planning product, oversized headline typography, colour blocks, confident asymmetric layout, awwwards --ar 16:9 --style raw --s 300 --no food photography, flat lay, plated meal, bowl, table, monitor, laptop, phone, device, mockup, multiple screens, collage, tilted
 ```
 
 ## 5 — Dark premium
 
 ```
-beautiful modern dark nutrition and meal planning website, single full screen desktop layout edge to edge, near black background, vivid accent, rich food imagery, elegant typography, luxurious, awwwards --ar 16:9 --style raw --no monitor, laptop, phone, device, mockup, multiple screens, collage, floating cards, tilted
+web app ui design, single full screen dark desktop interface edge to edge, beautiful modern nutrition and meal planning product, near black background, vivid accent, elegant typography, small thumbnails in cards, luxurious, awwwards --ar 16:9 --style raw --no food photography, flat lay, plated meal, bowl, table, monitor, laptop, phone, device, mockup, multiple screens, collage, tilted
 ```
 
 ## 6 — Swiss precision
 
 ```
-beautiful modern nutrition and meal planning website, swiss design, single full screen desktop layout filling the frame, strict grid, hairline rules, restrained palette, one bold food image, precise typography, awwwards --ar 16:9 --style raw --s 80 --no monitor, laptop, phone, device, mockup, multiple screens, collage, floating cards, tilted
+web app ui design, swiss style, single full screen desktop interface filling the frame, beautiful modern nutrition and meal planning product, strict grid, hairline rules, restrained palette, precise typography, awwwards --ar 16:9 --style raw --s 80 --no food photography, flat lay, plated meal, bowl, table, monitor, laptop, phone, device, mockup, multiple screens, collage, tilted
 ```
 
 ## 7 — Mobile
 
 ```
-beautiful modern nutrition and meal planning mobile app screen, single screen filling the entire frame, clean modern ui, rich food imagery, bold typography, soft palette, premium consumer design --ar 9:16 --style raw --no phone body, hand, device frame, mockup, multiple screens, collage, floating cards, tilted
+mobile app ui design, single app screen filling the entire frame, beautiful modern nutrition and meal planning product, clean modern interface, cards with small thumbnails, bold typography, soft palette, premium consumer design --ar 9:16 --style raw --no food photography, flat lay, plated meal, bowl, table, phone body, hand, device frame, mockup, multiple screens, collage, tilted
 ```
