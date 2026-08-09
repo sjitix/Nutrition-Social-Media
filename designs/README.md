@@ -66,6 +66,16 @@ without you having to describe it.
 
 ---
 
+## `midjourney-week-plan.md`
+
+Prompts for the core screen — seven days, three meals each, recipe names, calories and protein.
+Four layouts (seven columns, one-day-large with the week beside it, a timetable grid, and a dark
+variant), each written twice: once with recipe thumbnails and once with none. Same layout on both
+sides so the only variable is the imagery, which makes the with-or-without question answerable by
+looking rather than arguing.
+
+---
+
 ## Adding to this folder
 
 Drop in a self-contained `.html` file and add a section above saying what it is, what it does well,
