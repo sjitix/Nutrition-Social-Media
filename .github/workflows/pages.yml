@@ -1,0 +1,68 @@
+# Publishes a public preview of the sage design to GitHub Pages on every push to main.
+#
+# This is a PREVIEW, not the product: GitHub Pages serves static files only, so the API routes
+# are removed before the build and anything needing a server (the live assistant, plan
+# generation on demand) will not work here. The /sage screens are server components that call
+# no API, so they prerender complete with real engine data — which is the point.
+name: Deploy design preview to Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never run two deploys at once, but do not cancel one in progress — a half-published site is
+# worse than a slightly stale one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # output:export refuses to build with dynamic route handlers present. They are not needed
+      # by the exported pages, so drop them for this build only. The repo is untouched.
+      - name: Remove API routes for the static export
+        run: rm -rf src/app/api
+
+      - name: Build
+        env:
+          STATIC_EXPORT: "1"
+          BASE_PATH: /Nutrition-Social-Media
+        run: npm run build
+
+      # Pages will not serve _next/* without this — Jekyll strips underscore-prefixed paths.
+      - run: touch out/.nojekyll
+
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

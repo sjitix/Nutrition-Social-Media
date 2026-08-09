@@ -53,3 +53,8 @@ train-*.log
 
 # local test output (scratch)
 engine-*.log
+
+# local server output (scratch)
+dev-server.log
+prod-server.log
+out/

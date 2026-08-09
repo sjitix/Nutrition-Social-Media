@@ -1,3 +1,7 @@
+// The manifest has no dynamic input, so mark it static. Required by output:export (the Pages
+// preview build) and a no-op for the normal build, which already prerenders it.
+export const dynamic = "force-static";
+
 import type { MetadataRoute } from "next";
 
 // A web app manifest so NutriFlow can be installed to a phone's home screen and run standalone
