@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { ThemeSwitch, THEME_BOOT_SCRIPT } from "@/components/ThemeSwitch";
 
 const TITLE = "NutriFlow — AI Meal Planner";
 const DESCRIPTION =
@@ -46,7 +47,16 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body className="min-h-screen antialiased">{children}</body>
+      <head>
+        {/* Applies the stored theme before first paint, so a returning sage user
+            never sees a violet flash. Must be inline and blocking to beat the
+            first render; a component cannot run early enough. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+      </head>
+      <body className="min-h-screen antialiased">
+        {children}
+        <ThemeSwitch />
+      </body>
     </html>
   );
 }

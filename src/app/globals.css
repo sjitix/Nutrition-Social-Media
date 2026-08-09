@@ -17,6 +17,38 @@
   --color-line: #edeaf8;
 }
 
+/* ---------------------------------------------------------------------------
+ * Sage theme — an ALTERNATIVE skin, off by default.
+ *
+ * Every colour in the app is expressed through the eleven tokens above, so
+ * redefining them in a scope re-skins all ~291 utility usages without touching
+ * a single component. The original violet is untouched and remains the default;
+ * this only applies when `theme-sage` is on <html>, which the switcher toggles.
+ *
+ * Contrast verified against the sage ground, all >= WCAG AA 4.5:1:
+ *   ink on sage 12.5   muted on sage 4.7   muted on white 6.0
+ *   white on forest 8.6   forest as text on sage 6.7 / on white 8.6
+ * ------------------------------------------------------------------------- */
+.theme-sage {
+  --color-bgsoft: #dfe6da;    /* app ground */
+  --color-plum: #1c2419;      /* ink */
+  --color-plum-deep: #12180f;
+  --color-plum-mid: #2e3f26;
+  --color-mut: #5c6656;       /* 4.7:1 on the sage ground */
+  --color-vio: #3d5233;       /* primary action — carries white labels at 8.6:1 */
+  --color-vio-deep: #2e3f26;
+  --color-lav: #e9eee3;       /* accent tint surface */
+  --color-mint: #2e7d52;
+  --color-mint-soft: #dfeee4;
+  --color-line: #c8d2c1;
+}
+
+/* The default shadow is violet-tinted; sage needs a green-tinted one or cards
+   read as though they are lit from a different room than the page. */
+.theme-sage .card-shadow {
+  box-shadow: 0 4px 18px rgba(28, 36, 25, 0.09);
+}
+
 body {
   background-color: var(--color-bgsoft);
   color: var(--color-plum);
