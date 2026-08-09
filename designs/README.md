@@ -12,6 +12,14 @@ The brief these were made against is [`../DESIGN-PROMPT.md`](../DESIGN-PROMPT.md
 
 ---
 
+## `top-designs/`
+
+The shortlist — at most three candidates at a time, with the reasons they are still standing. Start
+there; everything else in this folder is either a rejected experiment kept as a record, or raw
+material for generating new ones.
+
+---
+
 ## `signal-asymmetric.html`
 
 **Rebuild of "C — Signal" from a Figma Make exploration.** An asymmetric two-panel week plan:
