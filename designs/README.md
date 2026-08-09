@@ -51,6 +51,16 @@ polish does not fix hierarchy.
 
 ---
 
+## `midjourney-prompts.md`
+
+Five Midjourney prompts for exploring mood, palette and layout feel, with the parameters that
+matter for interface work (`--style raw`, low `--s`, and `--sref` for matching a reference
+image). Midjourney paints an app rather than designing one — its text is decorative and nothing
+is measurable — so these are for deciding what the product should FEEL like, not for anything
+that ships.
+
+---
+
 ## Adding to this folder
 
 Drop in a self-contained `.html` file and add a section above saying what it is, what it does well,

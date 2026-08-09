@@ -7,13 +7,16 @@ sketch, and make each one genuinely different from the others, not a recolour of
 
 ## The quality bar
 
-This has to look like the apps people screenshot and send to each other — **Revolut, TikTok,
-Linear, Arc, Cash App**. Confident, current, unmistakably designed. Not a template, not an
-admin panel, not a Bootstrap dashboard with rounded corners.
+This has to look like the apps people screenshot and send to each other. Confident, current,
+unmistakably designed. Not a template, not an admin panel, not a Bootstrap dashboard with rounded
+corners.
 
-Revolut is the closest reference for how it should *feel*: enormous confident numbers, tight
-geometry, deep restraint everywhere except one place, and an interface that makes financial data
-feel premium rather than clerical. Do that for food.
+Apps worth looking at for the *level* of craft, none of them a model to copy: **Revolut, TikTok,
+Linear, Arc, Cash App, Duolingo, Things, Monzo**. Take the standard, not the look.
+
+The qualities to aim for, whatever direction you take: numbers that are confident and enormous
+rather than politely sized; tight geometry; deep restraint everywhere except the one place you
+choose to be loud; and data that feels premium rather than clerical.
 
 Virality is an explicit design goal. Every screen should answer: *would someone screenshot this?*
 
