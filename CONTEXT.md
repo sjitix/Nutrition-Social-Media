@@ -283,6 +283,15 @@ Three things that came out of it and will recur:
   whether the composition works with a picture in it was otherwise down to luck. It swaps only the
   plate and its heading, and the page says the figures beside it are still the real day's.
 
+**The poke bowl was reshot at `--ar 1:1` to make a clean cut-out possible**, after three masking
+attempts on the `16:10` frame that all failed for the same two reasons: the bowl filled that frame
+vertically so it could not be enclosed at any radius, and the prompt had asked for the food to
+cover the bowl "rim to rim", so the mask ended where the food ended and it read as a circular crop.
+The cut-out prompt in `designs/midjourney-dish-photography.md` §7 fixes both — `--ar 1:1`, the bowl
+fully inside the frame, and the ceramic rim left clear — and produced a clean plate on the first
+generation with no hand-tuning. `pokebowl-17` is the frame in use; `-16` is the one that could not
+be masked whole.
+
 Plus `miso-cod-plate.webp` — the **same photograph** as `miso-cod.jpg` with its background masked
 off, so the plate is an object the hero can lay on the page and crop by the frame. Made by
 `node scripts/make-plate-cutout.mjs <src> <out.webp> <preview.jpg>`, which fits a **circle** to the

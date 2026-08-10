@@ -78,6 +78,25 @@ what the exact map exists to prevent.
 node scripts/make-plate-cutout.mjs <source.jpg> <out.webp> <preview.jpg>
 ```
 
+**The source frame decides whether a good cut-out is possible at all — the script cannot rescue a
+bad one.** Two properties, both set at generation time:
+
+1. **The bowl fully inside the frame, with margin.** Shoot `--ar 1:1`, not `16:10`. A bowl touching
+   its own frame edge cannot be masked whole at any radius.
+2. **The ceramic rim clear, food only in the well.** This is the one that is easy to miss, because
+   it is about the food rather than the framing. A masked plate reads as a plate because you can
+   see the ring of ceramic around the food; fill the bowl rim to rim and the mask ends where the
+   food ends, and it looks like a circular crop no matter how exact the mask is.
+
+Both are in the cut-out prompt in `designs/midjourney-dish-photography.md` §7. When the source is
+right, the automatic fit finds the bowl with no hand-tuning — needing to pass `cx cy rx ry` by hand
+is usually the signal that the frame is wrong, not that the numbers are.
+
+**Check the cut-out on MAGENTA, not on the page colour.** Composited on cream, both failure modes
+are invisible: leftover background is cream-ish, and food sliced at the mask edge just looks like
+the edge. Against a colour that appears nowhere in the photograph, both are obvious at a glance.
+Two rounds of "fixed it" went out because the check was made against cream.
+
 It fits a **circle** to the plate rather than segmenting the background. Segmenting was tried
 first and fails on exactly this dish: a flood fill from the edges leaks through the bok choy where
 a leaf bridges the rim, and eats a bite-shaped hole out of the food. The plate is a circle shot

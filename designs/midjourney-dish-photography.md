@@ -214,6 +214,30 @@ discrete components is the worst case for the arrangement problem in §3.
 raw photograph, overhead food photography, one single serving of a completely loaded chicken and soft-boiled egg poke bowl, the entire surface covered rim to rim with nine different toppings and hardly any rice visible underneath, packed full, sliced grilled chicken breast, one jammy soft-boiled egg cut in half with the two halves nestled side by side touching each other, cut sides up, edamame, cucumber, julienned carrot, shredded red cabbage, sliced avocado, sweetcorn, bean sprouts, halved cherry tomatoes, sesame seeds scattered over everything, toppings crowded tightly against each other in loose adjacent drifts that overlap and spill into one another in uneven amounts, brown rice underneath and almost hidden, a wedge of avocado resting against the rim, bowl slightly off centre and cropped by the frame edge, plain off-white speckled ceramic wide shallow bowl, soft sage green linen surface with visible weave, natural window light from the upper left with a soft directional shadow, shallow depth of field with the bowl edges falling soft, shot on a 50mm lens at f/2.8, subtle film grain, documentary food photography, natural and unstyled, muted green and cream tones --ar 16:10 --style raw --s 50 --no egg halves apart, egg halves on opposite sides, one egg, sparse, half empty, bare rice, empty space in the bowl, few toppings, minimal, plain rice bowl, raw fish, tuna, salmon, sashimi, seaweed, nori, mango, pickled ginger, wasabi, sriracha, mayonnaise, spicy mayo drizzle, spring onion, radish, equal wedges, neatly separated sections, pie chart arrangement, evenly spaced, symmetrical plating, neatly arranged, fanned out, styled, garnished, 3d render, cgi, illustration, digital art, plastic, artificial, glossy, fork, knife, spoon, cutlery, chopsticks, napkin, hands, people, faces, text, words, logo, cluttered props, busy background, oversaturated, neon
 ```
 
+### The CUT-OUT variant — use this one when the plate has to be lifted off its background
+
+The prompt above fills the bowl to the rim, which is right for a card and **wrong for a cut-out**.
+A masked plate only looks like a plate if you can see the ceramic ring around the food; fill the
+rim and the mask ends where the food ends, and it reads as a circular crop of a photograph however
+accurate the mask is. That mistake cost three rounds of "fixed it" that had not fixed anything.
+
+Three changes, and they are the whole difference:
+
+| change | why |
+|---|---|
+| `--ar 1:1` | `16:10` lets the bowl fill the frame vertically, and a bowl touching its own frame edge cannot be masked whole at any radius |
+| `the bowl sits fully inside the frame with a wide margin of sage linen all around it` | gives the mask somewhere to sit |
+| `toppings heaped in the well of the bowl with the wide speckled ceramic rim left completely clear` | the ring of ceramic is what makes a cut-out read as an object. Fullness now applies to the WELL, not the whole surface |
+
+```
+raw photograph, overhead food photography, one single serving of a loaded chicken and soft-boiled egg poke bowl, the bowl sits fully inside the frame with a wide margin of sage linen all around it, toppings heaped in the well of the bowl with the wide speckled ceramic rim left completely clear, the well completely covered with nine different toppings and hardly any rice visible, sliced grilled chicken breast, one jammy soft-boiled egg cut in half with the two halves nestled side by side touching each other, cut sides up, edamame, cucumber, julienned carrot, shredded red cabbage, sliced avocado, sweetcorn, bean sprouts, halved cherry tomatoes, sesame seeds scattered over everything, toppings crowded tightly against each other in loose adjacent drifts that overlap and spill into one another in uneven amounts, brown rice underneath and almost hidden, plain off-white speckled ceramic wide shallow bowl, soft sage green linen surface with visible weave, natural window light from the upper left with a soft directional shadow, shallow depth of field with the bowl edges falling soft, shot on a 50mm lens at f/2.8, subtle film grain, documentary food photography, natural and unstyled, muted green and cream tones --ar 1:1 --style raw --s 50 --no food touching the rim, food overflowing the bowl, bowl cropped by the frame, bowl filling the frame, egg halves apart, one egg, sparse, half empty, bare rice, few toppings, raw fish, tuna, salmon, sashimi, seaweed, nori, mango, pickled ginger, wasabi, sriracha, mayonnaise, spicy mayo drizzle, spring onion, radish, equal wedges, neatly separated sections, pie chart arrangement, evenly spaced, symmetrical plating, neatly arranged, fanned out, styled, garnished, 3d render, cgi, illustration, digital art, plastic, artificial, glossy, fork, knife, spoon, cutlery, chopsticks, napkin, hands, people, faces, text, words, logo, cluttered props, busy background, oversaturated, neon
+```
+
+**This is the prompt that produced the shipped cut-out**, first generation. The automatic fit in
+`scripts/make-plate-cutout.mjs` found the bowl with no hand-tuning, which is the tell that the
+source geometry was right — every frame that needed hand-tuning turned out to be a frame that
+could not be cut out properly at all.
+
 **What was making it come out sparse, and it was my own wording.** The first version said
 *"some rice still showing through between them"* — an instruction to leave gaps, written to fight
 tidiness, which the model read as an instruction to under-fill. The standard block's

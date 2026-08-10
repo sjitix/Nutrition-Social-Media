@@ -890,7 +890,23 @@ Each of these was discovered by doing the work, and each earned its place.
     outputs a square, splitting the correction across both axes. And shoot cut-out candidates at
     `--ar 4:5` or `1:1`: `16:10` gives it room to clip the bowl by the frame, and a bowl clipped by
     its own frame cannot be masked whole at all.
-25. **Counting a mapping is not counting what renders.** Home says "500 recipes, N of them
+25. **A cut-out is decided at generation time, not at masking time.** The poke bowl was masked three
+    times and looked wrong every time, and none of it was the mask's fault: the source frame was
+    `--ar 16:10`, so the bowl filled it vertically and could not be enclosed at any radius, and the
+    prompt said *"the entire surface covered rim to rim"*, so the food reached the ceramic and the
+    mask ended where the food ended. A plate reads as a plate because you can see the ring of
+    ceramic around the food. Regenerating at `--ar 1:1` with *"the bowl sits fully inside the frame
+    with a wide margin"* and *"the rim left completely clear"* produced a clean cut-out on the
+    first generation, with no hand-tuning at all. Needing to pass the ellipse by hand is the signal
+    that the FRAME is wrong, not that the numbers are.
+26. **Check a cut-out against a colour that is not in the photograph.** Composited on the page's
+    cream, both failure modes are invisible — leftover background is cream-ish, and food sliced at
+    the mask edge just looks like the edge. On magenta, both are obvious instantly. Two rounds of
+    "fixed it" went out because the check was made against cream, and the third only found the
+    fault because the two versions were finally put side by side. **Diff the before and after
+    before claiming an improvement**; had I done that, I would have seen the second attempt changed
+    almost nothing.
+27. **Counting a mapping is not counting what renders.** Home says "500 recipes, N of them
     photographed". Taking N from `Object.keys(RECIPE_IMAGES).length` would make the sentence lie
     the moment a recipe is renamed — the key survives, the photograph never renders, and the page
     claims coverage it does not have. Every count on the page resolves its keys against `RECIPES`

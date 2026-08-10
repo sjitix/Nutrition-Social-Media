@@ -45,7 +45,7 @@ composition is the thing to copy, not the palette (WORKPLAN lesson 15).
 From `Desktop\design\` top level. Mostly earlier homepage explorations, including rejected ones.
 Useful for seeing what was tried; not the target.
 
-## `food/` — 15 dish photographs
+## `food/` — 17 dish photographs
 
 The generated food set. Filenames carry the **source folder name**, which is where they came
 from — but see the warning below.
@@ -55,12 +55,13 @@ from — but see the warning below.
 | `chickenandveg-01…08` | chicken & veg |
 | `codmisobokchoi-09…11` | miso cod & bok choy |
 | `recipes-12…15` | shakshuka |
+| `pokebowl-16…17` | chicken & egg poke bowl (named, not from a folder) |
 
 > ⚠️ **The source folder names are wrong.** The *salmon* photograph — salmon, baby potatoes,
 > broccoli, lemon — was sitting inside `chicken andveg\`. A folder name is not evidence of what is
 > in a picture (WORKPLAN lesson 18). Verify by looking before mapping any of these to a recipe.
 
-**All sixteen have been looked at. They cover FIVE dishes:**
+**All seventeen have been looked at. They cover FIVE dishes:**
 
 | files | dish | mapped recipe |
 |---|---|---|
@@ -68,7 +69,7 @@ from — but see the warning below.
 | `chickenandveg-06…08` | salmon fillet, baby potatoes, broccoli, lemon | Baked Salmon & Potatoes |
 | `codmisobokchoi-09…11` | glazed white fish, bok choy, brown rice | Miso-Glazed Cod with Bok Choy & Rice |
 | `recipes-12…15` | eggs poached in tomato and pepper, feta | Shakshuka |
-| `pokebowl-16` | chicken, two egg halves, rice, nine toppings | Chicken & Egg Poke Bowl |
+| `pokebowl-16`, `pokebowl-17` | chicken, two egg halves, rice, nine toppings | Chicken & Egg Poke Bowl. **`-17` is the one in use** — shot `--ar 1:1` with the bowl fully inside the frame and the ceramic rim clear, which is what a cut-out needs. `-16` is the `16:10` frame that could not be masked whole |
 
 Five are shipped as product assets in [`../../public/food/`](../../public/food/), mapped by exact
 recipe name in `RECIPE_IMAGES`; the other eleven are alternate frames of the same dishes, so a
