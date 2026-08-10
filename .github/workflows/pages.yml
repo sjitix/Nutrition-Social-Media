@@ -1,9 +1,9 @@
 # Publishes a public preview of the sage design to GitHub Pages on every push to main.
 #
 # This is a PREVIEW, not the product: GitHub Pages serves static files only, so the API routes
-# are removed before the build and anything needing a server (the live assistant, plan
-# generation on demand) will not work here. The /sage screens are server components that call
-# no API, so they prerender complete with real engine data — which is the point.
+# are removed before the build and anything needing a server (the live assistant) will not work
+# here. The /sage screens are server components that call no API, so they prerender complete with
+# real engine data — which is the point.
 name: Deploy design preview to Pages
 
 on:
@@ -46,12 +46,29 @@ jobs:
           BASE_PATH: /Nutrition-Social-Media
         run: npm run build
 
+      # The preview exists to show the sage design, so the root goes there. The original design
+      # stays at /classic/ so the two are one click apart. A meta refresh rather than a config
+      # redirect, because output:export has no server to issue a 30x — and it degrades to a
+      # visible link if the refresh is blocked.
+      - name: Point the root at /sage, keep the original at /classic
+        run: |
+          mkdir -p out/classic
+          cp out/index.html out/classic/index.html
+          printf '%s\n' \
+            '<!doctype html><html lang="en"><head><meta charset="utf-8">' \
+            '<title>NutriFlow</title>' \
+            '<meta http-equiv="refresh" content="0; url=./sage/">' \
+            '<link rel="canonical" href="./sage/">' \
+            '<style>body{margin:0;display:grid;place-items:center;height:100vh;' \
+            'background:#dfe6da;color:#1c2419;font-family:system-ui,sans-serif}' \
+            'a{color:#3d5233}</style></head><body>' \
+            '<p>Opening NutriFlow — <a href="./sage/">continue</a></p>' \
+            '</body></html>' > out/index.html
+
       # Pages will not serve _next/* without this — Jekyll strips underscore-prefixed paths.
       - run: touch out/.nojekyll
 
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
