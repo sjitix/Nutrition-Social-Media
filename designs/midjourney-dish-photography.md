@@ -211,8 +211,23 @@ Vessel: a **wide shallow bowl**, because it is a mixed grain dish. Difficulty: *
 discrete components is the worst case for the arrangement problem in §3.
 
 ```
-raw photograph, overhead food photography, one single serving of a loaded chicken and soft-boiled egg poke bowl on brown rice, piled with sliced grilled chicken breast, one jammy soft-boiled egg halved, edamame, cucumber, julienned carrot, shredded red cabbage, sliced avocado, sweetcorn, bean sprouts and halved cherry tomatoes, sesame seeds scattered over, toppings heaped in loose adjacent drifts that overlap and spill into each other, uneven amounts, some rice still showing through between them, one egg half resting against the rim, bowl slightly off centre and cropped by the frame edge, plain off-white speckled ceramic wide shallow bowl, soft sage green linen surface with visible weave, natural window light from the upper left with a soft directional shadow, shallow depth of field with the bowl edges falling soft, shot on a 50mm lens at f/2.8, subtle film grain, documentary food photography, natural and unstyled, muted green and cream tones --ar 16:10 --style raw --s 50 --no raw fish, tuna, salmon, sashimi, seaweed, nori, mango, pickled ginger, wasabi, sriracha, mayonnaise, spicy mayo drizzle, spring onion, radish, equal wedges, neatly separated sections, pie chart arrangement, evenly spaced, symmetrical plating, neatly arranged, fanned out, styled, garnished, 3d render, cgi, illustration, digital art, plastic, artificial, glossy, fork, knife, spoon, cutlery, chopsticks, napkin, hands, people, faces, text, words, logo, cluttered props, busy background, oversaturated, neon
+raw photograph, overhead food photography, one single serving of a completely loaded chicken and soft-boiled egg poke bowl, the entire surface covered rim to rim with nine different toppings and hardly any rice visible underneath, packed full, sliced grilled chicken breast, one jammy soft-boiled egg halved, edamame, cucumber, julienned carrot, shredded red cabbage, sliced avocado, sweetcorn, bean sprouts, halved cherry tomatoes, sesame seeds scattered over everything, toppings crowded tightly against each other in loose adjacent drifts that overlap and spill into one another in uneven amounts, brown rice underneath and almost hidden, one egg half resting against the rim, bowl slightly off centre and cropped by the frame edge, plain off-white speckled ceramic wide shallow bowl, soft sage green linen surface with visible weave, natural window light from the upper left with a soft directional shadow, shallow depth of field with the bowl edges falling soft, shot on a 50mm lens at f/2.8, subtle film grain, documentary food photography, natural and unstyled, muted green and cream tones --ar 16:10 --style raw --s 50 --no sparse, half empty, bare rice, empty space in the bowl, few toppings, minimal, plain rice bowl, raw fish, tuna, salmon, sashimi, seaweed, nori, mango, pickled ginger, wasabi, sriracha, mayonnaise, spicy mayo drizzle, spring onion, radish, equal wedges, neatly separated sections, pie chart arrangement, evenly spaced, symmetrical plating, neatly arranged, fanned out, styled, garnished, 3d render, cgi, illustration, digital art, plastic, artificial, glossy, fork, knife, spoon, cutlery, chopsticks, napkin, hands, people, faces, text, words, logo, cluttered props, busy background, oversaturated, neon
 ```
+
+**What was making it come out sparse, and it was my own wording.** The first version said
+*"some rice still showing through between them"* — an instruction to leave gaps, written to fight
+tidiness, which the model read as an instruction to under-fill. The standard block's
+*"food gathered to one side with bare plate showing on the other"* does the same thing and is
+already removed for this dish. Fullness has to be **stated positively and early** —
+`completely loaded`, `the entire surface covered rim to rim`, `packed full`,
+`hardly any rice visible` — and the opposite has to be named in `--no`:
+`sparse, half empty, bare rice, empty space in the bowl, few toppings`.
+
+**Coverage is not portion size, and the distinction matters here.** §1's honesty rule says shoot a
+neutral single serving, never a generous one, because portions are scaled 0.6–1.8× per user and the
+numbers beside the photo carry the quantity. That still holds: this asks for the surface to be
+COVERED by nine distinct toppings, which is what the dish is, not for a mountain of food. Keep
+`one single serving` in the prompt and never add `huge portion`, `piled high`, `overflowing`.
 
 Swap `--ar 16:10` for `--ar 5:4` for the large featured card, or `--ar 4:5` plus
 `generous empty space` for a hero. Nothing else changes — the style block is fixed on purpose.
