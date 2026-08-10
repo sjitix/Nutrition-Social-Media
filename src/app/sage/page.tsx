@@ -373,17 +373,28 @@ export default function SagePage() {
           </table>
         </div>
 
+        {/* Only when there IS a shortfall. The week is re-solved against the targets, so most
+            weeks now land on them — and "lands 0 g under on protein" is the kind of sentence that
+            makes a reader stop believing the other numbers. */}
         <p className="mt-6 flex max-w-[70ch] items-start gap-2.5 text-[12.5px] leading-relaxed text-mut">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" className="mt-0.5 shrink-0" aria-hidden>
             <circle cx="12" cy="12" r="9" />
             <path d="M12 8v5M12 16.5v.01" />
           </svg>
-          <span>
-            <b className="font-semibold text-plum">
-              {lowest.day} lands {DEMO.proteinGrams - lowest.protein} g under on protein.
-            </b>{" "}
-            The assistant can lift it without moving your calories — and it will say what it moved.
-          </span>
+          {DEMO.proteinGrams - lowest.protein > 0 ? (
+            <span>
+              <b className="font-semibold text-plum">
+                {lowest.day} lands {DEMO.proteinGrams - lowest.protein} g under on protein.
+              </b>{" "}
+              The assistant can lift it without moving your calories — and it will say what it moved.
+            </span>
+          ) : (
+            <span>
+              <b className="font-semibold text-plum">Every day reaches the protein target.</b> The
+              portions were solved to get there, not chosen and hoped over — and if a day ever
+              cannot reach it, the interface says so rather than rounding.
+            </span>
+          )}
         </p>
       </section>
 

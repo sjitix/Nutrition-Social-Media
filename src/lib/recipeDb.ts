@@ -695,6 +695,43 @@ const SEED_RECIPES: RecipeSeed[] = [
     steps: ["Cook the rice and cool slightly.", "Top with cubed salmon, edamame, cucumber and soy."],
   },
   {
+    /**
+     * Added so a photograph has a dish to belong to. `RECIPE_IMAGES` is an exact per-dish map, and
+     * the two existing poke bowls are salmon and tofu — mapping a picture of chicken and egg to
+     * either of them is the stand-in failure the map exists to prevent, so the recipe comes first
+     * and the photograph second, never the other way round.
+     *
+     * Twelve ingredients, which is more than most here and is the point: it is a loaded bowl and
+     * the photograph shows every one of them. Each is already curated to an FDC id — no ingredient
+     * was auto-matched to USDA, which is unsafe (it produced `salmon fillet -> Salmonberries`).
+     * Not `gluten_free`: soy sauce contains wheat.
+     */
+    id: "l-chicken-egg-poke", name: "Chicken & Egg Poke Bowl", type: "lunch",
+    cuisine: "asian", mainProtein: "chicken",
+    timeMinutes: 20, approxCost: 2,
+    dietTags: [],
+    description: "Grilled chicken and a jammy egg over rice with edamame, corn, avocado and slaw.",
+    ingredients: [
+      { name: "chicken breast", quantity: "120 g" },
+      { name: "eggs", quantity: "1 piece" },
+      { name: "brown rice", quantity: "55 g dry" },
+      { name: "edamame", quantity: "60 g" },
+      { name: "carrot", quantity: "50 g" },
+      { name: "cabbage", quantity: "40 g" },
+      { name: "bean sprouts", quantity: "30 g" },
+      { name: "avocado", quantity: "1/2 piece" },
+      { name: "corn", quantity: "50 g" },
+      { name: "cherry tomatoes", quantity: "60 g" },
+      { name: "sesame seeds", quantity: "1 tsp" },
+      { name: "soy sauce", quantity: "1 tbsp" },
+    ],
+    steps: [
+      "Cook the rice and let it cool slightly; grill the chicken and slice it.",
+      "Boil the egg 6-7 minutes for a jammy yolk and halve it.",
+      "Top the rice with everything, keeping each topping in its own drift, and dress with soy.",
+    ],
+  },
+  {
     id: "l-buddha-bowl", name: "Lentil & Roasted Veg Buddha Bowl", type: "lunch",
     cuisine: "mediterranean", mainProtein: "legumes",
     timeMinutes: 30, approxCost: 1,

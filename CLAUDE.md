@@ -27,7 +27,7 @@ Phased build order (one phase at a time, each usable on its own):
 5. Workout vertical (same mechanic for gym content) — *not started*
 
 Also shipped beyond the phase list: a **deterministic recipe database and selection engine**
-(`recipeDb.ts`, 500 recipes with USDA-derived macros), a **micronutrient engine**, and a
+(`recipeDb.ts`, 501 recipes with USDA-derived macros), a **micronutrient engine**, and a
 **product-wide UX overhaul** (mobile, WCAG AA, PWA, OG cards). See WORKPLAN.md.
 
 ## Tech stack
@@ -68,7 +68,7 @@ disabled) — good for showing the UI without any AI.
 
 **The engine (pure TypeScript, no network, no model — this is where correctness lives)**
 
-- `src/lib/recipeDb.ts` — the heart of the app. 500 curated recipes, the constraint-filtering
+- `src/lib/recipeDb.ts` — the heart of the app. 501 curated recipes, the constraint-filtering
   selector, `rebalanceDay`, and `applyOperations` (the executor the assistant's tool calls run
   through). **Macros are never written on a recipe** — `deriveMacros` computes them from the
   ingredient list against USDA data.
@@ -104,15 +104,23 @@ disabled) — good for showing the UI without any AI.
 - `src/app/plan/page.tsx` — the full interactive app (~1,800 lines): week board, Explore wall,
   Groceries, Assistant chat, meal drawer.
 - `src/app/sage/*` — the shipped design, **reproduced from `designs/references/boards/sage-01 …
-  sage-12`**: Home, Today, Week (`/sage/plan`), Explore, Groceries, Assistant. `/sage/today` is a
-  later exploration from `sage-04` — a dark ground with cream cards, arc gauges for the macros
-  already hit, and the day's upcoming meals; it infers "eaten" from the clock because nothing
-  writes a meal log yet, and says so on the page. `?at=14` pins the hour for review.
+  sage-12`**: Home, Today, Week (`/sage/plan`), Explore, Groceries, Assistant.
+  `/sage/today` reproduces ONE board, `sage-04`, and only the panel of it that was referenced: a
+  serif headline and a huge round plate cut by the bottom of the frame on the left, three rings and
+  a column of outlined rows on the right. The plate is the dish coming up next, the rings are the
+  macros already hit, the rows are the meals still to come. It infers "eaten" from the clock
+  because nothing writes a meal log yet, and says so on the page; `?at=14` pins the hour for review
+  and labels itself when used. It shows the fixture week's **Monday** — `/sage` has no per-reader
+  data, so claiming otherwise would be a lie the rest of the screen does not tell.
   `layout.tsx` + `SideNav.tsx` are the shell
   — a full-height deep-forest sidebar carrying both the nav and the real week, beside a cream page
   with **no max-width wrapper** (photography has to run off the frame edge). Server components
   reading the real engine; Explore and Groceries are interactive. `demo.ts` computes the week ONCE
-  at module load, so no two tabs can describe different weeks.
+  at module load, so no two tabs can describe different weeks — and builds it by running
+  `selectWeekFromDb` through `applyOperations(regenerate_week)`, because selection alone only
+  RESERVES a pinned dish; `reimposeLocks`, which places it, is internal and runs inside the
+  executor. The demo profile pins one photographed dish so the photography-led screens have a
+  photograph on them without any component special-casing a recipe.
 - `src/app/onboarding/page.tsx`, `src/app/recipes/page.tsx`.
 - `src/app/api/` — five routes: `plan`, `assistant`, `assistant-v2`, `import`, `operation`.
 - `src/components/icons.tsx` — SVG line icons (no emoji). `ThemeSwitch.tsx` — violet/sage toggle
@@ -137,10 +145,12 @@ disabled) — good for showing the UI without any AI.
   changed: `imageForMeal` is an **exact recipe-name map** (`RECIPE_IMAGES` in `lib/recipes.ts`), a
   miss returns `null` and falls back to a typographic tile, and **an image appears only on the dish
   it depicts, never as a stand-in**. Look at every image and check it against the recipe's
-  `dietTags` before mapping it. **Four dishes** are photographed today; the other 496 fall back to
+  `dietTags` before mapping it. **Five dishes** are photographed today; the other 496 fall back to
   a typographic tile, which is honest rather than misleading. `RECIPE_CUTOUTS` is a second, equally
   exact map holding background-removed versions, so a plate can sit on the page as an object rather
-  than in a frame — made by `scripts/make-plate-cutout.mjs`. See `public/food/README.md`.
+  than in a frame — made by `scripts/make-plate-cutout.mjs`. **If a photograph arrives before a
+  recipe exists for it, add the recipe first and map the photo second** — never the reverse. See
+  `public/food/README.md`.
 
 ## Commands
 

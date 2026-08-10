@@ -28,10 +28,10 @@ export function ThemeSwitch() {
     setSage(document.documentElement.classList.contains(SAGE));
   }, []);
 
-  // Not on /sage. That subtree pins its own theme, so the toggle there was a floating pill
-  // reading "Violet" that changed nothing visible — and it sat on top of the sidebar footer.
-  // It is also visible in the screenshots committed for Midjourney's --sref.
-  if (path?.startsWith("/sage")) return null;
+  // Not on the sage routes. They pin their own theme, so the toggle there was a floating pill
+  // reading "Violet" that changed nothing visible — and it sat on top of the layout. It is also
+  // visible in the screenshots committed for Midjourney's --sref.
+  if (path?.startsWith("/sage") || path?.startsWith("/today")) return null;
 
   function toggle() {
     const next = !sage;

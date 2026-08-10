@@ -78,31 +78,58 @@ cards, with three circular arc gauges. Her brief for what those parts hold: the 
 **dish coming up next**, the three circles are the **macros already hit**, and the **upcoming meals
 sit below them**. The week screen is untouched; she has said the week is a later conversation.
 
-**The first attempt at it was rejected — *"this is definitely not what i showed you. Do it exactly
-like in the pic"*.** It had all the right parts in an arrangement of my own. This is lesson 15
-happening a second time, one screen later, and the tell is identical: the parts were right and the
-composition was invented. The board's actual structure, which the screen now is:
+**It took three goes, and the two failures are the same failure.**
+
+1. *"this is definitely not what i showed you. Do it exactly like in the pic."* — right parts, an
+   arrangement of my own. Lesson 15, one screen after writing it down.
+2. Then I transcribed the board faithfully — and **transcribed more of it than she had sent me**.
+   Her second message was a crop of the board's single cream card; I built the card plus the forest
+   sidebar, the stack of side cards and the dark footer strip that are elsewhere in the same board.
+   *"I don't want the lateral sections, I only want what is in the model."*
+
+So: **the reference is the frame you were handed, not the file it was cropped from.** The screen is
+now exactly what that crop shows, on one cream page:
 
 ```
-a near-black forest PAGE, and on it
-├─ ONE large cream card filling the left ~62%
-│    · its own small nav row — mark, two links, then a label and three small circles
-│    · LEFT of the card: serif headline, short paragraph, and beneath them a HUGE ROUND PLATE
-│      cropped by the card's own bottom edge
-│    · RIGHT of the card: a caption, THREE THICK RINGS with a number in each, two hairline spec
-│      rows (the second with a leader rule), then outlined rows each led by a dot
-└─ a stack of smaller cream cards down the right
-     · a segmented DONUT beside bar rows, dark pill at its top right
-     · bar rows carrying a TARGET TICK, and a filled green circle bottom right
-     · a photograph beside a green panel
-and under all of it, small figures set straight on the dark ground beside an outlined box
+a nav row — mark and two links left; a label, a chevron and three small circles right
+LEFT   a serif headline of two lines, a short paragraph, and beneath them a HUGE ROUND PLATE
+       running off the bottom of the frame
+RIGHT  a caption, THREE THICK RINGS with a number in each, two hairline spec rows (the second
+       with a leader rule), then outlined rows each led by a dot
 ```
 
-Two details worth keeping: the plate grows **leftwards** by negative margin rather than by extra
-width, because growing rightwards put the rows on top of the food; and when the dish has no
-photograph the plate keeps its circular shape and carries the ingredient list on a **fixed sage**,
-not `gradientForMeal` — the tile palette hashes a name onto fourteen hues, which is right for a
-wall of cards and made the plate dusty pink on a cream card.
+A fourth pass moved it OUT of `/sage` to shed the sidebar, and that was a misread of "no lateral
+sections" — she meant the board's side panels, not the app. *"I meant rebuild the Today tab inside
+the sage design."* It is back at `/sage/today`, in the shell, and drops the board's own internal nav
+row because the sidebar is that nav.
+
+**The plate always has a photograph on it, and no component special-cases a dish to achieve that.**
+The demo profile pins `Chicken & Egg Poke Bowl` to Monday lunch through `lockedMeals`, the engine's
+own pin. Three things had to be true for that to work:
+
+- **`selectWeekFromDb` does not place a pin.** It RESERVES the dish — marks it spent so the
+  selector cannot put it elsewhere — and `reimposeLocks`, which actually places it, is internal and
+  runs inside `applyOperations`. So `demo.ts` builds the week and then runs it through
+  `applyOperations(…, [{tool: "regenerate_week"}])`, the same public path the assistant takes.
+  Verified over five runs: the pin lands every time, Monday rebalances to exactly 2,000 kcal, and
+  all 21 dishes stay distinct.
+- **Today shows the fixture week's Monday**, and says "Monday". `/sage` holds no per-reader data —
+  the week is a fixture — so a screen claiming to know your day would be the only dishonest thing
+  on it. The HOUR is real, so "up next" still moves through the day.
+- **The plate prefers an upcoming meal that is photographed**, falls back to the next meal, then to
+  a photographed meal already eaten — and each case carries its own label (`Up next` / `Later
+  today` / `Earlier today`). Five of 501 recipes are photographed, so "the next meal" is usually a
+  dish with no picture on a screen that is entirely a picture. The plate never claims to be up next
+  when it is not, and never borrows another dish's photograph.
+
+**A knock-on worth knowing: regenerating through the executor re-solves every day, so the week now
+lands on target and the "Saturday is 42 g short" copy on Home, Week and Assistant could read "0 g
+short".** All three now branch on whether there is actually a shortfall. A sentence like "lands 0 g
+under on protein" is the kind that makes a reader stop believing the other numbers.
+
+When the dish has no photograph the plate keeps its circular shape and carries the name on a
+**fixed sage**, not `gradientForMeal` — the tile palette hashes a name onto fourteen hues, which is
+right for a wall of cards and made the plate dusty pink.
 
 Two things about it worth knowing:
 
@@ -237,6 +264,24 @@ So the mechanism changed, not just the count:
 | `baked-salmon.jpg` | `d-baked-salmon` Baked Salmon & Potatoes | pink flaking fillet, baby potatoes, broccoli, lemon |
 | `sheetpan-chicken.jpg` | `d-american-sheetpan-chicken` Sheet-Pan Chicken & Veg | chicken breast, roast sweet potato, charred broccoli, paprika. **Now verified** — this is the one that shipped unlooked-at |
 | `shakshuka.jpg` | `b-shakshuka` Shakshuka | two eggs poached in tomato and pepper, feta, herbs. No bread in frame, so `gluten_free` holds; feta is in the recipe, so `vegetarian` holds |
+
+**A fifth dish, and the first time the photograph came before the recipe.** Ana generated a loaded
+chicken-and-egg poke bowl from the prompt in `designs/midjourney-dish-photography.md` §7 and asked
+for it on the Today plate. Nothing in the library depicted it — the only poke bowls were salmon and
+tofu — so `l-chicken-egg-poke` was **added first** and the photograph mapped to it second. That is
+the order, always; the alternative is a picture standing in for a dish that does not exist.
+
+Three things that came out of it and will recur:
+
+- **`maxIngredients` can silently exclude your best photograph.** The selector keeps recipes with
+  `ingredients.length <= maxIngredients + 1`. A loaded bowl is a twelve-ingredient dish, and the
+  fixture in `demo.ts` was set to 8 — so the one dish with a cut-out could never be selected for
+  the screen composed around it. Raised to 12. It is a design fixture, not a user's setting.
+- **Shoot cut-out candidates square-ish.** `--ar 16:10` gave Midjourney room to clip the bowl top
+  and bottom, and a bowl clipped by its own frame cannot be masked whole. Use `--ar 4:5` or `1:1`.
+- **`?at=` pins the hour for review.** Five recipes of 501 are photographed, so
+  whether the composition works with a picture in it was otherwise down to luck. It swaps only the
+  plate and its heading, and the page says the figures beside it are still the real day's.
 
 Plus `miso-cod-plate.webp` — the **same photograph** as `miso-cod.jpg` with its background masked
 off, so the plate is an object the hero can lay on the page and crop by the frame. Made by
@@ -624,7 +669,7 @@ Worth reusing rather than rediscovering:
 
 ```bash
 npm run check:recipes     # gate: every ingredient priced, every dish plausible, Atwater holds
-npm run test:engine       # 449/0 at last run, ~10 min at 500 recipes, fuzz is the slow part
+npm run test:engine       # 449/0 at last run. Budget ~25 min at 501 recipes on the laptop, not the ~10 the docs used to claim; fuzz is the slow part
 npm run export:recipes    # writes NutriFlow-recipes.xls — the Gaps sheet drove the expansion
 npx tsc --noEmit
 npm run build             # NOT while `npm run dev` is running — it corrupts .next

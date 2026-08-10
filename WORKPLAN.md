@@ -9,7 +9,7 @@
 
 ## RESUME HERE (last updated: 2026-08-10)
 
-`main` is green: `npm run test:engine` **449 / 0, fuzz clean** at 500 recipes. tsc clean, build
+`main` is green: `npm run test:engine` **449 / 0, fuzz clean**. 501 recipes. tsc clean, build
 clean. **See `CONTEXT.md` for the live cross-session state** — this section is the build record;
 that file is where the last conversation left off.
 
@@ -877,7 +877,20 @@ Each of these was discovered by doing the work, and each earned its place.
     what the elements MEAN is not the same as being told where they GO, and a brief that supplies
     the meaning still leaves the layout to be copied. Transcribe the board first — panel by panel,
     column by column — and only then decide what each panel holds.
-23. **Counting a mapping is not counting what renders.** Home says "500 recipes, N of them
+23. **The reference is the frame you were handed, not the file it was cropped from.** Told to copy
+    a layout, I found the crop in `designs/references/boards/sage-04`, transcribed that board — and
+    shipped the sidebar, the stack of side cards and the dark footer strip that live elsewhere in
+    it. The crop contained none of them. *"I don't want the lateral sections, I only want what is
+    in the model."* Knowing where a reference came from is useful; it is not permission to build
+    the parts that were cropped out.
+24. **An oval cut-out reads as a mistake even when the mask is perfect.** The poke bowl was masked
+    exactly and still looked wrong, because Midjourney's "orthographic" overhead is only
+    approximately overhead and that frame's bowl was 17% wider than tall. A plate is round, so an
+    oval one looks like a botched cut rather than an accurate one. The masking script now always
+    outputs a square, splitting the correction across both axes. And shoot cut-out candidates at
+    `--ar 4:5` or `1:1`: `16:10` gives it room to clip the bowl by the frame, and a bowl clipped by
+    its own frame cannot be masked whole at all.
+25. **Counting a mapping is not counting what renders.** Home says "500 recipes, N of them
     photographed". Taking N from `Object.keys(RECIPE_IMAGES).length` would make the sentence lie
     the moment a recipe is renamed — the key survives, the photograph never renders, and the page
     claims coverage it does not have. Every count on the page resolves its keys against `RECIPES`

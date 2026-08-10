@@ -16,6 +16,28 @@ A recipe with no entry returns `null` and falls back to a typographic tile. Part
 therefore honest — photographed dishes show themselves, everything else shows type. It is
 impossible for a rule here to accidentally widen.
 
+## When the photograph comes first
+
+`chicken-egg-poke` happened the other way round: the picture was generated, and there was no dish
+in the library it depicted. The only poke bowls were salmon and tofu, and mapping a photograph of
+chicken and egg to either of them is precisely the stand-in failure this whole mechanism exists to
+prevent.
+
+**So the recipe was added first, and the photograph mapped to it second.** That is the order, always.
+`l-chicken-egg-poke` lists all twelve components the picture shows, every one already curated to an
+FDC id — no ingredient was auto-matched to USDA, which is unsafe.
+
+Two things this turned up that will recur:
+
+- **`maxIngredients` can silently exclude your best photograph.** The selector keeps recipes with
+  `ingredients.length <= maxIngredients + 1`, and a loaded bowl is a twelve-ingredient dish. The
+  design fixture in `src/app/sage/demo.ts` was set to 8, so the one dish with a cut-out could never
+  be chosen for the screen composed around it. Raised to 12.
+- **Shoot cut-out candidates square-ish.** `--ar 16:10` gives Midjourney room to clip the bowl top
+  and bottom, and a bowl clipped by its own frame cannot be masked whole. `--ar 4:5` or `1:1` keeps
+  it intact. This frame also came out slightly oval, which is why the masking script grew an
+  ellipse option.
+
 ## Before adding an image
 
 1. **Look at it.** Does it show this recipe's actual ingredients?
@@ -34,6 +56,7 @@ All four have been looked at and checked against the recipe's ingredient list an
 | `baked-salmon.jpg` | Baked Salmon & Potatoes | `d-baked-salmon` | pink flaking fillet, baby potatoes, broccoli, lemon |
 | `sheetpan-chicken.jpg` | Sheet-Pan Chicken & Veg | `d-american-sheetpan-chicken` | chicken breast, roast sweet potato, charred broccoli, paprika |
 | `shakshuka.jpg` | Shakshuka | `b-shakshuka` | two eggs poached in tomato and pepper, feta, herbs. No bread in frame, so `gluten_free` holds |
+| `chicken-egg-poke.jpg` + `chicken-egg-poke-plate.webp` | Chicken & Egg Poke Bowl | `l-chicken-egg-poke` | grilled chicken, two soft-boiled egg halves, brown rice, edamame, cucumber, carrot, red cabbage, sprouts, avocado, sweetcorn, cherry tomatoes, sesame. **The recipe was written for this photograph**, not the other way round — see below |
 
 `sheetpan-chicken.jpg` was the one CONTEXT.md recorded as never visually verified — chosen by
 job-ID grouping after a conversation's image budget ran out. It has now been looked at: it is

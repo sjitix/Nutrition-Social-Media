@@ -60,7 +60,7 @@ from — but see the warning below.
 > broccoli, lemon — was sitting inside `chicken andveg\`. A folder name is not evidence of what is
 > in a picture (WORKPLAN lesson 18). Verify by looking before mapping any of these to a recipe.
 
-**All fifteen have now been looked at, and they are alternate frames of only FOUR dishes:**
+**All sixteen have been looked at. They cover FIVE dishes:**
 
 | files | dish | mapped recipe |
 |---|---|---|
@@ -68,11 +68,18 @@ from — but see the warning below.
 | `chickenandveg-06…08` | salmon fillet, baby potatoes, broccoli, lemon | Baked Salmon & Potatoes |
 | `codmisobokchoi-09…11` | glazed white fish, bok choy, brown rice | Miso-Glazed Cod with Bok Choy & Rice |
 | `recipes-12…15` | eggs poached in tomato and pepper, feta | Shakshuka |
+| `pokebowl-16` | chicken, two egg halves, rice, nine toppings | Chicken & Egg Poke Bowl |
 
-Four are shipped as product assets in [`../../public/food/`](../../public/food/), mapped by exact
-recipe name in `RECIPE_IMAGES`; the other eleven are alternate frames of those same four dishes, so
-a future session can pick a different frame without regenerating — but **there is nothing else here
-to map.** Coverage past four means generating new dishes.
+Five are shipped as product assets in [`../../public/food/`](../../public/food/), mapped by exact
+recipe name in `RECIPE_IMAGES`; the other eleven are alternate frames of the same dishes, so a
+future session can pick a different frame without regenerating — but **there is nothing else here
+to map.** Coverage past five means generating new dishes, and the prompts for eleven more library
+recipes are ready in [`../midjourney-dish-photography.md`](../midjourney-dish-photography.md) §7.
+
+`pokebowl-16` is the first one that arrived **before** a recipe existed for it. The recipe
+(`l-chicken-egg-poke`) was written to match the photograph and added to the library first; the
+image was mapped second. That order is not negotiable — the alternative is a picture standing in
+for a dish that does not exist.
 
 `sheetpan-chicken.jpg`, the one that shipped without ever being looked at, **has now been
 verified**: it is chicken.

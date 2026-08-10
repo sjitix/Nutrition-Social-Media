@@ -141,8 +141,10 @@ export default function SagePlanPage() {
               ))}
 
               {/* The column that is off target says so, in its own column — which is also what
-                  makes the row of columns ragged rather than a locked grid. */}
-              {d.day === lowest.day && (
+                  makes the row of columns ragged rather than a locked grid. Only when there IS a
+                  shortfall: the week is re-solved against the targets, so a block reading "0 g
+                  under" would be worse than no block at all. */}
+              {d.day === lowest.day && DEMO.proteinGrams - d.protein > 0 && (
                 <div className="rounded-[10px] bg-panel p-4 text-white">
                   <p className="text-[8.5px] font-bold uppercase tracking-[0.16em] text-white/60">
                     Short

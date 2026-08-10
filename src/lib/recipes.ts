@@ -243,10 +243,16 @@ const RECIPE_IMAGES: Record<string, string> = {
   //   shakshuka       two eggs poached in tomato and pepper, feta, herbs. `vegetarian` and
   //                   `gluten_free` both hold — feta is in the recipe, and there is no bread
   //                   in the frame, which is the usual way this dish breaks its own tags.
+  //   chicken-egg-poke  grilled chicken, two soft-boiled egg halves, brown rice, edamame,
+  //                   cucumber, carrot, red cabbage, sprouts, avocado, sweetcorn, cherry
+  //                   tomatoes, sesame. Checked against the recipe item by item — every
+  //                   component in the frame is in `l-chicken-egg-poke`'s ingredient list, and
+  //                   the recipe was written for the photograph rather than the other way round.
   "Miso-Glazed Cod with Bok Choy & Rice": "/food/miso-cod.jpg",
   "Baked Salmon & Potatoes": "/food/baked-salmon.jpg",
   "Sheet-Pan Chicken & Veg": "/food/sheetpan-chicken.jpg",
   Shakshuka: "/food/shakshuka.jpg",
+  "Chicken & Egg Poke Bowl": "/food/chicken-egg-poke.jpg",
 };
 
 /**
@@ -270,6 +276,10 @@ const RECIPE_IMAGES: Record<string, string> = {
  */
 const RECIPE_CUTOUTS: Record<string, string> = {
   "Miso-Glazed Cod with Bok Choy & Rice": "/food/miso-cod-plate.webp",
+  // Masked with an ELLIPSE, not a circle: this frame's bowl is slightly oval and clipped top and
+  // bottom by the source's own edge, so no circle fits it. `--ar 16:10` gives Midjourney room to
+  // do that; shoot future cut-out candidates at `--ar 4:5` or `1:1` and the bowl stays whole.
+  "Chicken & Egg Poke Bowl": "/food/chicken-egg-poke-plate.webp",
 };
 
 export function cutoutForMeal(name: string): string | null {

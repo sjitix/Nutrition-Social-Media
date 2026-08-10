@@ -24,15 +24,29 @@ export default function SageAssistantPage() {
       ],
       outcome: { value: "1,988", unit: "kcal · 128 g protein", note: "7 g under — the best any vegetarian combination reaches today, and it says so rather than rounding up." },
     },
-    {
-      me: `${lowest.day.toLowerCase()} looks low on protein, fix it`,
-      reply: `${lowest.day} was ${short} g short. Lifted without touching your calories.`,
-      changes: [
-        ["Swapped", `${swap?.name ?? "Lunch"} → a higher-protein dish in the same slot`],
-        ["Adjusted", "Portions nudged within realistic limits so the day still lands at target"],
-      ],
-      outcome: { value: `${avgProtein} g`, unit: `of ${DEMO.proteinGrams} g`, note: "Week average before the change. The engine reports what moved; the model does no arithmetic." },
-    },
+    // The second turn is written from the week's own weakest day, so it cannot contradict the
+    // board on /sage/plan. When the week already reaches the target — which it does once the plan
+    // is re-solved — the turn becomes the honest-decline case instead of claiming a fix nothing
+    // needed. "I made your on-target day on-target" is the kind of sentence that costs trust.
+    short > 0
+      ? {
+          me: `${lowest.day.toLowerCase()} looks low on protein, fix it`,
+          reply: `${lowest.day} was ${short} g short. Lifted without touching your calories.`,
+          changes: [
+            ["Swapped", `${swap?.name ?? "Lunch"} → a higher-protein dish in the same slot`],
+            ["Adjusted", "Portions nudged within realistic limits so the day still lands at target"],
+          ],
+          outcome: { value: `${avgProtein} g`, unit: `of ${DEMO.proteinGrams} g`, note: "Week average before the change. The engine reports what moved; the model does no arithmetic." },
+        }
+      : {
+          me: `${lowest.day.toLowerCase()} looks low on protein, fix it`,
+          reply: `${lowest.day} is already at ${lowest.protein} g. Nothing to lift.`,
+          changes: [
+            ["Checked", `Every meal on ${lowest.day}, against your ${DEMO.proteinGrams} g target`],
+            ["Changed", "Nothing — a change that improves nothing is not worth the disruption"],
+          ],
+          outcome: { value: `${avgProtein} g`, unit: `of ${DEMO.proteinGrams} g`, note: "The week average. Refusing a pointless edit is a feature: the plan you already have is the answer." },
+        },
   ];
 
   return (
