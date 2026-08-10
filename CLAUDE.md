@@ -89,7 +89,9 @@ disabled) — good for showing the UI without any AI.
 
 - `src/lib/ai.ts` — provider system. `resolveProvider()` picks claude/local/demo. Local path
   generates one day per request (schema-validated), with retries, model fallback and JSON repair.
-  `LOCAL_AI_CONCURRENCY` (default 1) is fastest on a single GPU.
+  Env vars it actually reads: `AI_PROVIDER`, `ANTHROPIC_API_KEY`, `CLAUDE_MODEL`, `LOCAL_AI_URL`,
+  `LOCAL_AI_MODEL`, `LOCAL_AI_API_KEY`, `PLAN_ENGINE`. (An earlier version of this file documented
+  `LOCAL_AI_CONCURRENCY`; nothing reads it.)
 - `src/lib/import.ts` — deterministic recipe import from a URL via schema.org JSON-LD, SSRF-guarded.
   Never guesses macros: no nutrition block means zero plus an honest UI note.
 - `src/lib/videoImport.ts` — caption extraction for TikTok/IG/YouTube. The model reads it for
@@ -164,28 +166,42 @@ LM Studio: load model, push GPU offload to max, context >= 8192, Start Server on
   never emoji as icons. (Emoji-as-icon reads as AI-generated.)
 - **Never add AI as a git co-author, committer, or repo collaborator.** Commits are
   authored solely by the owner. Do not add `Co-Authored-By` trailers.
-- **Keep `CONTEXT.md` current. This is not optional.** The owner works across many separate
-  conversations, and none of them can see the others. `CONTEXT.md` is the only thing carrying
-  state between them — if it is stale, the next session re-derives what is already known, or
-  worse, redoes work that was already rejected.
+- **Keep the four documents current. This is not optional, and it is not a chore to do if there is
+  time left.** The owner works across many separate conversations and none of them can see the
+  others. These files are the only thing carrying state between sessions. A stale one is worse than
+  a missing one, because it is believed.
 
-  **Read it first, before CLAUDE.md.** Then update it:
+  **Read all four at the start of a session** — `CONTEXT.md` first, then this file, then
+  `VISION.md` and `WORKPLAN.md` as the work requires. Each has a distinct job:
 
-  - **Before the session ends**, or whenever you have finished a substantive piece of work —
-    do not wait to be asked, and do not leave it until the context runs out.
-  - **Whenever a decision is made**, and record the *reason*. "We chose X" is nearly useless;
-    "we chose X because Y failed for reason Z" is what stops the next session repeating Y.
-  - **Whenever something is rejected.** The rejected list is the highest-value part of the file.
-    It cannot be recovered by reading the code, because rejected work leaves no trace there.
-  - **Whenever a non-obvious fact costs time to discover** — an environment quirk, a tool
-    limitation, a bug and its cause. If you had to find it out the hard way, write it down so
-    nobody else does.
-  - **Whenever long-running work is started or finished** (a training run, a deploy), so the next
-    session knows what is in flight and must not be disturbed.
+  | file | holds | update when |
+  |---|---|---|
+  | `CONTEXT.md` | live cross-session state; where the last session stopped | every session that changes anything |
+  | `CLAUDE.md` | how the repo works; standing rules | the structure, commands, routes or rules change |
+  | `WORKPLAN.md` | the build record, phases, and hard-won lessons | work ships, or a lesson is learned the hard way |
+  | `VISION.md` | the product north star and quality bar | a directional decision is made about what the product IS |
 
-  Update by editing in place, not by appending — a log that only grows stops being readable. Keep
-  "Where it left off" at the top accurate; it is the first thing the next session needs. Prune
-  anything that has become false rather than leaving it to mislead.
+  Update **during** the work, not only at the end — a session can be cut short, and unwritten
+  context is lost context. Specifically, write it down whenever:
+
+  - **A decision is made — and record the reason.** "We chose X" is nearly useless; "we chose X
+    because Y failed for reason Z" is what stops the next session repeating Y.
+  - **Something is rejected.** The rejected list is the highest-value thing in these files. It
+    cannot be recovered by reading the code, because rejected work leaves no trace there.
+  - **A non-obvious fact costs time to discover** — an environment quirk, a tool limit, a bug and
+    its cause. If you found it out the hard way, write it down so nobody else has to.
+  - **Long-running work starts or finishes** (a training run, a deploy), so the next session knows
+    what is in flight and must not disturb it.
+  - **A number changes** — recipe count, test count, route list. These are what drift first.
+
+  **Verify before you write.** These files drifted badly once by being written from memory: the
+  roadmap claimed Phase 1 was the frontier when Phases 2 and 3 had shipped, the architecture
+  section omitted the entire engine, and an env var was documented that nothing reads. Check the
+  claim against the repo, then write it.
+
+  Edit in place rather than appending — a log that only grows stops being read. Prune anything that
+  has become false instead of leaving it to mislead. Keep `CONTEXT.md`'s "Where it left off" at the
+  top accurate; it is the first thing the next session needs.
 
 ## Repo and deployment
 

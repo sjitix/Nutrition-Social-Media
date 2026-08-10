@@ -7,9 +7,46 @@
 
 ---
 
-## RESUME HERE (last updated: 2026-08-05)
+## RESUME HERE (last updated: 2026-08-10)
 
-`main` is green: `npm run test:engine` **444 / 0, fuzz clean**. tsc clean.
+`main` is green: `npm run test:engine` **449 / 0, fuzz clean** at 500 recipes. tsc clean, build
+clean. **See `CONTEXT.md` for the live cross-session state** — this section is the build record;
+that file is where the last conversation left off.
+
+### >>> SINCE 2026-08-05: library, photography, design, deployment <<<
+
+Four things landed while the 7B trains. None touched the engine's contracts.
+
+**Recipe library 169 → 500.** Gaps were measured, not guessed: four filters were unsatisfiable
+(Indian, Italian, Mexican and Middle-Eastern snacks all zero) and eighteen more cells sat under
+seven, the size at which one week is forced to repeat a dish. Now 0 empty, 0 critical. The two
+Phase-2 rules held: only ingredients already curated to an FDC id, and macros derived rather than
+written. `npm run export:recipes` was added — it writes the library to a spreadsheet whose Gaps
+sheet is what drove the work.
+
+**A latent bug the expansion surfaced.** `dietTagConflicts` matched `NON_VEGAN` on raw substrings,
+so **"eggplant" contained "egg"** and a vegan aubergine dish reported an egg. This file's own
+header documents that exact trap and fixes it on the ALLERGEN path; the diet-tag path never got the
+fix, and it stayed invisible because no recipe paired vegan with eggplant until one was added.
+Fixed with controls proving egg / eggs / egg whites / egg noodles are all still caught. → lesson 14.
+
+**Photography removed.** Twelve stock photos against 500 recipes meant one image stood in for 46
+different dishes. `imageForMeal` and `IMAGE_RULES` remain, deliberately empty, so real per-recipe
+imagery can return without touching a caller. The card gradients were also hardcoded in JS — two of
+them brand violet — so the app could not be re-skinned; they now live in `globals.css` as
+`--tile-1 … --tile-14`.
+
+**A design candidate at `/sage`,** sage-green and editorial, connected to the real engine rather
+than fixtures. Implemented as a scoped token override: all ~291 colour utilities read from eleven
+tokens, so `.theme-sage` re-skins everything with no component edits. Explore and Groceries are
+interactive; Plan and Assistant are still read-only. The original design is preserved at `/classic`.
+Contrast was verified ≥ AA before adoption.
+
+**Deployed.** https://ntrux.vercel.app (Vercel, API routes run) and
+https://sjitix.github.io/Nutrition-Social-Media/ (GitHub Pages static preview, built by
+`.github/workflows/pages.yml`). The repo is now **public**.
+
+**Next:** pick a week-plan layout; wire Plan and Assistant to be interactive.
 
 ### >>> ASSISTANT v2 — the 7B reason-then-act rebuild (owner's top priority) <<<
 

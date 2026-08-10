@@ -110,9 +110,24 @@ chicken" problem). Selecting from structured data fixes all of it.
 **Recipe object (target schema):** name, cuisine, macros (from USDA), timeMinutes,
 ingredients[], ingredientCount, approxCost, dietTags, mainProtein, healthScore, steps.
 
-**Interim (until the DB exists):** enforce quality, protein diversity, cook-time, and
-ingredient limits directly on the generate path via the validate→retry gate — so the
-current app already respects these constraints while the DB is built.
+**STATUS — the database exists.** `src/lib/recipeDb.ts` holds **500 curated recipes**, and the
+selection engine is live: `selectWeekFromDb` picks against the constraint set, `rebalanceDay`
+holds the day on target, and macros are computed from the ingredient list against USDA rather
+than written on the card. This section is now a record of *why* it was built this way, not a plan.
+
+What the prediction got right and wrong, worth keeping:
+
+- **Right: selecting beats inventing.** Macros come from data, diversity is structural, and every
+  user control became a filter rather than a hope.
+- **Right: curated thousands, not scraped millions.** 500 hand-curated recipes generate varied
+  weeks with no repeats. The gate that proves it is `npm run export:recipes`, whose Gaps sheet
+  reports how many recipes survive each filter per slot; under seven means a week must repeat.
+- **Wrong in one respect: the ingredient table is the real constraint, not the recipe count.**
+  New recipes can only use ingredients already curated to an FDC id, because auto-matching to USDA
+  is unsafe — it produced `salmon fillet → Salmonberries`. So library growth is gated on
+  hand-curating ingredients, and cuisines whose staples are missing (Indian: no paneer, ghee,
+  garam masala or coconut milk) stay shallow until that work is done. That is the next real
+  constraint on variety, and it was not foreseen here.
 
 ## Conversational assistant — architecture & roadmap (decided direction)
 
