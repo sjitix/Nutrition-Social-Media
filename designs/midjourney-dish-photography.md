@@ -198,33 +198,46 @@ the dish.
 > It **is** addable: every ingredient below is already priced in `NUTRIENT_TABLE`, which is the
 > binding constraint on new recipes (auto-matching to USDA is unsafe — it produced
 > `salmon fillet → Salmonberries`). Proposed list, all resolvable today:
-> chicken breast · eggs · brown rice · edamame · cucumber · carrot · soy sauce · sesame seeds ·
-> sesame oil. Red cabbage, spring onion, radish, ginger and rice vinegar are **not** priced, so
-> they cannot be in the recipe — and therefore must not be in the picture.
+>
+> chicken breast · eggs · brown rice · **edamame · cucumber · carrot · cabbage · avocado · corn ·
+> bean sprouts · cherry tomatoes** · sesame seeds · sesame oil · soy sauce · lime
+>
+> Nine toppings, which is what a poke bowl actually looks like. What is **not** priced, and so can
+> be in neither the recipe nor the frame: spring onion, radish, ginger, rice vinegar, seaweed,
+> pickled ginger, wasabi, sriracha, mango. Those are all in the `--no` list below for that reason,
+> not because they would taste wrong.
 
-Vessel: a **wide shallow bowl**, because it is a mixed grain dish. Difficulty: **hard** — discrete
-pieces and egg halves are exactly what Midjourney arranges into a tidy ring — so the full
-arrangement language from §3 is in, none of it dropped.
+Vessel: a **wide shallow bowl**, because it is a mixed grain dish. Difficulty: **hard** — many
+discrete components is the worst case for the arrangement problem in §3.
 
 ```
-raw photograph, overhead food photography, one single serving of a chicken and soft-boiled egg poke bowl, sliced grilled chicken breast, one jammy soft-boiled egg halved, brown rice, edamame, cucumber and julienned carrot, sesame seeds, tipped casually into a plain off-white speckled ceramic wide shallow bowl, pieces overlapping and clumped unevenly, food gathered to one side with bare bowl showing on the other, one egg half resting against the rim, bowl slightly off centre and cropped by the frame edge, soft sage green linen surface with visible weave, natural window light from the upper left with a soft directional shadow, shallow depth of field with the bowl edges falling soft, shot on a 50mm lens at f/2.8, subtle film grain, documentary food photography, natural and unstyled, muted green and cream tones --ar 16:10 --style raw --s 50 --no raw fish, tuna, salmon, sashimi, seaweed, nori, avocado, mango, mayonnaise, spicy mayo drizzle, sriracha, pickled ginger, wasabi, spring onion, radish, red cabbage, evenly spaced, arranged in a ring, symmetrical plating, neatly arranged, fanned out, styled, garnished, 3d render, cgi, illustration, digital art, plastic, artificial, glossy, fork, knife, spoon, cutlery, chopsticks, napkin, hands, people, faces, text, words, logo, cluttered props, busy background, oversaturated, neon
+raw photograph, overhead food photography, one single serving of a loaded chicken and soft-boiled egg poke bowl on brown rice, piled with sliced grilled chicken breast, one jammy soft-boiled egg halved, edamame, cucumber, julienned carrot, shredded red cabbage, sliced avocado, sweetcorn, bean sprouts and halved cherry tomatoes, sesame seeds scattered over, toppings heaped in loose adjacent drifts that overlap and spill into each other, uneven amounts, some rice still showing through between them, one egg half resting against the rim, bowl slightly off centre and cropped by the frame edge, plain off-white speckled ceramic wide shallow bowl, soft sage green linen surface with visible weave, natural window light from the upper left with a soft directional shadow, shallow depth of field with the bowl edges falling soft, shot on a 50mm lens at f/2.8, subtle film grain, documentary food photography, natural and unstyled, muted green and cream tones --ar 16:10 --style raw --s 50 --no raw fish, tuna, salmon, sashimi, seaweed, nori, mango, pickled ginger, wasabi, sriracha, mayonnaise, spicy mayo drizzle, spring onion, radish, equal wedges, neatly separated sections, pie chart arrangement, evenly spaced, symmetrical plating, neatly arranged, fanned out, styled, garnished, 3d render, cgi, illustration, digital art, plastic, artificial, glossy, fork, knife, spoon, cutlery, chopsticks, napkin, hands, people, faces, text, words, logo, cluttered props, busy background, oversaturated, neon
 ```
 
 Swap `--ar 16:10` for `--ar 5:4` for the large featured card, or `--ar 4:5` plus
 `generous empty space` for a hero. Nothing else changes — the style block is fixed on purpose.
 
-**Why the `--no` list is longer than usual for this one.** Three of its entries are doing real work
-rather than being cautious:
+**One documented deviation from §3, and the reason.** The standard block blocks
+`arranged in a ring`, because a plate of roast vegetables should not come out as a tidy circle.
+A loaded poke bowl is different: its toppings genuinely DO sit in sections around the bowl, and
+blocking that fights the dish instead of the failure. So for this one the ring is allowed and the
+real failure is named instead — `equal wedges, neatly separated sections, pie chart arrangement` —
+with `heaped in loose adjacent drifts that overlap and spill into each other, uneven amounts, some
+rice still showing through` doing the positive work. Nine components is the hardest version of the
+tidiness problem, so it needs the specific words, not the generic ones.
+
+**Why the `--no` list is long.** Three groups, each doing real work:
 
 | blocked | why |
 |---|---|
 | `raw fish, tuna, salmon, sashimi` | **the important one.** "Poke" means raw fish to the model; without this it will serve tuna and the picture will be of a different dish entirely |
-| `seaweed, nori, avocado, mango, pickled ginger, wasabi, sriracha, spicy mayo` | the poke clichés. None are in the recipe, and each one that lands makes the photo disagree with the ingredient list |
-| `spring onion, radish, red cabbage` | not blocked for taste — they are **not priced in `NUTRIENT_TABLE`**, so they cannot be in the recipe, so they must not be in the frame |
+| `seaweed, mango, pickled ginger, wasabi, sriracha, spicy mayo, spring onion, radish` | the poke clichés — and every one of them is **unpriced in `NUTRIENT_TABLE`**, so it cannot be in the recipe, so it must not be in the frame |
+| `equal wedges, pie chart arrangement, …` | the tidiness failure, named for this dish rather than in general (above) |
 
-The last row is the general rule and it is worth stating on its own: **a garnish the model adds is
-an ingredient the card does not have.** Block anything that cannot appear in the recipe, and check
-the result against the recipe's `dietTags` before mapping it.
+Note what is **no longer** blocked: **avocado** and **sweetcorn** are in the list because they are
+priced and therefore allowed in the recipe. That is the rule in both directions — **a garnish the
+model adds is an ingredient the card does not have**, and an ingredient the card DOES have should
+be in the picture. Block by what the recipe can contain, not by habit.
 
 ### Finding more
 
