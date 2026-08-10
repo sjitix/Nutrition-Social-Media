@@ -144,8 +144,8 @@ export function TodayClient({
               <Image
                 src={plate}
                 alt={featured.name}
-                width={943}
-                height={943}
+                width={1000}
+                height={1000}
                 priority
                 sizes="(max-width: 1024px) 100vw, 42vw"
                 className={
