@@ -52,24 +52,26 @@ flat 2d web page design, straight on front view, orthographic, fills the entire 
 
 ## Style-matched variations
 
-Screenshot https://ntrux.vercel.app/sage, drag the image into the Midjourney prompt bar to get its
-URL, then paste that URL where `IMAGE_URL` appears. `--sref` matches the reference's style while
-following the prompt, so these riff on the real design rather than inventing a new one.
+The reference images are committed at designs/screens/ and served publicly by raw.githubusercontent.com,
+so the URLs below work as-is. Parameters must follow the prompt text, and --no goes last because it
+swallows the comma-separated list after it. --sw controls how tightly the output holds to the
+reference; 100 is the default, lower loosens it. Recapture the screenshots after a design change or
+--sref will match a version that no longer exists.
 
 ### 9 — Match the current style exactly
 
 ```
---sref IMAGE_URL flat 2d web page design, straight on front view, orthographic, fills the entire frame edge to edge, beautiful modern nutrition and meal planning homepage, editorial headline, dish with calories, recipe cards --ar 16:9 --style raw --no tilted, angled, perspective, 3d, mockup, device, monitor
+flat 2d web page design, straight on front view, orthographic, fills the entire frame edge to edge, beautiful modern nutrition and meal planning homepage, editorial headline, dish with calories, recipe cards --ar 16:9 --style raw --sref https://raw.githubusercontent.com/sjitix/Nutrition-Social-Media/main/designs/screens/sage-home.png --no tilted, angled, perspective, 3d, mockup, device, monitor
 ```
 
 ### 10 — Its style, loosened
 
 ```
---sref IMAGE_URL --sw 60 flat 2d web page design, straight on front view, orthographic, fills the entire frame edge to edge, beautiful modern nutrition and meal planning homepage, editorial headline, dish with calories, recipe cards --ar 16:9 --style raw --no tilted, angled, perspective, 3d, mockup, device, monitor
+flat 2d web page design, straight on front view, orthographic, fills the entire frame edge to edge, beautiful modern nutrition and meal planning homepage, editorial headline, dish with calories, recipe cards --ar 16:9 --style raw --sref https://raw.githubusercontent.com/sjitix/Nutrition-Social-Media/main/designs/screens/sage-home.png --sw 60 --no tilted, angled, perspective, 3d, mockup, device, monitor
 ```
 
 ### 11 — Its style, applied to the week board
 
 ```
---sref IMAGE_URL flat 2d web page design, straight on front view, orthographic, fills the entire frame edge to edge, beautiful modern nutrition and meal planning weekly plan, seven day columns, dish names with calories and protein, summary cards above --ar 16:9 --style raw --no tilted, angled, perspective, 3d, mockup, device, monitor
+flat 2d web page design, straight on front view, orthographic, fills the entire frame edge to edge, beautiful modern nutrition and meal planning weekly plan, seven day columns, dish names with calories and protein, summary cards above --ar 16:9 --style raw --sref https://raw.githubusercontent.com/sjitix/Nutrition-Social-Media/main/designs/screens/sage-plan.png --no tilted, angled, perspective, 3d, mockup, device, monitor
 ```
