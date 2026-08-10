@@ -176,6 +176,27 @@ Ana has an account (V8.2) and wants to keep using it for inspiration. Prompt fil
 - `designs/screens/*.png` — headless-Chrome captures of the live app, committed so
   `raw.githubusercontent.com` serves them to `--sref`. **Recapture after a design change.**
 
+**A Figma Make file exists** that Ana explored directions in:
+`figma.com/make/5qe9IcoI2dQWzGNCRYNiY2/User-dashboard`. It is **not fetchable** — Figma Make renders
+inside a logged-in session and returns 403. Its "C — Signal" direction was rebuilt from a screenshot
+as `designs/top-designs/signal-asymmetric.html`.
+
+### What each failed generation actually returned
+
+Useful because the failure mode names the cause:
+
+| what came back | what caused it |
+|---|---|
+| illustrated desktop computers on desks | the word "desktop" |
+| photoreal phone mockups, tilted | the word "app" |
+| dense grey spreadsheets, unreadable | ~90-word prompts, and banning all imagery |
+| scattered collages of tilted screens | "dribbble", "ui design", "ui screenshot" |
+| a small window floating on a pastel backdrop | no word forcing a full-bleed crop |
+| the UI styled on a table with bowls and herbs | dropping the food terms from `--no` |
+| overhead food photography, no interface at all | leading with the subject instead of the format |
+| a wooden sign, plates of beans, an illustrated fish | `--chaos 100` |
+| phone illustrations and app icons | the mobile prompt on V8.2; removed as unsalvageable |
+
 ### What was learned about prompting it, expensively
 
 Roughly a dozen rounds. Each fix below was discovered by a failed generation:
@@ -198,6 +219,173 @@ Roughly a dozen rounds. Each fix below was discovered by a failed generation:
   effort on gibberish. For inspiration, describe composition and mood, not the dataset.
 
 ---
+
+## Running in parallel, do not disturb
+
+**A 7B QLoRA fine-tune is training on Ana's desktop.** Kicked off 2026-08-05 on
+Qwen2.5-7B-Instruct, 4-bit, 3,272 engine-validated examples, 409 steps at ~20 min/step, ETA around
+Aug 11. See STATUS.md and WORKPLAN's "ASSISTANT v2" section.
+
+Ana's instruction this session: *"the training is still going on another device. Don't think about
+it."* WORKPLAN rule 7 also says the GPU run is never interrupted by other work. It is on a different
+machine, so laptop work cannot disturb it — but do not propose anything that would.
+
+## Documentation drift
+
+**CLAUDE.md is stale.** It still describes Phase 1 as the frontier and lists the pre-`EditIntent`
+tool set. In reality Phase 2 (the reel importer) and Phase 3 (the feed) are both shipped, along with
+a 31-finding UX overhaul. WORKPLAN.md is the accurate record. Worth reconciling at some point;
+deliberately not done this session because it was not what was asked for.
+
+## What Ana asked for, in her own words
+
+Recorded because they are the actual brief, and paraphrasing them has already caused misses:
+
+- *"Very smart layout structure, attractive, modern design"* — like **Revolut, TikTok, Instagram**,
+  the apps that "maximize their design layout success in very creative ways", because design is part
+  of going viral.
+- *"I don't want a pc having the screen, I want the full pic of it"* — on Midjourney rendering
+  monitors.
+- *"It should look as professional and modern as possible, the kind of design that usually go
+  viral."*
+- **Bright backgrounds.** Explicitly not a dark dashboard.
+- **No imagery**, then later *"let it have pictures"* for Midjourney inspiration specifically — the
+  product constraint stands, the mood-board constraint was relaxed.
+- On the first Signal rebuild: *"I like it for the design in itself"* but not for this app.
+- On shadcn: *"could be useful but not what I want"* — it is plumbing, not design, and default
+  shadcn looks like every AI-built app.
+- *"Screen design is ass"* — the honest feedback that ended four rounds of me producing evenly
+  weighted dashboards.
+
+## Design tooling researched
+
+Ana asked what professionals use, and was considering a Midjourney subscription (since bought).
+
+- **Mobbin** (~$15/mo, free tier) — searchable library of real screens and complete flows from
+  shipped apps, Revolut included. Recommended as the single highest-value subscription: studying the
+  real thing beats prompting for an imitation. Not yet taken up.
+- **shadcn/ui** — free, not a dependency but a CLI that copies component source into the repo. The
+  project is Next 15 + React 19 + Tailwind v4 + `@/*` → `./src/*`, all compatible. **Not
+  initialised.** The risk flagged at the time: `init` rewrites `globals.css`, which carries
+  hand-tuned WCAG values with the reasoning in comments.
+- **v0.dev** — best AI-to-code fit, outputs React + Tailwind.
+- **Recraft** — better than Midjourney for design/vector work.
+- Free imagery: Unsplash, Pexels, Foodiesfeed; Google AI Studio, Ideogram, Leonardo, Krea.
+- A short engagement with a **human product designer** was suggested as the highest-leverage spend.
+
+## Environment and tooling notes
+
+- **Dependencies were not installed** on this laptop at session start — `npm install` was needed
+  before anything would run. `node_modules/.bin` was empty.
+- Node lives at `C:\Program Files\nodejs`, on PATH. CLAUDE.md's note about a portable install under
+  `%LOCALAPPDATA%` did not apply here.
+- **The folder is a ZIP extract, not a clone** — note the doubled path
+  `Nutrition-Social-Media-main\Nutrition-Social-Media-main`. It had no `.git`. Connected to the
+  remote this session by `git init` + `fetch` + adopting `origin/main`, so full history is intact
+  and no force-push was ever needed.
+- **Line endings:** the repo stores CRLF, the extracted folder was LF. Git's autocrlf handles it —
+  diffs come out as pure additions. Do not "fix" line endings; it would produce a 16,000-line noise
+  diff.
+- **Ports:** several dev/prod servers were left running during the session and Next fell through
+  3000 → 3001 → 3002. Kill node before starting fresh.
+- **Python is not on PATH.** Use node for scripting.
+- `gh` CLI and `vercel` CLI are **not installed**. Git credentials are cached in Windows Credential
+  Manager (`credential.helper=manager`), which is how pushes work without prompting.
+
+## Git identity
+
+The repo history had three identities. Set repo-locally this session to match the dominant one:
+
+```
+git config --local user.name  "sjitix"
+git config --local user.email "adrawing26@gmail.com"
+```
+
+The machine's global identity is `Ana Seuleanu <anaseuleanu3@gmail.com>` and is untouched. Three
+commits early in the session carry that identity; they were left alone rather than rewritten,
+because fixing attribution is not worth a force-push that would break the desktop's clone.
+
+## A bug worth not repeating
+
+An interactive artifact rendered as a **blank page** because of a top-level `const top = …`.
+`top` is a read-only property of `window`, so the browser threw a SyntaxError and the entire script
+never ran. Node has no `window.top`, so a syntax check and a stubbed execution both passed locally.
+The other names that do this: `self`, `parent`, `name`, `status`, `length`, `location`, `closed`,
+`origin`, `event`, `screen`.
+
+Lesson: testing in the wrong environment told me it was fine.
+
+## Commits from this session, in order
+
+```
+91790ae  Recipe library 169 -> 292
+51dfb4e  Recipe library 292 -> 500          (Ana's desktop, merged cleanly, zero overlap)
+62c107b  Remove the stock food photos; add a desktop design candidate
+0f0971a  designs/ — a reference folder for design candidates
+956cbc0  Midjourney prompts; stop privileging one reference app in the brief
+e8eee71  Midjourney file is prompts only, each self-contained
+472e96f  rewrite the Midjourney prompts — they were producing pictures of monitors
+8da8731  vary the visual hero across the Midjourney prompts
+139a8c1  much shorter Midjourney prompts, imagery allowed
+394eea8  ask for ONE full screen layout, not a Dribbble collage
+2b7a140  every prompt names the subject and opens with beautiful modern
+51ac3d9  lead the prompts with the format, not the subject
+cf598d3  ask for a screenshot so it stops floating the UI on a backdrop
+6afdbee  describe a homepage, not a ui screenshot
+7c4df2d  crop tight to the page, put the food scene back on the block list
+fdad3cc  restore the framing language that produced flat full-frame results
+40b24c3  drop --s 50; try naming no page object
+5c40f1c  prompts for the week plan screen, with and without imagery
+b31f63a  put the proven framing prefix back on the week plan prompts
+3b96f3c  make the week plan prompts concrete and shorter
+85ba9e8  expand the week plan set from 8 to 20
+71a160d  drop the --chaos exploration file
+3053091  add a top-designs shortlist, starting with sage-typographic
+e434a84  carry the sage language across Plan, Explore, Groceries, Assistant
+bb6b999  fold Home into sage-app so the whole product is one file
+bb683c0  Sage theme in the real app, as a scoped override
+f4b37d6  the card tiles were still violet, because they were not tokens
+393e354  Sage design connected to the engine at /sage
+311a104  full navigation and all five tabs, connected to the engine
+4a6aa25  publish a public design preview to GitHub Pages
+7f22198  Explore and Groceries are live, not pictures of themselves
+145687b  send the preview root to /sage, keep the original at /classic
+81bd401  make the sage design the front door; original moves to /classic
+2aba982  prompts for refining the shipped sage design
+cc4312f  screenshots of the live sage app, for Midjourney --sref
+8fdabe4  fix --sref prompts, parameters must follow the prompt text
+bd90d29  fourteen week-plan layouts, palette held constant
+2d780d7  CONTEXT.md — session handoff
+```
+
+Sixteen of those are Midjourney prompt iterations. That ratio is itself the finding.
+
+## Verification commands used
+
+Worth reusing rather than rediscovering:
+
+```bash
+npm run check:recipes     # gate: every ingredient priced, every dish plausible, Atwater holds
+npm run test:engine       # 449/0 at last run, ~10 min at 500 recipes, fuzz is the slow part
+npm run export:recipes    # writes NutriFlow-recipes.xls — the Gaps sheet drove the expansion
+npx tsc --noEmit
+npm run build             # NOT while `npm run dev` is running — it corrupts .next
+```
+
+Screenshotting the live app for `--sref`:
+
+```
+& "C:\Program Files\Google\Chrome\Application\chrome.exe" --headless --disable-gpu --no-sandbox `
+  --hide-scrollbars --screenshot="$PWD\designs\screens\sage-home.png" `
+  --window-size=1600,1100 --virtual-time-budget=8000 "https://ntrux.vercel.app/sage"
+```
+
+Reading an image from the clipboard (works around attachment limits):
+
+```powershell
+Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+$img = [System.Windows.Forms.Clipboard]::GetImage()   # then downscale and save, then Read the file
+```
 
 ## Other artefacts from this session
 
