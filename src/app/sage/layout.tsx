@@ -26,7 +26,7 @@ export default function SageLayout({ children }: { children: React.ReactNode }) 
           <SageTabs />
 
           <span className="ml-auto flex items-center gap-3">
-            <Link href="/" className="text-[13px] font-medium text-mut hover:text-plum">
+            <Link href="/classic" className="text-[13px] font-medium text-mut hover:text-plum">
               Current design
             </Link>
             <span className="grid h-8 w-8 place-items-center rounded-lg bg-vio text-[12px] font-bold text-white">
