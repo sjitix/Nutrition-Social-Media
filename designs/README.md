@@ -84,6 +84,16 @@ looking rather than arguing.
 
 ---
 
+## `midjourney-sage-refine.md`
+
+Prompts for improving the shipped sage design rather than replacing it. Eight describe the design
+in words; three use `--sref`, which takes a screenshot of the live site
+(https://ntrux.vercel.app/sage) and matches its style while following the prompt — the fastest way
+to get variations that are recognisably the same product. `--sw` controls how tightly it holds to
+the reference: 100 is the default, lower loosens it.
+
+---
+
 ## Adding to this folder
 
 Drop in a self-contained `.html` file and add a section above saying what it is, what it does well,
