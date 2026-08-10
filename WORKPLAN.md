@@ -66,6 +66,13 @@ also set as a hairline-ruled ledger table (sage-08). Two tokens were added — `
 `--color-tint` — so `globals.css` now carries thirteen. Contrast recomputed, all ≥ AA. The engine
 connection is unchanged: every figure is `selectWeekFromDb` / `RECIPES` output.
 
+**A day screen at `/sage/today`, from `sage-04`.** The board that inverts the others — near-black
+forest ground, cream cards, three circular arc gauges. The gauges hold the macros already hit, the
+photograph is the dish coming up next, and the day's remaining meals sit below. "Already hit" is
+inferred from the clock rather than from a log, because nothing writes one yet, and the page states
+that rather than implying knowledge it does not have. The clock is read in the BROWSER: on the
+static export the server's clock is the build clock, which would freeze "today" at deploy time.
+
 **Next:** Ana's verdict on `/sage`. Then recapture `designs/screens/*.png` (Midjourney's `--sref`
 still points at the old design), then `check:images`, then wire Plan and Assistant to be
 interactive. Photography — four dishes of 500 — is now the binding constraint on the design.

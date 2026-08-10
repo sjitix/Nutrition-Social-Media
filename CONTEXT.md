@@ -70,6 +70,31 @@ its row's tallest; columns let each meal be its own height, which is where the b
 comes from. The day that is under target carries a forest block saying by how much, which is also
 what makes the row of columns ragged.
 
+**Today (`/sage/today`) — an EXPLORATION, added after the rest was approved.** Ana: *"i really like
+this design and all but i still wanna explore more. Keep this as a version."* The version she liked
+is committed at `0f45fa7`, so it is recoverable whatever happens next. Today is built from
+**`sage-04`**, the one board that inverts the others — a near-black forest ground carrying cream
+cards, with three circular arc gauges. Her brief for what those parts hold: the photograph is the
+**dish coming up next**, the three circles are the **macros already hit**, and the **upcoming meals
+sit below them**. The week screen is untouched; she has said the week is a later conversation.
+
+Two things about it worth knowing:
+
+- **"Already hit" is inferred from the clock, not from a log.** The app has no record of what you
+  actually ate — `log_meal` exists in the engine but nothing on `/sage` writes to it — so a meal
+  counts as eaten when its slot time has passed (breakfast 08:00, lunch 13:00, snack 16:30, dinner
+  19:30). The page says so in as many words rather than implying knowledge it does not have. When
+  logging is wired up, `SLOT_HOUR` is the only thing that changes.
+- **The clock is read in the browser, not on the server**, so the whole week is passed to a client
+  component and it picks the day. The server's clock is the *build* clock on the static export,
+  which would freeze "today" at whatever day the deploy ran. First client render matches the server
+  (nothing eaten), then an effect moves it to the real time — no hydration mismatch.
+- **`?at=14` pins the hour** for review. A screen whose entire state is "what time is it" can
+  otherwise only be judged at whatever o'clock you open it; at 21:30 every meal is behind you and
+  half the design is invisible. The override prints a line on the page saying it is a preview.
+
+The nav gained **Today** and the old **Plan** tab is now **Week**, since there are two now.
+
 **Explore, Groceries, Assistant** — restyled into the same system (cream ground, sage blocks, one
 forest panel carrying the big number, hairline data rows, small radii). Explore's wall is no longer
 a uniform four-up: the first card of every page spans two columns. All the logic is untouched —

@@ -2,7 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarIcon, CartIcon, ChatIcon, CompassIcon, HomeIcon } from "@/components/icons";
+import {
+  CalendarIcon,
+  CartIcon,
+  ChatIcon,
+  ClockIcon,
+  CompassIcon,
+  HomeIcon,
+} from "@/components/icons";
 
 /**
  * The sidebar nav, and the mobile bar that replaces it.
@@ -16,7 +23,8 @@ import { CalendarIcon, CartIcon, ChatIcon, CompassIcon, HomeIcon } from "@/compo
  */
 const TABS = [
   ["/sage", "Home", HomeIcon],
-  ["/sage/plan", "Plan", CalendarIcon],
+  ["/sage/today", "Today", ClockIcon],
+  ["/sage/plan", "Week", CalendarIcon],
   ["/sage/explore", "Explore", CompassIcon],
   ["/sage/groceries", "Groceries", CartIcon],
   ["/sage/assistant", "Assistant", ChatIcon],

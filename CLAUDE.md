@@ -104,7 +104,11 @@ disabled) — good for showing the UI without any AI.
 - `src/app/plan/page.tsx` — the full interactive app (~1,800 lines): week board, Explore wall,
   Groceries, Assistant chat, meal drawer.
 - `src/app/sage/*` — the shipped design, **reproduced from `designs/references/boards/sage-01 …
-  sage-12`**: Home, Plan, Explore, Groceries, Assistant. `layout.tsx` + `SideNav.tsx` are the shell
+  sage-12`**: Home, Today, Week (`/sage/plan`), Explore, Groceries, Assistant. `/sage/today` is a
+  later exploration from `sage-04` — a dark ground with cream cards, arc gauges for the macros
+  already hit, and the day's upcoming meals; it infers "eaten" from the clock because nothing
+  writes a meal log yet, and says so on the page. `?at=14` pins the hour for review.
+  `layout.tsx` + `SideNav.tsx` are the shell
   — a full-height deep-forest sidebar carrying both the nav and the real week, beside a cream page
   with **no max-width wrapper** (photography has to run off the frame edge). Server components
   reading the real engine; Explore and Groceries are interactive. `demo.ts` computes the week ONCE
