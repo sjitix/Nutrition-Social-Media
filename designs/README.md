@@ -94,6 +94,16 @@ the reference: 100 is the default, lower loosens it.
 
 ---
 
+## `midjourney-week-layouts.md`
+
+Fourteen structurally different ways to show the same week: columns, timetable, ribbon, vertical
+feed, calendar, stacked bars, twenty-one cards, accordion, card deck, today-huge, dense ledger,
+radial, and plan-beside-chat. The palette and framing are identical in every one, so the layout is
+the only variable — run them together and the comparison is fair. Use when you know the current
+layout is not it but not yet what should replace it.
+
+---
+
 ## Adding to this folder
 
 Drop in a self-contained `.html` file and add a section above saying what it is, what it does well,
