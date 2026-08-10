@@ -46,7 +46,29 @@ Contrast was verified ≥ AA before adoption.
 https://sjitix.github.io/Nutrition-Social-Media/ (GitHub Pages static preview, built by
 `.github/workflows/pages.yml`). The repo is now **public**.
 
-**Next:** pick a week-plan layout; wire Plan and Assistant to be interactive.
+**Photography reversed — the app is image-led again.** The no-imagery constraint was dropped: a
+discovery wall of 500 dishes needs pictures. The old failure was never "too few photos", it was *a
+photo standing in for a dish it wasn't* — so the MECHANISM changed. `imageForMeal` is now an
+**exact recipe-name map** (`RECIPE_IMAGES`), a miss falls back to a typographic tile, and an image
+may only ever appear on the dish it depicts. `public/food/` holds **four** photographs, all looked
+at and checked against their recipe's `dietTags`; the style system for generating the rest is
+`designs/midjourney-dish-photography.md`. A `check:images` gate is specced but **not built**.
+Lessons 15–18 came out of this work.
+
+**The reference boards are REPRODUCED at `/sage`.** `designs/references/boards/sage-01 … sage-12`,
+built as composition rather than as tokens — the trap in lesson 15, which had already caught one
+attempt. What changed and could not have been reached by adjusting the old page: the centred
+container and pill tabs are gone in favour of a full-height forest **sidebar** (sage-10/11/12); the
+ground **flipped** from sage-with-white-cards to cream-with-sage-blocks; radii went 26–32 px →
+8–14 px; photography runs off the frame edge instead of sitting in a rounded card (sage-06/09); the
+week became seven ragged columns instead of a bordered grid (sage-12); and the week's figures are
+also set as a hairline-ruled ledger table (sage-08). Two tokens were added — `--color-panel` and
+`--color-tint` — so `globals.css` now carries thirteen. Contrast recomputed, all ≥ AA. The engine
+connection is unchanged: every figure is `selectWeekFromDb` / `RECIPES` output.
+
+**Next:** Ana's verdict on `/sage`. Then recapture `designs/screens/*.png` (Midjourney's `--sref`
+still points at the old design), then `check:images`, then wire Plan and Assistant to be
+interactive. Photography — four dishes of 500 — is now the binding constraint on the design.
 
 ### >>> ASSISTANT v2 — the 7B reason-then-act rebuild (owner's top priority) <<<
 
@@ -800,6 +822,53 @@ Each of these was discovered by doing the work, and each earned its place.
     the library paired vegan with eggplant; the 169 -> 293 expansion added one and it surfaced
     immediately. When you fix a matching bug, grep for every OTHER place that does the same kind of
     matching — the header comment proved we knew about this class of bug and still shipped it twice.
+15. **Reproducing a design means reproducing its COMPOSITION, not applying its tokens.** Asked to
+    build a set of reference boards into the app, I started from the existing page and added the
+    boards' surface qualities — a serif face, a cream surface token, one forest panel, unequal
+    cards. Rejected: *"you slightly changed our initial design, you didn't incorporate the
+    inspiration well."* The tokens were right and the result was still wrong, because the
+    composition never changed. Start from the reference and build what it shows, even when that is
+    unlike anything in the repo. Starting from the existing component tree guarantees a near-miss.
+16. **A tool's budget is a project constraint — plan the session around it.** A conversation can
+    read only so many images before every further image is rejected at any size. It has now been
+    hit twice, the second time mid-task, which is why a shipped photograph went out without ever
+    being looked at. Do image-heavy work in a fresh session, read the (free) docs first, downscale
+    to ~900–1200 px, read 1–3 at a time, and use contact sheets to check many things at once.
+17. **Knowledge that lives only in a chat gets re-derived, badly.** The prompt that produced a
+    phone mockup used the word `app` — a failure documented in CONTEXT.md for weeks — because that
+    prompt was improvised in a message instead of taken from a repo file. Reference images pasted
+    into a chat are worse: they cannot be re-derived at all. Prompts belong in `designs/`,
+    reference boards in `designs/references/`.
+18. **A folder name is not evidence of what is in a picture.** The salmon photograph was sitting in
+    a folder called `chicken andveg`. Anything mapping an image to a specific dish must be verified
+    by looking, which is exactly why `RECIPE_IMAGES` is an exact map with a "look at it first" rule
+    rather than a keyword matcher.
+19. **A tool's own limits can counterfeit a bug.** A 430 px headless screenshot showed headings and
+    card titles clipped at the right edge — a textbook horizontal-overflow symptom. There was no
+    overflow: **headless Chrome on Windows will not lay out below about 500 px**, so it rendered at
+    ~500 and handed back the left 430 columns. Proved by capturing at both widths and diffing —
+    the 430 image was pixel-identical to the left 430 columns of the 500 one, which it could only
+    be if both had laid out at 500. Before debugging what a tool shows you, check that the tool can
+    show it. (Same family as lesson 2, "ask whether the test is wrong first", and the `window.top`
+    bug in CONTEXT.md: testing in the wrong environment told me it was fine.)
+20. **"Large photograph" is not the same instruction as "the food, cut out."** The hero was built
+    as a full-bleed rectangle running off the frame edge — faithful to sage-09, and still not what
+    the reference does, because sage-06 lays the *bowl itself* on the page with its own shadow and
+    lets the frame crop it. Ana's correction was immediate. A rectangle reads as a photo in a slot
+    at any size; only removing the background makes the dish an object the layout can sit under.
+    When a reference shows imagery integrated rather than placed, check whether the thing being
+    reproduced is the picture or its silhouette.
+21. **Fit the shape you know is there.** Masking that plate by segmentation failed in a way worth
+    remembering: a flood fill from the frame edges leaked through the bok choy where a leaf bridges
+    the rim, and ate a bite-shaped hole out of the food. The plate is a circle photographed from
+    overhead — fitting a circle to the brightest connected blob is both simpler and exact. Reach
+    for the strong prior about the subject before reaching for a general algorithm.
+22. **Counting a mapping is not counting what renders.** Home says "500 recipes, N of them
+    photographed". Taking N from `Object.keys(RECIPE_IMAGES).length` would make the sentence lie
+    the moment a recipe is renamed — the key survives, the photograph never renders, and the page
+    claims coverage it does not have. Every count on the page resolves its keys against `RECIPES`
+    first. A number in the interface should be derived from the thing the user can see, not from
+    the thing that was supposed to produce it.
 
 ---
 

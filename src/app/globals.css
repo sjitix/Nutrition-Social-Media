@@ -15,6 +15,21 @@
   --color-mint: #2e9e6e;
   --color-mint-soft: #e2f3ea;
   --color-line: #edeaf8;
+  /* A THIRD surface, between the app ground and white. The editorial references the design is
+     built against all use sage-ground + cream + white rather than sage + white, which is what
+     lets a card recede or advance instead of every panel sitting on the same plane. */
+  --color-cream: #faf9fc;
+  /* Two tokens added for the reference boards, which need surfaces the original eleven had no
+     name for:
+       --color-panel  a DEEP solid block — the sidebar and the big-number cards. Every board
+                      carries at least one; in the shipped app the largest blocks of colour were
+                      white cards, which is most of why it read as a different design.
+       --color-tint   a mid tinted block, deeper than `lav`, used for the week's meal cells and
+                      the editorial side panels. The boards stack three tints (page / tint / lav),
+                      not two, which is what lets a block sit *below* the page instead of above it.
+     Both have violet-theme values so the default skin stays coherent if anything reuses them. */
+  --color-panel: #2d2650;
+  --color-tint: #e5e1f7;
 }
 
 /* Card tile palette. `gradientForMeal` in lib/recipes.ts hashes a dish name to one of these
@@ -46,22 +61,44 @@
  * a single component. The original violet is untouched and remains the default;
  * this only applies when `theme-sage` is on <html>, which the switcher toggles.
  *
- * Contrast verified against the sage ground, all >= WCAG AA 4.5:1:
- *   ink on sage 12.5   muted on sage 4.7   muted on white 6.0
- *   white on forest 8.6   forest as text on sage 6.7 / on white 8.6
+ * THE GROUND WAS FLIPPED to match the reference boards. It used to be sage page + white cards.
+ * In every board the page is a warm CREAM and the sage is a BLOCK laid on it — which is why the
+ * first rebuild read as the old design in new colours: sage as a background is wallpaper, sage as
+ * a block is composition. Cream ground, sage blocks, forest panels, white only where a card must
+ * genuinely lift off the page.
+ *
+ * Contrast verified, all >= WCAG AA 4.5:1 (ratios computed, not estimated):
+ *   ink on cream 14.3      muted on cream 5.4      body on cream 9.0
+ *   ink on tint  12.6      muted on tint  4.7      white on forest panel 13.3
+ *   white on forest action 8.5                     ink on white 16.0
+ *
+ * Two things that failed and were fixed rather than waved through: `text-white/45` on the forest
+ * panel measures 4.0 and is now 60% (5.8), and white type on the palest card tile measures ~3.0,
+ * so the typographic fallback tile carries a `from-panel/80` scrim (10.0) instead of a shadow.
+ * White at 45% LOOKS fine on that green. Compute the ratio; do not judge it by eye.
  * ------------------------------------------------------------------------- */
 .theme-sage {
-  --color-bgsoft: #dfe6da;    /* app ground */
+  --color-bgsoft: #f5f2e7;    /* app ground — warm cream, the boards' page colour */
   --color-plum: #1c2419;      /* ink */
   --color-plum-deep: #12180f;
-  --color-plum-mid: #2e3f26;
-  --color-mut: #5c6656;       /* 4.7:1 on the sage ground */
+  --color-plum-mid: #38452f;  /* body copy; 8.7:1 on cream */
+  --color-mut: #5c6656;       /* 5.2:1 on cream, 4.7:1 on tint */
   --color-vio: #3d5233;       /* primary action — carries white labels at 8.6:1 */
   --color-vio-deep: #2e3f26;
-  --color-lav: #e9eee3;       /* accent tint surface */
+  --color-lav: #e9eee3;       /* the lightest tint */
   --color-mint: #2e7d52;
   --color-mint-soft: #dfeee4;
-  --color-line: #c8d2c1;
+  --color-line: #d8d4c2;      /* hairline on cream — warm, not grey */
+  --color-cream: #fbf9f2;     /* the lifted card: warmer than white, still above the page */
+  --color-panel: #26331f;     /* the deep block: sidebar, big-number cards. White on it 13.3:1 */
+  --color-tint: #dfe6da;      /* the sage block — the old page colour, now doing real work */
+}
+
+/* The editorial display face. Set as a variable rather than hardcoded so the serif can be
+   swapped (or dropped back to the system stack) without touching a component. `next/font`
+   supplies --font-display in the sage layout; the stack below is the fallback. */
+.font-serif-display {
+  font-family: var(--font-display), "Iowan Old Style", Georgia, "Times New Roman", serif;
 }
 
 /* The default shadow is violet-tinted; sage needs a green-tinted one or cards

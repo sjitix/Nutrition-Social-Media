@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 /**
@@ -19,12 +20,18 @@ const SAGE = "theme-sage";
 
 export function ThemeSwitch() {
   const [sage, setSage] = useState(false);
+  const path = usePathname();
 
   // Read the class the head script already applied, rather than localStorage, so
   // state matches what is on screen even if the two ever disagree.
   useEffect(() => {
     setSage(document.documentElement.classList.contains(SAGE));
   }, []);
+
+  // Not on /sage. That subtree pins its own theme, so the toggle there was a floating pill
+  // reading "Violet" that changed nothing visible — and it sat on top of the sidebar footer.
+  // It is also visible in the screenshots committed for Midjourney's --sref.
+  if (path?.startsWith("/sage")) return null;
 
   function toggle() {
     const next = !sage;

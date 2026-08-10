@@ -45,22 +45,30 @@ comparing this against Instagram and TikTok, not against other diet apps.
 - **21 meals per week** on the plan screen (7 days × 3 meals, sometimes 4)
 - Each meal carries: name, calories, protein, carbs, fat, fibre, cook time, cuisine, diet tags
 
-## Constraint 1 — no imagery. None.
+## Constraint 1 — photography, one image per dish (REVERSED — read carefully)
 
-**No photographs. No illustrations. No icons standing in for food. No generated colour blocks
-pretending to be pictures. No emoji anywhere, ever.**
+This brief previously said **no imagery, none**. That has been **reversed**, and the reasoning
+matters because the old reason was nearly right.
 
-Why: there are 500 recipes. Nobody can photograph 500 dishes. When this app had 12 stock photos,
-keyword rules meant one image was shown for 46 different recipes — the same chicken photo scrolling
-past over and over, of food that wasn't the recipe on the card. That reads as a template, and it is
-quietly dishonest in a product whose entire claim is that its numbers are real.
+**The design is now photography-led.** A discovery wall of 500 dishes needs pictures — people
+browse food with their eyes. The target is a photograph for **every** recipe.
 
-The visual system must therefore carry a recipe on **typography, colour, hierarchy, space and
-number alone.** Treat that as the creative brief, not a limitation — it is exactly the discipline
-Revolut and Linear work under.
+What was actually wrong before was not the *number* of photos, it was that **a photo stood in for a
+dish it wasn't**: 12 images matched to 500 recipes by keyword regex, so one chicken photo appeared
+on 46 different cards. So the mechanism changed, and the rule is now absolute:
 
-(Real photography returns much later, from users and creators, per recipe. Leave room for it.
-Depend on none of it.)
+> **An image appears only on the dish it actually depicts. Never as a stand-in.**
+
+`imageForMeal` is an exact recipe-name map. A recipe with no photo falls back to a typographic tile,
+so partial coverage is honest rather than misleading. Every image is checked against the recipe's
+diet tags before it ships — a `vegan` card showing cheese is the failure this guards.
+
+**Still forbidden:** emoji anywhere, ever. Icons standing in for food. Generated colour blocks
+pretending to be pictures.
+
+**The typographic system still has to be good**, because 500 photographs take a long time to make
+and most cards will be typographic for a while. Photography is the floor it sits on, not a
+substitute for hierarchy.
 
 ## Constraint 2 — bright
 
@@ -128,6 +136,36 @@ Also present: a **grocery list** grouped by supermarket aisle with check-offs.
 - Numbers are hero content — calories and protein readable at a glance without reading labels.
 - Motion is expected: things ease in, numbers count up, state changes animate. Respect
   `prefers-reduced-motion`.
+
+## The chosen direction — editorial sage
+
+A direction has been picked, from a set of Midjourney boards (saved in `designs/references/`).
+Five elements define it:
+
+1. **Deep forest green as large solid panels**, not merely as button fills.
+2. **A serif editorial display face** against a small sans for data.
+3. **Cream as a third surface** alongside the sage ground and white, so cards can recede or advance.
+4. **Layered, unequal cards** — varied sizes, overlapping edges, breaking their containers.
+5. **Photography as large integrated blocks** through the layout, with bowls **cropped by the frame
+   edge** rather than floating politely in the middle.
+
+### Reproduce the boards; do not adapt the existing page toward them
+
+> **Status: done.** The boards are built and live at `/sage` — forest sidebar, cream page,
+> photography off the frame edge, seven ragged day columns. This section is kept because the trap
+> it describes is general and will apply to the next reference set as much as it did to this one.
+
+This is the instruction most likely to be failed, and it has been failed once already.
+
+An attempt that kept the existing layout and applied surface changes — a serif, a cream token, one
+forest panel — was rejected as *"you slightly changed our initial design, you didn't incorporate the
+inspiration well."* Correct: surface tokens on an unchanged composition read as the old design with
+adjustments.
+
+Reproducing a layout means reproducing its **composition**: panel structure, whether there is a
+sidebar, where photography sits and how large, what overlaps what, the density, and the ratio
+between the display face and the data type. **Build what the board shows, even when it is unlike
+anything currently in the repo.** Starting from the existing component tree is what caused the miss.
 
 ## What has already been rejected — do not repeat these
 

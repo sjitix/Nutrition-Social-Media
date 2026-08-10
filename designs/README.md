@@ -20,6 +20,33 @@ material for generating new ones.
 
 ---
 
+## `references/`
+
+**The design boards the current direction was chosen from.** Images, not code. A previous session
+lost a whole set by leaving them in a chat transcript, and a conversation's image budget is finite —
+so anything worth designing against belongs here. See that folder's README for naming and for
+budget hygiene when reviewing them.
+
+**`boards/sage-01 … sage-12` are BUILT** — they are the design now live at `/sage`, not a
+candidate. A written description of what each of the twelve shows is in `CONTEXT.md`, so a future
+session can work from text instead of spending its image budget re-deriving them.
+
+---
+
+## `midjourney-dish-photography.md`
+
+**The style system for per-recipe food photography** — read before generating any food image. The
+fixed style block (so 500 images read as one product), the two fixes that took longest (realism:
+camera/grain/`--s 50`; arrangement: `tipped casually onto`, `--no evenly spaced, arranged in a
+ring`), per-dish `--no` lists that stop Midjourney adding garnish which breaks a recipe's diet tags,
+the aspect ratios that match the real card slots, the `--sref` locking procedure, and prompts for
+real library recipes with the engine's own macros.
+
+Also records the honesty rules: an image appears only on the dish it depicts, every image is looked
+at before it is mapped, and the photo carries identity while the numbers carry quantity.
+
+---
+
 ## `signal-asymmetric.html`
 
 **Rebuild of "C — Signal" from a Figma Make exploration.** An asymmetric two-panel week plan:

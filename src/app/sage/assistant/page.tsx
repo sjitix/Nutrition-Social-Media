@@ -1,9 +1,13 @@
 import { demoWeek, DEMO } from "../demo";
 
 /**
- * The assistant. Static conversation, but the numbers in it are pulled from the same
- * generated week as every other tab — including the shortfall it offers to fix, so the
- * reply cannot contradict the board on /sage/plan.
+ * The assistant. A static conversation, but every number in it is pulled from the same generated
+ * week as every other tab — including the shortfall it offers to fix, so the reply cannot
+ * contradict the board on /sage/plan.
+ *
+ * Presentation follows the boards: the itemised changes are a hairline-ruled list (sage-07's
+ * recipe card), and the outcome of each turn is a deep panel carrying the figure (sage-06). What
+ * the assistant MOVED is the product's personality, so it is set as data, not as prose in a bubble.
  */
 export default function SageAssistantPage() {
   const { lowest, avgProtein } = demoWeek();
@@ -15,10 +19,10 @@ export default function SageAssistantPage() {
       me: "make thursday vegetarian but keep my protein up",
       reply: "Thursday is vegetarian and still lands on target.",
       changes: [
-        ["Lunch", "Beef & Broccoli Rice Bowl → **Tempeh & Quinoa Protein Bowl**"],
-        ["Dinner", "Turkey & Bean Chilli → **Red Lentil Dahl**, portion ×1.2"],
-        ["Result", "**1,988 kcal · 128 g protein** — 7 g under, the best any vegetarian combination reaches today"],
+        ["Lunch", "Beef & Broccoli Rice Bowl → Tempeh & Quinoa Protein Bowl"],
+        ["Dinner", "Turkey & Bean Chilli → Red Lentil Dahl, portion ×1.2"],
       ],
+      outcome: { value: "1,988", unit: "kcal · 128 g protein", note: "7 g under — the best any vegetarian combination reaches today, and it says so rather than rounding up." },
     },
     {
       me: `${lowest.day.toLowerCase()} looks low on protein, fix it`,
@@ -26,62 +30,77 @@ export default function SageAssistantPage() {
       changes: [
         ["Swapped", `${swap?.name ?? "Lunch"} → a higher-protein dish in the same slot`],
         ["Adjusted", "Portions nudged within realistic limits so the day still lands at target"],
-        ["Result", `Week average moves from **${avgProtein} g** toward your ${DEMO.proteinGrams} g target`],
       ],
+      outcome: { value: `${avgProtein} g`, unit: `of ${DEMO.proteinGrams} g`, note: "Week average before the change. The engine reports what moved; the model does no arithmetic." },
     },
   ];
 
   return (
-    <>
-      <div className="mb-6">
-        <span className="text-[10.5px] font-bold uppercase tracking-[0.22em] text-mut">
+    <div className="px-6 pt-10 sm:px-10 sm:pt-12 xl:px-14">
+      <div className="border-b border-plum/25 pb-6">
+        <span className="text-[10px] font-bold uppercase tracking-[0.26em] text-mut">
           It changes the plan, and says what it moved
         </span>
-        <h1 className="mt-2 text-[clamp(28px,4vw,44px)] font-bold leading-tight tracking-[-0.04em]">
+        <h1 className="font-serif-display mt-4 max-w-[14ch] text-[clamp(34px,4.6vw,62px)] font-semibold leading-[0.95] tracking-[-0.035em]">
           Just tell it.
         </h1>
       </div>
 
-      <div className="flex max-w-[760px] flex-col gap-4">
+      <div className="mt-8 max-w-[880px]">
         {turns.map((t, i) => (
-          <div key={i} className="contents">
-            <div className="flex gap-3">
-              <span className="grid h-[30px] w-[30px] shrink-0 place-items-center rounded-lg bg-lav text-[11.5px] font-bold text-plum-mid">
-                A
-              </span>
-              <p className="rounded-2xl bg-lav px-4 py-3.5 text-[14.5px] leading-relaxed">{t.me}</p>
-            </div>
+          <section key={i} className="mb-10">
+            <p className="inline-block rounded-[10px] bg-tint px-4 py-3 text-[14.5px] leading-relaxed">
+              {t.me}
+            </p>
 
-            <div className="flex gap-3">
-              <span className="grid h-[30px] w-[30px] shrink-0 place-items-center rounded-lg bg-vio text-[11.5px] font-bold text-white">
-                N
-              </span>
-              <div className="card-shadow rounded-2xl bg-white px-4 py-3.5 text-[14.5px] leading-relaxed">
-                {t.reply}
-                <div className="mt-3 flex flex-col gap-1.5">
+            <div className="mt-3 grid gap-3 lg:grid-cols-[1.35fr_0.65fr]">
+              <div className="rounded-[12px] bg-cream p-6">
+                <p className="font-serif-display text-[20px] font-semibold leading-[1.15] tracking-[-0.02em]">
+                  {t.reply}
+                </p>
+                <dl className="mt-5 border-t border-line">
                   {t.changes.map(([tag, text]) => (
-                    <div key={tag} className="flex gap-3 rounded-xl bg-lav px-3 py-2.5 text-[12.5px]">
-                      <span className="w-[68px] shrink-0 pt-0.5 text-[9.5px] font-bold uppercase tracking-[0.13em] text-mut">
+                    <div key={tag} className="flex gap-4 border-b border-line py-3">
+                      <dt className="w-[74px] shrink-0 pt-0.5 text-[9px] font-bold uppercase tracking-[0.16em] text-mut">
                         {tag}
-                      </span>
-                      <span dangerouslySetInnerHTML={{ __html: text.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>") }} />
+                      </dt>
+                      <dd className="text-[12.5px] leading-relaxed text-plum-mid">{text}</dd>
                     </div>
                   ))}
-                </div>
+                </dl>
+              </div>
+
+              <div className="flex flex-col justify-between rounded-[12px] bg-panel p-6 text-white">
+                <span className="text-[9.5px] font-bold uppercase tracking-[0.2em] text-white/60">
+                  Result
+                </span>
+                <p className="mt-6 text-[34px] font-bold leading-[0.9] tracking-[-0.045em] tabular-nums">
+                  {t.outcome.value}
+                  <span className="ml-1.5 block pt-2 text-[12px] font-medium tracking-normal text-white/60">
+                    {t.outcome.unit}
+                  </span>
+                </p>
+                <p className="mt-5 border-t border-white/15 pt-3.5 text-[11.5px] leading-relaxed text-white/65">
+                  {t.outcome.note}
+                </p>
               </div>
             </div>
-          </div>
+          </section>
         ))}
-      </div>
 
-      <div className="mt-6 flex max-w-[760px] gap-2.5">
-        <span className="card-shadow flex-1 rounded-full border border-line bg-white px-5 py-3.5 text-[14px] text-mut">
-          Tell it what to change…
-        </span>
-        <button className="rounded-full bg-vio px-6 py-3.5 text-[13px] font-semibold text-white transition hover:bg-vio-deep">
-          Send
-        </button>
+        <div className="flex max-w-[880px] items-center gap-2.5 border-t border-plum/25 pt-5">
+          <span className="flex-1 rounded-full bg-tint px-5 py-3.5 text-[13.5px] text-mut">
+            Tell it what to change…
+          </span>
+          <button className="rounded-full bg-vio px-6 py-3.5 text-[12.5px] font-semibold text-white transition hover:bg-vio-deep">
+            Send
+          </button>
+        </div>
+        <p className="mt-4 max-w-[70ch] text-[12px] leading-relaxed text-mut">
+          Read-only in this preview. The live assistant runs against `/api/assistant`, which is in
+          demo mode on the public URL — no key is set, deliberately.
+        </p>
       </div>
-    </>
+    </div>
   );
 }

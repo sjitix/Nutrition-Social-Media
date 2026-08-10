@@ -214,26 +214,83 @@ export const EXPLORE_RECIPES: ExploreRecipe[] = RAW_EXPLORE.map((r) => ({
 }));
 
 /**
- * Maps a meal to a bundled photo by keyword. INTENTIONALLY EMPTY.
+ * Maps a recipe to its OWN photograph, by exact name.
  *
- * There were 12 stock photos and 292 recipes, so the keyword rules made one image stand in for
- * dozens of different dishes: `chicken.jpg` was served for 46 recipes, `bowl1.jpg` for 31,
- * `eggdish.jpg` for 28. Scrolling the feed meant seeing the same photograph over and over, of
- * food that wasn't the recipe you were looking at — the two things that make a product read as a
- * template rather than a real app.
+ * This used to be a list of keyword REGEXES over 12 stock photos, and that is precisely what
+ * broke it: `/chicken/` matched 46 different recipes, so one photograph was served as 46
+ * different dishes, and `bowl1.jpg` stood in for 31 more. Scrolling showed the same picture over
+ * and over, of food that was not the recipe on the card. The photos were deleted for that reason.
  *
- * A library this size cannot be photographed, so the design must not depend on photography:
- * every card is carried by type, colour and layout instead (`gradientForMeal` below). The
- * function and the rules array stay so that REAL per-recipe imagery — shot or user-submitted —
- * can be reintroduced later without touching any caller.
+ * The rule that makes imagery safe here, and the reason this is a Map and not a rule list:
+ *
+ *   AN IMAGE APPEARS ONLY ON THE DISH IT ACTUALLY DEPICTS. NEVER AS A STAND-IN.
+ *
+ * A miss returns null and the caller falls back to `gradientForMeal`, so partial coverage is
+ * honest — 497 typographic cards and 3 photographed ones, rather than 3 photos pretending to be
+ * 500 dishes. Adding a photo is one line; there is no rule that can accidentally widen.
+ *
+ * Before adding an entry, LOOK at the image and confirm it shows this dish's real ingredients and
+ * does not contradict its dietTags — a vegan card showing cheese is the failure this guards.
  */
-const IMAGE_RULES: [RegExp, string][] = [];
+const RECIPE_IMAGES: Record<string, string> = {
+  // Looked at, and checked against each recipe's own ingredient list and dietTags:
+  //   miso-cod        white fish under a dark miso glaze with sesame, bok choy, brown rice.
+  //                   NOT salmon — the species is the whole point of this one.
+  //   baked-salmon    pink flaking fillet, baby potatoes, broccoli, lemon wedge.
+  //   sheetpan-chicken chicken breast, roast sweet potato cubes, charred broccoli, paprika.
+  //                   (This is the one CONTEXT.md recorded as never verified. It has now been
+  //                   looked at: it is chicken.)
+  //   shakshuka       two eggs poached in tomato and pepper, feta, herbs. `vegetarian` and
+  //                   `gluten_free` both hold — feta is in the recipe, and there is no bread
+  //                   in the frame, which is the usual way this dish breaks its own tags.
+  "Miso-Glazed Cod with Bok Choy & Rice": "/food/miso-cod.jpg",
+  "Baked Salmon & Potatoes": "/food/baked-salmon.jpg",
+  "Sheet-Pan Chicken & Veg": "/food/sheetpan-chicken.jpg",
+  Shakshuka: "/food/shakshuka.jpg",
+};
+
+/**
+ * Cut-outs: the same dish, with its background removed, so the plate is an OBJECT on the page.
+ *
+ * The reference boards (`sage-06` especially) do not put photography in a rounded card — they lay
+ * a bowl straight on the page ground, with its own shadow, cropped by the frame edge. A rectangle
+ * cannot do that: the rectangle is what reads as "a photo in a slot".
+ *
+ * Same rule as `RECIPE_IMAGES`, deliberately — an exact recipe name, a miss returns null, and the
+ * image may only ever be the dish it depicts. This is a SEPARATE map rather than a suffix
+ * convention on the one above, because a convention ("try name + '-plate'") is a rule that can
+ * widen by accident, which is the failure the exact map exists to make impossible.
+ *
+ * `miso-cod-plate.webp` is masked from `designs/references/food/codmisobokchoi-09.jpg`, which is
+ * the ORIGINAL of `miso-cod.jpg` — same frame, before it was cropped for the card slot. It has to
+ * be the original rather than the shipped crop, because the crop cuts the plate at three edges and
+ * a round mask needs the whole plate. So the card and the hero are one photograph, two renderings.
+ * Regenerate with `node scripts/make-plate-cutout.mjs <src> <out.webp> <preview.jpg>` — and look at
+ * the preview it writes, which is the cut-out composited on the page colour.
+ */
+const RECIPE_CUTOUTS: Record<string, string> = {
+  "Miso-Glazed Cod with Bok Choy & Rice": "/food/miso-cod-plate.webp",
+};
+
+export function cutoutForMeal(name: string): string | null {
+  return RECIPE_CUTOUTS[name.trim()] ?? null;
+}
+
+/** Recipe names that have a cut-out, in map order. See `PHOTOGRAPHED_RECIPES` for the reasoning. */
+export const CUTOUT_RECIPES: string[] = Object.keys(RECIPE_CUTOUTS);
+
+/**
+ * Every recipe name that has its own photograph, in map order.
+ *
+ * The photography-led screens need to know WHICH dishes can carry an image before they choose a
+ * composition — a hero that picks a random meal and then discovers there is no picture of it has
+ * to degrade, and the degraded version is the one that ships. Exported so a page can lead with a
+ * photographed dish and stay honest about the rest.
+ */
+export const PHOTOGRAPHED_RECIPES: string[] = Object.keys(RECIPE_IMAGES);
 
 export function imageForMeal(name: string): string | null {
-  for (const [re, img] of IMAGE_RULES) {
-    if (re.test(name)) return img;
-  }
-  return null;
+  return RECIPE_IMAGES[name.trim()] ?? null;
 }
 
 // How many tile slots the card palette has. The gradients themselves live in globals.css as

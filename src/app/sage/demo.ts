@@ -56,13 +56,22 @@ function buildWeek() {
     meals: d.meals,
     kcal: d.meals.reduce((s, m) => s + m.calories, 0),
     protein: d.meals.reduce((s, m) => s + m.proteinGrams, 0),
+    carbs: d.meals.reduce((s, m) => s + m.carbsGrams, 0),
+    fat: d.meals.reduce((s, m) => s + m.fatGrams, 0),
     fibre: d.meals.reduce((s, m) => s + (m.fiberGrams ?? 0), 0),
   }));
+  const avg = (pick: (d: (typeof days)[number]) => number) =>
+    Math.round(days.reduce((s, d) => s + pick(d), 0) / days.length);
   return {
     days,
-    avgKcal: Math.round(days.reduce((s, d) => s + d.kcal, 0) / days.length),
-    avgProtein: Math.round(days.reduce((s, d) => s + d.protein, 0) / days.length),
-    avgFibre: Math.round(days.reduce((s, d) => s + d.fibre, 0) / days.length),
+    avgKcal: avg((d) => d.kcal),
+    avgProtein: avg((d) => d.protein),
+    avgCarbs: avg((d) => d.carbs),
+    avgFat: avg((d) => d.fat),
+    avgFibre: avg((d) => d.fibre),
     lowest: days.reduce((a, b) => (b.protein < a.protein ? b : a)),
+    // Distinct dishes across the week. The board's week is ragged and varied; this is the number
+    // that says whether ours actually is, and it is asserted on screen rather than assumed.
+    uniqueDishes: new Set(days.flatMap((d) => d.meals.map((m) => m.name))).size,
   };
 }

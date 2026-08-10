@@ -103,21 +103,40 @@ disabled) — good for showing the UI without any AI.
 - `src/app/page.tsx` — redirects to `/sage`. `src/app/classic/page.tsx` — the original landing.
 - `src/app/plan/page.tsx` — the full interactive app (~1,800 lines): week board, Explore wall,
   Groceries, Assistant chat, meal drawer.
-- `src/app/sage/*` — the sage design candidate: Home, Plan, Explore, Groceries, Assistant, with a
-  shared layout. Server components reading the real engine; Explore and Groceries are interactive.
+- `src/app/sage/*` — the shipped design, **reproduced from `designs/references/boards/sage-01 …
+  sage-12`**: Home, Plan, Explore, Groceries, Assistant. `layout.tsx` + `SideNav.tsx` are the shell
+  — a full-height deep-forest sidebar carrying both the nav and the real week, beside a cream page
+  with **no max-width wrapper** (photography has to run off the frame edge). Server components
+  reading the real engine; Explore and Groceries are interactive. `demo.ts` computes the week ONCE
+  at module load, so no two tabs can describe different weeks.
 - `src/app/onboarding/page.tsx`, `src/app/recipes/page.tsx`.
 - `src/app/api/` — five routes: `plan`, `assistant`, `assistant-v2`, `import`, `operation`.
-- `src/components/icons.tsx` — SVG line icons (no emoji). `ThemeSwitch.tsx` — violet/sage toggle.
-- `src/app/globals.css` — eleven colour tokens every utility reads from, the `.theme-sage`
-  override, and `--tile-1 … --tile-14` for card gradients.
+- `src/components/icons.tsx` — SVG line icons (no emoji). `ThemeSwitch.tsx` — violet/sage toggle
+  for the original layout; it returns `null` on `/sage`, which pins its own theme.
+- `src/app/globals.css` — **thirteen** colour tokens every utility reads from, the `.theme-sage`
+  override, and `--tile-1 … --tile-14` for card gradients. `--color-panel` (the deep block:
+  sidebar and big-number cards) and `--color-tint` (the sage block) were added for the boards.
+  Note the sage theme's ground is **cream with sage blocks on it**, not a sage background — that
+  inversion is most of the difference between the design and its predecessor. Contrast ratios are
+  computed and recorded in the comment above `.theme-sage`; keep them ≥ AA when retuning.
 
 **Not code**
 
-- `designs/` — design candidates, Midjourney prompt files, and screenshots of the live app.
-  `designs/README.md` indexes them with the reason each was kept or rejected.
+- `designs/` — design candidates, Midjourney prompt files, screenshots of the live app, and
+  `references/` (the boards the current direction was chosen from). `designs/README.md` indexes
+  them with the reason each was kept or rejected.
+  `designs/midjourney-dish-photography.md` is the style system for food photography — read it
+  before generating any dish image.
 - `data/` — eval and hard-case sets. `scripts/` — the test suite and tooling.
-- There is **no `public/food/`**. The stock photos were deleted; see CONTEXT.md for why, and why
-  bringing them back partially would recreate the problem.
+- `public/food/` — per-recipe photographs. The twelve stock photos were once deleted because
+  keyword regexes served one image as 46 different dishes; imagery is back, but the **mechanism**
+  changed: `imageForMeal` is an **exact recipe-name map** (`RECIPE_IMAGES` in `lib/recipes.ts`), a
+  miss returns `null` and falls back to a typographic tile, and **an image appears only on the dish
+  it depicts, never as a stand-in**. Look at every image and check it against the recipe's
+  `dietTags` before mapping it. **Four dishes** are photographed today; the other 496 fall back to
+  a typographic tile, which is honest rather than misleading. `RECIPE_CUTOUTS` is a second, equally
+  exact map holding background-removed versions, so a plate can sit on the page as an object rather
+  than in a frame — made by `scripts/make-plate-cutout.mjs`. See `public/food/README.md`.
 
 ## Commands
 

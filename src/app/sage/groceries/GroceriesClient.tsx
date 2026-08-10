@@ -66,13 +66,13 @@ export function GroceriesClient({ groups }: { groups: { aisle: Aisle; items: Row
   const pct = all.length ? Math.round((done / all.length) * 100) : 0;
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_300px] lg:items-start">
-      <div className="card-shadow overflow-hidden rounded-3xl bg-white">
+    <div className="grid gap-3 lg:grid-cols-[1fr_312px] lg:items-start">
+      <div className="overflow-hidden rounded-[12px] bg-cream">
         {groups.map(({ aisle, items }) => {
           const left = items.filter((i) => !ticked.has(i.name)).length;
           return (
             <section key={aisle} className="border-b border-line px-6 py-5 last:border-b-0">
-              <h2 className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-mut">
+              <h2 className="text-[9.5px] font-bold uppercase tracking-[0.2em] text-mut">
                 {aisle}{" "}
                 <span className="tabular-nums opacity-60">
                   {left ? `${left} left` : "done"}
@@ -89,8 +89,8 @@ export function GroceriesClient({ groups }: { groups: { aisle: Aisle; items: Row
                         aria-label={it.name}
                         onClick={() => toggle(it.name)}
                         className={
-                          "grid h-5 w-5 shrink-0 place-items-center rounded-md border-[1.6px] transition " +
-                          (on ? "border-vio bg-vio" : "border-line bg-white hover:border-vio")
+                          "grid h-5 w-5 shrink-0 place-items-center rounded-[5px] border-[1.6px] transition " +
+                          (on ? "border-vio bg-vio" : "border-plum/25 bg-transparent hover:border-vio")
                         }
                       >
                         <svg
@@ -111,7 +111,7 @@ export function GroceriesClient({ groups }: { groups: { aisle: Aisle; items: Row
                         {it.name}
                       </span>
                       {it.count > 1 && (
-                        <span className="rounded-full bg-lav px-2 py-0.5 text-[10.5px] font-bold text-vio tabular-nums">
+                        <span className="rounded-full bg-tint px-2 py-0.5 text-[10.5px] font-bold tabular-nums text-vio">
                           ×{it.count}
                         </span>
                       )}
@@ -125,26 +125,37 @@ export function GroceriesClient({ groups }: { groups: { aisle: Aisle; items: Row
         })}
       </div>
 
-      <aside className="card-shadow rounded-3xl bg-white p-5 lg:sticky lg:top-5">
-        <span className="text-[9.5px] font-bold uppercase tracking-[0.16em] text-mut">Progress</span>
-        <p className="mt-2 flex items-baseline gap-1.5 text-[31px] font-bold leading-none tracking-[-0.045em] tabular-nums">
+      {/* The boards put one very large number on a deep panel and let everything else recede.
+          Here that number is how much of the shop is done. */}
+      <aside className="rounded-[12px] bg-panel p-6 text-white lg:sticky lg:top-5">
+        <span className="text-[9.5px] font-bold uppercase tracking-[0.2em] text-white/60">
+          In the trolley
+        </span>
+        <p className="mt-6 text-[54px] font-bold leading-[0.85] tracking-[-0.05em] tabular-nums">
           {done}
-          <em className="text-[13px] font-medium not-italic tracking-normal text-mut">of {all.length}</em>
+          <span className="ml-1.5 align-baseline text-[13px] font-medium tracking-normal text-white/60">
+            of {all.length}
+          </span>
         </p>
-        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-line">
+        <div className="mt-5 h-[3px] overflow-hidden rounded-full bg-white/15">
           <div
-            className="h-full rounded-full bg-vio transition-[width] duration-500"
+            className="h-full bg-white transition-[width] duration-500"
             style={{ width: `${pct}%` }}
           />
         </div>
 
-        <div className="mt-4 space-y-2.5 border-t border-line pt-3.5">
+        <div className="mt-5 border-t border-white/15 pt-4">
           {groups.map(({ aisle, items }) => {
             const n = items.filter((i) => ticked.has(i.name)).length;
             return (
-              <div key={aisle} className="flex items-baseline justify-between text-[12.5px]">
-                <span className={n === items.length ? "text-mut line-through" : "text-mut"}>{aisle}</span>
-                <span className="font-semibold tabular-nums">
+              <div
+                key={aisle}
+                className="flex items-baseline justify-between border-b border-white/10 py-2 text-[12px] last:border-b-0"
+              >
+                <span className={n === items.length ? "text-white/55 line-through" : "text-white/60"}>
+                  {aisle}
+                </span>
+                <span className="font-semibold tabular-nums text-white/85">
                   {n}/{items.length}
                 </span>
               </div>
@@ -155,13 +166,13 @@ export function GroceriesClient({ groups }: { groups: { aisle: Aisle; items: Row
         {done > 0 && (
           <button
             onClick={() => setTicked(new Set())}
-            className="mt-4 w-full rounded-full border border-line py-2.5 text-[13px] font-semibold transition hover:border-vio"
+            className="mt-5 w-full rounded-full bg-white/10 py-2.5 text-[12.5px] font-semibold transition hover:bg-white/20"
           >
             Untick all
           </button>
         )}
 
-        <p className="mt-4 border-t border-line pt-3.5 text-[12.5px] leading-relaxed text-mut">
+        <p className="mt-5 border-t border-white/15 pt-4 text-[11.5px] leading-relaxed text-white/60">
           Ticks are remembered on this device. A ×N badge means the ingredient appears in that many
           meals this week.
         </p>

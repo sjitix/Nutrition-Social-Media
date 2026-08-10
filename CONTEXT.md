@@ -9,15 +9,101 @@ Everything described here is committed and pushed to `main`. Nothing is only on 
 
 ## Where it left off
 
-The session ended mid-design-exploration, blocked on a tooling limit rather than a decision:
-**this conversation exhausted its image budget**, so pasted screenshots stopped being readable
-regardless of size. A fresh chat fixes it. Images can also be pulled straight from the Windows
-clipboard with PowerShell (`[System.Windows.Forms.Clipboard]::GetImage()` → save → read), so in a
-new session you can just copy an image and say "look at my clipboard".
+### >>> THE BOARDS ARE BUILT. What to look at, and what is still open <<<
 
-**The open question:** which layout the week plan should use. Ana knows the current seven-column
-version is not it, but not yet what should replace it. Fourteen candidate layouts are written as
-Midjourney prompts in `designs/midjourney-week-layouts.md`.
+`designs/references/boards/sage-01 … sage-12` have been **reproduced at `/sage`** — the whole
+shell and all five screens, connected to the real engine as before. This replaces the previous
+brief, which asked for exactly this and warned that the attempt before it had adapted rather than
+reproduced. **What to do now is look at it and say whether it is the reference or not.**
+
+**What the twelve boards actually contain** (worth having in text, so nobody spends the image
+budget re-deriving it):
+
+| board | what it is |
+|---|---|
+| `sage-01` | **not a design.** A screenshot of Midjourney's own web UI with the generation grid and the prompt visible: *"flat 2d web page design, straight on front view, orthographic, fills the entire frame edge to edge, beautiful modern nutrition and meal planning homepage, editorial headline, dish with calories, recipe cards"*, `--no tilted, angled, perspective, 3d, mockup, device, monitor`, `ar 16:9`, `raw`, `sw 60`. The provenance record |
+| `sage-02` | cream page, mosaic of unequal sage/cream blocks, real bowls composited **on** the layout |
+| `sage-03` | **full-width dark forest nav bar**; giant serif "Editorial Nutrition"; a huge bowl photograph overlapping its neighbours and cropped by the right edge, with a small round badge sitting on it; a forest block flush to the left page edge; a bar chart and a small data table |
+| `sage-04` | the inversion — a **dark forest ground** carrying cream cards, three circular arc gauges with big numbers, a 4×3 tile grid |
+| `sage-05` | pale sage hero over a white section; huge serif left, large square photograph right, a tiny stat stack, then an enormous "78" |
+| `sage-06` | the clearest one. Huge serif left; **a photograph laid straight on the page with no card and cropped by the LEFT edge**; a text column right; **two deep forest cards, each carrying one very large number** (432, 4080) |
+| `sage-07` | a **quiet sidebar** (same sage as the page, hairline only); serif headline; big photo right; a white **"Recipes" list card** — name, description line, figure and a small round control at the right, hairlines between |
+| `sage-08` | headline left, and a **real table of numbers** used as a design element on the right; a near-black photo card beside a cream card; a narrow right column of stacked cards including one big number with a radial arc |
+| `sage-09` | the best homepage. Light nav; enormous serif "Editon & meal planning"; **an enormous photograph running off the RIGHT edge**, ~45% of the width; below it a row of unequal blocks — a wide sage panel of hairline-ruled figures, a photo card, a narrow stack |
+| `sage-10` | **the app.** Icon rail + **forest sidebar**; a band of dark summary cards; tall day columns; a right rail that is a masonry of small photographs |
+| `sage-11` | same shell; a row of **unequal** summary cards where two are forest and one is a photograph; day columns as tinted panels holding cream rows |
+| `sage-12` | the cleanest app screen. Forest sidebar carrying a long **list**, cream main area, a **row of six wide photograph cards**, a big "Weekly Plan" heading, then **seven day columns of flat sage blocks with ragged bottoms** |
+
+The set therefore answers the question that was open: **it shows both** — 02–09 are editorial
+homepage compositions, 10–12 are the application with a forest sidebar, and `sage-07` shows the two
+combined. So the shell is a sidebar and the Home content is editorial.
+
+Food photographs go in `public/food/` and are mapped by EXACT recipe name in `RECIPE_IMAGES`
+(`src/lib/recipes.ts`). Read `designs/midjourney-dish-photography.md` before touching any of it —
+the honesty rules there are not optional.
+
+### What was built, screen by screen
+
+**The shell** (`src/app/sage/layout.tsx` + `SideNav.tsx`, which replaces `SageTabs.tsx`) — a deep
+forest **sidebar** running the full height of the window, 268 px, with the nav AND content: the
+real week, seven days with the engine's calorie and protein totals. The page beside it is warm
+cream, edge to edge, with **no max-width wrapper** — a centred container makes running photography
+off the frame impossible, which is half of what the boards do. Below `lg` the panel becomes a bar.
+
+**Home** — the boards' composition, section by section: an enormous serif headline left, and the
+hero photograph as a **cut-out plate** — masked out of its background, laid on the cream with its
+own shadow, oversized, cut by the right edge of the frame, sitting *on* the layout with the library
+card sitting on *it* (sage-06, plus sage-03's badge on the rim). Then a row of unequal blocks — a
+sage panel of hairline-ruled macros, a photo block, two deep forest cards each carrying one very
+large number (sage-09, sage-06); the week as a **hairline-ruled ledger table**, dense and editorial
+(sage-08); a photograph cropped by the **left** edge beside a dense list card (sage-06, sage-07); a
+full-width forest band (sage-03).
+
+> The hero was a full-bleed rectangle first, and Ana's note was that it should be *"only the bowl
+> cut, sitting on top of the layout"* — which is right, and is the difference between reproducing
+> sage-06 and approximating it. A photograph in a rectangle reads as a photo in a slot however
+> large it is; the plate as a free object is what makes the page look like the board.
+
+**Plan** — sage-12: a strip of photograph cards across the top, a big "Weekly plan" serif heading,
+then **seven columns of flat sage blocks** rather than a bordered grid. A grid locks every cell to
+its row's tallest; columns let each meal be its own height, which is where the boards' texture
+comes from. The day that is under target carries a forest block saying by how much, which is also
+what makes the row of columns ragged.
+
+**Explore, Groceries, Assistant** — restyled into the same system (cream ground, sage blocks, one
+forest panel carrying the big number, hairline data rows, small radii). Explore's wall is no longer
+a uniform four-up: the first card of every page spans two columns. All the logic is untouched —
+Explore still calls `filterFeed`/`sortFeed`, Groceries still has its guarded persistence.
+
+**Tokens** — two were added, `--color-panel` (the deep block) and `--color-tint` (the sage block),
+so there are now **thirteen**. And the ground was **flipped**: the page used to be sage with white
+cards; it is now cream with sage blocks on it. That flip is most of why the previous attempt read
+as the old design in new colours — sage as a background is wallpaper, sage as a block is
+composition. Contrast was recomputed, not estimated; every pair is ≥ AA and the numbers are in the
+comment above `.theme-sage`.
+
+**`ThemeSwitch` no longer renders on `/sage`** — it was a floating pill reading "Violet" that
+changed nothing (the subtree pins its own theme) and it sat on top of the sidebar footer.
+
+### Practical: the image budget
+
+**A conversation has a finite image budget.** Once spent, no further image can be read at any size.
+It has been hit twice on this project — including mid-task, which is why one of the shipped photos
+went out unverified. **The budget survived this session** by spending it deliberately:
+
+- Read the docs FIRST — text is free — then spend the budget on pictures.
+- **A contact sheet is the single biggest saving.** All twelve boards went into one 1560×1168 sheet
+  (3×4, labelled) for the cost of one image; that alone identified which boards were the app and
+  which were the homepage, so only the informative ones were opened full size.
+- **Pair them.** Two boards stacked into one 1200×1344 image reads as one image, not two.
+- All fifteen dish photographs went into one 4×4 labelled sheet at 430×300 per cell — legible
+  enough to tell salmon from cod from chicken.
+- `sharp` is already installed (Next pulls it in), so building sheets is a five-line node script.
+
+### State
+
+Committed on `main`. `npm run test:engine`, `npx tsc --noEmit` and `npm run build` are all green —
+see the verification section at the bottom. Both live URLs redeploy from `main`.
 
 ---
 
@@ -67,22 +153,68 @@ Ingredients with FDC ids, Coverage, Gaps). The Gaps sheet is what drove the expa
 
 ---
 
-## Photography: removed
+## Photography: REVERSED — the app is photography-led again
 
-All twelve stock photos are deleted. The reason matters and should not be undone casually:
-with 12 photos and 500 recipes, keyword rules meant **one image stood in for 46 different
-recipes** — `chicken.jpg` for 46, `bowl1.jpg` for 31. Scrolling showed the same photograph
-repeatedly, of food that was not the recipe on the card.
+The twelve stock photos were deleted because keyword regexes meant **one image stood in for 46
+different recipes** (`chicken.jpg` for 46, `bowl1.jpg` for 31) — the same picture scrolling past,
+of food that was not the recipe on the card.
 
-`imageForMeal()` and `IMAGE_RULES` remain in `lib/recipes.ts`, **deliberately empty**, so real
-per-recipe imagery can return later without touching a caller.
+**That decision has been reversed, deliberately.** Ana's argument, and it is right: a discovery
+wall of 500 dishes needs pictures — people browse food with their eyes. Text-only cards are fine on
+the Plan board (you already chose the meal); they are worse on Explore.
+
+**The old failure was not "too few photos". It was a photo standing in for a dish it wasn't.**
+So the mechanism changed, not just the count:
+
+- `imageForMeal()` is now an **exact recipe-name map** (`RECIPE_IMAGES`), not a regex list. A
+  regex can widen accidentally; an exact key cannot. A miss returns `null` and falls back to the
+  typographic tile, so partial coverage is honest.
+- **`public/food/` exists again.** Three photographs are in it (see below). 497 recipes still fall
+  back to `--tile-1 … --tile-14`.
+- **Target: an image for every recipe.** Generated in one locked style so the library looks like
+  one product — see `designs/midjourney-dish-photography.md`.
+- **User uploads are the upgrade, not the threat.** Generated images are the FLOOR; a real photo of
+  the dish someone actually cooked replaces it. Uniformity comes from the **frame** (fixed crop,
+  radius, type position, a subtle wash), not from the photographs — which is how Instagram stays
+  coherent while containing everything.
+
+**Shipped so far — all four looked at, and checked against the recipe's ingredients and dietTags:**
+
+| file | recipe | what is in frame |
+|---|---|---|
+| `miso-cod.jpg` | `d-miso-cod` Miso-Glazed Cod with Bok Choy & Rice | white fish under a dark miso glaze, sesame, bok choy, brown rice. **Not** salmon |
+| `baked-salmon.jpg` | `d-baked-salmon` Baked Salmon & Potatoes | pink flaking fillet, baby potatoes, broccoli, lemon |
+| `sheetpan-chicken.jpg` | `d-american-sheetpan-chicken` Sheet-Pan Chicken & Veg | chicken breast, roast sweet potato, charred broccoli, paprika. **Now verified** — this is the one that shipped unlooked-at |
+| `shakshuka.jpg` | `b-shakshuka` Shakshuka | two eggs poached in tomato and pepper, feta, herbs. No bread in frame, so `gluten_free` holds; feta is in the recipe, so `vegetarian` holds |
+
+Plus `miso-cod-plate.webp` — the **same photograph** as `miso-cod.jpg` with its background masked
+off, so the plate is an object the hero can lay on the page and crop by the frame. Made by
+`node scripts/make-plate-cutout.mjs <src> <out.webp> <preview.jpg>`, which fits a **circle** to the
+plate. Segmenting the background was tried first and fails on this dish specifically: a flood fill
+from the edges leaks through the bok choy where a leaf bridges the rim and eats a hole out of the
+food. Feed it the ORIGINAL frame (`codmisobokchoi-09`), not the shipped crop — the crop cuts the
+plate at three edges.
+
+The other eleven photographs in `designs/references/food/` are **alternate frames of these same
+four dishes** — five more chicken-and-veg, two more salmon, two more cod, three more shakshuka. So
+there is nothing else in that folder to map: a fifth mapping would mean a photo standing in for a
+dish it isn't, which is the exact failure the map exists to prevent. Growing coverage past four
+means generating new dishes, not remapping these.
+
+**A trap that already bit:** the source folders on the Desktop are mislabelled — the *salmon*
+photo was sitting inside `design/recipes/chicken andveg/`. A filename or folder is not evidence of
+what is in a picture. Always look.
 
 The card tiles were also hardcoded gradients in JS, two of them brand violet — meaning the app
 could not be re-skinned while its largest blocks of colour were baked in. They now live in
 `globals.css` as `--tile-1 … --tile-14` and `gradientForMeal` returns `var(--tile-N)`.
 
-**Agreed imagery plan:** hero moments only, perhaps 8–12 photographs. Not one per recipe — 500
-dishes cannot be shot, and partial coverage is what caused the original problem.
+**Queued, not built: `npm run check:images`** — a gate in the family of `check:recipes` /
+`check:data`. It would catch, with no vision at all: a map key that is not a real recipe name (today
+that fails **silently** — the card just shows a gradient), a mapped file that does not exist, an
+orphan file with no entry, **two recipes pointing at the same file** (the 46-dishes failure, made
+mechanically impossible), and oversized files. It cannot check whether the photo shows chicken;
+that stays human.
 
 ---
 
@@ -108,11 +240,67 @@ document — it is also reproduced in `DESIGN-PROMPT.md`.
 The stated requirement that kept being failed: **one strong organising idea and dramatic hierarchy —
 one element enormous, everything else quiet.** Even, tidy and balanced is not wanted.
 
-### What landed: the sage design
+### The chosen direction: editorial sage (current)
+
+Settled from a set of eight Midjourney boards, produced by prompt #10 in
+`designs/midjourney-sage-refine.md` (the `--sref` one at `--sw 60`) — so it is reproducible.
+
+**The boards are committed at `designs/references/boards/`**, alongside
+`designs/references/food/` (15 dish photographs) and a `manifest.csv` mapping every file back to
+its original name.
+
+> **BUILD `sage-01` … `sage-12` FIRST.** Ana named these as the set to try. They are the whole of
+> what was `Desktop\design\sage\` — three Midjourney jobs plus one saved favourite. `board-13` …
+> `board-36` are earlier rounds kept as a record, not the target.
+
+Five things make them work. Four need no photography at all:
+
+1. **Deep forest green as large solid panels**, not just button fills. The shipped app's biggest
+   colour blocks are white cards; in the references a near-black green panel carries whole sections.
+2. **A serif editorial display face** against a small sans for data. The app runs system sans at
+   every size.
+3. **Cream as a third surface** alongside sage and white, so a card can recede or advance.
+4. **Layered, unequal cards** — different sizes, overlapping edges, breaking their containers.
+   Not a uniform grid.
+5. **Photography as large integrated blocks** woven through the layout, with bowls **cropped by
+   the frame edge** — Ana called this out specifically.
+
+**They settle the week-plan structure too, which was previously thought open.** `sage-10`, `11`
+and `12` are the application, not homepage collages, and all three answer it the same way: seven
+columns of stacked blocks on a cream page, with a forest sidebar. That is what `/sage/plan` is now.
+
+### The rebuild that missed — worth not repeating
+
+A first attempt applied 1–4 to the existing `/sage` Home and was rejected: *"you slightly changed
+our initial design, you didn't incorporate the inspiration from the photos well."*
+
+The cause is worth stating plainly, because it is a general trap: **it started from the existing
+component tree and adjusted it, rather than starting from the board and building what the board
+shows.** Surface tokens (a serif, a cream, one panel) applied to an unchanged composition read as
+the old design with adjustments. Reproducing a layout means reproducing its *composition* — panel
+structure, where photography sits and how big, overlap, density — even when that is unlike
+anything currently in the repo.
+
+The second attempt (the one now on `main`) started from the boards and threw away the page.
+Concretely, the things that had to change and could not have been reached by adjusting: the
+centred `max-w-[1400px]` container and the row of pill tabs are gone; the ground is cream and sage
+is a block rather than the background; the radii went from 26–32 px to 8–14 px; photography runs
+off the frame instead of sitting in a rounded card; and the week is columns rather than a bordered
+grid.
+
+### An environment quirk that cost time, so it is written down
+
+**Headless Chrome on Windows will not lay out below about 500 px.** `--window-size=430,1500`
+produces a 430-px-wide PNG, but the page is rendered at ~500 and the screenshot is simply the left
+430 columns of it — so text appears cut off at the right edge and it looks exactly like a
+horizontal-overflow bug. Proved by capturing at 430 and at 500 and comparing: the 430 image is
+**pixel-identical** to the left 430 columns of the 500 one. Do that comparison before hunting for
+an overflow that is not there, and treat sub-500 layouts as unverified by this tool.
+
+### What landed earlier: the sage design
 
 Grew out of a Figma Make exploration Ana liked ("C — Signal", rebuilt at
-`designs/top-designs/signal-asymmetric.html`), then a Midjourney generation with a sage-green
-editorial feel.
+`designs/signal-asymmetric.html`), then a Midjourney generation with a sage-green editorial feel.
 
 Live at `/sage` with five tabs — Home, Plan, Explore, Groceries, Assistant — **connected to the real
 engine**, not fixtures. `selectWeekFromDb` generates the week at request time; `RECIPES` fills the
@@ -179,7 +367,7 @@ Ana has an account (V8.2) and wants to keep using it for inspiration. Prompt fil
 **A Figma Make file exists** that Ana explored directions in:
 `figma.com/make/5qe9IcoI2dQWzGNCRYNiY2/User-dashboard`. It is **not fetchable** — Figma Make renders
 inside a logged-in session and returns 403. Its "C — Signal" direction was rebuilt from a screenshot
-as `designs/top-designs/signal-asymmetric.html`.
+as `designs/signal-asymmetric.html`.
 
 ### What each failed generation actually returned
 
@@ -196,6 +384,10 @@ Useful because the failure mode names the cause:
 | overhead food photography, no interface at all | leading with the subject instead of the format |
 | a wooden sign, plates of beans, an illustrated fish | `--chaos 100` |
 | phone illustrations and app icons | the mobile prompt on V8.2; removed as unsalvageable |
+| beautiful posters of one huge number, no interface at all | `one enormous number` + `vast empty space` + `award winning minimal`, with **no interface content named**. The prompt described a composition and gave it nothing to render but the number. **Hierarchy is a ratio between two NAMED elements, not an adjective** |
+| a photoreal phone mockup, again | the word **`app`**. Already in this table; it was improvised in chat rather than taken from the repo files. `--no device, mockup` cannot beat a positive noun |
+| food arranged in a tidy evenly-spaced ring | `centred`, and no arrangement language. See `designs/midjourney-dish-photography.md` §3 |
+| hyperreal plastic CGI food | `fine detail`, `soft diffused daylight`, and the default `--s` |
 
 ### What was learned about prompting it, expensively
 
@@ -217,6 +409,19 @@ Roughly a dozen rounds. Each fix below was discovered by a failed generation:
   entire frame edge to edge`.
 - **It cannot render dense UI text.** Prompts asking for "21 dish names with calories" spend their
   effort on gibberish. For inspiration, describe composition and mood, not the dataset.
+- **The ~25–35 word rule is for INTERFACE prompts only.** Long UI prompts render dense gibberish
+  text; a photograph has no text to render, so descriptive **photo** prompts of 60–90 words are
+  correct. Applying the interface rule to photography strips out exactly the material detail that
+  makes an image look real.
+- **A prompt that only exists in chat will be re-improvised badly.** The `app` failure above had
+  been documented for weeks and still recurred, because the prompt that caused it was never in a
+  repo file. Put prompts in `designs/`, not in a message.
+
+### Dish photography
+
+The style system for per-recipe food photography — the fixed style block, the realism and
+arrangement fixes, per-dish `--no` lists that protect diet tags, and the `--sref` locking procedure
+— lives in **`designs/midjourney-dish-photography.md`**. Read it before generating any food image.
 
 ---
 
@@ -230,12 +435,14 @@ Ana's instruction this session: *"the training is still going on another device.
 it."* WORKPLAN rule 7 also says the GPU run is never interrupted by other work. It is on a different
 machine, so laptop work cannot disturb it — but do not propose anything that would.
 
-## Documentation drift
+## Stray artefact worth a decision
 
-**CLAUDE.md is stale.** It still describes Phase 1 as the frontier and lists the pre-`EditIntent`
-tool set. In reality Phase 2 (the reel importer) and Phase 3 (the feed) are both shipped, along with
-a 31-finding UX overhaul. WORKPLAN.md is the accurate record. Worth reconciling at some point;
-deliberately not done this session because it was not what was asked for.
+**`public/week-designs.html` is served publicly and documented nowhere.** It sits at
+`ntrux.vercel.app/week-designs.html`: an old violet-era exploration of four week layouts
+(Timetable / Refined columns / Today agenda / Dashboard) built on **invented** data — hardcoded
+dish names, with "Grilled salmon with steamed broccoli" listed as a *breakfast*. In a product whose
+entire claim is that its numbers are real, a public page of fabricated ones is a liability. Either
+document it in `designs/README.md` or delete it.
 
 ## What Ana asked for, in her own words
 
@@ -372,12 +579,30 @@ npx tsc --noEmit
 npm run build             # NOT while `npm run dev` is running — it corrupts .next
 ```
 
-Screenshotting the live app for `--sref`:
+Screenshotting the live app for `--sref` (and for checking a design change without a browser):
 
 ```
 & "C:\Program Files\Google\Chrome\Application\chrome.exe" --headless --disable-gpu --no-sandbox `
   --hide-scrollbars --screenshot="$PWD\designs\screens\sage-home.png" `
   --window-size=1600,1100 --virtual-time-budget=8000 "https://ntrux.vercel.app/sage"
+```
+
+Two things learned using it this session:
+
+- **It will not lay out below ~500 px** on Windows, whatever `--window-size` says — see the
+  environment quirk above. Sub-500 layouts cannot be checked this way.
+- In `npm run dev`, the FIRST request for an optimised image can lose the race with the screenshot
+  and the page captures with a blank photo slot. Warm it (`curl` the page once) before shooting.
+
+Building contact sheets, which is what makes reviewing a set of images affordable — `sharp` ships
+with Next, so no install is needed:
+
+```js
+// N images into one labelled grid; the whole sheet costs about what one image costs to read.
+const sharp = require("sharp");
+const buf = await sharp(file).resize(430, 300, { fit: "cover" }).toBuffer();
+await sharp({ create: { width: 430 * cols, height: 300 * rows, channels: 3, background: "#fff" } })
+  .composite(cells).jpeg({ quality: 90 }).toFile(out);
 ```
 
 Reading an image from the clipboard (works around attachment limits):
@@ -402,12 +627,23 @@ $img = [System.Windows.Forms.Clipboard]::GetImage()   # then downscale and save,
 
 ## Immediate next steps
 
-1. **Pick a week-plan layout.** Candidates in `designs/midjourney-week-layouts.md`. Ana is exploring
-   in Midjourney; an offer to build four as real HTML with live data was declined in favour of
-   continuing to generate.
-2. **Wire Plan and Assistant** to be interactive, matching Explore and Groceries.
-3. **Decide on imagery** — hero-only photography, or stay fully typographic.
-4. Optional: remove `ThemeSwitch`, now that the real comparison is `/classic` vs `/sage`.
+1. **Ana looks at `/sage` and says whether it is the reference.** That is the only question that
+   matters right now; everything below is smaller.
+2. **Recapture `designs/screens/*.png`.** They are headless-Chrome shots of the OLD design and are
+   what Midjourney's `--sref` reads, so every future generation is currently anchored to a design
+   that no longer exists. Command is in the verification section below.
+3. **Photography is the binding constraint on the design now, not the layout.** Four dishes are
+   photographed and 496 are typographic tiles; the composition is built for pictures. The eleven
+   spare frames in `designs/references/food/` are alternates of the same four dishes, so coverage
+   only grows by generating new ones — `designs/midjourney-dish-photography.md` §7 lists eleven
+   library recipes with prompts ready.
+4. **Build `npm run check:images`** (spec in the Photography section above). It would have caught
+   the class of bug the page now guards against by hand: Home and Explore count photographed
+   recipes by resolving each map key against `RECIPES`, not by taking `Object.keys().length`,
+   because a stale key would otherwise inflate a claim while rendering nothing.
+5. **Wire Plan and Assistant** to be interactive, matching Explore and Groceries.
+6. Sub-500px layouts are **unverified** — headless Chrome on Windows will not render narrower (see
+   the environment quirk above). Check a real phone or a browser devtools viewport.
 
 ## Standing rules
 
