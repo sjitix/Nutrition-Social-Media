@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Fraunces } from "next/font/google";
+import { SageFooter } from "./SageFooter";
 import { MobileNav, SideNav } from "./SideNav";
 import { demoWeek, DEMO } from "./demo";
 
@@ -114,10 +115,7 @@ export default function SageLayout({ children }: { children: React.ReactNode }) 
       <div className="min-w-0 flex-1">
         <main>{children}</main>
 
-        <footer className="mt-24 flex flex-wrap justify-between gap-4 border-t border-line px-6 py-7 text-[12px] text-mut sm:px-10 xl:px-14">
-          <span>NutriFlow — meal planning that keeps you on track</span>
-          <span>Every figure computed from USDA FoodData Central</span>
-        </footer>
+        <SageFooter />
       </div>
     </div>
   );

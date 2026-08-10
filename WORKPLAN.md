@@ -906,7 +906,14 @@ Each of these was discovered by doing the work, and each earned its place.
     fault because the two versions were finally put side by side. **Diff the before and after
     before claiming an improvement**; had I done that, I would have seen the second attempt changed
     almost nothing.
-27. **Counting a mapping is not counting what renders.** Home says "500 recipes, N of them
+27. **Tailwind silently drops an arbitrary value containing a comma.** `lg:w-[min(44%,54vh)]`
+    produced no CSS at all — no error, no warning — so the `sm:w-[88%]` underneath stayed in force
+    and the plate ran off the bottom of the screen. It looked like a sizing mistake and was
+    actually a class that did not exist. Put the expression in a custom property
+    (`style={{ "--plate": "min(44%, 50vh)" }}` + `lg:w-[var(--plate)]`) and check the COMPUTED
+    width, not the markup: the class being present in the HTML proves nothing about whether any
+    rule was generated for it.
+28. **Counting a mapping is not counting what renders.** Home says "500 recipes, N of them
     photographed". Taking N from `Object.keys(RECIPE_IMAGES).length` would make the sentence lie
     the moment a recipe is renamed — the key survives, the photograph never renders, and the page
     claims coverage it does not have. Every count on the page resolves its keys against `RECIPES`

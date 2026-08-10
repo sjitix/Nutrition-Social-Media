@@ -110,7 +110,10 @@ disabled) — good for showing the UI without any AI.
   a column of outlined rows on the right. The plate is the dish coming up next, the rings are the
   macros already hit, the rows are the meals still to come. It infers "eaten" from the clock
   because nothing writes a meal log yet, and says so on the page; `?at=14` pins the hour for review
-  and labels itself when used. It shows the fixture week's **Monday** — `/sage` has no per-reader
+  and labels itself when used. The screen is composed to fill exactly one
+  window at `lg` — the plate is sized `min(44%, 50vh)` so the bowl is bounded by the window height
+  as well as its width, and the shell footer is suppressed on this route so it cannot push the
+  page into scrolling. It shows the fixture week's **Monday** — `/sage` has no per-reader
   data, so claiming otherwise would be a lie the rest of the screen does not tell.
   `layout.tsx` + `SideNav.tsx` are the shell
   — a full-height deep-forest sidebar carrying both the nav and the real week, beside a cream page

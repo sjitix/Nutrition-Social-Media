@@ -98,7 +98,9 @@ export function TodayClient({
   const plate = featured.cutout ?? featured.image;
 
   return (
-    <div className="relative min-h-[calc(100vh-64px)] overflow-hidden px-6 pt-8 sm:px-10 xl:px-14">
+    /* Exactly one screen at `lg`. The whole composition is meant to be taken in at a glance, and a
+       plate that continues below the fold is a plate you scroll to see rather than one you see. */
+    <div className="relative flex min-h-[calc(100vh-64px)] flex-col px-6 pb-6 pt-8 sm:px-10 lg:h-screen lg:min-h-0 lg:overflow-hidden xl:px-14">
       {/* the board's top-right cluster. Its top-LEFT links are the sidebar's job here. */}
       <div className="flex items-center justify-end gap-2.5">
         <span className="text-[10.5px] tabular-nums text-mut">
@@ -123,7 +125,7 @@ export function TodayClient({
           minimum — so that it is cut by the bottom of the frame the way the board's is. Anchored to
           this grid instead, it was only clipped when the right-hand column happened to be short
           enough, which is a coincidence rather than a composition. */}
-      <div className="mt-8 grid gap-10 lg:mt-10 lg:min-h-[600px] lg:grid-cols-[1.08fr_0.92fr] lg:gap-14 xl:gap-20">
+      <div className="mt-8 grid gap-10 lg:mt-8 lg:min-h-0 lg:flex-1 lg:grid-cols-[1.08fr_0.92fr] lg:gap-14 xl:gap-20">
         {/* ── LEFT: headline, paragraph, and the plate running off the bottom of the frame ── */}
         <div className="flex min-w-0 flex-col">
           <span className="text-[9.5px] font-bold uppercase tracking-[0.2em] text-mut">
@@ -139,7 +141,20 @@ export function TodayClient({
 
           {/* SLOT: the plate. Round, oversized, laid on the page with no card and no caption, and
               cut by the bottom of the frame — `-mb` pushes it past the container, which clips it. */}
-          <div className="relative mt-9 aspect-square w-[104%] max-w-none self-start sm:w-[88%] lg:absolute lg:-bottom-[13%] lg:left-10 lg:mt-0 lg:w-[44%] lg:max-w-none xl:left-14 xl:w-[46%]">
+          {/* The plate is sized off the VIEWPORT as well as the column, `min(44%, 54vh)`, so the
+              whole bowl is always inside the screen. Sized off the column alone it was as tall as
+              the column was wide, which on a short window put the bottom of it below the fold —
+              and a bowl you have to scroll to finish looking at is a cut bowl. */}
+          {/* The size is `min(44%, 50vh)` — of the PAGE, since this is positioned against it — so
+              the bowl is bounded by the window's height as well as its width and is always whole.
+              It goes through a custom property rather than `lg:w-[min(44%,50vh)]` because Tailwind
+              does not emit an arbitrary value containing a comma: the class was silently dropped,
+              the mobile 88% stayed in force, and the plate ran off the bottom of the screen. A
+              class that does not exist fails silently — check the computed width, not the markup. */}
+          <div
+            className="relative mt-9 aspect-square w-[104%] max-w-none self-start sm:w-[88%] lg:absolute lg:bottom-1 lg:left-10 lg:mt-0 lg:w-[var(--plate)] lg:max-w-none xl:left-14"
+            style={{ "--plate": "min(44%, 50vh)" } as React.CSSProperties}
+          >
             {plate ? (
               <Image
                 src={plate}
