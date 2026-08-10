@@ -137,9 +137,18 @@ and **this cannot be fixed retroactively**.
 4. **Write the URL and the `--sw` value into this file**, below.
 
 ```
-ANCHOR: not yet locked.
---sref <url>   --sw <value>
+ANCHOR: not yet locked — but the candidate is chosen and is already committed.
+Proposed:  --sref https://raw.githubusercontent.com/sjitix/Nutrition-Social-Media/main/public/food/miso-cod.jpg   --sw 70
 ```
+
+`miso-cod.jpg` is the right anchor of the four shipped: it is the one that came out convincing on
+the first generation (see §3's difficulty rule), it is a wide shallow bowl on the sage linen, and
+its light is the exact upper-left window light the block asks for.
+
+**It will 404 until `main` is pushed.** `--sref` fetches over the public internet; a file that
+exists only in a local commit is not reachable. Push first, open the URL in a browser to confirm it
+serves the image, and only then start generating at volume — a broken `--sref` fails silently by
+just ignoring the reference, and you will not notice until image #40 does not match image #1.
 
 Parameters must follow the prompt text, and `--no` goes **last** — it swallows the
 comma-separated list after it.
@@ -177,6 +186,45 @@ the dish.
 | Shrimp, Corn & Black Bean Salad | `l-mexican-shrimp-corn-salad` | 509 kcal · P46 · fibre 19 | top-scoring lunch |
 | Chilli-Lime Prawn Tacos | `d-fast-prawn-tacos` | 513 kcal · P41 · fibre 16 | breaks the vessel rule — plate, not bowl |
 | Garlic Butter Salmon with Asparagus | `d-keto-salmon-asparagus` | 496 kcal · P39 · **fibre 3** | keto — beautiful, but off the high-fibre brief |
+
+### Chicken & soft-boiled egg poke bowl
+
+> ⚠️ **This dish is not in the library.** The only poke bowls are `l-salmon-poke` (Salmon Poke Bowl
+> with Edamame) and `l-tofu-poke` (Tofu Poke Bowl with Edamame). A photograph of a chicken-and-egg
+> bowl **must not** be mapped to either of them — that is a photo standing in for a dish it is not,
+> which is the exact failure `RECIPE_IMAGES` exists to make impossible. Either add the recipe
+> first, or generate this for a mood board rather than for a card.
+>
+> It **is** addable: every ingredient below is already priced in `NUTRIENT_TABLE`, which is the
+> binding constraint on new recipes (auto-matching to USDA is unsafe — it produced
+> `salmon fillet → Salmonberries`). Proposed list, all resolvable today:
+> chicken breast · eggs · brown rice · edamame · cucumber · carrot · soy sauce · sesame seeds ·
+> sesame oil. Red cabbage, spring onion, radish, ginger and rice vinegar are **not** priced, so
+> they cannot be in the recipe — and therefore must not be in the picture.
+
+Vessel: a **wide shallow bowl**, because it is a mixed grain dish. Difficulty: **hard** — discrete
+pieces and egg halves are exactly what Midjourney arranges into a tidy ring — so the full
+arrangement language from §3 is in, none of it dropped.
+
+```
+raw photograph, overhead food photography, one single serving of a chicken and soft-boiled egg poke bowl, sliced grilled chicken breast, one jammy soft-boiled egg halved, brown rice, edamame, cucumber and julienned carrot, sesame seeds, tipped casually into a plain off-white speckled ceramic wide shallow bowl, pieces overlapping and clumped unevenly, food gathered to one side with bare bowl showing on the other, one egg half resting against the rim, bowl slightly off centre and cropped by the frame edge, soft sage green linen surface with visible weave, natural window light from the upper left with a soft directional shadow, shallow depth of field with the bowl edges falling soft, shot on a 50mm lens at f/2.8, subtle film grain, documentary food photography, natural and unstyled, muted green and cream tones --ar 16:10 --style raw --s 50 --no raw fish, tuna, salmon, sashimi, seaweed, nori, avocado, mango, mayonnaise, spicy mayo drizzle, sriracha, pickled ginger, wasabi, spring onion, radish, red cabbage, evenly spaced, arranged in a ring, symmetrical plating, neatly arranged, fanned out, styled, garnished, 3d render, cgi, illustration, digital art, plastic, artificial, glossy, fork, knife, spoon, cutlery, chopsticks, napkin, hands, people, faces, text, words, logo, cluttered props, busy background, oversaturated, neon
+```
+
+Swap `--ar 16:10` for `--ar 5:4` for the large featured card, or `--ar 4:5` plus
+`generous empty space` for a hero. Nothing else changes — the style block is fixed on purpose.
+
+**Why the `--no` list is longer than usual for this one.** Three of its entries are doing real work
+rather than being cautious:
+
+| blocked | why |
+|---|---|
+| `raw fish, tuna, salmon, sashimi` | **the important one.** "Poke" means raw fish to the model; without this it will serve tuna and the picture will be of a different dish entirely |
+| `seaweed, nori, avocado, mango, pickled ginger, wasabi, sriracha, spicy mayo` | the poke clichés. None are in the recipe, and each one that lands makes the photo disagree with the ingredient list |
+| `spring onion, radish, red cabbage` | not blocked for taste — they are **not priced in `NUTRIENT_TABLE`**, so they cannot be in the recipe, so they must not be in the frame |
+
+The last row is the general rule and it is worth stating on its own: **a garnish the model adds is
+an ingredient the card does not have.** Block anything that cannot appear in the recipe, and check
+the result against the recipe's `dietTags` before mapping it.
 
 ### Finding more
 
