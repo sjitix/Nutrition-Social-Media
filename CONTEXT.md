@@ -78,6 +78,32 @@ cards, with three circular arc gauges. Her brief for what those parts hold: the 
 **dish coming up next**, the three circles are the **macros already hit**, and the **upcoming meals
 sit below them**. The week screen is untouched; she has said the week is a later conversation.
 
+**The first attempt at it was rejected — *"this is definitely not what i showed you. Do it exactly
+like in the pic"*.** It had all the right parts in an arrangement of my own. This is lesson 15
+happening a second time, one screen later, and the tell is identical: the parts were right and the
+composition was invented. The board's actual structure, which the screen now is:
+
+```
+a near-black forest PAGE, and on it
+├─ ONE large cream card filling the left ~62%
+│    · its own small nav row — mark, two links, then a label and three small circles
+│    · LEFT of the card: serif headline, short paragraph, and beneath them a HUGE ROUND PLATE
+│      cropped by the card's own bottom edge
+│    · RIGHT of the card: a caption, THREE THICK RINGS with a number in each, two hairline spec
+│      rows (the second with a leader rule), then outlined rows each led by a dot
+└─ a stack of smaller cream cards down the right
+     · a segmented DONUT beside bar rows, dark pill at its top right
+     · bar rows carrying a TARGET TICK, and a filled green circle bottom right
+     · a photograph beside a green panel
+and under all of it, small figures set straight on the dark ground beside an outlined box
+```
+
+Two details worth keeping: the plate grows **leftwards** by negative margin rather than by extra
+width, because growing rightwards put the rows on top of the food; and when the dish has no
+photograph the plate keeps its circular shape and carries the ingredient list on a **fixed sage**,
+not `gradientForMeal` — the tile palette hashes a name onto fourteen hues, which is right for a
+wall of cards and made the plate dusty pink on a cream card.
+
 Two things about it worth knowing:
 
 - **"Already hit" is inferred from the clock, not from a log.** The app has no record of what you

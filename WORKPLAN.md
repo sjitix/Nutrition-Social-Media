@@ -870,7 +870,14 @@ Each of these was discovered by doing the work, and each earned its place.
     the rim, and ate a bite-shaped hole out of the food. The plate is a circle photographed from
     overhead — fitting a circle to the brightest connected blob is both simpler and exact. Reach
     for the strong prior about the subject before reaching for a general algorithm.
-22. **Counting a mapping is not counting what renders.** Home says "500 recipes, N of them
+22. **Lesson 15 recurs the moment you stop transcribing.** Handed `sage-04` and told what each
+    part should hold — plate, gauges, upcoming meals — I built those parts in an arrangement of my
+    own and got *"this is definitely not what i showed you. Do it exactly like in the pic."* Right
+    parts, invented composition: the identical failure, one screen after learning it. Being told
+    what the elements MEAN is not the same as being told where they GO, and a brief that supplies
+    the meaning still leaves the layout to be copied. Transcribe the board first — panel by panel,
+    column by column — and only then decide what each panel holds.
+23. **Counting a mapping is not counting what renders.** Home says "500 recipes, N of them
     photographed". Taking N from `Object.keys(RECIPE_IMAGES).length` would make the sentence lie
     the moment a recipe is renamed — the key survives, the photograph never renders, and the page
     claims coverage it does not have. Every count on the page resolves its keys against `RECIPES`
