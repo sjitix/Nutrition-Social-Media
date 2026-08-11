@@ -125,7 +125,7 @@ export function TodayClient({
           minimum — so that it is cut by the bottom of the frame the way the board's is. Anchored to
           this grid instead, it was only clipped when the right-hand column happened to be short
           enough, which is a coincidence rather than a composition. */}
-      <div className="mt-8 grid gap-10 lg:mt-8 lg:min-h-0 lg:flex-1 lg:grid-cols-[1.08fr_0.92fr] lg:gap-14 xl:gap-20">
+      <div className="mt-8 grid gap-10 lg:mt-8 lg:min-h-0 lg:flex-1 lg:grid-cols-[1.14fr_0.86fr] lg:gap-14 xl:gap-20">
         {/* ── LEFT: headline, paragraph, and the plate running off the bottom of the frame ── */}
         <div className="flex min-w-0 flex-col">
           <span className="text-[9.5px] font-bold uppercase tracking-[0.2em] text-mut">
@@ -139,21 +139,22 @@ export function TodayClient({
             {featured.minutes} minutes to cook.
           </p>
 
-          {/* SLOT: the plate. Round, oversized, laid on the page with no card and no caption, and
-              cut by the bottom of the frame — `-mb` pushes it past the container, which clips it. */}
-          {/* The plate is sized off the VIEWPORT as well as the column, `min(44%, 54vh)`, so the
-              whole bowl is always inside the screen. Sized off the column alone it was as tall as
-              the column was wide, which on a short window put the bottom of it below the fold —
-              and a bowl you have to scroll to finish looking at is a cut bowl. */}
-          {/* The size is `min(44%, 50vh)` — of the PAGE, since this is positioned against it — so
-              the bowl is bounded by the window's height as well as its width and is always whole.
-              It goes through a custom property rather than `lg:w-[min(44%,50vh)]` because Tailwind
-              does not emit an arbitrary value containing a comma: the class was silently dropped,
-              the mobile 88% stayed in force, and the plate ran off the bottom of the screen. A
-              class that does not exist fails silently — check the computed width, not the markup. */}
+          {/* SLOT: the plate. Round, oversized, laid on the page with no card and no caption.
+              `min(48%, 62vh)` OF THE PAGE, since it is positioned against it:
+
+              48%  is measured off the board. On `sage-04` the bowl is 46% of the cream card's
+                   width, and the first build had it at 38% because the height cap below was
+                   binding — which is what "the image should be bigger" was pointing at.
+              62vh keeps the whole bowl on screen on a short window. Sized off the column alone it
+                   was as tall as the column was wide, and the bottom fell below the fold.
+
+              It goes through a custom property because Tailwind does not emit an arbitrary value
+              containing a comma: `lg:w-[min(48%,62vh)]` was silently dropped, the mobile 88% stayed
+              in force, and the plate ran off the screen. A class that does not exist fails
+              silently — check the COMPUTED width, not the markup. */}
           <div
             className="relative mt-9 aspect-square w-[104%] max-w-none self-start sm:w-[88%] lg:absolute lg:bottom-1 lg:left-10 lg:mt-0 lg:w-[var(--plate)] lg:max-w-none xl:left-14"
-            style={{ "--plate": "min(44%, 50vh)" } as React.CSSProperties}
+            style={{ "--plate": "min(48%, 62vh)" } as React.CSSProperties}
           >
             {plate ? (
               <Image
