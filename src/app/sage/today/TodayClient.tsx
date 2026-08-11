@@ -125,7 +125,7 @@ export function TodayClient({
           minimum — so that it is cut by the bottom of the frame the way the board's is. Anchored to
           this grid instead, it was only clipped when the right-hand column happened to be short
           enough, which is a coincidence rather than a composition. */}
-      <div className="mt-6 grid gap-10 lg:mt-5 lg:grid-cols-[1.14fr_0.86fr] lg:gap-14 xl:gap-20">
+      <div className="mt-6 grid gap-10 lg:mt-5 lg:grid-cols-[1.14fr_0.86fr] lg:gap-20 xl:gap-24">
         {/* ── LEFT: headline, paragraph, and the plate running off the bottom of the frame ── */}
         {/* The text block is deliberately SHORT, because on this screen every pixel it takes is a
             pixel off the plate's diameter — the plate gets the rest of the column, so they trade
@@ -155,7 +155,7 @@ export function TodayClient({
 
               Measure nothing, ask the layout: the plate is now as large as it can be without
               being cut, on every window, and it grows the moment the sidebar collapses. */}
-          <div className="relative mt-9 aspect-square w-[104%] max-w-none self-start sm:w-[88%] lg:-ml-4 lg:mt-7 lg:w-[112%]">
+          <div className="relative mt-9 aspect-square w-[104%] max-w-none self-start sm:w-[88%] lg:-ml-6 lg:mt-7 lg:w-[108%] 2xl:w-[104%]">
             {plate ? (
               <Image
                 src={plate}
