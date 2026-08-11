@@ -100,7 +100,7 @@ export function TodayClient({
   return (
     /* Exactly one screen at `lg`. The whole composition is meant to be taken in at a glance, and a
        plate that continues below the fold is a plate you scroll to see rather than one you see. */
-    <div className="relative flex min-h-[calc(100vh-64px)] flex-col px-6 pb-5 pt-5 sm:px-10 lg:h-screen lg:min-h-0 lg:overflow-hidden xl:px-14">
+    <div className="relative flex min-h-[calc(100vh-64px)] flex-col px-6 pb-5 pt-5 sm:px-10 lg:min-h-screen lg:overflow-x-hidden xl:px-14">
       {/* the board's top-right cluster. Its top-LEFT links are the sidebar's job here. */}
       <div className="flex items-center justify-end gap-2.5">
         <span className="text-[10.5px] tabular-nums text-mut">
@@ -125,13 +125,13 @@ export function TodayClient({
           minimum — so that it is cut by the bottom of the frame the way the board's is. Anchored to
           this grid instead, it was only clipped when the right-hand column happened to be short
           enough, which is a coincidence rather than a composition. */}
-      <div className="mt-6 grid gap-10 lg:mt-5 lg:min-h-0 lg:flex-1 lg:grid-cols-[1.14fr_0.86fr] lg:grid-rows-[minmax(0,1fr)] lg:gap-14 xl:gap-20">
+      <div className="mt-6 grid gap-10 lg:mt-5 lg:grid-cols-[1.14fr_0.86fr] lg:gap-14 xl:gap-20">
         {/* ── LEFT: headline, paragraph, and the plate running off the bottom of the frame ── */}
         {/* The text block is deliberately SHORT, because on this screen every pixel it takes is a
             pixel off the plate's diameter — the plate gets the rest of the column, so they trade
             directly. The board has no eyebrow above its headline either; "up next" moved into the
             sentence, where it costs no line of its own. */}
-        <div className="flex min-w-0 flex-col lg:min-h-0">
+        <div className="flex min-w-0 flex-col">
           <h1 className="font-serif-display max-w-[15ch] text-balance text-[clamp(26px,2.7vw,39px)] font-semibold leading-[1.02] tracking-[-0.03em]">
             {featured.name}
           </h1>
@@ -155,7 +155,7 @@ export function TodayClient({
 
               Measure nothing, ask the layout: the plate is now as large as it can be without
               being cut, on every window, and it grows the moment the sidebar collapses. */}
-          <div className="relative mt-9 aspect-square w-[104%] max-w-none self-start sm:w-[88%] lg:mt-4 lg:aspect-auto lg:min-h-0 lg:w-auto lg:flex-1">
+          <div className="relative mt-9 aspect-square w-[104%] max-w-none self-start sm:w-[88%] lg:-ml-4 lg:mt-7 lg:w-[112%]">
             {plate ? (
               <Image
                 src={plate}
@@ -169,7 +169,7 @@ export function TodayClient({
                 // lets it spill into the gutter — the board's plate is wider than its text column —
                 // without ever reaching the figures.
                 className={
-                  "h-full w-full object-contain object-bottom lg:w-auto lg:max-w-[122%] " +
+                  "h-full w-full object-contain " +
                   (featured.cutout
                     ? "drop-shadow-[0_34px_58px_rgba(28,36,25,0.26)]"
                     : "rounded-full shadow-[0_34px_58px_rgba(28,36,25,0.26)]")
@@ -179,7 +179,7 @@ export function TodayClient({
               /* No photograph of THIS dish, and it never borrows another's. The plate keeps its
                  shape; a fixed sage, not `gradientForMeal`, which hashes a name onto fourteen hues
                  and would make the plate a different colour for every dish. */
-              <div className="mx-auto grid aspect-square h-full w-full max-w-full place-items-center rounded-full bg-tint text-center shadow-[0_34px_58px_rgba(28,36,25,0.14)] lg:mx-0 lg:w-auto">
+              <div className="mx-auto grid aspect-square h-full w-full max-w-full place-items-center rounded-full bg-tint text-center shadow-[0_34px_58px_rgba(28,36,25,0.14)] ">
                 <span className="px-[18%]">
                   <span className="text-[9.5px] font-bold uppercase tracking-[0.2em] text-mut">
                     Not photographed yet
@@ -196,7 +196,7 @@ export function TodayClient({
         {/* ── RIGHT: caption, rings, spec rows, outlined rows ──
             `lg:pt-7` drops this column below the headline's first line, which is where the board
             starts it — the caption sits beside the headline rather than above it. */}
-        <div className="min-w-0 pb-16 lg:min-h-0 lg:overflow-y-auto lg:pb-2 lg:pt-1">
+        <div className="min-w-0 pb-16 lg:pb-10 lg:pt-1">
           <p className="text-[11.5px]">
             <b className="font-semibold">Already hit today</b>{" "}
             <span className="text-mut">

@@ -122,12 +122,11 @@ disabled) — good for showing the UI without any AI.
   a column of outlined rows on the right. The plate is the dish coming up next, the rings are the
   macros already hit, the rows are the meals still to come. It infers "eaten" from the clock
   because nothing writes a meal log yet, and says so on the page; `?at=14` pins the hour for review
-  and labels itself when used. The screen is composed to fill exactly one
-  window at `lg` — the plate is sized `min(48%, 62vh)` so the bowl is bounded by the window
-  height as well as its width — 48% is measured off the board, where the bowl is 46% of the card —
-  and the two columns are `1.14fr / 0.86fr`, which puts the figures column at 39–41% of the content
-  rather than the half it started at, and the shell footer is suppressed on this route so it cannot push the
-  page into scrolling. It shows the fixture week's **Monday** — `/sage` has no per-reader
+  and labels itself when used. The plate is sized off the page WIDTH alone — `112%` of its column, 53% of the page — because
+  sizing it off the window height made it shrink on short windows, which is what made it look small
+  on a laptop. The page grows past one screen when it has to; the bowl is never cut. The two columns
+  are `1.14fr / 0.86fr`, putting the figures column at ~40% of the content, and the shell footer is
+  suppressed on this route. It shows the fixture week's **Monday** — `/sage` has no per-reader
   data, so claiming otherwise would be a lie the rest of the screen does not tell.
   `layout.tsx` + `SidePanel.tsx` + `SideNav.tsx` are the shell
   — a full-height deep-forest sidebar beside a cream page with **no max-width wrapper**
