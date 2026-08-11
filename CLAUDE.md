@@ -220,6 +220,14 @@ LM Studio: load model, push GPU offload to max, context >= 8192, Start Server on
   never emoji as icons. (Emoji-as-icon reads as AI-generated.)
 - **Never add AI as a git co-author, committer, or repo collaborator.** Commits are
   authored solely by the owner. Do not add `Co-Authored-By` trailers.
+- **Commit after every significant step, without being asked.** A working screen, a fixed bug, a
+  design change the owner has reacted to — each is its own commit, with the reasoning in the
+  message rather than only the what. Two reasons, both learned here: this repo is how the work
+  moves between the laptop and the desktop, and a session's work has already sat uncommitted and
+  nearly been lost; and a long unbroken run of edits cannot be bisected, so when a design decision
+  turns out to be wrong three rounds later, "the commit before the rings changed" has to exist.
+  Run the relevant gate first — `npm run test:engine` if the engine was touched, `tsc` and
+  `npm run build` otherwise. **Pushing stays a separate decision; ask.**
 - **Keep the four documents current. This is not optional, and it is not a chore to do if there is
   time left.** The owner works across many separate conversations and none of them can see the
   others. These files are the only thing carrying state between sessions. A stale one is worse than

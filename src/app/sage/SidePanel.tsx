@@ -18,7 +18,10 @@ import { MobileNav, SideNav } from "./SideNav";
  * neither is worth carrying for a preference that only resets on a hard refresh.
  */
 export function SidePanel() {
-  const [open, setOpen] = useState(true);
+  // CLOSED by default, at Ana's request. The rail still shows every section as an icon with its
+  // name on hover, so nothing is unreachable — and it gives the page ~190px more width, which the
+  // photography-led screens spend on the plate.
+  const [open, setOpen] = useState(false);
 
   return (
     <header
