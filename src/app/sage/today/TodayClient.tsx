@@ -131,7 +131,7 @@ export function TodayClient({
           <span className="text-[9.5px] font-bold uppercase tracking-[0.2em] text-mut">
             {when} · {SLOT_LABEL[featured.type]} · {clock(SLOT_HOUR[featured.type])}
           </span>
-          <h1 className="font-serif-display mt-3 max-w-[14ch] text-balance text-[clamp(30px,3.3vw,48px)] font-semibold leading-[1.02] tracking-[-0.03em]">
+          <h1 className="font-serif-display mt-3 max-w-[15ch] text-balance text-[clamp(26px,2.7vw,39px)] font-semibold leading-[1.02] tracking-[-0.03em]">
             {featured.name}
           </h1>
           <p className="mt-4 max-w-[44ch] text-[12.5px] leading-[1.75] text-plum-mid">
@@ -189,8 +189,10 @@ export function TodayClient({
           </div>
         </div>
 
-        {/* ── RIGHT: caption, rings, spec rows, outlined rows ── */}
-        <div className="min-w-0 pb-16">
+        {/* ── RIGHT: caption, rings, spec rows, outlined rows ──
+            `lg:pt-7` drops this column below the headline's first line, which is where the board
+            starts it — the caption sits beside the headline rather than above it. */}
+        <div className="min-w-0 pb-16 lg:pt-7">
           <p className="text-[11.5px]">
             <b className="font-semibold">Already hit today</b>{" "}
             <span className="text-mut">
@@ -200,7 +202,11 @@ export function TodayClient({
             </span>
           </p>
 
-          <div className="mt-6 grid grid-cols-3 gap-3">
+          {/* The rings FILL this column. On the board they are 31% of the column's width each and
+              nearly touch — three rings plus two small gaps is the whole width. Capped at 110px
+              they sat as three small discs in a wide column with air between them, which is the
+              single biggest reason this read as a different layout from the board. */}
+          <div className="mt-6 grid grid-cols-3 gap-4">
             <Ring label="Calories" value={hit.calories} target={targets.calories} unit="kcal" />
             <Ring label="Protein" value={hit.protein} target={targets.protein} unit="g" />
             <Ring label="Fibre" value={hit.fibre} target={targets.fibre} unit="g" />
@@ -284,9 +290,14 @@ function Ring({
   const pct = target > 0 ? Math.min(1, value / target) : 0;
   const R = 32;
   const C = 2 * Math.PI * R;
+  // The figure fills the ring's hole the way the board's does — its "69" is about a third of the
+  // ring's diameter. Ours are absolute amounts rather than percentages, so they vary from two
+  // characters to five ("1,229"), and one size cannot serve both: stepped by length instead.
+  const size = value >= 1000 ? "text-[26px]" : value >= 100 ? "text-[38px]" : "text-[46px]";
+
   return (
     <div className="flex flex-col items-center">
-      <div className="relative aspect-square w-full max-w-[110px]">
+      <div className="relative aspect-square w-full">
         <svg viewBox="0 0 80 80" className="h-full w-full -rotate-90">
           <circle cx="40" cy="40" r={R} fill="none" stroke="var(--color-tint)" strokeWidth="9" />
           <circle
@@ -303,17 +314,12 @@ function Ring({
           />
         </svg>
         <span className="absolute inset-0 grid place-items-center">
-          <b
-            className={
-              "font-bold leading-none tracking-[-0.04em] tabular-nums text-vio " +
-              (value >= 1000 ? "text-[19px]" : "text-[25px]")
-            }
-          >
+          <b className={"font-bold leading-none tracking-[-0.04em] tabular-nums text-vio " + size}>
             {value.toLocaleString()}
           </b>
         </span>
       </div>
-      <span className="mt-2.5 text-[9px] font-bold uppercase tracking-[0.14em] text-mut">
+      <span className="mt-3 text-[9px] font-bold uppercase tracking-[0.14em] text-mut">
         {label}
       </span>
       <span className="text-[10px] tabular-nums text-mut">
