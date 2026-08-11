@@ -47,6 +47,18 @@ Node may not be on PATH on every machine here. On the laptop it is, at
 `C:\Program Files\nodejs`; the desktop has a portable install under `%LOCALAPPDATA%\nodejs` —
 prepend that if `npm` is not found.
 
+**`npm run dev` is slow to change tabs, and it is not the app.** Next compiles each route on its
+first visit in dev. Measured on this laptop: the first navigation to Explore took **5.9 s**,
+Assistant 3.6 s, Groceries 3.2 s — while every WARM navigation was 70–135 ms. The same first
+visits against a production build are **13–20 ms**. So when someone is reviewing the design rather
+than editing it, serve the build:
+
+```bash
+npm run build && npx next start -p 3000
+```
+
+Do not go looking for a performance bug in the app because tab presses feel slow in dev.
+
 **Never run `npm run build` while `npm run dev` is running.** They share `.next`, and the
 production output breaks the dev server's chunk map — every page then serves blank white with
 `Cannot find module './611.js'`. Stop dev first, or delete `.next` afterwards.
@@ -115,9 +127,14 @@ disabled) — good for showing the UI without any AI.
   as well as its width, and the shell footer is suppressed on this route so it cannot push the
   page into scrolling. It shows the fixture week's **Monday** — `/sage` has no per-reader
   data, so claiming otherwise would be a lie the rest of the screen does not tell.
-  `layout.tsx` + `SideNav.tsx` are the shell
-  — a full-height deep-forest sidebar carrying both the nav and the real week, beside a cream page
-  with **no max-width wrapper** (photography has to run off the frame edge). Server components
+  `layout.tsx` + `SidePanel.tsx` + `SideNav.tsx` are the shell
+  — a full-height deep-forest sidebar beside a cream page with **no max-width wrapper**
+  (photography has to run off the frame edge). The panel **collapses to a 76px icon rail**, which
+  is a shape the boards already have (sage-10/12 put a rail beside the panel); the state lives in
+  `SidePanel` and is not persisted, because a layout survives client-side navigation so it already
+  outlives every tab press. It used to carry the week as a list under the nav and no longer does —
+  the sidebar is in EVERY route's payload, so that was seven days of engine totals serialised into
+  every navigation, and the layout now touches the engine not at all. Server components
   reading the real engine; Explore and Groceries are interactive. `demo.ts` computes the week ONCE
   at module load, so no two tabs can describe different weeks — and builds it by running
   `selectWeekFromDb` through `applyOperations(regenerate_week)`, because selection alone only

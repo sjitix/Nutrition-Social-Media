@@ -35,7 +35,7 @@ function isActive(href: string, path: string) {
   return href === "/sage" ? path === "/sage" : path.startsWith(href);
 }
 
-export function SideNav() {
+export function SideNav({ collapsed = false }: { collapsed?: boolean }) {
   const path = usePathname();
 
   return (
@@ -47,15 +47,23 @@ export function SideNav() {
             key={href}
             href={href}
             aria-current={active ? "page" : undefined}
+            // Collapsed, the label is still in the DOM for a screen reader — visually hidden, not
+            // removed. `title` gives the sighted reader the same thing on hover.
+            title={collapsed ? label : undefined}
+            // Every fragment ends with a space. Without one, `px-0` + `bg-cream` concatenated into
+            // `px-0bg-cream` and the collapsed rail silently lost its active pill AND its padding —
+            // a class name built by joining strings fails by producing a DIFFERENT class, not by
+            // producing nothing, so nothing warns.
             className={
-              "flex items-center gap-3 rounded-[9px] px-3.5 py-2.5 text-[13.5px] transition " +
+              "flex items-center rounded-[9px] py-2.5 text-[13.5px] transition " +
+              (collapsed ? "justify-center px-0 " : "gap-3 px-3.5 ") +
               (active
                 ? "bg-cream font-semibold text-panel"
                 : "font-medium text-white/70 hover:bg-white/10 hover:text-white")
             }
           >
             <Icon className="h-[15px] w-[15px] shrink-0" />
-            {label}
+            <span className={collapsed ? "sr-only" : undefined}>{label}</span>
           </Link>
         );
       })}

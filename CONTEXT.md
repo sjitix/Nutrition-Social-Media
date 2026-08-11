@@ -44,9 +44,13 @@ the honesty rules there are not optional.
 
 ### What was built, screen by screen
 
-**The shell** (`src/app/sage/layout.tsx` + `SideNav.tsx`, which replaces `SageTabs.tsx`) — a deep
-forest **sidebar** running the full height of the window, 268 px, with the nav AND content: the
-real week, seven days with the engine's calorie and protein totals. The page beside it is warm
+**The shell** (`src/app/sage/layout.tsx` + `SidePanel.tsx` + `SideNav.tsx`) — a deep forest
+**sidebar** running the full height of the window, 268 px, which **collapses to a 76 px icon rail**
+(the boards put a rail beside the panel, so the closed state is a shape the design already has).
+It carried the week as a list under the nav until Ana asked for it gone; worth knowing what that
+bought beyond a tidier rail, since the sidebar is in EVERY route payload: seven days of engine
+totals were being serialised into every navigation, Home dropped 118 kB to 105 kB, Today 30 kB to
+17 kB, and the layout now touches the engine not at all. The page beside it is warm
 cream, edge to edge, with **no max-width wrapper** — a centred container makes running photography
 off the frame impossible, which is half of what the boards do. Below `lg` the panel becomes a bar.
 
@@ -760,3 +764,30 @@ From CLAUDE.md and WORKPLAN, and they held all session:
 - **The LLM decides what; deterministic code guarantees it is correct.** The model does no
   arithmetic, ever.
 - **Honesty over silence** — if the engine adjusts something, the interface says so.
+
+---
+
+## Performance: the tab delay was `next dev`, not the app
+
+Reported as *"a huge delay when pressing the tabs"*, and measured before touching anything —
+which was the right call, because there was nothing in the app to fix. Next compiles each route on
+its **first** visit in dev:
+
+| route | dev, first visit | dev, warm | production, first visit |
+|---|---|---|---|
+| `/sage/explore` | **5.89 s** | 0.09 s | **0.014 s** |
+| `/sage/assistant` | 3.64 s | 0.08 s | 0.013 s |
+| `/sage/groceries` | 3.17 s | 0.07 s | 0.015 s |
+| `/sage` | 0.14 s | 0.11 s | 0.014 s |
+
+**For reviewing the design, serve the build** — `npm run build && npx next start -p 3000`. Tab
+presses are then 13–20 ms. Keep `npm run dev` for editing.
+
+Removing the week list from the sidebar shrank every route's RSC payload, since the sidebar is in
+all of them: Home 118 kB → 105 kB, Week 123 kB → 109 kB, Today 30 kB → 17 kB.
+
+**One real payload cost is still open and is worth a decision.** `ExploreClient` imports
+`FEED_RECIPES`, so the whole 501-recipe library — every ingredient and every step — is bundled into
+the browser (Explore's first-load JS is 185 kB against 103–111 kB for every other route). It is
+fast enough on a laptop and it is the wrong shape: filtering could happen on the server, or the
+cards could carry only what a card shows. Not urgent, not free.

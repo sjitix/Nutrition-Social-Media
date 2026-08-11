@@ -913,7 +913,18 @@ Each of these was discovered by doing the work, and each earned its place.
     (`style={{ "--plate": "min(44%, 50vh)" }}` + `lg:w-[var(--plate)]`) and check the COMPUTED
     width, not the markup: the class being present in the HTML proves nothing about whether any
     rule was generated for it.
-28. **Counting a mapping is not counting what renders.** Home says "500 recipes, N of them
+28. **A class name built by joining strings fails by producing a DIFFERENT class, not none.**
+    `(collapsed ? "justify-center px-0" : "gap-3 px-3.5 ") + (active ? "bg-cream …" : …)` — the
+    first branch has no trailing space, so the collapsed rail's active item got `px-0bg-cream` and
+    silently lost both its padding and its highlight. Nothing warns: it is a valid string, a valid
+    `class` attribute, and a class that matches no rule. Every fragment of a joined class list ends
+    with a space, and the ternary that can land mid-string is the one to check.
+29. **"It feels slow" deserves a measurement before a fix.** The reported delay on tab presses was
+    real and was `next dev` compiling each route on first visit — 5.9 s for Explore, against 70–135
+    ms warm and 13–20 ms for the same first visit on a production build. Ten minutes of curl timing
+    found it; any amount of code-reading would have found nothing, because there was nothing in the
+    app to find. Measure cold vs warm and dev vs prod before touching anything.
+30. **Counting a mapping is not counting what renders.** Home says "500 recipes, N of them
     photographed". Taking N from `Object.keys(RECIPE_IMAGES).length` would make the sentence lie
     the moment a recipe is renamed — the key survives, the photograph never renders, and the page
     claims coverage it does not have. Every count on the page resolves its keys against `RECIPES`
