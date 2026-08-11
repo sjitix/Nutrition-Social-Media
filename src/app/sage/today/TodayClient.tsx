@@ -100,7 +100,7 @@ export function TodayClient({
   return (
     /* Exactly one screen at `lg`. The whole composition is meant to be taken in at a glance, and a
        plate that continues below the fold is a plate you scroll to see rather than one you see. */
-    <div className="relative flex min-h-[calc(100vh-64px)] flex-col px-6 pb-6 pt-8 sm:px-10 lg:h-screen lg:min-h-0 lg:overflow-hidden xl:px-14">
+    <div className="relative flex min-h-[calc(100vh-64px)] flex-col px-6 pb-5 pt-5 sm:px-10 lg:h-screen lg:min-h-0 lg:overflow-hidden xl:px-14">
       {/* the board's top-right cluster. Its top-LEFT links are the sidebar's job here. */}
       <div className="flex items-center justify-end gap-2.5">
         <span className="text-[10.5px] tabular-nums text-mut">
@@ -125,37 +125,37 @@ export function TodayClient({
           minimum — so that it is cut by the bottom of the frame the way the board's is. Anchored to
           this grid instead, it was only clipped when the right-hand column happened to be short
           enough, which is a coincidence rather than a composition. */}
-      <div className="mt-8 grid gap-10 lg:mt-8 lg:min-h-0 lg:flex-1 lg:grid-cols-[1.14fr_0.86fr] lg:gap-14 xl:gap-20">
+      <div className="mt-6 grid gap-10 lg:mt-5 lg:min-h-0 lg:flex-1 lg:grid-cols-[1.14fr_0.86fr] lg:grid-rows-[minmax(0,1fr)] lg:gap-14 xl:gap-20">
         {/* ── LEFT: headline, paragraph, and the plate running off the bottom of the frame ── */}
-        <div className="flex min-w-0 flex-col">
-          <span className="text-[9.5px] font-bold uppercase tracking-[0.2em] text-mut">
-            {when} · {SLOT_LABEL[featured.type]} · {clock(SLOT_HOUR[featured.type])}
-          </span>
-          <h1 className="font-serif-display mt-3 max-w-[15ch] text-balance text-[clamp(26px,2.7vw,39px)] font-semibold leading-[1.02] tracking-[-0.03em]">
+        {/* The text block is deliberately SHORT, because on this screen every pixel it takes is a
+            pixel off the plate's diameter — the plate gets the rest of the column, so they trade
+            directly. The board has no eyebrow above its headline either; "up next" moved into the
+            sentence, where it costs no line of its own. */}
+        <div className="flex min-w-0 flex-col lg:min-h-0">
+          <h1 className="font-serif-display max-w-[15ch] text-balance text-[clamp(26px,2.7vw,39px)] font-semibold leading-[1.02] tracking-[-0.03em]">
             {featured.name}
           </h1>
-          <p className="mt-4 max-w-[44ch] text-[12.5px] leading-[1.75] text-plum-mid">
-            {featured.description} {featured.calories} kcal, {featured.protein} g protein,{" "}
-            {featured.minutes} minutes to cook.
+          <p className="mt-3 max-w-[52ch] text-[12.5px] leading-[1.7] text-plum-mid">
+            <b className="font-semibold text-plum">
+              {when}, {SLOT_LABEL[featured.type].toLowerCase()} at {clock(SLOT_HOUR[featured.type])}.
+            </b>{" "}
+            {featured.description} {featured.calories} kcal · {featured.protein} g protein ·{" "}
+            {featured.minutes} min.
           </p>
 
-          {/* SLOT: the plate. Round, oversized, laid on the page with no card and no caption.
-              `min(48%, 62vh)` OF THE PAGE, since it is positioned against it:
+          {/* SLOT: the plate. Round, laid on the page with no card and no caption.
+              IT TAKES ALL THE HEIGHT THE COLUMN HAS LEFT — `flex-1` under the text, with the image
+              at `h-full w-auto`, so a square as tall as the space allows.
 
-              48%  is measured off the board. On `sage-04` the bowl is 46% of the cream card's
-                   width, and the first build had it at 38% because the height cap below was
-                   binding — which is what "the image should be bigger" was pointing at.
-              62vh keeps the whole bowl on screen on a short window. Sized off the column alone it
-                   was as tall as the column was wide, and the bottom fell below the fold.
+              Every earlier version sized it with a number: 44% then 48% of the page, capped at
+              50vh then 62vh. All of them were wrong on somebody's screen, because the constraint
+              is not the page width, it is what is left after the text on THAT window. On a 1440x852
+              viewport the cap bound at 528px, so raising the width from 44% to 48% changed nothing
+              at all and the screen looked identical two rounds running.
 
-              It goes through a custom property because Tailwind does not emit an arbitrary value
-              containing a comma: `lg:w-[min(48%,62vh)]` was silently dropped, the mobile 88% stayed
-              in force, and the plate ran off the screen. A class that does not exist fails
-              silently — check the COMPUTED width, not the markup. */}
-          <div
-            className="relative mt-9 aspect-square w-[104%] max-w-none self-start sm:w-[88%] lg:absolute lg:bottom-1 lg:left-10 lg:mt-0 lg:w-[var(--plate)] lg:max-w-none xl:left-14"
-            style={{ "--plate": "min(48%, 62vh)" } as React.CSSProperties}
-          >
+              Measure nothing, ask the layout: the plate is now as large as it can be without
+              being cut, on every window, and it grows the moment the sidebar collapses. */}
+          <div className="relative mt-9 aspect-square w-[104%] max-w-none self-start sm:w-[88%] lg:mt-4 lg:aspect-auto lg:min-h-0 lg:w-auto lg:flex-1">
             {plate ? (
               <Image
                 src={plate}
@@ -163,9 +163,13 @@ export function TodayClient({
                 width={1000}
                 height={1000}
                 priority
-                sizes="(max-width: 1024px) 100vw, 42vw"
+                sizes="(max-width: 1024px) 100vw, 52vw"
+                // `h-full w-auto` at `lg`: the height comes from the flex row above, and the width
+                // follows it, so the bowl is a circle as tall as the space allows. `max-w-[122%]`
+                // lets it spill into the gutter — the board's plate is wider than its text column —
+                // without ever reaching the figures.
                 className={
-                  "h-full w-full object-contain " +
+                  "h-full w-full object-contain object-bottom lg:w-auto lg:max-w-[122%] " +
                   (featured.cutout
                     ? "drop-shadow-[0_34px_58px_rgba(28,36,25,0.26)]"
                     : "rounded-full shadow-[0_34px_58px_rgba(28,36,25,0.26)]")
@@ -175,7 +179,7 @@ export function TodayClient({
               /* No photograph of THIS dish, and it never borrows another's. The plate keeps its
                  shape; a fixed sage, not `gradientForMeal`, which hashes a name onto fourteen hues
                  and would make the plate a different colour for every dish. */
-              <div className="grid h-full w-full place-items-center rounded-full bg-tint text-center shadow-[0_34px_58px_rgba(28,36,25,0.14)]">
+              <div className="mx-auto grid aspect-square h-full w-full max-w-full place-items-center rounded-full bg-tint text-center shadow-[0_34px_58px_rgba(28,36,25,0.14)] lg:mx-0 lg:w-auto">
                 <span className="px-[18%]">
                   <span className="text-[9.5px] font-bold uppercase tracking-[0.2em] text-mut">
                     Not photographed yet
@@ -192,7 +196,7 @@ export function TodayClient({
         {/* ── RIGHT: caption, rings, spec rows, outlined rows ──
             `lg:pt-7` drops this column below the headline's first line, which is where the board
             starts it — the caption sits beside the headline rather than above it. */}
-        <div className="min-w-0 pb-16 lg:pt-7">
+        <div className="min-w-0 pb-16 lg:min-h-0 lg:overflow-y-auto lg:pb-2 lg:pt-1">
           <p className="text-[11.5px]">
             <b className="font-semibold">Already hit today</b>{" "}
             <span className="text-mut">
