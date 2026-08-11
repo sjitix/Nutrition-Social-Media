@@ -1,13 +1,14 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { memo, useCallback, useDeferredValue, useMemo, useState } from "react";
+import { useSaved } from "@/lib/savedStore";
+import { RecipeModal } from "./RecipeModal";
 import {
   FEED_RECIPES,
   filterFeed,
   sortFeed,
   HIGH_PROTEIN_G,
-  type FeedFilter,
   type FeedItem,
   type FeedMealType,
   type FeedDiet,
@@ -28,7 +29,7 @@ import {
  * carries the photograph large. Radii are small; the body of each card is the cream surface, so a
  * card sits ABOVE the page rather than being cut out of it.
  */
-const PAGE = 24;
+const LEAD_EVERY = 24;
 
 const MEAL_TYPES: [FeedMealType, string][] = [
   ["all", "All"],
@@ -61,26 +62,35 @@ export function ExploreClient() {
   const [quick, setQuick] = useState(false);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<FeedSort>("default");
-  const [shown, setShown] = useState(PAGE);
-  const [saved, setSaved] = useState<Set<string>>(new Set());
+  const [onlySaved, setOnlySaved] = useState(false);
+  const [open, setOpen] = useState<FeedItem | null>(null);
+  const { names: saved, loaded, toggle, kind } = useSaved();
 
-  const filter: FeedFilter = { mealType, diet, highProtein, maxTime: quick ? 20 : null, query };
+  // Typing stays responsive: the field updates immediately, the 495-card wall re-filters against
+  // the deferred value, so a keystroke never waits on the list.
+  const deferredQuery = useDeferredValue(query);
 
-  const results = useMemo(
-    () => sortFeed(filterFeed(FEED_RECIPES, filter), sort),
-    // The filter object is rebuilt each render; depend on its fields, not its identity.
-    [mealType, diet, highProtein, quick, query, sort],
+  // The expensive pass — filter + sort over 495 recipes — is memoised on the PURE facets only.
+  // `saved` deliberately is NOT a dependency: it changes on every save, and recomputing the whole
+  // library because one card was bookmarked is work for nothing.
+  const base = useMemo(
+    () => sortFeed(filterFeed(FEED_RECIPES, { mealType, diet, highProtein, maxTime: quick ? 20 : null, query: deferredQuery }), sort),
+    [mealType, diet, highProtein, quick, deferredQuery, sort],
   );
 
-  const visible = results.slice(0, shown);
-  // Any facet change should return you to the top of the results, not leave you 96 cards deep in
-  // a list that no longer has 96 cards.
+  // "Saved" is applied HERE rather than inside filterFeed: that function is pure and unit-tested
+  // over the library, and what one reader has saved is not a property of the library.
+  const results = onlySaved ? base.filter((it) => saved.has(it.meal.name)) : base;
+
+  // Every match renders. There is no "show more": 495 cards is about 6 MB of DOM and the images are
+  // lazy by default, so the cost is a longer scrollbar rather than a slower page — and a wall you
+  // have to keep asking to continue is not a wall you browse.
   function change<T>(set: (v: T) => void) {
-    return (v: T) => {
-      set(v);
-      setShown(PAGE);
-    };
+    return (v: T) => set(v);
   }
+
+  // Stable identities, or the memo on Card is defeated every render and each save repaints 495.
+  const openItem = useCallback((it: FeedItem) => setOpen(it), []);
 
   const chip = (on: boolean) =>
     "rounded-full px-4 py-2 text-[12px] transition " +
@@ -146,23 +156,39 @@ export function ExploreClient() {
         <button onClick={() => change(setQuick)(!quick)} className={chip(quick)}>
           ≤20 min
         </button>
+        <button
+          onClick={() => change(setOnlySaved)(!onlySaved)}
+          className={chip(onlySaved)}
+          aria-pressed={onlySaved}
+        >
+          Saved{loaded && saved.size > 0 ? ` · ${saved.size}` : ""}
+        </button>
       </div>
 
-      <p className="mt-5 text-[12px] tabular-nums text-mut">
+      <p className="mt-5 flex flex-wrap items-baseline gap-x-2 text-[12px] tabular-nums text-mut">
         {results.length === FEED_RECIPES.length
           ? `${results.length} recipes`
           : `${results.length} of ${FEED_RECIPES.length} recipes`}
-        {results.length > visible.length && ` · showing ${visible.length}`}
+        {onlySaved && ` you saved`}
+        {loaded && saved.size > 0 && (
+          <span className="text-[11.5px]">
+            ·{" "}
+            {kind === "account"
+              ? "Saved to your account."
+              : "Saved on this device — they move to your account when it is connected."}
+          </span>
+        )}
       </p>
 
       {results.length === 0 ? (
         <div className="mt-4 bg-tint p-10 text-center lg:rounded-[12px]">
           <p className="font-serif-display text-[24px] font-semibold tracking-[-0.02em]">
-            Nothing matches all of those.
+            {onlySaved && saved.size === 0 ? "You have not saved anything yet." : "Nothing matches all of those."}
           </p>
           <p className="mx-auto mt-2.5 max-w-[46ch] text-[13px] leading-relaxed text-plum-mid">
-            Every filter is applied together, not separately — so a combination can genuinely have
-            no answer. Drop one and the results come back.
+            {onlySaved && saved.size === 0
+              ? "Open any recipe and press Save, or use the button on a card. Saves are kept in this browser for now, and will move to your account once it is connected."
+              : "Every filter is applied together, not separately — so a combination can genuinely have no answer. Drop one and the results come back."}
           </p>
           <button
             onClick={() => {
@@ -171,7 +197,7 @@ export function ExploreClient() {
               setHighProtein(false);
               setQuick(false);
               setQuery("");
-              setShown(PAGE);
+              setOnlySaved(false);
             }}
             className="mt-6 rounded-full bg-vio px-5 py-2.5 text-[13px] font-semibold text-white transition hover:bg-vio-deep"
           >
@@ -181,65 +207,66 @@ export function ExploreClient() {
       ) : (
         <>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {visible.map((it, i) => (
+            {results.map((it, i) => (
               <Card
                 key={it.meal.name}
                 item={it}
-                // One large card per page of results, top-left, so the wall is never a uniform
-                // grid of equal tiles.
-                lead={i % PAGE === 0}
+                // One large card every 24, so the wall is never a uniform grid of equal tiles.
+                lead={i % LEAD_EVERY === 0}
                 saved={saved.has(it.meal.name)}
-                onToggle={() =>
-                  setSaved((prev) => {
-                    const next = new Set(prev);
-                    if (next.has(it.meal.name)) next.delete(it.meal.name);
-                    else next.add(it.meal.name);
-                    return next;
-                  })
-                }
+                onToggle={toggle}
+                onOpen={openItem}
               />
             ))}
           </div>
 
-          {results.length > visible.length && (
-            <div className="mt-8 flex justify-center">
-              <button
-                onClick={() => setShown((s) => s + PAGE)}
-                className="rounded-full bg-tint px-6 py-3 text-[13px] font-semibold transition hover:bg-line"
-              >
-                Show {Math.min(PAGE, results.length - visible.length)} more
-              </button>
-            </div>
-          )}
         </>
+      )}
+      {open && (
+        <RecipeModal
+          item={open}
+          saved={saved.has(open.meal.name)}
+          onToggleSave={() => toggle(open.meal.name)}
+          onClose={() => setOpen(null)}
+        />
       )}
     </>
   );
 }
 
-function Card({
+const Card = memo(function Card({
   item,
   lead,
   saved,
   onToggle,
+  onOpen,
 }: {
   item: FeedItem;
   lead: boolean;
   saved: boolean;
-  onToggle: () => void;
+  onToggle: (name: string) => void;
+  onOpen: (item: FeedItem) => void;
 }) {
   const m = item.meal;
   return (
     <article
       className={
-        "flex flex-col overflow-hidden rounded-[12px] bg-cream " + (lead ? "sm:col-span-2" : "")
+        "group flex flex-col overflow-hidden rounded-[12px] bg-cream transition [contain-intrinsic-size:auto_340px] [content-visibility:auto] hover:shadow-[0_6px_20px_rgba(28,36,25,0.10)] " +
+        (lead ? "sm:col-span-2" : "")
       }
     >
       {/* SLOT: card image. A photographed dish shows its own photograph; everything else falls
           back to a TYPOGRAPHIC tile carrying its own name. It never borrows another dish's
           picture — and a tile with nothing on it is a colour block encoding nothing, which is a
           rejected direction in its own right. */}
-      <div className={"relative " + (lead ? "aspect-[16/10] sm:aspect-[21/9]" : "aspect-[16/10]")}>
+      {/* A real button, not a click handler on the article: this has to be reachable by keyboard
+          and announced as something that opens. The save control below is a sibling, never nested
+          inside it — a button inside a button is invalid and swallows the inner click. */}
+      <button
+        onClick={() => onOpen(item)}
+        className={"relative block w-full text-left " + (lead ? "aspect-[16/10] sm:aspect-[21/9]" : "aspect-[16/10]")}
+      >
+        <span className="sr-only">Open {m.name}</span>
         {item.image ? (
           <Image
             src={item.image}
@@ -269,7 +296,7 @@ function Card({
         <span className="absolute left-3 top-3 rounded-full bg-cream px-2.5 py-1 text-[10px] font-bold tabular-nums">
           {m.timeMinutes} min
         </span>
-      </div>
+      </button>
 
       <div className="flex flex-1 flex-col p-4">
         <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-mut">
@@ -278,14 +305,15 @@ function Card({
         </span>
         {/* The name is set ONCE per card: on the photograph's caption line, or on the tile above. */}
         {item.image && (
-          <p
+          <button
+            onClick={() => onOpen(item)}
             className={
-              "font-serif-display mt-1.5 text-balance font-semibold leading-[1.12] tracking-[-0.02em] " +
+              "font-serif-display mt-1.5 text-balance text-left font-semibold leading-[1.12] tracking-[-0.02em] hover:underline " +
               (lead ? "text-[26px]" : "text-[17px]")
             }
           >
             {m.name}
-          </p>
+          </button>
         )}
         {lead && (
           <p className="mt-2 max-w-[44ch] text-[12.5px] leading-relaxed text-plum-mid">
@@ -311,7 +339,7 @@ function Card({
         </div>
 
         <button
-          onClick={onToggle}
+          onClick={() => onToggle(m.name)}
           aria-pressed={saved}
           className={
             "mt-3 flex items-center justify-center gap-2 rounded-full py-2.5 text-[12.5px] font-semibold transition " +
@@ -328,4 +356,4 @@ function Card({
       </div>
     </article>
   );
-}
+});
