@@ -44,8 +44,10 @@ the honesty rules there are not optional.
 
 ### What was built, screen by screen
 
-**The shell** (`src/app/sage/layout.tsx` + `SidePanel.tsx` + `SideNav.tsx`) — a deep forest
-**sidebar** running the full height of the window, 268 px, which **collapses to a 76 px icon rail**
+**The shell** (`src/app/sage/layout.tsx` + `SidePanel.tsx` + `SideNav.tsx`) — a **sidebar** running
+the full height of the window, 268 px, which **starts closed as a 76 px icon rail**. It is
+`sage-07`'s QUIET treatment: the same sage as the page, separated by a hairline, rather than the
+deep forest block of `sage-10`/`sage-12` — Ana asked for the lighter of the two
 (the boards put a rail beside the panel, so the closed state is a shape the design already has).
 It carried the week as a list under the nav until Ana asked for it gone; worth knowing what that
 bought beyond a tidier rail, since the sidebar is in EVERY route payload: seven days of engine

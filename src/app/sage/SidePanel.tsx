@@ -5,7 +5,11 @@ import { useState } from "react";
 import { MobileNav, SideNav } from "./SideNav";
 
 /**
- * The forest panel, and the control that closes it.
+ * The sidebar, and the control that closes it.
+ *
+ * `sage-07`'s treatment: the same sage family as the page, separated by a hairline, rather than
+ * the deep forest block of `sage-10`/`sage-12`. Both are in the reference set; this is the lighter
+ * of the two.
  *
  * It collapses to a 76px icon rail rather than disappearing: the boards (sage-10, sage-12) put a
  * narrow icon rail beside the panel, so the collapsed state is a shape the design already has, and
@@ -24,9 +28,14 @@ export function SidePanel() {
   const [open, setOpen] = useState(false);
 
   return (
+    /* The QUIET sidebar from `sage-07`: the same sage family as the page, told apart by a hairline
+       rather than by being a block of deep forest. The two surfaces differ by 1.14:1, so the border
+       is not decoration — it is the only thing separating them, and removing it merges the panel
+       into the page. Contrast inside it is computed, not guessed: ink 12.5:1, muted 4.7:1, forest
+       6.7:1, all on `--color-tint`. `--color-panel` is still the deep block elsewhere. */
     <header
       className={
-        "bg-panel text-white transition-[width] duration-200 lg:sticky lg:top-0 lg:flex lg:h-screen lg:shrink-0 lg:flex-col lg:overflow-y-auto " +
+        "bg-tint text-plum transition-[width] duration-200 lg:sticky lg:top-0 lg:flex lg:h-screen lg:shrink-0 lg:flex-col lg:overflow-y-auto lg:border-r lg:border-line " +
         (open ? "lg:w-[268px]" : "lg:w-[76px]")
       }
     >
@@ -38,8 +47,10 @@ export function SidePanel() {
         }
       >
         <Link href="/sage" className="flex items-center gap-2.5" aria-label="NutriFlow home">
-          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-cream">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#26331f" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          {/* The mark inverts with the panel: a dark dot on the light rail, which is what sage-07
+              has, rather than the light dot that read correctly on the forest one. */}
+          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-panel">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f5f2e7" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M4 15.5c3.5 0 4.5-7 8-7s4.5 7 8 7" />
             </svg>
           </span>
@@ -55,7 +66,7 @@ export function SidePanel() {
 
         {/* Mobile keeps the account dot where the toggle sits on desktop; the panel is a bar there
             and has nothing to collapse. */}
-        <span className="grid h-8 w-8 place-items-center rounded-full bg-white/10 text-[11.5px] font-bold lg:hidden">
+        <span className="grid h-8 w-8 place-items-center rounded-full bg-panel text-[11.5px] font-bold text-cream lg:hidden">
           A
         </span>
 
@@ -64,7 +75,7 @@ export function SidePanel() {
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
           aria-controls="sage-sections"
-          className="hidden h-8 w-8 shrink-0 place-items-center rounded-[9px] text-white/60 transition hover:bg-white/10 hover:text-white lg:grid"
+          className="hidden h-8 w-8 shrink-0 place-items-center rounded-[9px] text-mut transition hover:bg-cream hover:text-plum lg:grid"
         >
           <span className="sr-only">{open ? "Collapse the sidebar" : "Expand the sidebar"}</span>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -89,12 +100,12 @@ export function SidePanel() {
           (open ? "px-6" : "flex-col px-0")
         }
       >
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/10 text-[11.5px] font-bold">
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-panel text-[11.5px] font-bold text-cream">
           A
         </span>
         <Link
           href="/classic"
-          className={"text-[12px] text-white/60 hover:text-white " + (open ? "" : "hidden")}
+          className={"text-[12px] text-mut hover:text-plum " + (open ? "" : "hidden")}
         >
           Switch to the original design
         </Link>

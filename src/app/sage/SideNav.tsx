@@ -58,8 +58,8 @@ export function SideNav({ collapsed = false }: { collapsed?: boolean }) {
               "flex items-center rounded-[9px] py-2.5 text-[13.5px] transition " +
               (collapsed ? "justify-center px-0 " : "gap-3 px-3.5 ") +
               (active
-                ? "bg-cream font-semibold text-panel"
-                : "font-medium text-white/70 hover:bg-white/10 hover:text-white")
+                ? "bg-cream font-semibold text-plum shadow-[0_1px_3px_rgba(28,36,25,0.10)]"
+                : "font-medium text-mut hover:bg-cream/70 hover:text-plum")
             }
           >
             <Icon className="h-[15px] w-[15px] shrink-0" />
@@ -90,7 +90,7 @@ export function MobileNav() {
             className={
               // py-3 on a 13px line box clears the 44px touch target the accessibility pass set.
               "shrink-0 rounded-full px-4 py-3 text-[13px] transition " +
-              (active ? "bg-cream font-semibold text-panel" : "font-medium text-white/70")
+              (active ? "bg-cream font-semibold text-plum" : "font-medium text-mut")
             }
           >
             {label}

@@ -129,8 +129,10 @@ disabled) — good for showing the UI without any AI.
   suppressed on this route. It shows the fixture week's **Monday** — `/sage` has no per-reader
   data, so claiming otherwise would be a lie the rest of the screen does not tell.
   `layout.tsx` + `SidePanel.tsx` + `SideNav.tsx` are the shell
-  — a full-height deep-forest sidebar beside a cream page with **no max-width wrapper**
-  (photography has to run off the frame edge). The panel **collapses to a 76px icon rail**, which
+  — a full-height sidebar beside a cream page with **no max-width wrapper**
+  (photography has to run off the frame edge). The panel is `sage-07`'s QUIET one — the same sage family as the page, told apart by a hairline,
+  not the deep forest block of `sage-10`/`sage-12`; both are in the reference set and this is the
+  lighter of the two. It **starts closed**, as a 76px icon rail, which
   is a shape the boards already have (sage-10/12 put a rail beside the panel); the state lives in
   `SidePanel` and is not persisted, because a layout survives client-side navigation so it already
   outlives every tab press. It used to carry the week as a list under the nav and no longer does —
