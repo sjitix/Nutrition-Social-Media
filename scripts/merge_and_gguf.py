@@ -142,9 +142,9 @@ def main() -> None:
     merge()
     conv = ensure_llama_cpp()
     convert(conv)
-    print(f"\n✓ Done: {GGUF_OUT}")
-    print("Load it in LM Studio: My Models → Import, pick that .gguf, push GPU offload to max, ")
-    print("context ≥ 8192, Start Server on :1234. The app's .env.local already points there.")
+    print(f"\nDone: {GGUF_OUT}")
+    print("Load it in LM Studio: My Models -> Import, pick that .gguf, push GPU offload to max, ")
+    print("context >= 8192, Start Server on :1234. The app's .env.local already points there.")
 
 
 if __name__ == "__main__":

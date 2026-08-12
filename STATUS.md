@@ -4,34 +4,37 @@
 
 ## ▶ Current stage
 
-**✅ TRAINING FINISHED. ⚠️ THE ADAPTER IS STRANDED AND HAS NO BACKUP.**
+**✅ TRAINING FINISHED · ✅ MERGED TO GGUF ON THE DESKTOP · ⚠️ NO BACKUP YET.**
 
 The 7B QLoRA (Qwen2.5-7B-Instruct, 4-bit, 3,272 engine-validated examples, 409 steps at ~20 min a
 step) started 2026-08-05 and **ran to completion on the desktop**. Nothing was lost when that machine
 was shut down: VRAM is volatile and always was, and the run checkpointed to disk every 10 steps.
 
-**Where the result is:** `models/nutriflow-lora`, on the desktop. `/models/` is gitignored —
-correctly, since this repo is public — so **it was never pushed and there is no second copy.**
+**Where the results are (desktop, all gitignored so never pushed — no second copy):**
+- `models/nutriflow-lora` — the LoRA adapter (154 MB). *The irreplaceable one.*
+- `models/nutriflow-assistant-q8_0.gguf` — merged + converted, **7.54 GB**, built 2026-08-12. Ready
+  to load in LM Studio.
+- `models/nutriflow-merged` — 14.5 GB fp16 intermediate; deletable (regenerates from the adapter).
 
-> ### ⚠️ FIRST ACTION WHEN BACK AT THAT MACHINE: copy `models/nutriflow-lora` somewhere else.
+> ### ⚠️ FIRST ACTION: copy `models/nutriflow-lora` somewhere else.
 > One copy, one drive, in a machine whose previous SSD already died. The adapter is small (the
 > merged ~8 GB GGUF is regenerated *from* it) and the base model is re-downloadable from
 > HuggingFace. It is the only artefact here that six days of GPU time cannot replace.
 
-**It has not been merged, converted, loaded or graded.** Loading it in LM Studio was never possible
-yet — an adapter has to be merged into the base and converted to GGUF first.
+**Merge/convert is done; it has NOT been backed up, loaded, or graded.** The remaining work is to
+protect the adapter, serve the GGUF locally, and measure it against v9.
 
-## When back at the desktop — the whole remaining sequence
+## The whole remaining sequence
 
 ```bash
 # 0. BACK IT UP FIRST — another drive, a cloud folder, a USB stick. Anywhere but that one disk.
 
-# 1. merge LoRA -> fp16 -> GGUF q8_0 (self-clones llama.cpp; ~8 GB out)
-BASE_MODEL=Qwen/Qwen2.5-7B-Instruct .venv-ft/Scripts/python.exe scripts/merge_and_gguf.py
+# 1. merge LoRA -> fp16 -> GGUF q8_0 — ALREADY DONE (models/nutriflow-assistant-q8_0.gguf, 7.54 GB).
+#    Only re-run scripts/merge_and_gguf.py if that file is lost.
 
-# 2. load the printed .gguf in LM Studio: GPU offload max, context >= 8192, serve on :1234
+# 2. load the .gguf in LM Studio: GPU offload max, context >= 8192, serve on :1234
 
-# 3. grade it against the 45 hard cases
+# 3. grade it against the hard cases
 npm run eval:hardcases
 
 # 4. compare with v9 before flipping anything over
@@ -52,9 +55,10 @@ non-determinism is ~1–2 points, so a single run cannot separate close models.
 - [x] `merge_and_gguf.py` — one-command LoRA → GGUF (q8_0, self-clones llama.cpp)
 - [x] `eval:hardcases` — offline grader (graceful no-op when no model is loaded)
 - [x] **QLoRA train — DONE.** 409 steps, adapter at `models/nutriflow-lora`
+- [x] **merge → GGUF — DONE.** `models/nutriflow-assistant-q8_0.gguf` (7.54 GB)
 - [ ] **⚠️ BACK THE ADAPTER UP** — one copy, one drive, no backup
-- [ ] merge → GGUF → load in LM Studio (one command, ready)
-- [ ] grade against the 45 hard cases, and compare with v9 over three runs
+- [ ] load the GGUF in LM Studio
+- [ ] grade against the hard cases, and compare with v9 over three runs
 - [ ] only then: flip the client from `/api/assistant` to `/api/assistant-v2`
 
 ## ⚠️ The training data is not in this repo either

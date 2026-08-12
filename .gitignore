@@ -50,6 +50,7 @@ __pycache__/
 
 # training logs (local, noisy)
 train-*.log
+merge-*.log
 
 # local test output (scratch)
 engine-*.log
