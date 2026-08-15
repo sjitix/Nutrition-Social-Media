@@ -92,3 +92,86 @@ core, invariants, and macro math are unchanged — so `test:engine` keeps guardi
    build a light per-slot bias — it's a common ask.)
 3. How rich the memory store gets in round one (just facts + apply, vs. structured conditions). (Lean:
    free-form facts + a few typed kinds now; structure later for the health phase.)
+
+---
+
+# The agent loop and the read surface (v3 — proposed 2026-08-16)
+
+Everything above describes ONE model call that emits `{thinking, reply, operations}`. That is the
+reason-then-act turn, and it stays. What follows wraps it in a loop and gives the model eyes.
+
+See VISION.md → "Conversational assistant" for the three binding rules this implements.
+
+## Two different things both called "read-only"
+
+`src/lib/reply.ts` already exports `READ_ONLY_TOOLS` — `answer`, `weekly_report`, `explain_meal`,
+`symptom_check`, `rate_meal`, `hydration`, `lock_meal`… Those are **user-facing answers**: the
+tool's output IS the reply, and the set exists so an answer never falsely reports "I changed your
+plan".
+
+The read surface below is **model-facing**: its output goes back into the loop as input to the
+next model call, and the user never sees it. A `find_recipes` result is not an answer; it is the
+model looking something up before deciding.
+
+**Do not merge the two sets.** They are both "does not change the plan" and nothing else about
+them is alike. Conflating them would make lookups leak into replies and answers vanish from them.
+
+## The read surface
+
+Every tool is a pure function of (profile, plan, library). No I/O, no model, no network — so each
+one is unit-testable and cannot fail in a way the loop has to reason about.
+
+| tool | arguments | returns | wraps |
+|---|---|---|---|
+| `find_recipes` | `mealType?, diet?, minProtein?, maxTime?, maxCalories?, query?, limit?` | ≤10 rows: name, type, kcal, protein, carbs, fat, fibre, minutes, dietTags | `filterFeed` + `sortFeed` |
+| `inspect_recipe` | `name` | one dish in full: ingredients with quantities, steps, macros, micro coverage | `RECIPES` + `microsForIngredients` |
+| `get_plan` | `day?` | the week, or one day: slot, dish, macros, day totals against target | the plan in the request |
+| `get_profile` | — | targets, diet, allergies, dislikes, mealsPerDay, maxCookTime, pins, ratings, remembered facts | the profile in the request |
+| `get_saved` | — | saved recipe names with their macros | `loadSaved` |
+| `report` | `scope: week \| day` | computed averages, shortfalls, micronutrients under reference | the existing `weekly_report` engine |
+| `what_if` | `operations[]` | what those ops WOULD do — notes, and the resulting totals — **without committing** | `applyPrimitives` on a copy |
+
+**`what_if` is the one with no equivalent today and the most leverage.** The engine is pure, so a
+proposed change can be simulated and inspected before it is made. It is the agent's version of
+running the tests before claiming the work is done, and it is what lets the model say "that would
+put you 300 kcal over, here is a better option" instead of doing it and apologising.
+
+**Every read tool is bounded.** `find_recipes` caps at ten rows. This is RULE 1: a tool call is a
+query, and an unbounded query is context stuffing with extra steps.
+
+## The loop contract
+
+```
+turn = model(transcript)                     # {thinking, reply, operations}
+while turn asks for tools and steps < MAX:
+    results = execute(turn.operations)       # reads answer; writes go through applyPrimitives
+    transcript += turn, results              # THE RESULTS GO BACK TO THE MODEL
+    turn = model(transcript)
+reply = composeReply(turn.reply, engine notes)
+```
+
+- **MAX_STEPS = 8.** A cap, not a target. Hitting it is a bug to investigate, and the user is told
+  honestly that the assistant gave up rather than being handed a half-finished change.
+- **Writes still go through `applyPrimitives`,** unchanged. The two-layer rule is untouched: the
+  model never computes anything, and the engine remains the only thing that may claim a change.
+- **Engine `notes` go back into the transcript,** not only into the reply. This is the whole of
+  "the agent observes its own action" — when the engine refuses a pin or relaxes a cook-time limit,
+  the model finds out and can respond to it.
+- **One undo snapshot per user turn,** taken before the first write of that turn, not per step —
+  otherwise "undo" walks back one loop iteration rather than one thing the user asked for.
+- **The transcript is the memory.** Nothing is stored between turns; the server stays stateless.
+
+## Testing it with no model at all (RULE 2)
+
+The loop is ordinary code and is tested with a scripted provider that returns canned turns:
+
+| fake provider | asserts |
+|---|---|
+| asks for one read, then answers | results are fed back; it terminates |
+| writes, then reads the notes, then answers | engine notes reach the model |
+| never stops asking | `MAX_STEPS` holds and the user is told honestly |
+| emits invalid JSON / an unknown op | the loop degrades to a plain reply rather than throwing |
+| emits ops the engine refuses | the refusal reaches the model and it can change course |
+
+No GPU, no keys, no fine-tune. This belongs in `npm run test:engine`, and it must exist BEFORE a
+real model is wired in — otherwise a harness bug and a model weakness look identical.
