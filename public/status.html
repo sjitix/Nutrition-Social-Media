@@ -71,18 +71,23 @@
 <div class="wrap">
   <div class="eyebrow">NutriFlow · assistant v2</div>
   <h1>7B rebuild — live build status</h1>
-  <div class="sub">A personal-nutritionist assistant that reasons freely, then executes exactly. This page auto-refreshes; I redeploy it right before moving to each next task.</div>
+  <div class="sub">A personal-nutritionist assistant that reasons freely, then executes exactly. Updated by hand at each stage change, and served publicly — so it must never claim something is running when it is not.</div>
 
   <div class="now" style="border-left-color:var(--done)">
-    <div class="label" style="color:var(--done)"><span class="dot" style="background:var(--done)"></span>TRAINING — LIVE</div>
-    <h2>7B QLoRA is training · epoch 1 of 1</h2>
-    <p>Kicked off <span class="mono">2026-08-05 23:55</span>. Qwen2.5-7B-Instruct, 4-bit QLoRA on all <span class="mono">3,272</span> examples (0 skipped), <b>409 steps</b>. GPU pinned at <b>100%</b>, 7.9/8&nbsp;GB. It runs as a detached process — survives Cursor closing — and checkpoints every ~3.3&nbsp;h, so an interruption is recoverable.</p>
-    <p style="margin-top:6px"><b>Honest ETA: ~5–6 days (≈ Aug&nbsp;11).</b> The RTX&nbsp;2070 does ~20&nbsp;min/step — a 7B is simply slow on this card. You chose the full-7B, multi-day path; this is it. When it finishes I run merge → GGUF → grade automatically and send a full report.</p>
+    <div class="label" style="color:var(--done)"><span class="dot" style="background:var(--done)"></span>TRAINING — FINISHED</div>
+    <h2>The 7B QLoRA ran to completion</h2>
+    <p>Started <span class="mono">2026-08-05 23:55</span>. Qwen2.5-7B-Instruct, 4-bit QLoRA on all <span class="mono">3,272</span> examples (0 skipped), <b>409 steps</b> at ~20&nbsp;min a step. It finished. Powering the machine down cost nothing — VRAM is volatile, and the run checkpointed to disk every 10 steps.</p>
+    <p style="margin-top:6px">The adapter is at <span class="mono">models/nutriflow-lora</span> <b>on that desktop only</b>. It has <b>not</b> been merged, converted, loaded or graded — an adapter has to be merged into the base and converted to GGUF before LM&nbsp;Studio can load it.</p>
+  </div>
+
+  <div class="now" style="margin-top:12px; border-left-color:#c76a3a">
+    <div class="label" style="color:#c76a3a"><span class="dot" style="background:#c76a3a"></span>⚠ Back it up first</div>
+    <p style="margin-top:6px"><b>One copy, on one drive, in a machine whose previous SSD already died.</b> <span class="mono">/models/</span> is gitignored — correctly, this repo is public — so it was never pushed and there is no second copy anywhere. Before merging or anything else: copy <span class="mono">models/nutriflow-lora</span> off that disk. It is small; the ~8&nbsp;GB GGUF is regenerated from it, and the base model re-downloads. It is the only artefact here that six days of GPU time cannot replace.</p>
   </div>
 
   <div class="now" style="margin-top:12px">
-    <div class="label"><span class="dot"></span>Keep it healthy</div>
-    <p style="margin-top:6px">Leave the desktop <b>on &amp; plugged in</b> (never-sleep is set), Cursor open, LM Studio's model unloaded. Don't open anything GPU-heavy — only ~97&nbsp;MB spare. Watch progress here, in <span class="mono">STATUS.md</span> on GitHub, or tail <span class="mono">train-7b-v2.log</span>.</p>
+    <div class="label"><span class="dot"></span>What is NOT waiting on any of this</div>
+    <p style="margin-top:6px">The engine is pure TypeScript and never calls a model, so no number in the app depends on the weights. The next assistant work — the <b>agent loop</b>, specified in <span class="mono">ASSISTANT-SCHEMA.md</span> — needs no GPU, no keys and no trained model, and is tested against a scripted fake provider.</p>
   </div>
 
   <div class="sec">
@@ -111,7 +116,7 @@
   <div class="sec">
     <div class="sec-h">In progress</div>
     <ul>
-      <li class="now-row"><span class="g">▶</span><span class="t"><b>7B QLoRA training</b> — epoch 1/1, 409 steps <small>detached process · checkpoints every ~3.3&nbsp;h · ETA ≈ Aug&nbsp;11 · I'm polling the log + GPU each cycle</small></span></li>
+      <li class="done"><span class="g">✓</span><span class="t"><b>7B QLoRA training</b> — finished, 409/409 steps <small>adapter written to models/nutriflow-lora on the desktop · not yet backed up, merged or graded</small></span></li>
     </ul>
   </div>
 
@@ -132,7 +137,7 @@
   </div>
 
   <div class="foot">
-    <span class="mono">updated 2026-08-05 23:57 · TRAINING LIVE · epoch 1/1 · ETA ≈ Aug 11</span>
+    <span class="mono">updated 2026-08-16 · TRAINING FINISHED · adapter unbacked-up on one machine · next: back it up, then merge → GGUF → grade</span>
     <span>next surface point: when the 12 h train starts, then a full report</span>
   </div>
 </div>
