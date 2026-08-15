@@ -56,8 +56,8 @@
 /* ---------------------------------------------------------------------------
  * Sage theme — an ALTERNATIVE skin, off by default.
  *
- * Every colour in the app is expressed through the eleven tokens above, so
- * redefining them in a scope re-skins all ~291 utility usages without touching
+ * Every colour in the app is expressed through the fourteen tokens above, so
+ * redefining them in a scope re-skins every utility usage without touching
  * a single component. The original violet is untouched and remains the default;
  * this only applies when `theme-sage` is on <html>, which the switcher toggles.
  *
@@ -90,7 +90,9 @@
   --color-mint-soft: #dfeee4;
   --color-line: #d8d4c2;      /* hairline on cream — warm, not grey */
   --color-cream: #fbf9f2;     /* the lifted card: warmer than white, still above the page */
-  --color-panel: #26331f;     /* the deep block: sidebar, big-number cards. White on it 13.3:1 */
+  --color-panel: #26331f;     /* the deep block: big-number cards, full-bleed dark sections, avatar
+                                 dots. NOT the sidebar any more — that took sage-07's light
+                                 treatment and is --color-tint. White on panel is 13.3:1 */
   --color-tint: #dfe6da;      /* the sage block — the old page colour, now doing real work */
 }
 

@@ -96,6 +96,14 @@ disabled) — good for showing the UI without any AI.
 - `src/lib/grocery.ts` — aisle categoriser, pure and tested.
 - `src/lib/primitives.ts` — the v2 assistant vocabulary + `applyPrimitives`.
 - `src/lib/types.ts` — zod schemas (WeekPlan, Meal, AssistantResponse) = the data contract.
+- `src/lib/storage.ts` — **the only place that knows a localStorage key name.** Every persisted
+  thing (profile, plan, chat, imports, saved, grocery check-offs, visits) is a key in `KEYS` here.
+  Do not invent a key elsewhere: a second saved-recipes key was added once and the two lists drifted
+  apart silently until an audit caught it.
+- `src/lib/savedStore.ts` — the seam accounts will land on. A three-method async interface
+  (`list`/`add`/`remove`) over saved recipes, delegating to `storage.ts` today. **Async on purpose
+  even though localStorage is not**: a synchronous interface would have to change shape the moment
+  a network sat behind it, and every call site with it.
 
 **AI and import**
 
@@ -122,12 +130,20 @@ disabled) — good for showing the UI without any AI.
   a column of outlined rows on the right. The plate is the dish coming up next, the rings are the
   macros already hit, the rows are the meals still to come. It infers "eaten" from the clock
   because nothing writes a meal log yet, and says so on the page; `?at=14` pins the hour for review
-  and labels itself when used. The plate is sized off the page WIDTH alone — `112%` of its column, 53% of the page — because
-  sizing it off the window height made it shrink on short windows, which is what made it look small
-  on a laptop. The page grows past one screen when it has to; the bowl is never cut. The two columns
-  are `1.14fr / 0.86fr`, putting the figures column at ~40% of the content, and the shell footer is
-  suppressed on this route. It shows the fixture week's **Monday** — `/sage` has no per-reader
-  data, so claiming otherwise would be a lie the rest of the screen does not tell.
+  and labels itself when used. The plate is sized off the page WIDTH alone — `108%` of its column
+  (`104%` at `2xl`), ~50% of the page — because sizing it off the window height made it shrink on
+  short windows, which is what made it look small on a laptop. The page grows past one screen when
+  it has to; the bowl is never cut. The two columns are `1.14fr / 0.86fr`, putting the figures
+  column at ~40% of the content, with a gutter of ~5–6% between the plate and the figures — all
+  three measured off the board rather than judged. The shell footer is suppressed on this route.
+  It shows the fixture week's **Monday** — `/sage` has no per-reader data, so claiming otherwise
+  would be a lie the rest of the screen does not tell.
+  **`/sage/explore` is interactive**: saves persist through `src/lib/savedStore.ts`, clicking a
+  recipe opens `RecipeModal` (a real `role="dialog"` — Escape, focus return, scroll lock, focus
+  trap) with the full ingredient list and method, all 495 non-treat recipes render with no paging,
+  and a "Saved" facet filters to them. Three things keep rendering everything cheap and should not
+  be undone: the filter+sort `useMemo` excludes `saved` from its deps, `Card` is `memo`'d with
+  stable handlers, and the card carries `content-visibility: auto`. One save costs ~5 ms.
   `layout.tsx` + `SidePanel.tsx` + `SideNav.tsx` are the shell
   — a full-height sidebar beside a cream page with **no max-width wrapper**
   (photography has to run off the frame edge). The panel is `sage-07`'s QUIET one — the same sage family as the page, told apart by a hairline,
@@ -148,7 +164,7 @@ disabled) — good for showing the UI without any AI.
 - `src/app/api/` — five routes: `plan`, `assistant`, `assistant-v2`, `import`, `operation`.
 - `src/components/icons.tsx` — SVG line icons (no emoji). `ThemeSwitch.tsx` — violet/sage toggle
   for the original layout; it returns `null` on `/sage`, which pins its own theme.
-- `src/app/globals.css` — **thirteen** colour tokens every utility reads from, the `.theme-sage`
+- `src/app/globals.css` — **fourteen** colour tokens every utility reads from, the `.theme-sage`
   override, and `--tile-1 … --tile-14` for card gradients. `--color-panel` (the deep block:
   sidebar and big-number cards) and `--color-tint` (the sage block) were added for the boards.
   Note the sage theme's ground is **cream with sage blocks on it**, not a sage background — that
@@ -254,6 +270,8 @@ LM Studio: load model, push GPU offload to max, context >= 8192, Start Server on
   | `CLAUDE.md` | how the repo works; standing rules | the structure, commands, routes or rules change |
   | `WORKPLAN.md` | the build record, phases, and hard-won lessons | work ships, or a lesson is learned the hard way |
   | `VISION.md` | the product north star and quality bar | a directional decision is made about what the product IS |
+  | `ASSISTANT-SCHEMA.md` | the assistant contract: the turn shape, the primitives, and (v3, at the bottom) the READ SURFACE and AGENT LOOP that are specified but NOT yet built | the assistant's capabilities or contract change |
+  | `STATUS.md` + `public/status.html` | the fine-tune run. **Served publicly** — it must never claim something is running when it is not | the training state changes |
 
   Update **during** the work, not only at the end — a session can be cut short, and unwritten
   context is lost context. Specifically, write it down whenever:
