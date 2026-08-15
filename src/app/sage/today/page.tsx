@@ -13,7 +13,7 @@ import { TodayClient, type DayMeal } from "./TodayClient";
  *            second with a leader rule), then outlined rows each led by a dot
  *
  * The plate is the dish coming up next, the rings are the macros already hit, and the rows are the
- * meals still to come — Ana's brief for what the parts hold.
+ * meals still to come — the brief for what the parts hold.
  *
  * Three attempts got here. The first invented its own arrangement of the right parts. The second
  * transcribed the whole board — sidebar, side cards, dark footer — when the reference sent was a

@@ -9,12 +9,67 @@ Everything described here is committed and pushed to `main`. Nothing is only on 
 
 ## Where it left off
 
-### >>> THE BOARDS ARE BUILT. What to look at, and what is still open <<<
+### >>> READ THIS FIRST — the state on 2026-08-16 <<<
 
-`designs/references/boards/sage-01 … sage-12` have been **reproduced at `/sage`** — the whole
-shell and all five screens, connected to the real engine as before. This replaces the previous
-brief, which asked for exactly this and warned that the attempt before it had adapted rather than
-reproduced. **What to do now is look at it and say whether it is the reference or not.**
+**Everything is committed AND pushed. `git log origin/main..HEAD` is empty.** The design work is
+done and approved; the next piece of work is the **agent loop**, which is fully specified and not
+yet built.
+
+#### The one rule that changed how to work here
+
+**Commit AND push after every significant step, without being asked.** Not batched, not held for
+approval. GitHub is where the work is READ, not merely where it is backed up, so a commit that is
+not visible there has not been delivered. This is in CLAUDE.md's project rules with the gate that
+still applies (`test:engine` when anything under `src/lib` changes, `tsc` + `build` otherwise,
+never push red). Two separate times work sat local after being reported finished; do not repeat it.
+
+#### What is BUILT and approved
+
+| screen | state |
+|---|---|
+| `/sage` Home | the boards, reproduced. Approved. |
+| `/sage/today` | **sage-04**, iterated through four rejections to approved. Cut-out plate, three rings, meal rows. |
+| `/sage/plan` Week | sage-12 columns. Approved, untouched since. |
+| `/sage/explore` | **interactive**: saves persist, a modal opens per recipe, all 495 cards render, Saved filter. |
+| `/sage/groceries` | live check-offs (older work). |
+| `/sage/assistant` | still a **scripted, read-only** conversation. Not wired to anything. |
+
+The shell is a **light** sidebar (`sage-07`'s treatment — same sage as the page, hairline border),
+which **defaults to CLOSED** as a 76 px icon rail. The week list that used to live in it is gone.
+
+#### The three things that are open, in priority order
+
+**1. THE AGENT LOOP — specified, not built. This is the next work.**
+`ASSISTANT-SCHEMA.md` has a v3 section at the bottom specifying a **read surface** (seven pure
+tools: `find_recipes`, `inspect_recipe`, `get_plan`, `get_profile`, `get_saved`, `report`,
+`what_if`) and a **loop contract** (MAX_STEPS 8, engine `notes` fed back to the model, one undo
+snapshot per user turn). `VISION.md` carries the three binding rules behind it.
+**None of it is implemented.** `/api/assistant-v2/route.ts` is still single-shot.
+**It needs no GPU, no keys and no trained model** — build the loop against a scripted fake
+provider first (RULE 2), because otherwise a harness bug and a model weakness are indistinguishable.
+
+**2. ACCOUNTS — decided, blocked on the owner.**
+Real accounts with a hosted database (Supabase) were chosen over a local profile. **Nothing is
+built.** It is waiting on a Supabase project being created and its **Project URL + anon key**
+supplied; the `service_role` key must never come near this public repo. `src/lib/savedStore.ts`
+is already the seam — a three-method async interface (`list`/`add`/`remove`) with a browser
+implementation — so switching is one file, not a rewrite of Explore. It must keep degrading to
+local storage with no keys, because the GitHub Pages preview is a static export with no server.
+
+**3. THE TRAINED 7B IS STRANDED, AND IS THE ONLY IRREPLACEABLE ARTEFACT.**
+The QLoRA finished. The adapter is at `models/nutriflow-lora` **on the desktop only** — `/models/`
+is gitignored, nothing was ever pushed, and there is no copy anywhere else. The owner is away from
+that machine for weeks. Nothing was lost by shutting it down (VRAM is volatile; the run
+checkpointed to disk every 10 steps), but it is **one copy on one drive in a machine whose SSD has
+already died once**. First action when back: copy it off, then `scripts/merge_and_gguf.py`, load in
+LM Studio, `npm run eval:hardcases` against the 45 hard cases, compare to v9.
+
+#### What the assistant is FOR — do not narrow this
+
+The owner's own framing is quoted verbatim in `VISION.md` and the goal is stated there as:
+**understand everything, read everything, decide from what it read, and change everything — the way
+a coding agent does.** It is explicitly *not* "recognise the request and fire the matching tool".
+A previous reading of that section as something narrower is why the quote is now verbatim.
 
 **What the twelve boards actually contain** (worth having in text, so nobody spends the image
 budget re-deriving it):
@@ -47,9 +102,9 @@ the honesty rules there are not optional.
 **The shell** (`src/app/sage/layout.tsx` + `SidePanel.tsx` + `SideNav.tsx`) — a **sidebar** running
 the full height of the window, 268 px, which **starts closed as a 76 px icon rail**. It is
 `sage-07`'s QUIET treatment: the same sage as the page, separated by a hairline, rather than the
-deep forest block of `sage-10`/`sage-12` — Ana asked for the lighter of the two
+deep forest block of `sage-10`/`sage-12` — the request was the lighter of the two
 (the boards put a rail beside the panel, so the closed state is a shape the design already has).
-It carried the week as a list under the nav until Ana asked for it gone; worth knowing what that
+It carried the week as a list under the nav until the request was it gone; worth knowing what that
 bought beyond a tidier rail, since the sidebar is in EVERY route payload: seven days of engine
 totals were being serialised into every navigation, Home dropped 118 kB to 105 kB, Today 30 kB to
 17 kB, and the layout now touches the engine not at all. The page beside it is warm
@@ -65,7 +120,7 @@ large number (sage-09, sage-06); the week as a **hairline-ruled ledger table**, 
 (sage-08); a photograph cropped by the **left** edge beside a dense list card (sage-06, sage-07); a
 full-width forest band (sage-03).
 
-> The hero was a full-bleed rectangle first, and Ana's note was that it should be *"only the bowl
+> The hero was a full-bleed rectangle first, and the note back was that it should be *"only the bowl
 > cut, sitting on top of the layout"* — which is right, and is the difference between reproducing
 > sage-06 and approximating it. A photograph in a rectangle reads as a photo in a slot however
 > large it is; the plate as a free object is what makes the page look like the board.
@@ -76,7 +131,7 @@ its row's tallest; columns let each meal be its own height, which is where the b
 comes from. The day that is under target carries a forest block saying by how much, which is also
 what makes the row of columns ragged.
 
-**Today (`/sage/today`) — an EXPLORATION, added after the rest was approved.** Ana: *"i really like
+**Today (`/sage/today`) — an EXPLORATION, added after the rest was approved.** The brief: *"i really like
 this design and all but i still wanna explore more. Keep this as a version."* The version she liked
 is committed at `0f45fa7`, so it is recoverable whatever happens next. Today is built from
 **`sage-04`**, the one board that inverts the others — a near-black forest ground carrying cream
@@ -212,7 +267,7 @@ zero) and eighteen more cells sat under seven, the point at which one week is fo
 dish.
 
 - This session took it 169 → 292.
-- Ana's desktop then took it 292 → 500 in a parallel commit (`51dfb4e`), adding fast dinners and
+- the desktop then took it 292 → 500 in a parallel commit (`51dfb4e`), adding fast dinners and
   high-protein snacks. **Zero dinners could be cooked in 15 minutes** before that.
 - Result: 0 empty cells, 0 critical. `check:recipes` green, `test:engine` **449 passed / 0 failed,
   fuzz clean**.
@@ -243,7 +298,7 @@ The twelve stock photos were deleted because keyword regexes meant **one image s
 different recipes** (`chicken.jpg` for 46, `bowl1.jpg` for 31) — the same picture scrolling past,
 of food that was not the recipe on the card.
 
-**That decision has been reversed, deliberately.** Ana's argument, and it is right: a discovery
+**That decision has been reversed, deliberately.** the owner's argument, and it is right: a discovery
 wall of 500 dishes needs pictures — people browse food with their eyes. Text-only cards are fine on
 the Plan board (you already chose the meal); they are worse on Explore.
 
@@ -271,7 +326,7 @@ So the mechanism changed, not just the count:
 | `sheetpan-chicken.jpg` | `d-american-sheetpan-chicken` Sheet-Pan Chicken & Veg | chicken breast, roast sweet potato, charred broccoli, paprika. **Now verified** — this is the one that shipped unlooked-at |
 | `shakshuka.jpg` | `b-shakshuka` Shakshuka | two eggs poached in tomato and pepper, feta, herbs. No bread in frame, so `gluten_free` holds; feta is in the recipe, so `vegetarian` holds |
 
-**A fifth dish, and the first time the photograph came before the recipe.** Ana generated a loaded
+**A fifth dish, and the first time the photograph came before the recipe.** the owner generated a loaded
 chicken-and-egg poke bowl from the prompt in `designs/midjourney-dish-photography.md` §7 and asked
 for it on the Today plate. Nothing in the library depicted it — the only poke bowls were salmon and
 tofu — so `l-chicken-egg-poke` was **added first** and the photograph mapped to it second. That is
@@ -360,7 +415,7 @@ Settled from a set of eight Midjourney boards, produced by prompt #10 in
 `designs/references/food/` (15 dish photographs) and a `manifest.csv` mapping every file back to
 its original name.
 
-> **BUILD `sage-01` … `sage-12` FIRST.** Ana named these as the set to try. They are the whole of
+> **BUILD `sage-01` … `sage-12` FIRST.** the owner named these as the set to try. They are the whole of
 > what was `Desktop\design\sage\` — three Midjourney jobs plus one saved favourite. `board-13` …
 > `board-36` are earlier rounds kept as a record, not the target.
 
@@ -374,7 +429,7 @@ Five things make them work. Four need no photography at all:
 4. **Layered, unequal cards** — different sizes, overlapping edges, breaking their containers.
    Not a uniform grid.
 5. **Photography as large integrated blocks** woven through the layout, with bowls **cropped by
-   the frame edge** — Ana called this out specifically.
+   the frame edge** — the owner called this out specifically.
 
 **They settle the week-plan structure too, which was previously thought open.** `sage-10`, `11`
 and `12` are the application, not homepage collages, and all three answer it the same way: seven
@@ -410,7 +465,7 @@ an overflow that is not there, and treat sub-500 layouts as unverified by this t
 
 ### What landed earlier: the sage design
 
-Grew out of a Figma Make exploration Ana liked ("C — Signal", rebuilt at
+Grew out of a Figma Make exploration the owner liked ("C — Signal", rebuilt at
 `designs/signal-asymmetric.html`), then a Midjourney generation with a sage-green editorial feel.
 
 Live at `/sage` with five tabs — Home, Plan, Explore, Groceries, Assistant — **connected to the real
@@ -447,7 +502,7 @@ needs the server, which Vercel provides.
 
 ## Deployment
 
-- **Vercel** — Ana connected it via GitHub. Redeploys on push. API routes verified running:
+- **Vercel** — the owner connected it via GitHub. Redeploys on push. API routes verified running:
   `/api/plan` 200; `/api/operation` 400 on an empty body and `/api/import` 422 on a bad URL, both
   correct rejections rather than crashes.
 - **GitHub Pages** — `.github/workflows/pages.yml`, added this session. Builds a static export
@@ -455,7 +510,7 @@ needs the server, which Vercel provides.
   deletes `src/app/api` **in CI only**, because `output: export` refuses to build with dynamic route
   handlers; the exported pages call no API. Root redirects to `/sage`, original kept at `/classic`.
 - Pages had to be enabled once via the GitHub API — `enablement: true` in the workflow failed. Done
-  using the token from Windows Credential Manager. **Flagged to Ana at the time; do not reach for
+  using the token from Windows Credential Manager. **Flagged to the owner at the time; do not reach for
   that credential again without asking.**
 - The assistant is in demo mode — no `ANTHROPIC_API_KEY` set, which is correct for a public URL.
 
@@ -467,7 +522,7 @@ dev first, or delete `.next` after.
 
 ## Midjourney
 
-Ana has an account (V8.2) and wants to keep using it for inspiration. Prompt files:
+the owner has an account (V8.2) and wants to keep using it for inspiration. Prompt files:
 
 - `designs/midjourney-week-layouts.md` — 14 week-plan structures, palette held constant
 - `designs/midjourney-sage-refine.md` — refining the shipped design, including `--sref` prompts
@@ -475,7 +530,7 @@ Ana has an account (V8.2) and wants to keep using it for inspiration. Prompt fil
 - `designs/screens/*.png` — headless-Chrome captures of the live app, committed so
   `raw.githubusercontent.com` serves them to `--sref`. **Recapture after a design change.**
 
-**A Figma Make file exists** that Ana explored directions in:
+**A Figma Make file exists** that the owner explored directions in:
 `figma.com/make/5qe9IcoI2dQWzGNCRYNiY2/User-dashboard`. It is **not fetchable** — Figma Make renders
 inside a logged-in session and returns 403. Its "C — Signal" direction was rebuilt from a screenshot
 as `designs/signal-asymmetric.html`.
@@ -538,11 +593,11 @@ arrangement fixes, per-dish `--no` lists that protect diet tags, and the `--sref
 
 ## Running in parallel, do not disturb
 
-**A 7B QLoRA fine-tune is training on Ana's desktop.** Kicked off 2026-08-05 on
+**A 7B QLoRA fine-tune is training on the desktop.** Kicked off 2026-08-05 on
 Qwen2.5-7B-Instruct, 4-bit, 3,272 engine-validated examples, 409 steps at ~20 min/step, ETA around
 Aug 11. See STATUS.md and WORKPLAN's "ASSISTANT v2" section.
 
-Ana's instruction this session: *"the training is still going on another device. Don't think about
+the instruction this session: *"the training is still going on another device. Don't think about
 it."* WORKPLAN rule 7 also says the GPU run is never interrupted by other work. It is on a different
 machine, so laptop work cannot disturb it — but do not propose anything that would.
 
@@ -555,7 +610,7 @@ dish names, with "Grilled salmon with steamed broccoli" listed as a *breakfast*.
 entire claim is that its numbers are real, a public page of fabricated ones is a liability. Either
 document it in `designs/README.md` or delete it.
 
-## What Ana asked for, in her own words
+## What the request was, in her own words
 
 Recorded because they are the actual brief, and paraphrasing them has already caused misses:
 
@@ -577,7 +632,7 @@ Recorded because they are the actual brief, and paraphrasing them has already ca
 
 ## Design tooling researched
 
-Ana asked what professionals use, and was considering a Midjourney subscription (since bought).
+the request came what professionals use, and was considering a Midjourney subscription (since bought).
 
 - **Mobbin** (~$15/mo, free tier) — searchable library of real screens and complete flows from
   shipped apps, Revolut included. Recommended as the single highest-value subscription: studying the
@@ -619,7 +674,7 @@ git config --local user.name  "sjitix"
 git config --local user.email "adrawing26@gmail.com"
 ```
 
-The machine's global identity is `Ana Seuleanu <anaseuleanu3@gmail.com>` and is untouched. Three
+The machine's global identity is a second, personal email and is untouched. Three
 commits early in the session carry that identity; they were left alone rather than rewritten,
 because fixing attribution is not worth a force-push that would break the desktop's clone.
 
@@ -637,7 +692,7 @@ Lesson: testing in the wrong environment told me it was fine.
 
 ```
 91790ae  Recipe library 169 -> 292
-51dfb4e  Recipe library 292 -> 500          (Ana's desktop, merged cleanly, zero overlap)
+51dfb4e  Recipe library 292 -> 500          (the desktop, merged cleanly, zero overlap)
 62c107b  Remove the stock food photos; add a desktop design candidate
 0f0971a  designs/ — a reference folder for design candidates
 956cbc0  Midjourney prompts; stop privileging one reference app in the brief
@@ -738,7 +793,7 @@ $img = [System.Windows.Forms.Clipboard]::GetImage()   # then downscale and save,
 
 ## Immediate next steps
 
-1. **Ana looks at `/sage` and says whether it is the reference.** That is the only question that
+1. **the owner looks at `/sage` and says whether it is the reference.** That is the only question that
    matters right now; everything below is smaller.
 2. **Recapture `designs/screens/*.png`.** They are headless-Chrome shots of the OLD design and are
    what Midjourney's `--sref` reads, so every future generation is currently anchored to a design

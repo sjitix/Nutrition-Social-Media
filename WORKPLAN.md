@@ -73,7 +73,7 @@ inferred from the clock rather than from a log, because nothing writes one yet, 
 that rather than implying knowledge it does not have. The clock is read in the BROWSER: on the
 static export the server's clock is the build clock, which would freeze "today" at deploy time.
 
-**Next:** Ana's verdict on `/sage`. Then recapture `designs/screens/*.png` (Midjourney's `--sref`
+**Next:** the verdict on `/sage`. Then recapture `designs/screens/*.png` (Midjourney's `--sref`
 still points at the old design), then `check:images`, then wire Plan and Assistant to be
 interactive. Photography — four dishes of 500 — is now the binding constraint on the design.
 
@@ -133,7 +133,7 @@ sjitix, each tsc-clean + tests green:
 - **Accessibility (`459b0b0`)** — WCAG AA contrast (muted text 3.2→5.7:1, violet 3.95→4.8:1); the meal
   drawer is a real `role="dialog"` modal (Escape, scroll-lock, focus, aria); decorative icons
   aria-hidden.
-- **Onboarding/first-run (`09dc723`)** — asks your **name** (killed the hardcoded "Ana"); **prefills**
+- **Onboarding/first-run (`09dc723`)** — asks your **name** (killed the hardcoded "the owner"); **prefills**
   from the saved profile for a returning user; generation shows a spinner; the plan page has a
   skeleton loader.
 - **Social + sharing (`3f424ac`)** — your star rating shows on feed cards; **Share** copies a clean
@@ -861,7 +861,7 @@ Each of these was discovered by doing the work, and each earned its place.
 20. **"Large photograph" is not the same instruction as "the food, cut out."** The hero was built
     as a full-bleed rectangle running off the frame edge — faithful to sage-09, and still not what
     the reference does, because sage-06 lays the *bowl itself* on the page with its own shadow and
-    lets the frame crop it. Ana's correction was immediate. A rectangle reads as a photo in a slot
+    lets the frame crop it. the owner's correction was immediate. A rectangle reads as a photo in a slot
     at any size; only removing the background makes the dish an object the layout can sit under.
     When a reference shows imagery integrated rather than placed, check whether the thing being
     reproduced is the picture or its silhouette.

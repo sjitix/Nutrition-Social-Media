@@ -30,7 +30,7 @@ const display = Fraunces({
  *  - **A warm cream page**, edge to edge. No max-width wrapper, because the boards run photography
  *    off the frame and a centred container makes that impossible.
  *
- * The panel used to carry the week as well as the nav — sage-12's does — and it is gone at Ana's
+ * The panel used to carry the week as well as the nav — sage-12's does — and it is gone at the owner's
  * request. Worth knowing what that bought beyond the tidier rail: the sidebar is part of EVERY
  * route's payload, so seven days of engine totals were being serialised into every navigation.
  * Home's RSC response was 118 kB and Week's 123 kB; both drop sharply without it. This layout no
