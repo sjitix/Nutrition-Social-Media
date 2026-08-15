@@ -8,15 +8,33 @@ enough" — the answer depends on these goals.
 
 ## Hard constraint: $0 running cost, local-only AI
 
-Non-negotiable: the app must cost **nothing** to run. **No paid AI APIs** (no Claude
-API credits, no hosted keyed routes) — all inference runs on the owner's **local
-hardware** via LM Studio. Do not propose paid-API solutions, even for the hard
-reasoning parts. The way to get reliable results from a small local model is **not** to
-buy a bigger brain — it's to **enforce correctness in code**: generate → validate the
-output against the active constraints/macros with deterministic checks → re-prompt to
-repair any violation. Correctness lives in code that can't be wrong, not in the model.
-A bigger/smarter model only improves *variety and fluency*, and the owner gets that for
-free over time by adding the RTX 2070s they already own (8 GB → 16 GB → 24–32 GB VRAM).
+> **⚠️ SCOPED 2026-08-16 — read this before quoting the rule below.** This section used to forbid
+> paid AI APIs outright, "even for the hard reasoning parts". That is now in direct conflict with
+> the agent goal decided later in this document, and the conflict is resolved as follows:
+>
+> - **The engine stays $0 and always will.** It is pure TypeScript, calls no model, and every
+>   number in the app comes from it. Nothing about correctness costs money — that is settled.
+> - **The FREE/OFFLINE TIER stays local**: the fine-tuned model in LM Studio, and demo mode with
+>   no configuration at all. The app must keep working with no keys, forever.
+> - **A keyed frontier model is the accepted path to agent-grade behaviour.** See "Conversational
+>   assistant": planning across steps, recovering from a failed action and answering the case
+>   nobody wrote an example for is capability, and capability tracks scale. A 7B will not do it.
+>
+> So: **$0 is a floor the product must always run at, not a ceiling it may never exceed.** The
+> provider abstraction already makes this a one-line change (`AI_PROVIDER`), which is exactly why
+> it was built that way.
+
+The original rule, kept because most of it still holds: the app must cost **nothing** to run in
+its free tier — all inference runs on the owner's **local hardware** via LM Studio. The way to get
+reliable results from a small local model is **not** to buy a bigger brain — it's to **enforce
+correctness in code**: generate → validate the output against the active constraints/macros with
+deterministic checks → re-prompt to repair any violation. **Correctness lives in code that can't be
+wrong, not in the model** — that half is permanent and applies at every model size.
+
+*(Struck: the claim that a bigger model "only improves variety and fluency", and the plan to add
+more RTX 2070s. The first is corrected at length further down; the second is rejected in the
+hardware block — extra cards pool VRAM only under FSDP/ZeRO-3, which is slow and fragile over PCIe
+risers, so the answer for bigger models is renting a cloud GPU on demand.)*
 
 ## The ambition: go viral, scale to millions — in a month
 
@@ -110,7 +128,7 @@ chicken" problem). Selecting from structured data fixes all of it.
 **Recipe object (target schema):** name, cuisine, macros (from USDA), timeMinutes,
 ingredients[], ingredientCount, approxCost, dietTags, mainProtein, healthScore, steps.
 
-**STATUS — the database exists.** `src/lib/recipeDb.ts` holds **500 curated recipes**, and the
+**STATUS — the database exists.** `src/lib/recipeDb.ts` holds **501 curated recipes**, and the
 selection engine is live: `selectWeekFromDb` picks against the constraint set, `rebalanceDay`
 holds the day on target, and macros are computed from the ingredient list against USDA rather
 than written on the card. This section is now a record of *why* it was built this way, not a plan.
@@ -119,7 +137,7 @@ What the prediction got right and wrong, worth keeping:
 
 - **Right: selecting beats inventing.** Macros come from data, diversity is structural, and every
   user control became a filter rather than a hope.
-- **Right: curated thousands, not scraped millions.** 500 hand-curated recipes generate varied
+- **Right: curated thousands, not scraped millions.** 501 hand-curated recipes generate varied
   weeks with no repeats. The gate that proves it is `npm run export:recipes`, whose Gaps sheet
   reports how many recipes survive each filter per slot; under seven means a week must repeat.
 - **Wrong in one respect: the ingredient table is the real constraint, not the recipe count.**
@@ -187,7 +205,7 @@ by someone who knows the magic words.
 The library is 501 recipes with ingredients and steps; it cannot go in a prompt, and putting a
 slice of it there is worse — the model then reasons over an arbitrary, stale subset and cannot
 tell that it is doing so. **Give it read tools and let it ask.** `find_recipes(filter)` returns
-five rows it chose; that is a query, and it is the same reason a coding agent greps a repository
+up to ten rows it chose (the cap the schema sets); that is a query, and it is the same reason a coding agent greps a repository
 instead of reading all of it. This turns read tools from a nice extra into **the only thing that
 makes the library usable at all**, and it is why the read surface comes before the write surface.
 
@@ -208,6 +226,31 @@ Everything built so far is reactive: the user types, it answers. A real nutritio
 and offer a fix that is accepted in one tap. This is a **standing check that produces a
 suggestion**, not a chat turn, and it changes the shape of the interface rather than only the
 model. Treat it as in scope: an assistant that only ever responds is a command line with manners.
+
+### ⚠️ BUILD STATUS: all of the above is DESIGN. None of it is implemented.
+
+As of 2026-08-16, `src/app/api/assistant-v2/route.ts` is still single-shot — one model call, apply,
+respond. There is no loop, no read surface and no `what_if`.
+
+- **The specification lives in `ASSISTANT-SCHEMA.md`**, in the v3 section at the bottom: seven read
+  tools with their arguments and return shapes, the loop contract (MAX_STEPS 8, engine notes fed
+  back, one undo snapshot per user turn), and the five fake-provider cases that test it.
+- **It needs no GPU, no keys and no trained model.** Rule 2 is the reason: build and test the
+  harness against a scripted provider first.
+- **Do not confuse it with `READ_ONLY_TOOLS` in `src/lib/reply.ts`.** Those are user-facing answers
+  whose output *is* the reply. The read surface is model-facing: its output goes back into the loop
+  and the user never sees it. Both are "does not change the plan" and nothing else about them is
+  alike.
+
+### Accounts: decided, and blocked
+
+**Real accounts with a hosted database (Supabase) were chosen** over a browser-local profile, so
+saves and plans follow a person across devices. **Nothing is built.** It waits on a Supabase
+project being created and its Project URL + anon key supplied; the `service_role` key must never
+come near this public repo. `src/lib/savedStore.ts` is already the seam. Two constraints hold:
+the app must keep working with **no keys configured** (the GitHub Pages preview is a static export
+with no server), and RLS policies must be written so a signed-in person can only ever read and
+write their own rows.
 
 **How that actually works (the key insight):** LLMs "change things" via **tool /
 function calling**. The model stays general; it interprets your message and emits

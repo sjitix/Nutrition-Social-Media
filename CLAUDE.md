@@ -95,6 +95,11 @@ disabled) — good for showing the UI without any AI.
   tested; call them rather than writing new filter logic.
 - `src/lib/grocery.ts` — aisle categoriser, pure and tested.
 - `src/lib/primitives.ts` — the v2 assistant vocabulary + `applyPrimitives`.
+- `src/lib/reply.ts` — `composeReply` (engine notes are authoritative; the model's prose only fills
+  in when the engine is silent) and `READ_ONLY_TOOLS`, the set that must never report a plan change.
+  Imported by all three assistant routes. **Do not confuse `READ_ONLY_TOOLS` with the read surface
+  specified in `ASSISTANT-SCHEMA.md` v3** — these are user-facing answers, those are model-facing
+  lookups whose results the user never sees.
 - `src/lib/types.ts` — zod schemas (WeekPlan, Meal, AssistantResponse) = the data contract.
 - `src/lib/storage.ts` — **the only place that knows a localStorage key name.** Every persisted
   thing (profile, plan, chat, imports, saved, grocery check-offs, visits) is a key in `KEYS` here.
@@ -126,9 +131,14 @@ disabled) — good for showing the UI without any AI.
 - `src/app/sage/*` — the shipped design, **reproduced from `designs/references/boards/sage-01 …
   sage-12`**: Home, Today, Week (`/sage/plan`), Explore, Groceries, Assistant.
   `/sage/today` reproduces ONE board, `sage-04`, and only the panel of it that was referenced: a
-  serif headline and a huge round plate cut by the bottom of the frame on the left, three rings and
-  a column of outlined rows on the right. The plate is the dish coming up next, the rings are the
-  macros already hit, the rows are the meals still to come. It infers "eaten" from the clock
+  serif headline and a huge round plate on the left, three rings and a column of outlined rows on
+  the right. The rings are the macros already hit and the rows are the meals still to come. **The
+  plate is not simply "the next meal":** with five recipes of 501 photographed, that would usually
+  be a dish with no picture on a screen that is entirely a picture, so it prefers the first
+  UPCOMING meal that HAS a photograph, then the next meal, then a photographed meal already eaten —
+  and labels each case honestly (`Up next` / `Later today` / `Earlier today`). It never claims to
+  be up next when it is not, and never borrows another dish's photograph. It infers "eaten" from
+  the clock
   because nothing writes a meal log yet, and says so on the page; `?at=14` pins the hour for review
   and labels itself when used. The plate is sized off the page WIDTH alone — `108%` of its column
   (`104%` at `2xl`), ~50% of the page — because sizing it off the window height made it shrink on
@@ -144,7 +154,7 @@ disabled) — good for showing the UI without any AI.
   and a "Saved" facet filters to them. Three things keep rendering everything cheap and should not
   be undone: the filter+sort `useMemo` excludes `saved` from its deps, `Card` is `memo`'d with
   stable handlers, and the card carries `content-visibility: auto`. One save costs ~5 ms.
-  `layout.tsx` + `SidePanel.tsx` + `SideNav.tsx` are the shell
+  `layout.tsx` + `SidePanel.tsx` + `SideNav.tsx` + `SageFooter.tsx` are the shell
   — a full-height sidebar beside a cream page with **no max-width wrapper**
   (photography has to run off the frame edge). The panel is `sage-07`'s QUIET one — the same sage family as the page, told apart by a hairline,
   not the deep forest block of `sage-10`/`sage-12`; both are in the reference set and this is the
@@ -153,8 +163,9 @@ disabled) — good for showing the UI without any AI.
   `SidePanel` and is not persisted, because a layout survives client-side navigation so it already
   outlives every tab press. It used to carry the week as a list under the nav and no longer does —
   the sidebar is in EVERY route's payload, so that was seven days of engine totals serialised into
-  every navigation, and the layout now touches the engine not at all. Server components
-  reading the real engine; Explore and Groceries are interactive. `demo.ts` computes the week ONCE
+  every navigation, and the layout now touches the engine not at all. Home, Week and
+  Groceries render on the server from the real engine; Explore and Today are client components
+  (Today reads the clock in the browser, so a server render would bake in the build machine's). `demo.ts` computes the week ONCE
   at module load, so no two tabs can describe different weeks — and builds it by running
   `selectWeekFromDb` through `applyOperations(regenerate_week)`, because selection alone only
   RESERVES a pinned dish; `reimposeLocks`, which places it, is internal and runs inside the
