@@ -135,6 +135,42 @@ What the prediction got right and wrong, worth keeping:
 Code changes files — general, adaptive to *anything* you say, not an if-else/decision-tree
 chatbot. It should feel like talking to Claude/ChatGPT, and it effectively edits the app.
 
+### What "an agent, not a classifier" means — the owner's own framing (2026-08-15)
+
+**Ana's words, exactly as written** — quoted rather than paraphrased, because the rest of this
+section has repeatedly been read as something narrower than it says, and a summary is what let
+that happen:
+
+> It should still do more than that , more tahn just identify words and do something when you
+> see word. The goal of this project is to make an agent/ an assistent as your personal
+> nutritionist. Exactly like you are a coding agent and can advise me ab anything , you are a
+> general llm , who can execute requests and do what i say no matter the phrasing i use, and you
+> can edit things in my code, my ide, my laptop, use my bash and my powershell command and
+> modify things based on what i say. Thats how this agent hsoul dbe too , it should have general
+> understanding, it should be able to decide based on the information i give it , it should be
+> able to act and make verything more conveninet for me as the user, so that anyone can use it
+> like i use claude code, with maximum eficciency.
+
+The bar is therefore **not** "recognise the request and fire the matching tool." It is:
+understand anything, decide what to do about it, do it, check what happened, and keep going
+until the person's actual problem is solved.
+
+**Three things separate what exists from that, and only one is the model:**
+
+1. **There is no loop.** `src/app/api/assistant-v2/route.ts` is single-shot: message in, one
+   turn out, apply, respond. A coding agent acts, reads what came back, notices it failed or
+   surprised it, and re-plans — often many times before answering. Ours gets one move.
+2. **It never observes its own action.** `applyPrimitives` returns `notes`, `planChanged` and
+   `profileChanged` — the engine says what it really did, including when it refused or relaxed
+   something. All of that reaches the USER and none of it reaches the MODEL.
+3. **Its hands are small.** It can emit primitives against one week's plan. It cannot read the
+   saved recipes, the import history, the streak, or the profile's own memory. General
+   understanding with a narrow action surface still feels narrow to the person using it.
+
+**Build order (1 and 2 need no GPU, no keys, and no trained model):** the loop first, because it
+is the largest change in how the thing *feels* and it is independent of which model is behind
+it; then widen what it can see and touch; then swap the brain and measure.
+
 **How that actually works (the key insight):** LLMs "change things" via **tool /
 function calling**. The model stays general; it interprets your message and emits
 **structured tool calls**; plain code (the tools) executes them against the database.
@@ -162,13 +198,25 @@ phrase crutch are **removed.** Every turn is logged as a complete training examp
    locally: sustained GPU training **bugchecks this desktop** (see hardware reality below).
    The result is a GGUF that runs locally in LM Studio for inference (light and stable).
 
-**Hardware reality — training is cloud-only for this machine.** The mining-board + PCIe-riser
-+ RTX 2070 + HDD rig cannot sustain full-GPU training without kernel-panicking (NVIDIA-driver
-fault `0x1E`/`0xC0000096`, repeated Kernel-Power 41 reboots, plus a months-long history of
-driver/power bugchecks). **Local inference is fine; local training is ruled out.** Fine-tune
-on free cloud (Colab/Kaggle T4, $0); train locally only on a future *stable* 24 GB machine.
-Bigger models later → **rent a cloud GPU on demand** (a few $ per run), never this rig. More
-GPUs add VRAM/capacity, not stability — they would make the crashes worse, not fix them.
+**Hardware reality — SUPERSEDED 2026-08-15.** This used to say local training was ruled out
+because the rig kernel-panicked (`0x1E`/`0xC0000096`, repeated Kernel-Power 41 reboots). The
+cause was the old **Ryzen 1700** — that fault code is a classic unstable-CPU signature — and
+since the **3700X** swap sustained full-GPU load has been stable. **It has now been proven in
+the hardest possible way:** a 7B QLoRA ran on that desktop for roughly six days, 409 steps at
+~20 min/step, and finished. Local training is not ruled out; it is slow.
+
+What remains true: the RTX 2070's **8 GB is the binding constraint** (the 7B run sat at
+7.9/8 GB, leaving ~97 MB spare, so any other GPU consumer spills it to system RAM and collapses
+throughput), and for anything bigger the answer is still to **rent a cloud GPU on demand** rather
+than add cards — more GPUs pool VRAM only with FSDP/ZeRO-3, which is slow and fragile over PCIe
+risers with no NVLink. Keep the rig for **inference serving**, which is what it is good at.
+
+**Where the trained artefact lives, and it is not in this repo.** `scripts/train_lora.py` writes
+the adapter to `models/nutriflow-lora`, and `/models/` is gitignored — correctly, since the repo
+is public. Nothing about it is on the GPU: VRAM is volatile, the run checkpointed to disk every
+10 steps, and powering the machine off cost nothing. But it means the adapter exists as **one
+copy, on one drive, in one house** — on a machine whose SSD has already died once. Back it up
+before merging anything.
 
 ## The app replaces a nutritionist — the macro-preservation engine (core role, decided direction)
 
@@ -217,15 +265,31 @@ later as more axes on the same vector** — the solver generalizes, it just need
 per-ingredient data (**USDA FoodData Central**). Adding micros is a **data** problem, not a
 model problem.
 
-**Why this settles "would a bigger model be better?" — permanently:**
+**Why this settles "would a bigger model be better?" — for CORRECTNESS, which is what it was
+ever about:**
 - Claude Code is reliable at coding because of its **deterministic substrate** (files,
-  compiler, tests), not because the model is huge. This is identical: reliability comes from
-  the **macro engine**, not the parameter count.
-- Model size helps only **language understanding** — a narrow fine-tune already covers that;
-  if it ever falls short, the fix is **more training examples, not more parameters.**
+  compiler, tests), not only because the model is large. This is identical: correctness comes
+  from the **macro engine**, not the parameter count.
 - Model size is **irrelevant to numeric correctness, forever.** We already saw the failure
   mode: when the model did macro math it hallucinated (fiber 64g→9g). **Code owns the math;
   the model never touches it.** A bigger brain would just hallucinate more fluently.
+
+> **⚠️ CORRECTED 2026-08-15.** This section used to also claim that *"model size helps only
+> language understanding — a narrow fine-tune already covers that; if it ever falls short, the
+> fix is more training examples, not more parameters."* **That is wrong under the agent goal
+> stated at the top of this section, and it was written to justify the small-model path.**
+>
+> Handling any phrasing is language understanding, and a fine-tune does cover it. But planning
+> across several steps, noticing that an action did not do what it intended, recovering from
+> that, and answering something nobody wrote a training example for is **capability**, and
+> capability tracks scale. A 7B trained on 3,272 in-domain examples will be strong on the shapes
+> it saw and brittle just outside them. It will not feel like Claude Code, however good the data.
+>
+> What survives intact is the **architecture**: reason-then-act, over general composable
+> primitives, on a deterministic engine. That shape does not care how big the brain is — which is
+> exactly why the fine-tune is not wasted work. It is the free/offline tier and the proof the
+> design holds, and swapping in a frontier model is `AI_PROVIDER` plus a key, not a redesign.
+> **Correctness never needs a bigger model. Feeling like an agent does.**
 
 **Build milestones:**
 1. ✅ **Macro-aware `swap_meal`** — selects the candidate by dish match, tie-broken toward
