@@ -1,49 +1,92 @@
 # 🛠️ Live status — assistant v2 (7B rebuild)
 
-**Last updated: 2026-08-05 23:57** · I update this at every stage change and push it, so you can open
-it on GitHub from your phone anytime.
+**Last updated: 2026-08-16.**
 
 ## ▶ Current stage
-**🔥 TRAINING IS LIVE — 7B QLoRA, epoch 1 of 1.** Kicked off 2026-08-05 23:55 on Qwen2.5-7B-Instruct,
-4-bit QLoRA over all **3,272 examples (0 skipped)**, **409 steps**. Runs as a detached process (survives
-Cursor closing), checkpoints every ~3.3 h (resumable). `test:engine` **444 / 0**.
 
-**Honest ETA: ~5–6 days (≈ Aug 11).** The RTX 2070 does ~20 min/step — a 7B is just slow on this card.
-The full-7B / multi-day path was the deliberate choice. When it finishes I run merge → GGUF → grade
-against the 45-case eval automatically and send a full report.
+**✅ TRAINING FINISHED. ⚠️ THE ADAPTER IS STRANDED AND HAS NO BACKUP.**
 
-## Keep the run healthy
-- Desktop **on & plugged in** (never-sleep is set), **Cursor open**, LM Studio's model **unloaded**.
-- Don't open anything GPU-heavy — only ~97 MB VRAM spare.
-- If it's interrupted (Windows Update, power): it's resumable —
-  `RESUME=1 BASE_MODEL=Qwen/Qwen2.5-7B-Instruct DATA_FILE=finetune-v2.jsonl EPOCHS=1 SAVE_STEPS=10 python scripts/train_lora.py`
+The 7B QLoRA (Qwen2.5-7B-Instruct, 4-bit, 3,272 engine-validated examples, 409 steps at ~20 min a
+step) started 2026-08-05 and **ran to completion on the desktop**. Nothing was lost when that machine
+was shut down: VRAM is volatile and always was, and the run checkpointed to disk every 10 steps.
 
-## Is it *actually* progressing? — check it yourself
-- **`nvidia-smi`** → GPU near 100 % util, ~7.9 GB used.
-- **Tail the log:** the newest `train-7b-v2.log` grows a step every ~20 min (loss prints every 10 steps).
-- **Commits:** `git log --oneline -20` — every milestone is a commit.
+**Where the result is:** `models/nutriflow-lora`, on the desktop. `/models/` is gitignored —
+correctly, since this repo is public — so **it was never pushed and there is no second copy.**
+
+> ### ⚠️ FIRST ACTION WHEN BACK AT THAT MACHINE: copy `models/nutriflow-lora` somewhere else.
+> One copy, one drive, in a machine whose previous SSD already died. The adapter is small (the
+> merged ~8 GB GGUF is regenerated *from* it) and the base model is re-downloadable from
+> HuggingFace. It is the only artefact here that six days of GPU time cannot replace.
+
+**It has not been merged, converted, loaded or graded.** Loading it in LM Studio was never possible
+yet — an adapter has to be merged into the base and converted to GGUF first.
+
+## When back at the desktop — the whole remaining sequence
+
+```bash
+# 0. BACK IT UP FIRST — another drive, a cloud folder, a USB stick. Anywhere but that one disk.
+
+# 1. merge LoRA -> fp16 -> GGUF q8_0 (self-clones llama.cpp; ~8 GB out)
+BASE_MODEL=Qwen/Qwen2.5-7B-Instruct .venv-ft/Scripts/python.exe scripts/merge_and_gguf.py
+
+# 2. load the printed .gguf in LM Studio: GPU offload max, context >= 8192, serve on :1234
+
+# 3. grade it against the 45 hard cases
+npm run eval:hardcases
+
+# 4. compare with v9 before flipping anything over
+```
+
+**What "better" has to mean.** v9 scores 94 / 94 on the 125-case set. A 7B that does not clearly
+beat that is not worth shipping just because it cost six days — WORKPLAN records two models (v10,
+v11) that lost to v9 and were correctly discarded. Measure across **three runs**; temperature-0
+non-determinism is ~1–2 points, so a single run cannot separate close models.
 
 ## Progress checklist
+
 - [x] General primitives + executor (`applyPrimitives`) + reason-then-act turn schema + v2 prompt
 - [x] generate-then-validate data pipeline (every example run through the real engine)
-- [x] **3,272** engine-validated convos with `thinking` traces, 0 rejected, length-clean for the 7B
+- [x] **3,272** engine-validated conversations with `thinking` traces, 0 rejected
 - [x] hard-case eval grown to **45** across all four honest outcomes
-- [x] separate `/api/assistant-v2` endpoint (won't disturb the live assistant)
+- [x] separate `/api/assistant-v2` endpoint (does not disturb the live assistant)
 - [x] `merge_and_gguf.py` — one-command LoRA → GGUF (q8_0, self-clones llama.cpp)
-- [x] `eval:hardcases` — offline grader (graceful no-op when no model loaded)
-- [x] GPU freed + VRAM-fit confirmed (fits 7.9/8 GB, 0 of 3,272 examples skipped)
-- [ ] **🔥 IN PROGRESS: 12 h → multi-day QLoRA train** (7B, epoch 1/1, 409 steps, ETA ≈ Aug 11)
+- [x] `eval:hardcases` — offline grader (graceful no-op when no model is loaded)
+- [x] **QLoRA train — DONE.** 409 steps, adapter at `models/nutriflow-lora`
+- [ ] **⚠️ BACK THE ADAPTER UP** — one copy, one drive, no backup
 - [ ] merge → GGUF → load in LM Studio (one command, ready)
-- [ ] grade vs the 45-case eval → **full report to you**
+- [ ] grade against the 45 hard cases, and compare with v9 over three runs
+- [ ] only then: flip the client from `/api/assistant` to `/api/assistant-v2`
 
-## What's running in the background
-- Nothing heavy — waiting on the GPU. The 7B base (15 G) is cached and ready.
+## ⚠️ The training data is not in this repo either
+
+`data/finetune-v2.jsonl` (3,272 examples) is gitignored like the models. Unlike the adapter it is
+**reproducible** — the generator (`src/lib/genV2.ts`, `src/lib/dataValidate.ts`, validated against
+the real engine) is committed — so losing it costs a script run rather than six days. Worth
+regenerating once and checking it still yields 3,272 before trusting that number again.
+
+## What the model gates, and what it does not
+
+The engine is pure TypeScript and never calls a model, so **no number anywhere in the app depends
+on any of this** — the planner, macros, allergen filtering and the whole `/sage` design work
+without it. What the model gates is the **assistant**: the conversational half, which is the
+product's core role rather than a side feature.
+
+**And the bar for it has moved.** See `VISION.md` → "Conversational assistant": the assistant is to
+be an *agent* — understand everything, read everything, decide from what it read, change everything
+— not a classifier that maps a phrase to a tool. That section also records, honestly, that a 7B
+will not feel like a frontier coding agent however good the data; the architecture is what carries
+over, and swapping the brain is `AI_PROVIDER` plus a key. **The next assistant work (the agent loop,
+specified in `ASSISTANT-SCHEMA.md` v3) needs no GPU, no keys and no trained model at all.**
+
+---
+
+## Superseded, kept for the record
+
+The sections below described the run while it was live. They are wrong now and are left only so the
+history reads straight.
 
 ## Honest note on how I work
 I don't think 24/7 — I work in bursts (triggered by you, or when a background job finishes). But the
 heavy lifting (the download now, the 12 h training later) runs as a **real OS process that keeps going
 whether or not I'm mid-thought**, and it's independently verifiable with the commands above. So "is it
 working" = *is a background job progressing* + *is this file's timestamp recent*.
-
-**Next surface point:** a one-liner when the 12 h train starts, then a full report when there's a
-trained, tested model to try.
