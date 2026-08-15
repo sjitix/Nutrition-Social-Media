@@ -222,14 +222,24 @@ LM Studio: load model, push GPU offload to max, context >= 8192, Start Server on
   never emoji as icons. (Emoji-as-icon reads as AI-generated.)
 - **Never add AI as a git co-author, committer, or repo collaborator.** Commits are
   authored solely by the owner. Do not add `Co-Authored-By` trailers.
-- **Commit after every significant step, without being asked.** A working screen, a fixed bug, a
-  design change the owner has reacted to — each is its own commit, with the reasoning in the
-  message rather than only the what. Two reasons, both learned here: this repo is how the work
-  moves between the laptop and the desktop, and a session's work has already sat uncommitted and
-  nearly been lost; and a long unbroken run of edits cannot be bisected, so when a design decision
-  turns out to be wrong three rounds later, "the commit before the rings changed" has to exist.
-  Run the relevant gate first — `npm run test:engine` if the engine was touched, `tsc` and
-  `npm run build` otherwise. **Pushing stays a separate decision; ask.**
+- **Commit AND PUSH after every significant step, without being asked.** A working screen, a
+  fixed bug, a design change the owner has reacted to — each is its own commit, with the reasoning
+  in the message rather than only the what, and **every commit is pushed to `origin/main`
+  immediately**. Do not batch, do not hold commits back, do not ask permission to push.
+
+  The reason, which is what makes it stick: **GitHub is where the work is read, not merely where
+  it is backed up — so a commit that is not visible there has not been delivered.** That was
+  learned the hard way twice, with finished work sitting local after it had been reported done.
+
+  Two supporting reasons: this repo is how the work moves between the laptop and the desktop, and
+  a session's work has already sat uncommitted and nearly been lost; and a long unbroken run of
+  edits cannot be bisected, so when a design decision turns out to be wrong three rounds later,
+  "the commit before the rings changed" has to exist as a commit.
+
+  **The one thing that still gates a push is red.** Run `npm run test:engine` when anything under
+  `src/lib` changed, `tsc` + `npm run build` otherwise, and never push a failing gate — fix it or
+  revert. `git log origin/main..HEAD` should read empty at the end of every step; if it does not,
+  something was left undelivered.
 - **Keep the four documents current. This is not optional, and it is not a chore to do if there is
   time left.** The owner works across many separate conversations and none of them can see the
   others. These files are the only thing carrying state between sessions. A stale one is worse than

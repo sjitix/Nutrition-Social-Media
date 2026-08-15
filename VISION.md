@@ -137,9 +137,9 @@ chatbot. It should feel like talking to Claude/ChatGPT, and it effectively edits
 
 ### What "an agent, not a classifier" means — the owner's own framing (2026-08-15)
 
-**Ana's words, exactly as written** — quoted rather than paraphrased, because the rest of this
-section has repeatedly been read as something narrower than it says, and a summary is what let
-that happen:
+**The owner's words, exactly as written** — quoted rather than paraphrased, because the rest of
+this section has repeatedly been read as something narrower than it says, and a summary is what
+let that happen:
 
 > It should still do more than that , more tahn just identify words and do something when you
 > see word. The goal of this project is to make an agent/ an assistent as your personal
