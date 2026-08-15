@@ -7,15 +7,49 @@
 
 ---
 
-## RESUME HERE (last updated: 2026-08-10)
+## RESUME HERE (last updated: 2026-08-16)
 
-`main` is green: `npm run test:engine` **449 / 0, fuzz clean**. 501 recipes. tsc clean, build
-clean. **See `CONTEXT.md` for the live cross-session state** — this section is the build record;
-that file is where the last conversation left off.
+`main` is green and **fully pushed** — `git log origin/main..HEAD` is empty. `npm run test:engine`
+**449 / 0, fuzz clean**; 501 recipes; `check:recipes` green; tsc and build clean.
+**See `CONTEXT.md` for the live cross-session state** — this section is the build record; that
+file is where the last conversation left off.
+
+### >>> SINCE 2026-08-11: the design shipped, Explore went live, the assistant got a spec <<<
+
+**The reference boards are built and approved**, `/sage` end to end. `/sage/today` was added from
+board `sage-04` and took four rejections to land — every one of them a composition failure rather
+than a styling one, and all four are lessons below. The shell's sidebar is now `sage-07`'s light
+treatment, collapsible, defaulting to **closed**; the week list it used to carry is gone, which
+also removed seven days of engine totals from *every* route's payload.
+
+**Explore is interactive** (`96de58e`): saves persist through `src/lib/savedStore.ts`, a real
+`role="dialog"` modal opens per recipe with the full ingredient list and method, all 495 non-treat
+recipes render with no paging, and a "Saved" facet filters to them. An audit caught a genuine bug
+in the first pass: it wrote its own `nutriflow:saved` key while `storage.ts` already owned
+`nutriflow.saved`, which `/plan` reads — two saved lists for one concept, drifting apart silently.
+
+**One recipe added** — `l-chicken-egg-poke`, taking the library to 501 — because a photograph
+arrived with no dish to belong to. The recipe came first and the photo was mapped second; that
+order is not negotiable.
+
+**The assistant has a specification and no implementation.** `VISION.md` now carries the owner's
+own framing verbatim plus three binding rules, and `ASSISTANT-SCHEMA.md` has a v3 section
+specifying a **read surface** (seven pure tools) and an **agent loop** (MAX_STEPS 8, engine notes
+fed back, one undo snapshot per user turn). **None of it is built.** It is the next work, and it
+needs no GPU, no keys and no trained model.
+
+**The 7B finished training and is stranded** — see `STATUS.md`. The adapter is at
+`models/nutriflow-lora` on the desktop only, gitignored, never pushed, no second copy. Backing it
+up is the first action at that machine, ahead of merging.
+
+**Accounts were chosen and are blocked.** Supabase (real auth + hosted DB) over a local profile.
+Nothing is built; it waits on a project being created and its URL + anon key supplied.
+`savedStore.ts` is already the seam, and the app must keep degrading to local storage with no keys
+because the Pages preview is a static export with no server.
 
 ### >>> SINCE 2026-08-05: library, photography, design, deployment <<<
 
-Four things landed while the 7B trains. None touched the engine's contracts.
+Four things landed while the 7B trained. None touched the engine's contracts.
 
 **Recipe library 169 → 500.** Gaps were measured, not guessed: four filters were unsatisfiable
 (Indian, Italian, Mexican and Middle-Eastern snacks all zero) and eighteen more cells sat under
@@ -930,6 +964,28 @@ Each of these was discovered by doing the work, and each earned its place.
     claims coverage it does not have. Every count on the page resolves its keys against `RECIPES`
     first. A number in the interface should be derived from the thing the user can see, not from
     the thing that was supposed to produce it.
+31. **One concept, one storage key — and only `storage.ts` may know its name.** A new saved-recipes
+    store was written with its own `nutriflow:saved` while `storage.ts` already owned
+    `nutriflow.saved`, which `/plan` reads. Two lists for one idea, drifting apart forever, and a
+    save made on Explore would have been invisible to the rest of the app. Nothing failed and
+    nothing warned; an audit found it. Before adding persistence, grep `KEYS` and reuse.
+32. **Make an interface async before a network needs it, not after.** `SavedStore` is
+    `list`/`add`/`remove`, all async, over a localStorage that has no reason to be. A synchronous
+    interface would have to change shape the day a database sat behind it, and every call site
+    would change with it. The promise costs nothing now and makes the account swap one file.
+33. **The doc written to be checked from a phone is the one that must never go stale.** `STATUS.md`
+    and the publicly served `public/status.html` both announced "TRAINING IS LIVE, ETA Aug 11" ten
+    days after the run finished, and told the reader to keep a GPU free for a job that no longer
+    existed. The most-read status is the most damaging one to leave wrong — and a page that says
+    it auto-refreshes while being updated by hand is how it happens.
+34. **When a decision is quoted from the brief, quote it VERBATIM.** VISION's assistant section was
+    repeatedly read as something narrower than it said, because it had been paraphrased. The fix
+    was to paste the words exactly, typos included, and to name beside them the specific gaps
+    between that bar and what exists. A summary of intent is where intent goes to be lost.
+35. **Backticks do not survive a bash heredoc — use the file tools.** Four separate attempts to
+    write Markdown containing `code spans` through `node -e` inside bash mangled the content or
+    died on command substitution. Editing a file means Write/Edit, not a shell that will try to
+    execute the prose.
 
 ---
 
