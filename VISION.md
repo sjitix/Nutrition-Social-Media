@@ -171,6 +171,44 @@ until the person's actual problem is solved.
 is the largest change in how the thing *feels* and it is independent of which model is behind
 it; then widen what it can see and touch; then swap the brain and measure.
 
+### The goal, stated plainly
+
+> **The agent must be able to UNDERSTAND everything, READ everything, DECIDE from what it read,
+> and CHANGE everything — the way a coding agent does.**
+
+Not "parse the sentence and fire the matching tool." It should take any phrasing, look up whatever
+it needs to answer properly, judge what to do, do it, check what actually happened, and keep going
+until the person's real problem is solved — and it should be usable that way by anyone, not only
+by someone who knows the magic words.
+
+### Three rules that follow from it — these are binding
+
+**RULE 1 — A TOOL CALL IS A QUERY. QUERIES BEAT CONTEXT STUFFING.**
+The library is 501 recipes with ingredients and steps; it cannot go in a prompt, and putting a
+slice of it there is worse — the model then reasons over an arbitrary, stale subset and cannot
+tell that it is doing so. **Give it read tools and let it ask.** `find_recipes(filter)` returns
+five rows it chose; that is a query, and it is the same reason a coding agent greps a repository
+instead of reading all of it. This turns read tools from a nice extra into **the only thing that
+makes the library usable at all**, and it is why the read surface comes before the write surface.
+
+**RULE 2 — THE LOOP IS DETERMINISTIC INFRASTRUCTURE, AND MUST BE TESTED WITH NO MODEL AT ALL.**
+The harness — call, execute, feed the result back, call again, stop — is ordinary code. Test it
+with a scripted fake provider returning canned turns: one that asks for a read, one that acts, one
+that stops, one that never stops, one that emits garbage. Assert that it terminates, that it caps
+its steps, that engine `notes` are fed back, and that it recovers from a rejected operation. This
+needs **no GPU, no keys and no trained model**, it belongs in `npm run test:engine`, and it means
+that the day a real model is plugged in, the harness is already known-good. **Build and test the
+loop BEFORE the model, not after** — otherwise a harness bug and a model weakness are
+indistinguishable.
+
+**RULE 3 — THE AGENT ACTS UNPROMPTED. "CONVENIENT" MEANS IT SPEAKS FIRST.**
+Everything built so far is reactive: the user types, it answers. A real nutritionist says
+*"Thursday is 40 g short on protein"* **before** being asked. The engine already computes that —
+`weekly_report`, and the shortfall rendered on Home. So the agent should be able to open with it,
+and offer a fix that is accepted in one tap. This is a **standing check that produces a
+suggestion**, not a chat turn, and it changes the shape of the interface rather than only the
+model. Treat it as in scope: an assistant that only ever responds is a command line with manners.
+
 **How that actually works (the key insight):** LLMs "change things" via **tool /
 function calling**. The model stays general; it interprets your message and emits
 **structured tool calls**; plain code (the tools) executes them against the database.
