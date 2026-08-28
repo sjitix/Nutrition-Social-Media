@@ -36,6 +36,7 @@ import {
   findRecipes, inspectRecipe, getPlan, getProfile, getSaved, report, whatIf,
   runReadTool, isReadTool, READ_TOOL_NAMES, MAX_ROWS,
 } from "@/lib/agentTools";
+import { runAgent, MAX_STEPS, type AgentTurn, type ModelFn } from "@/lib/agentLoop";
 
 // ---------------------------------------------------------------- harness
 let pass = 0;
@@ -2430,6 +2431,111 @@ if (violations.size === 0) {
   check("the read surface is NOT reply.ts's READ_ONLY_TOOLS — they are different concepts",
     READ_TOOL_NAMES.every((n) => !READ_ONLY_TOOLS.has(n)),
     "user-facing answers vs model-facing lookups");
+}
+
+// ---------------------------------------------------------------- AGENT LOOP
+// VISION RULE 2: the loop is deterministic infrastructure and is tested with NO model at all.
+// Every "provider" below is a scripted function returning canned turns. No GPU, no keys, no
+// fine-tune — so a harness bug can never again be confused with a model weakness.
+{
+  console.log("\n--- AGENT LOOP (tested with a scripted provider, no model) ---");
+  const plan = freshWeek(BASE);
+  const base = { profile: BASE, plan, message: "do the thing", today: "2026-08-16" };
+
+  // A provider that plays a fixed list of turns, and records how many times it was called.
+  const scripted = (turns: AgentTurn[]) => {
+    let calls = 0;
+    const fn: ModelFn = async () => {
+      const t = turns[Math.min(calls, turns.length - 1)];
+      calls++;
+      return t;
+    };
+    return { fn, calls: () => calls };
+  };
+  const turn = (reply: string, operations: PrimitiveOp[] = []): AgentTurn =>
+    ({ thinking: "", reply, operations });
+
+  // 1. asks for one read, then answers -> results are fed back, and it terminates
+  {
+    const p = scripted([
+      turn("", [{ op: "find_recipes", diet: "vegan", limit: 3 } as unknown as PrimitiveOp]),
+      turn("Here are three vegan options."),
+    ]);
+    const r = await runAgent({ ...base, model: p.fn });
+    check("loop: a read-then-answer run terminates", r.steps === 2 && !r.gaveUp, `steps ${r.steps}`);
+    const toolEntries = r.transcript.filter((e) => e.role === "tool");
+    check("loop: the tool RESULT is put back in the transcript for the model",
+      toolEntries.length === 1 && toolEntries[0].name === "find_recipes");
+    check("loop: a lookup alone never claims the plan changed", r.planChanged === false);
+    check("loop: a read-only run does not consume the undo slot", r.previous === undefined);
+  }
+
+  // 2. writes, then reads the engine's notes, then answers -> notes reach the MODEL
+  {
+    const p = scripted([
+      turn("", [{ op: "constrain", diet: "vegetarian" } as unknown as PrimitiveOp]),
+      turn("Done — your week is vegetarian."),
+    ]);
+    const r = await runAgent({ ...base, model: p.fn });
+    const applied = r.transcript.find((e) => e.role === "tool" && e.name === "apply");
+    check("loop: engine notes are fed BACK to the model, not only to the user",
+      Boolean(applied) && Array.isArray((applied as { result: { notes: string[] } }).result.notes));
+    check("loop: a write is applied through the engine", r.planChanged === true);
+    check("loop: a write takes exactly one undo snapshot", Boolean(r.previous));
+    check("loop: the vegetarian constraint actually held",
+      r.plan.days.every((d) => d.meals.every((m) => !/chicken|beef|salmon|turkey|pork|prawn|shrimp|cod/i.test(m.name))),
+      r.plan.days[0].meals.map((m) => m.name).join(" | "));
+  }
+
+  // 3. never stops asking -> MAX_STEPS holds, and the user is TOLD
+  {
+    const p = scripted([turn("", [{ op: "get_plan" } as unknown as PrimitiveOp])]); // same turn forever
+    const r = await runAgent({ ...base, model: p.fn, maxSteps: 4 });
+    check("loop: a model that never stops is capped", r.steps === 4 && r.gaveUp, `steps ${r.steps}`);
+    check("loop: hitting the cap is disclosed rather than hidden",
+      /without finishing/i.test(r.reply), r.reply.slice(0, 70));
+  }
+
+  // 4. emits garbage -> degrades to a plain reply instead of throwing
+  {
+    const bad: ModelFn = async () => ({ thinking: "", reply: "I think so.", operations: "nope" as unknown as PrimitiveOp[] });
+    const r = await runAgent({ ...base, model: bad });
+    check("loop: malformed operations degrade to a reply, not an exception",
+      r.steps === 1 && r.planChanged === false && r.reply.length > 0, r.reply.slice(0, 40));
+
+    const thrower: ModelFn = async () => { throw new Error("model offline"); };
+    const r2 = await runAgent({ ...base, model: thrower });
+    check("loop: a model that throws is reported honestly, not as success",
+      /couldn't reach/i.test(r2.reply), r2.reply.slice(0, 60));
+    check("loop: a failed model leaves the plan untouched", r2.plan === plan);
+  }
+
+  // 5. emits ops the engine refuses -> the refusal reaches the model, which can change course
+  {
+    const p = scripted([
+      // a vegan asking to use salmon: the engine must refuse, and SAY so
+      turn("", [{ op: "constrain", diet: "vegan" } as unknown as PrimitiveOp,
+                { op: "swap", day: "Monday", mealType: "dinner", dish: "Baked Salmon & Potatoes" } as unknown as PrimitiveOp]),
+      turn("I couldn't use salmon on a vegan week."),
+    ]);
+    const r = await runAgent({ ...base, model: p.fn });
+    const applied = r.transcript.find((e) => e.role === "tool" && e.name === "apply") as
+      | { result: { notes: string[] } } | undefined;
+    check("loop: a refusal is visible to the model in the transcript",
+      Boolean(applied) && applied!.result.notes.length > 0,
+      applied?.result.notes.join(" | ").slice(0, 80) ?? "(none)");
+    check("loop: the hard rule still wins — no salmon on a vegan week",
+      r.plan.days.every((d) => d.meals.every((m) => !/salmon/i.test(m.name))));
+  }
+
+  // the loop must not quietly break the contract the rest of the app depends on
+  {
+    const p = scripted([turn("All set.")]);
+    const r = await runAgent({ ...base, model: p.fn });
+    check("loop: a turn with no operations ends immediately", r.steps === 1);
+    check("loop: the transcript keeps the user message first", r.transcript[0].role === "user");
+    check("loop: MAX_STEPS defaults to the specified 8", MAX_STEPS === 8);
+  }
 }
 
 // ---------------------------------------------------------------- report
