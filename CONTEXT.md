@@ -308,8 +308,10 @@ So the mechanism changed, not just the count:
 - `imageForMeal()` is now an **exact recipe-name map** (`RECIPE_IMAGES`), not a regex list. A
   regex can widen accidentally; an exact key cannot. A miss returns `null` and falls back to the
   typographic tile, so partial coverage is honest.
-- **`public/food/` exists again.** Three photographs are in it (see below). 497 recipes still fall
-  back to `--tile-1 … --tile-14`.
+- **`public/food/` exists again.** **Five** dishes are photographed now (miso cod, baked salmon,
+  sheet-pan chicken, shakshuka, chicken & egg poke bowl); the other **496** fall back to
+  `--tile-1 … --tile-14`. Two also have background-removed **cut-outs** (`RECIPE_CUTOUTS`) so a
+  plate can sit on the page as an object rather than in a frame.
 - **Target: an image for every recipe.** Generated in one locked style so the library looks like
   one product — see `designs/midjourney-dish-photography.md`.
 - **User uploads are the upgrade, not the threat.** Generated images are the FLOOR; a real photo of
@@ -468,14 +470,17 @@ an overflow that is not there, and treat sub-500 layouts as unverified by this t
 Grew out of a Figma Make exploration the owner liked ("C — Signal", rebuilt at
 `designs/signal-asymmetric.html`), then a Midjourney generation with a sage-green editorial feel.
 
-Live at `/sage` with five tabs — Home, Plan, Explore, Groceries, Assistant — **connected to the real
-engine**, not fixtures. `selectWeekFromDb` generates the week at request time; `RECIPES` fills the
-library; `groupByAisle` builds the shopping list.
+Live at `/sage` with **six** tabs — Home, **Today**, Week (`/sage/plan`), Explore, Groceries,
+Assistant — **connected to the real engine**, not fixtures. `selectWeekFromDb` generates the week;
+`RECIPES` fills the library; `groupByAisle` builds the shopping list.
 
 - Palette: sage ground `#dfe6da`, forest `#3d5233` actions, lime `#b9d94a` for exceptions only.
   Contrast verified ≥ WCAG AA before adoption (ink 12.5:1, muted 4.7:1, white-on-forest 8.6:1).
-- Implemented as a **scoped theme override**: the app's ~291 colour utilities all read from eleven
-  tokens, so `.theme-sage` re-skins everything without editing a component.
+  **The ground later flipped** — the page is now warm cream `#f5f2e7` with sage as a BLOCK colour;
+  see the board rebuild above.
+- Implemented as a **scoped theme override**: every colour utility reads from what are now
+  **fourteen** tokens (eleven originally, plus `cream`, `panel`, `tint`), so `.theme-sage` re-skins
+  everything without editing a component.
 - **Photo-ready**: image areas are `<div class="slot">` holding a typographic fallback, marked
   `SLOT:` in the markup. Swapping in an `<img>` changes nothing else.
 - `/classic` holds the original violet design. Both live, one click apart.
@@ -490,9 +495,10 @@ these are separate navigations.
 
 | screen | state |
 |---|---|
-| Explore | **live** — search over names and ingredients, meal/diet filters, ≥25g protein, ≤20 min, four sorts, paging. Uses `filterFeed`/`sortFeed` from `lib/feed.ts` rather than reimplementing them. |
+| Explore | **live, and now the most interactive screen.** Search over names and ingredients, meal/diet filters, ≥25 g protein, ≤20 min, four sorts — and since 2026-08-15: **saves that persist** (`savedStore.ts`), a **detail modal** per recipe with the full ingredient list and method, **all 495 cards rendered with NO paging**, and a **Saved** facet. Uses `filterFeed`/`sortFeed` from `lib/feed.ts` rather than reimplementing them. |
 | Groceries | **live** — check-offs persist, intersected with the current list on load so departed items do not linger; the write effect is gated on a `loaded` flag because WORKPLAN records that exact bug shipping once. |
-| Home, Plan, Assistant | real data, **read-only** |
+| Today | real data, read-only. Reads the browser clock to decide what is eaten; `?at=` pins the hour. |
+| Home, Week, Assistant | real data, **read-only**. The Assistant is a **scripted conversation** — it calls no route. |
 
 **Next code task:** wire Plan (regenerate, swap a meal, meal detail) and Assistant (real
 `/api/assistant` calls). The engine is pure TypeScript so Plan can work client-side; the Assistant
@@ -591,15 +597,21 @@ arrangement fixes, per-dish `--no` lists that protect diet tags, and the `--sref
 
 ---
 
-## Running in parallel, do not disturb
+## The fine-tune: FINISHED, and stranded
 
-**A 7B QLoRA fine-tune is training on the desktop.** Kicked off 2026-08-05 on
-Qwen2.5-7B-Instruct, 4-bit, 3,272 engine-validated examples, 409 steps at ~20 min/step, ETA around
-Aug 11. See STATUS.md and WORKPLAN's "ASSISTANT v2" section.
+**The 7B QLoRA completed.** Qwen2.5-7B-Instruct, 4-bit, 3,272 engine-validated examples, 409 steps
+at ~20 min/step, started 2026-08-05 and ran to completion on the desktop. **Nothing is running any
+more** — this section used to say "do not disturb"; there is nothing left to disturb.
 
-the instruction this session: *"the training is still going on another device. Don't think about
-it."* WORKPLAN rule 7 also says the GPU run is never interrupted by other work. It is on a different
-machine, so laptop work cannot disturb it — but do not propose anything that would.
+**The adapter is at `models/nutriflow-lora` on that desktop and nowhere else.** `/models/` is
+gitignored (correctly — public repo), so it was never pushed and there is no second copy. The owner
+is away from that machine for weeks. Powering it down cost nothing: VRAM is volatile and the run
+checkpointed to disk every 10 steps.
+
+**It has not been merged, converted, loaded or graded.** Loading it in LM Studio was never possible
+yet — an adapter must be merged into the base and converted to GGUF first. Full sequence in
+`STATUS.md`; the first step there is **back it up**, ahead of merging, because it is one copy on one
+drive in a machine whose previous SSD already died.
 
 ## Stray artefact worth a decision
 
@@ -793,23 +805,30 @@ $img = [System.Windows.Forms.Clipboard]::GetImage()   # then downscale and save,
 
 ## Immediate next steps
 
-1. **the owner looks at `/sage` and says whether it is the reference.** That is the only question that
-   matters right now; everything below is smaller.
-2. **Recapture `designs/screens/*.png`.** They are headless-Chrome shots of the OLD design and are
-   what Midjourney's `--sref` reads, so every future generation is currently anchored to a design
-   that no longer exists. Command is in the verification section below.
-3. **Photography is the binding constraint on the design now, not the layout.** Four dishes are
-   photographed and 496 are typographic tiles; the composition is built for pictures. The eleven
-   spare frames in `designs/references/food/` are alternates of the same four dishes, so coverage
-   only grows by generating new ones — `designs/midjourney-dish-photography.md` §7 lists eleven
-   library recipes with prompts ready.
+1. **BUILD THE AGENT LOOP.** Specified in `ASSISTANT-SCHEMA.md` v3, not implemented. Read tools
+   first (thin wrappers over `filterFeed`, `RECIPES`, `microsForIngredients` and the report engine,
+   all already tested), then the loop with its five fake-provider cases. **Needs no GPU, no keys
+   and no trained model** — which is exactly why it is first while the other two threads are
+   blocked.
+2. **Accounts**, the moment the Supabase URL + anon key exist. `savedStore.ts` is the seam. Must
+   keep degrading to local storage with no keys.
+3. **Photography is still the binding constraint on the DESIGN.** Five dishes are photographed and
+   496 are typographic tiles; the composition is built for pictures. The spare frames in
+   `designs/references/food/` are alternates of the same five dishes, so coverage only grows by
+   generating new ones — `designs/midjourney-dish-photography.md` §7 has prompts ready for eleven
+   more library recipes, plus a **cut-out variant** (`--ar 1:1`, rim left clear) that is the one to
+   use for anything destined for a plate slot.
 4. **Build `npm run check:images`** (spec in the Photography section above). It would have caught
    the class of bug the page now guards against by hand: Home and Explore count photographed
    recipes by resolving each map key against `RECIPES`, not by taking `Object.keys().length`,
    because a stale key would otherwise inflate a claim while rendering nothing.
-5. **Wire Plan and Assistant** to be interactive, matching Explore and Groceries.
+5. **Wire Week and the Assistant** to be interactive, matching Explore. The Assistant is the bigger
+   of the two and depends on step 1.
 6. Sub-500px layouts are **unverified** — headless Chrome on Windows will not render narrower (see
    the environment quirk above). Check a real phone or a browser devtools viewport.
+7. **`public/week-designs.html` is still served publicly and still documented nowhere** — see the
+   stray-artefact note above. It contains invented dish data, in a product whose whole claim is
+   that its numbers are real. Document it or delete it; it has now survived two handoffs undecided.
 
 ## Standing rules
 

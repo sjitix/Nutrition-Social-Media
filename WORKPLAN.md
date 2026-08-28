@@ -118,8 +118,9 @@ a 7B on thousands of varied conversations that force ANY adjustment, flexible no
 The design that answers that: a **reason-then-act** model (`{thinking, reply, operations}`) over a
 few **general, composable primitives** (`constrain` the workhorse + `remember` + op-verbs), all
 mapped onto the SAME tested deterministic engine — the two-layer rule holds, the model never does
-arithmetic. The whole build is **code-complete and gated only on a freed desktop GPU** for the 12h
-QLoRA run. Live status board: `public/status.html` (served at `/status.html`) + `STATUS.md`.
+arithmetic. **The QLoRA has since RUN AND FINISHED** — see the block at the end of this section for
+what is actually outstanding. Status board: `public/status.html` (served at `/status.html`) +
+`STATUS.md`.
 
 **Done + committed as sjitix (all green, all engine-validated):**
 - **General primitives + executor** — `src/lib/primitives.ts`: `applyPrimitives` runs the whole v2
@@ -140,10 +141,27 @@ QLoRA run. Live status board: `public/status.html` (served at `/status.html`) + 
   llama.cpp, reads base from adapter config); `npm run eval:hardcases` (offline grader, graceful
   no-op when no model loaded). `scripts/train_lora.py` takes `DATA_FILE`/`BASE_MODEL` env.
 
-**The one remaining step (needs the owner):** free the desktop GPU (close Brave/Cursor there, unload
-the LM Studio model), then it's fully scripted —
-`BASE_MODEL=Qwen/Qwen2.5-7B-Instruct DATA_FILE=finetune-v2.jsonl python scripts/train_lora.py` →
-`python scripts/merge_and_gguf.py` → load in LM Studio → `npm run eval:hardcases` → report.
+**UPDATE 2026-08-16 — the train is DONE; what is outstanding has changed.**
+
+The QLoRA ran on the desktop and completed: 409 steps at ~20 min a step, roughly six days. So
+`train_lora.py` is no longer the pending step, and the "free the GPU" instruction that used to sit
+here is obsolete — nothing is running.
+
+**What is actually outstanding, in order:**
+
+1. **⚠️ BACK UP `models/nutriflow-lora`.** It is on the desktop only, `/models/` is gitignored so it
+   was never pushed, and there is no second copy — in a machine whose previous SSD already died.
+   The owner is away from it for weeks. This is the first action at that machine, ahead of merging.
+2. `python scripts/merge_and_gguf.py` → GGUF q8_0 → load in LM Studio.
+3. `npm run eval:hardcases` against the 45 hard cases, **and compare with v9 over three runs** —
+   temperature-0 non-determinism is 1–2 points, and v10 and v11 were both correctly discarded for
+   losing to v9. A 7B that does not clearly beat 94/94 is not worth shipping for having cost six days.
+4. Only then flip the client from `/api/assistant` to `/api/assistant-v2`.
+
+**And note the bar moved while the GPU ran.** VISION now specifies the assistant as an **agent** —
+understand everything, read everything, decide, change everything — and `ASSISTANT-SCHEMA.md` v3
+specifies the read surface and loop that implies. That work is **independent of these weights** and
+needs no GPU, no keys and no model, so it should not wait for any of the above.
 
 ---
 
