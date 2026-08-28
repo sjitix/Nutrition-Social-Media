@@ -32,6 +32,10 @@ import { NUTRIENT_TABLE } from "@/lib/nutrientTable.generated";
 import { gramsFor } from "@/lib/nutrients";
 import { MICRO_KEYS, DAILY_REFERENCE, MICRO_LABEL } from "@/lib/nutrients";
 import { parseRecipeHtml, parseIngredient, isSafePublicUrl, importedToMeal } from "@/lib/import";
+import {
+  findRecipes, inspectRecipe, getPlan, getProfile, getSaved, report, whatIf,
+  runReadTool, isReadTool, READ_TOOL_NAMES, MAX_ROWS,
+} from "@/lib/agentTools";
 
 // ---------------------------------------------------------------- harness
 let pass = 0;
@@ -2319,6 +2323,113 @@ if (violations.size === 0) {
   for (const [id, { count, example }] of [...violations.entries()].sort()) {
     check(`FUZZ invariant ${id} holds`, false, `${count} violations; e.g. ${example}`);
   }
+}
+
+// ---------------------------------------------------------------- AGENT READ SURFACE
+// The tools the agent uses to LOOK THINGS UP before deciding (ASSISTANT-SCHEMA.md v3).
+// They are pure functions of (args, context), which is exactly why they can be tested here with
+// no model, no keys and no network — VISION's RULE 2.
+{
+  console.log("\n--- AGENT READ TOOLS (the model-facing lookups) ---");
+  const plan = freshWeek(BASE);
+  const ctx = { profile: BASE, plan, saved: [] as string[], today: "2026-08-16" };
+
+  // -- find_recipes: bounded, and the facets must agree with the tested filter
+  const all = findRecipes({});
+  check("find_recipes: never returns more than the cap", all.rows.length <= MAX_ROWS, `${all.rows.length} rows`);
+  check("find_recipes: reports how many it matched, not just what it returned",
+    all.matched > all.shown, `matched ${all.matched}, shown ${all.shown}`);
+  check("find_recipes: a limit above the cap is clamped, not obeyed",
+    findRecipes({ limit: 500 }).rows.length <= MAX_ROWS);
+
+  const vegan = findRecipes({ diet: "vegan", limit: MAX_ROWS });
+  check("find_recipes: vegan returns only vegan — the same rule Explore uses",
+    vegan.rows.every((r) => r.dietTags.includes("vegan")), `${vegan.rows.length} rows`);
+  const quick = findRecipes({ maxTime: 15, limit: MAX_ROWS });
+  check("find_recipes: respects maxTime", quick.rows.every((r) => r.minutes <= 15));
+  const strong = findRecipes({ minProtein: 40, limit: MAX_ROWS });
+  check("find_recipes: respects minProtein (a facet filterFeed has no concept of)",
+    strong.rows.every((r) => r.protein >= 40), strong.rows.map((r) => r.protein).join(","));
+  const light = findRecipes({ maxCalories: 400, limit: MAX_ROWS });
+  check("find_recipes: respects maxCalories", light.rows.every((r) => r.calories <= 400));
+  check("find_recipes: an impossible combination returns nothing rather than something wrong",
+    findRecipes({ diet: "vegan", minProtein: 500 }).rows.length === 0);
+
+  // -- inspect_recipe
+  const known = RECIPES[0].name;
+  const got = inspectRecipe(known);
+  check("inspect_recipe: finds a real dish and carries its method",
+    got.found && got.steps.length > 0 && got.ingredients.length > 0, known);
+  check("inspect_recipe: reports micronutrient COVERAGE, so a thin list can be disclosed",
+    got.found && typeof got.micronutrients.coverage === "number" && got.micronutrients.coverage <= 1);
+  const missed = inspectRecipe("a dish that does not exist anywhere");
+  check("inspect_recipe: a miss is data the loop can read, not an exception",
+    missed.found === false && Array.isArray(missed.suggestion));
+
+  // -- get_plan
+  const week = getPlan(ctx);
+  check("get_plan: returns every day with totals", week.found && week.days.length === plan.days.length);
+  check("get_plan: day totals equal the sum of that day's meals",
+    week.found && week.days.every((d, i) => d.totals.calories === kcal(plan.days[i])));
+  const one = getPlan(ctx, plan.days[2].day);
+  check("get_plan: a single day can be asked for", one.found && one.days.length === 1);
+  const nope = getPlan(ctx, "Blursday");
+  check("get_plan: an unknown day lists the valid ones instead of throwing",
+    nope.found === false && nope.validDays.length === plan.days.length);
+
+  // -- get_profile
+  const prof = getProfile(ctx);
+  check("get_profile: exposes the targets the engine solves against",
+    prof.targets.calories === BASE.targetCalories && prof.targets.protein === BASE.proteinGrams);
+
+  // -- get_saved
+  const savedCtx = { ...ctx, saved: [RECIPES[1].name, "Deleted Dish That Is Gone"] };
+  const sv = getSaved(savedCtx);
+  check("get_saved: resolves saved names against the library", sv.count === 1, `count ${sv.count}`);
+  check("get_saved: a name that no longer resolves is REPORTED, not silently dropped",
+    sv.unresolved.length === 1, sv.unresolved.join(","));
+
+  // -- report
+  const wk = report(ctx, "week");
+  check("report(week): is the engine's own sentence, not a second implementation",
+    wk.found && typeof wk.summary === "string" && wk.summary.length > 0);
+  const dy = report(ctx, "day", plan.days[0].day);
+  check("report(day): shortfalls are target minus actual",
+    dy.found && dy.scope === "day" &&
+      dy.shortfalls.protein === BASE.proteinGrams - prot(plan.days[0]));
+
+  // -- what_if: THE ONE THAT MUST NOT COMMIT
+  const beforeNames = plan.days.map((d) => d.meals.map((m) => m.name).join("|")).join("||");
+  const beforeProfile = JSON.stringify(BASE);
+  const sim = whatIf(ctx, [{ op: "constrain", diet: "vegetarian" } as PrimitiveOp]);
+  const afterNames = plan.days.map((d) => d.meals.map((m) => m.name).join("|")).join("||");
+  check("what_if: DOES NOT mutate the caller's plan", beforeNames === afterNames);
+  check("what_if: DOES NOT mutate the caller's profile", JSON.stringify(BASE) === beforeProfile);
+  check("what_if: still reports what the change WOULD do", sim.wouldChangePlan === true);
+  check("what_if: returns the engine's notes so the model can read the consequences",
+    Array.isArray(sim.notes));
+  const noop = whatIf(ctx, []);
+  check("what_if: no operations means no change claimed", noop.wouldChangePlan === false);
+
+  // -- the dispatcher: it must NEVER throw, because the loop feeds its output back to the model
+  check("runReadTool: dispatches a known tool",
+    (runReadTool(ctx, "get_profile") as { targets?: unknown }).targets !== undefined);
+  const unknown = runReadTool(ctx, "delete_everything") as { error?: string };
+  check("runReadTool: an unknown tool returns an error the model can read",
+    typeof unknown.error === "string" && /Unknown tool/.test(unknown.error));
+  const badArgs = runReadTool(ctx, "inspect_recipe", {}) as { error?: string };
+  check("runReadTool: a missing argument returns an error, not an exception",
+    typeof badArgs.error === "string");
+  const badWhatIf = runReadTool(ctx, "what_if", { operations: "not an array" }) as { error?: string };
+  check("runReadTool: a malformed what_if is refused rather than run",
+    typeof badWhatIf.error === "string");
+  check("isReadTool: the read surface is exactly the seven specified tools",
+    READ_TOOL_NAMES.length === 7 && isReadTool("what_if") && !isReadTool("swap_meal"));
+
+  // -- the distinction that will otherwise be lost (ASSISTANT-SCHEMA v3)
+  check("the read surface is NOT reply.ts's READ_ONLY_TOOLS — they are different concepts",
+    READ_TOOL_NAMES.every((n) => !READ_ONLY_TOOLS.has(n)),
+    "user-facing answers vs model-facing lookups");
 }
 
 // ---------------------------------------------------------------- report

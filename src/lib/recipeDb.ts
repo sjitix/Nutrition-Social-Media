@@ -9407,7 +9407,13 @@ function nutrientReachable(p: UserProfile, key: MicroKey): boolean {
  * from the USDA-mapped ingredients. The model never states a figure it did not get from here.
  * Nutrients whose ingredient coverage is too thin are omitted rather than guessed at.
  */
-function weeklyReportNote(plan: WeekPlan, p: UserProfile): string {
+/**
+ * Exported for the agent's `report` read tool (`agentTools.ts`), which must not reimplement this.
+ * It is pure — plan and profile in, a sentence out — and it is the same function the
+ * `weekly_report` operation pushes as a note, so the agent and the user are told the same thing by
+ * the same code.
+ */
+export function weeklyReportNote(plan: WeekPlan, p: UserProfile): string {
   const n = plan.days.length || 1;
   const sum = (f: (m: Meal) => number) => plan.days.reduce((s, d) => s + d.meals.reduce((a, m) => a + f(m), 0), 0);
   const kcal = Math.round(sum((m) => m.calories) / n);
