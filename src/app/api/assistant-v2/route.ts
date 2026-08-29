@@ -1,32 +1,44 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
-import { parseAssistantTurnV2, resolveProvider, withTargetDefaults } from "@/lib/ai";
-import { applyPrimitives, type PrimitiveOp } from "@/lib/primitives";
-import { composeReply } from "@/lib/reply";
+import { agentModelFn, resolveProvider, withTargetDefaults } from "@/lib/ai";
+import { runAgent, MAX_STEPS, type TranscriptEntry } from "@/lib/agentLoop";
 import { DEMO_ASSISTANT_REPLY } from "@/lib/demo";
 import type { ChatMessage, PlanSnapshot, UserProfile, WeekPlan } from "@/lib/types";
 
 export const maxDuration = 300;
 
 /**
- * The v2 assistant endpoint — the reason-then-act pipeline for the retrained 7B. It is a SEPARATE
- * route on purpose: the live /api/assistant keeps running the current model + old schema until the
- * 7B is trained and validated, at which point the client flips to this one. Same two-layer contract
- * as the live route — the model only decides; the deterministic engine (applyPrimitives) does every
- * bit of math and owns the truth of what changed.
+ * The v2 assistant endpoint — now an AGENT LOOP rather than a single call.
+ *
+ * It used to be: model → apply → respond. One move, no matter what was asked, and no way for the
+ * model to find out what its own change actually did. It is now `runAgent`, which lets the model
+ * look things up, act, read the engine's response, and go again until it is done or hits MAX_STEPS.
+ * See VISION.md ("Conversational assistant") and ASSISTANT-SCHEMA.md v3.
+ *
+ * What has NOT changed, and must not:
+ *  - The two-layer rule. Writes still go through `applyPrimitives`; the model does no arithmetic
+ *    and the engine remains the only thing that may claim something changed.
+ *  - This route stays SEPARATE from `/api/assistant`, so the live assistant keeps working until
+ *    the client is deliberately flipped over.
+ *  - The server stays stateless. The transcript is the memory and it rides the request.
  */
 interface AssistantV2Request {
   profile: UserProfile;
   plan: WeekPlan;
   history: ChatMessage[];
-  /** State from before the last change, so an `undo` op can restore it. The server keeps no state. */
+  /** State from before the last change, so an `undo` op can restore it. The server keeps none. */
   previous?: PlanSnapshot;
+  /**
+   * Saved recipe names. Passed IN because saves live in the browser (and will live in an account),
+   * and this route has no localStorage — see `agentTools.ts`.
+   */
+  saved?: string[];
 }
 
-// Best-effort log of a full v2 turn (prompt input + the model's {thinking,reply,operations}). Kept
-// in its own file so it never mixes with the v1 fine-tune log.
-async function logTurn(record: Record<string, unknown>): Promise<void> {
+// Best-effort log of a full agent RUN — every step, every tool result. Richer than the old
+// single-turn log on purpose: a multi-step transcript is what future training data looks like.
+async function logRun(record: Record<string, unknown>): Promise<void> {
   try {
     const dir = path.join(process.cwd(), "data");
     await fs.mkdir(dir, { recursive: true });
@@ -35,12 +47,6 @@ async function logTurn(record: Record<string, unknown>): Promise<void> {
   } catch {
     /* logging is best-effort */
   }
-}
-
-/** A short label for the undo snapshot, built from the primitive ops (which carry `op`, not `tool`). */
-function labelOps(ops: PrimitiveOp[]): string {
-  const names = ops.map((o) => (o as { op?: string; tool?: string }).op ?? (o as { tool?: string }).tool).filter(Boolean);
-  return names.length ? `your last change (${names.join(", ")})` : "your last change";
 }
 
 export async function POST(request: Request) {
@@ -73,33 +79,47 @@ export async function POST(request: Request) {
 
   try {
     const profile = withTargetDefaults(body.profile);
-    // 1) The model REASONS then ACTS: {thinking, reply, operations}. thinking is internal only.
-    const turn = await parseAssistantTurnV2(profile, body.plan, body.history);
-    const ops = turn.operations as PrimitiveOp[];
-    await logTurn({ message, history: body.history, completion: turn });
 
-    // 2) The deterministic engine runs the primitives and MEASURES what actually changed.
-    const today = new Date().toISOString().slice(0, 10);
-    const { plan, profile: newProfile, notes, replyOverride, planChanged, profileChanged, undone } =
-      applyPrimitives(profile, body.plan, ops, today, body.previous);
+    // Everything before the current message becomes the loop's history. The last user message is
+    // passed separately as the thing being acted on.
+    const priorTurns = body.history.slice(0, -1);
+    const history: TranscriptEntry[] = priorTurns.map((m) =>
+      m.role === "user"
+        ? { role: "user", content: m.text }
+        : { role: "assistant", turn: { thinking: "", reply: m.text, operations: [] } },
+    );
 
-    // 3) Engine notes are authoritative; the model's prose only fills in when the engine is silent.
-    const reply = composeReply({ modelReply: turn.reply, notes, replyOverride, planChanged });
+    const result = await runAgent({
+      profile,
+      plan: body.plan,
+      message,
+      history,
+      saved: body.saved,
+      today: new Date().toISOString().slice(0, 10),
+      previous: body.previous,
+      model: agentModelFn(),
+    });
 
-    // One level of undo: after an undo there's nothing further back; a no-op turn keeps the old snapshot.
-    const previous: PlanSnapshot | undefined = undone
-      ? undefined
-      : planChanged || profileChanged
-        ? { plan: body.plan, profile, label: labelOps(ops) }
-        : body.previous;
+    await logRun({
+      message,
+      steps: result.steps,
+      gaveUp: result.gaveUp,
+      transcript: result.transcript,
+      planChanged: result.planChanged,
+    });
 
     return NextResponse.json({
-      reply,
-      planChanged,
-      plan,
-      profile: newProfile,
-      previous,
+      reply: result.reply,
+      planChanged: result.planChanged,
+      plan: result.plan,
+      profile: result.profile,
+      previous: result.previous,
       provider,
+      // Surfaced so the client can show the work, and so "it gave up" is visible in the response
+      // rather than only inferable from a vague reply.
+      steps: result.steps,
+      maxSteps: MAX_STEPS,
+      gaveUp: result.gaveUp,
     });
   } catch (error) {
     console.error("Assistant v2 call failed:", error);

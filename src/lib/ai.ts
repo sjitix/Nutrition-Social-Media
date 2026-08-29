@@ -846,3 +846,77 @@ export async function parseAssistantTurnV2(
   if (!parsed) throw new Error("The assistant could not understand that.");
   return parsed;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════════
+ * THE AGENT ADAPTER — a real provider, shaped as the loop's `ModelFn`.
+ *
+ * `agentLoop.ts` takes the model as a function so it can be tested with a scripted one (VISION
+ * RULE 2). This is the other implementation: the one that actually calls Claude or a local server.
+ * The loop cannot tell them apart, which is the whole point.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Flatten the loop's transcript into the alternating user/assistant turns every provider expects.
+ *
+ * TOOL RESULTS BECOME USER MESSAGES, labelled. Providers differ on tool-role support and the
+ * fine-tune was trained on plain user/assistant JSON turns, so a labelled user message is the
+ * shape that works everywhere without teaching the model a second protocol.
+ *
+ * Results are TRUNCATED. A `find_recipes` result is bounded at ten rows by design, but a long
+ * transcript of them would still crowd out the conversation — and the model can always ask again.
+ */
+function transcriptToTurns(transcript: import("./agentLoop").TranscriptEntry[]): Turn[] {
+  const out: Turn[] = [];
+  for (const e of transcript) {
+    if (e.role === "user") {
+      out.push({ role: "user", content: e.content });
+    } else if (e.role === "assistant") {
+      out.push({ role: "assistant", content: JSON.stringify(e.turn) });
+    } else {
+      const body = JSON.stringify(e.result);
+      out.push({
+        role: "user",
+        content:
+          `[tool result: ${e.name}]\n` +
+          (body.length > 4000 ? body.slice(0, 4000) + " …(truncated)" : body),
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * The provider, as a `ModelFn`.
+ *
+ * The system prompt is rebuilt EVERY step from the CURRENT plan and profile the loop hands over —
+ * not from the state the turn began with. After a write the week has changed, and a prompt built
+ * from the starting state would have the model reasoning about a week that no longer exists.
+ */
+export function agentModelFn(): import("./agentLoop").ModelFn {
+  return async (transcript, _step, state) => {
+    const p = withTargetDefaults(state.profile);
+    const turns = transcriptToTurns(transcript).slice(-16);
+
+    if (resolveProvider() === "local") {
+      return localStructuredChat(
+        AssistantTurnV2Schema,
+        "assistant_turn_v2",
+        [{ role: "system", content: assistantV2SystemPrompt(p, state.plan) }, ...turns],
+        0,
+      ) as Promise<import("./agentLoop").AgentTurn>;
+    }
+
+    const client = new Anthropic();
+    const response = await client.messages.parse({
+      model: CLAUDE_MODEL,
+      max_tokens: 2000,
+      system: assistantV2SystemPrompt(p, state.plan),
+      messages: turns,
+      output_config: { format: zodOutputFormat(AssistantTurnV2Schema) },
+    });
+    const parsed = response.parsed_output;
+    // Throwing is correct here: the loop catches it and reports honestly rather than inventing a turn.
+    if (!parsed) throw new Error("The assistant could not understand that.");
+    return parsed as import("./agentLoop").AgentTurn;
+  };
+}

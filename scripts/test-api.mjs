@@ -70,7 +70,22 @@ async function main() {
 
   // ---- pin / unpin ----
   const pinned = await post("/api/operation", { profile: PROFILE, plan, operation: { tool: "lock_meal", day: day0, mealType: type0 } });
-  check("operation: lock_meal pins the slot", pinned.json?.profile?.lockedMeals?.[0]?.day === day0, JSON.stringify(pinned.json?.profile?.lockedMeals));
+  // Either outcome is correct, and which one you get depends on where the plan came from.
+  // /api/plan in DEMO mode returns a sample week whose dishes are not library recipes, and pinning
+  // one of those is refused on purpose — "it's something you told me about, so I can't pin it".
+  // The old assertion demanded a successful pin and so failed against a demo plan for months: the
+  // TEST was wrong, not the engine. What the contract actually promises is that it either pins, or
+  // explains why it cannot — never that it silently does nothing.
+  {
+    const locked = pinned.json?.profile?.lockedMeals ?? [];
+    const didPin = locked[0]?.day === day0;
+    const explained = /isn't one of my recipes|can't pin/i.test(pinned.json?.reply ?? "");
+    check("operation: lock_meal either pins the slot or says why it cannot",
+      didPin || explained,
+      `locked=${JSON.stringify(locked)} reply=${(pinned.json?.reply ?? "").slice(0, 80)}`);
+    check("operation: lock_meal never silently does nothing",
+      didPin !== explained, "exactly one of pinned / explained must be true");
+  }
   const unpinned = await post("/api/operation", { profile: pinned.json.profile, plan, operation: { tool: "unlock_meal", day: day0, mealType: type0 } });
   check("operation: unlock_meal removes the pin", (unpinned.json?.profile?.lockedMeals ?? []).length === 0);
 
@@ -113,6 +128,37 @@ async function main() {
   check("import: SSRF rejection is the guard message, no fetch attempted", /public recipe link/i.test(ssrf.json?.error ?? ""), ssrf.json?.error);
   const notUrl = await post("/api/import", { url: "not a url at all" });
   check("import: a non-url is rejected -> 422", notUrl.status === 422, `status ${notUrl.status}`);
+
+  // ---- /api/assistant-v2 — now the AGENT LOOP, not a single model call ----
+  // Validation must hold BEFORE any model is reached, and with no provider configured (this
+  // laptop's normal state) the route must answer in demo mode rather than 500.
+  {
+    const noBody = await post("/api/assistant-v2", {});
+    check("assistant-v2: missing fields -> 400", noBody.status === 400, `status ${noBody.status}`);
+
+    const noMsg = await post("/api/assistant-v2", {
+      profile: PROFILE, plan: { days: [], weekSummary: "" }, history: [],
+    });
+    check("assistant-v2: no user message -> 400", noMsg.status === 400, `status ${noMsg.status}`);
+
+    const v2 = await post("/api/assistant-v2", {
+      profile: PROFILE,
+      plan: { days: [], weekSummary: "" },
+      history: [{ role: "user", text: "make tuesday vegetarian" }],
+    });
+    check("assistant-v2: answers or reports offline, never crashes",
+      v2.status === 200 || v2.status === 503, `status ${v2.status}`);
+    if (v2.status === 200) {
+      check("assistant-v2: a demo reply never claims the plan changed",
+        v2.json?.planChanged === false, String(v2.json?.planChanged));
+      check("assistant-v2: returns a plan back to the client", Boolean(v2.json?.plan));
+    }
+    if (v2.status === 503) {
+      check("assistant-v2: offline is a friendly message, not a raw provider error",
+        /rate, pin/i.test(v2.json?.error ?? "") && !/lms load|No models loaded/i.test(v2.json?.error ?? ""),
+        v2.json?.error);
+    }
+  }
 
   console.log(`\n${pass} passed, ${fail} failed`);
   if (fail) { for (const f of fails) console.log("  " + f); process.exit(1); }

@@ -50,7 +50,13 @@ export type TranscriptEntry =
  * The model, as a function. The real adapter formats the transcript for a provider and parses the
  * reply; the tests hand over a scripted one. Either way the loop never knows which it has.
  */
-export type ModelFn = (transcript: TranscriptEntry[], step: number) => Promise<AgentTurn>;
+export type ModelFn = (
+  transcript: TranscriptEntry[],
+  step: number,
+  /** The CURRENT plan and profile — they change under the loop, and a prompt built from the
+   *  starting state would have the model reasoning about a week that no longer exists. */
+  state: { profile: UserProfile; plan: WeekPlan },
+) => Promise<AgentTurn>;
 
 export interface AgentRunResult {
   reply: string;
@@ -120,7 +126,7 @@ export async function runAgent(args: {
 
     let turn: AgentTurn;
     try {
-      turn = await args.model(transcript, steps);
+      turn = await args.model(transcript, steps, { profile, plan });
     } catch {
       // The model itself failed. Stop honestly rather than pretending a turn happened.
       modelFailed = true;
