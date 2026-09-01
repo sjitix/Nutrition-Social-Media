@@ -140,6 +140,13 @@ disabled) — good for showing the UI without any AI.
   Groceries, Assistant chat, meal drawer.
 - `src/app/sage/*` — the shipped design, **reproduced from `designs/references/boards/sage-01 …
   sage-12`**: Home, Today, Week (`/sage/plan`), Explore, Groceries, Assistant.
+  **`/sage/assistant` is LIVE against `/api/assistant-v2`** — the agent loop, not a scripted
+  transcript. `AssistantChat.tsx` is a client component; the page stays a server component so the
+  starting week is the same engine week every other screen shows. It reads `planChanged` off the
+  response and never infers it, and shows `steps`/`gaveUp` because a run that hit the step cap
+  stopped without finishing. **The derived figures come from `src/app/sage/weekStats.ts`, which
+  imports only a type** — importing `demo.ts` into the client would ship all 501 recipes to the
+  browser, and `weekStats` is also the single copy of that arithmetic, which `demo.ts` now shares.
   `/sage/today` reproduces ONE board, `sage-04`, and only the panel of it that was referenced: a
   serif headline and a huge round plate on the left, three rings and a column of outlined rows on
   the right. The rings are the macros already hit and the rows are the meals still to come. **The

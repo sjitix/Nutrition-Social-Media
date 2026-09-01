@@ -82,20 +82,30 @@ never push red). Two separate times work sat local after being reported finished
 | `/sage/plan` Week | sage-12 columns. Approved, untouched since. |
 | `/sage/explore` | **interactive**: saves persist, a modal opens per recipe, all 495 cards render, Saved filter. |
 | `/sage/groceries` | live check-offs (older work). |
-| `/sage/assistant` | still a **scripted, read-only** conversation. Not wired to anything. |
+| `/sage/assistant` | **LIVE against the agent loop** (`/api/assistant-v2`). Was a typed transcript. |
 
 The shell is a **light** sidebar (`sage-07`'s treatment — same sage as the page, hairline border),
 which **defaults to CLOSED** as a 76 px icon rail. The week list that used to live in it is gone.
 
 #### The three things that are open, in priority order
 
-**1. THE AGENT HAS NO SCREEN. This is the next work.**
-`/api/assistant-v2` runs the whole loop, but **nothing in the UI calls it.** `/sage/assistant` is
-still a scripted, read-only conversation — a transcript that was typed, not generated. The loop
-returns `steps` and `gaveUp` precisely so a client can show its work; nothing shows it yet. This is
-the shortest path from "built" to "visible", and it needs no GPU, no keys and no trained model:
-with no provider configured the route answers in demo mode, which is enough to build a screen
-against.
+**1. THE AGENT NOW HAS A SCREEN — and it has never been driven by a real model.**
+`/sage/assistant` is live against `/api/assistant-v2`: `AssistantChat.tsx` is the client,
+`page.tsx` stays a server component, and `steps` / `gaveUp` / `planChanged` are shown as the loop
+reports them. `planChanged` is read off the response and **never inferred** — not from the reply
+text, not by diffing the plan.
+
+**The split is load-bearing, do not collapse it.** `demo.ts` imports the engine and the engine
+carries all 501 recipes, so the client must not import it. The shared arithmetic lives in
+`src/app/sage/weekStats.ts`, which imports nothing but a type. Proof it worked, from the build:
+`/sage/assistant` is **105 kB** First Load against Explore's **187 kB**. `demo.ts` calls the same
+function, so there is ONE copy of "average protein this week" rather than two that drift.
+
+**What is unproven:** every turn so far has been exercised against demo mode and the failure paths.
+**No real model has driven this loop end to end** — that needs LM Studio on the desktop, or a key.
+The first real run is where prompt-shaped bugs will surface (does the model actually call
+`find_recipes` before deciding? does it stop, or burn all 8 steps?). Treat the screen as built and
+the BEHAVIOUR as untested.
 
 **2. ACCOUNTS — decided, blocked on the owner.**
 Real accounts with a hosted database (Supabase) were chosen over a local profile. **Nothing is
