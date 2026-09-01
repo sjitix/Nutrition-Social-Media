@@ -95,7 +95,12 @@ core, invariants, and macro math are unchanged — so `test:engine` keeps guardi
 
 ---
 
-# The agent loop and the read surface (v3 — proposed 2026-08-16)
+# The agent loop and the read surface (v3 — specified 2026-08-16, BUILT 2026-08-29)
+
+**This section is no longer a proposal.** The read surface is `src/lib/agentTools.ts` and the loop
+is `src/lib/agentLoop.ts`; `/api/assistant-v2` runs it. What is described below is what the code
+does — if the two ever disagree, the code is right and this file is stale. The one part still
+unbuilt is a CLIENT: no screen calls the route yet.
 
 Everything above describes ONE model call that emits `{thinking, reply, operations}`. That is the
 reason-then-act turn, and it stays. What follows wraps it in a loop and gives the model eyes.

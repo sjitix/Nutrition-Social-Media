@@ -9,11 +9,61 @@ Everything described here is committed and pushed to `main`. Nothing is only on 
 
 ## Where it left off
 
-### >>> READ THIS FIRST — the state on 2026-08-16 <<<
+### >>> READ THIS FIRST — the state on 2026-08-29 <<<
 
 **Everything is committed AND pushed. `git log origin/main..HEAD` is empty.** The design work is
-done and approved; the next piece of work is the **agent loop**, which is fully specified and not
-yet built.
+done and approved. **The agent loop is now BUILT, tested and wired to `/api/assistant-v2`** — it
+was the open item on 2026-08-16 and it is closed. What is still open is the SCREEN: nothing in the
+UI calls the loop yet.
+
+#### What shipped since 2026-08-16 — the agent is real
+
+Built in the order VISION's RULE 2 demands: the pure pieces first, tested with **no model, no GPU
+and no keys**, so that a harness bug and a model weakness could never be mistaken for each other.
+
+- **`src/lib/agentTools.ts` — the READ SURFACE.** Seven pure tools: `find_recipes`,
+  `inspect_recipe`, `get_plan`, `get_profile`, `get_saved`, `report`, `what_if`. Each is a pure
+  function of (args, context) that REUSES tested engine code instead of reimplementing it —
+  `report` calls the engine's own `weeklyReportNote` (exported for the purpose by this work)
+  rather than recomputing averages next to it, because two implementations of one number drift.
+  `what_if` `structuredClone`s the profile and plan before simulating, so a simulation can never
+  leak into the real week. `runReadTool` never throws: a bad call returns `{ error }`, because the
+  loop's job is to hand that back to the model, not to die. `MAX_ROWS = 10` caps every result list.
+- **`src/lib/agentLoop.ts` — the LOOP.** `runAgent`: call, execute, feed the results back, call
+  again, stop. `MAX_STEPS = 8` is a **cap, not a target** — reaching it sets `gaveUp` and the reply
+  SAYS so, rather than handing back a half-finished change silently. Engine `notes` are pushed back
+  into the transcript so the model can see a refusal and respond to it. The undo snapshot is taken
+  once, before the FIRST WRITE of a run — not per step (that undoes one loop iteration, not one
+  thing the person asked for) and not at the start (a run that only looks things up must not
+  consume the undo slot).
+- **The model is INJECTED as a `ModelFn`** rather than imported. That is what makes the loop
+  testable with a scripted provider, and it is the most important decision in the file.
+- **`agentModelFn()` in `ai.ts`** shapes the real provider into that function, rebuilding the
+  system prompt from CURRENT state each step — a prompt built once from the starting state would
+  leave the model reasoning about a week that no longer exists.
+- **`/api/assistant-v2` runs `runAgent`**, returns `steps` / `maxSteps` / `gaveUp`, and logs the
+  whole transcript to `data/edit-log-v2.jsonl`; multi-step transcripts are what training data for
+  the next model looks like.
+
+The two-layer rule is untouched: writes still go through `applyPrimitives`, the engine is still the
+only thing allowed to claim something changed, and the model still does no arithmetic.
+
+**Test counts as of this commit:** `test:engine` **498 / 0** (49 of them new — 31 read-tool checks,
+18 loop checks). `test:api` **27 / 0**, up from 20 passing with 1 failing: a pre-existing failure
+was found and fixed. In demo mode `/api/plan` returns a sample week whose dishes are not library
+recipes, so `lock_meal` correctly refuses to pin one; the assertion had demanded a successful pin.
+**The test was wrong, not the engine** — it now asserts the real contract, that `lock_meal` either
+pins or says why it cannot, and never silently does nothing.
+
+**A flaky gate was also closed, and the answer is written down so nobody re-derives it.** Two
+checks failed together once (`regenerate_week really does change the plan (control)` and `undo
+reports the plan as changed`) and passed on the next run with identical code. The engine picks at
+random among near-tied recipes, so a regenerated week CAN come back identical — and when it does,
+undo has nothing to change and both fail. Measured: **0 identical weeks in 312 isolated runs**, and
+a second probe proved **no operation mutates the profile or plan it is handed**, which kills the
+"shared `BASE` drifts across the suite" theory. So it is real but rarer than 1-in-312. The control
+now retries regeneration up to 20 times, which removes the dice without hiding a genuine break.
+Full reasoning is WORKPLAN lesson 37 — **do not re-investigate this.**
 
 #### The one rule that changed how to work here
 
@@ -39,14 +89,13 @@ which **defaults to CLOSED** as a 76 px icon rail. The week list that used to li
 
 #### The three things that are open, in priority order
 
-**1. THE AGENT LOOP — specified, not built. This is the next work.**
-`ASSISTANT-SCHEMA.md` has a v3 section at the bottom specifying a **read surface** (seven pure
-tools: `find_recipes`, `inspect_recipe`, `get_plan`, `get_profile`, `get_saved`, `report`,
-`what_if`) and a **loop contract** (MAX_STEPS 8, engine `notes` fed back to the model, one undo
-snapshot per user turn). `VISION.md` carries the three binding rules behind it.
-**None of it is implemented.** `/api/assistant-v2/route.ts` is still single-shot.
-**It needs no GPU, no keys and no trained model** — build the loop against a scripted fake
-provider first (RULE 2), because otherwise a harness bug and a model weakness are indistinguishable.
+**1. THE AGENT HAS NO SCREEN. This is the next work.**
+`/api/assistant-v2` runs the whole loop, but **nothing in the UI calls it.** `/sage/assistant` is
+still a scripted, read-only conversation — a transcript that was typed, not generated. The loop
+returns `steps` and `gaveUp` precisely so a client can show its work; nothing shows it yet. This is
+the shortest path from "built" to "visible", and it needs no GPU, no keys and no trained model:
+with no provider configured the route answers in demo mode, which is enough to build a screen
+against.
 
 **2. ACCOUNTS — decided, blocked on the owner.**
 Real accounts with a hosted database (Supabase) were chosen over a local profile. **Nothing is

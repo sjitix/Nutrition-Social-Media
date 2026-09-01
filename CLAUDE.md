@@ -100,6 +100,16 @@ disabled) — good for showing the UI without any AI.
   Imported by all three assistant routes. **Do not confuse `READ_ONLY_TOOLS` with the read surface
   specified in `ASSISTANT-SCHEMA.md` v3** — these are user-facing answers, those are model-facing
   lookups whose results the user never sees.
+- `src/lib/agentTools.ts` — the agent's **read surface**: seven pure lookup tools
+  (`find_recipes`, `inspect_recipe`, `get_plan`, `get_profile`, `get_saved`, `report`,
+  `what_if`) that the MODEL calls and the user never sees. Each reuses tested engine code rather
+  than reimplementing it, `what_if` clones before simulating, `runReadTool` returns `{ error }`
+  instead of throwing, and `MAX_ROWS` caps every list.
+- `src/lib/agentLoop.ts` — `runAgent`: call, execute, feed the results back, call again, stop.
+  `MAX_STEPS = 8` is a cap, not a target, and hitting it is reported rather than hidden. **The
+  model is injected as a `ModelFn`**, which is what lets the whole loop be tested with a scripted
+  provider and no model at all. Writes still go through `applyPrimitives` — the loop does no
+  arithmetic and cannot claim a change the engine did not make.
 - `src/lib/types.ts` — zod schemas (WeekPlan, Meal, AssistantResponse) = the data contract.
 - `src/lib/storage.ts` — **the only place that knows a localStorage key name.** Every persisted
   thing (profile, plan, chat, imports, saved, grocery check-offs, visits) is a key in `KEYS` here.
@@ -281,7 +291,7 @@ LM Studio: load model, push GPU offload to max, context >= 8192, Start Server on
   | `CLAUDE.md` | how the repo works; standing rules | the structure, commands, routes or rules change |
   | `WORKPLAN.md` | the build record, phases, and hard-won lessons | work ships, or a lesson is learned the hard way |
   | `VISION.md` | the product north star and quality bar | a directional decision is made about what the product IS |
-  | `ASSISTANT-SCHEMA.md` | the assistant contract: the turn shape, the primitives, and (v3, at the bottom) the READ SURFACE and AGENT LOOP that are specified but NOT yet built | the assistant's capabilities or contract change |
+  | `ASSISTANT-SCHEMA.md` | the assistant contract: the turn shape, the primitives, and (v3, at the bottom) the READ SURFACE and AGENT LOOP, both now BUILT (`agentTools.ts`, `agentLoop.ts`) and wired to `/api/assistant-v2` — no screen calls them yet | the assistant's capabilities or contract change |
   | `STATUS.md` + `public/status.html` | the fine-tune run. **Served publicly** — it must never claim something is running when it is not | the training state changes |
 
   Update **during** the work, not only at the end — a session can be cut short, and unwritten

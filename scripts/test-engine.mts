@@ -1613,8 +1613,23 @@ console.log("--- UNDO (put it back, and put back exactly what changed) ---");
 
   // The plain case: a change, then undo restores it byte for byte.
   const snapshot = { plan, profile: BASE, label: "rebuilt your week" };
-  const changed = applyOperations(BASE, plan, [op({ tool: "regenerate_week" })]);
-  check("regenerate_week really does change the plan (control)", JSON.stringify(changed.plan) !== JSON.stringify(plan));
+  // Regeneration picks at RANDOM among near-tied recipes (`pickRecipe` in recipeDb), so a
+  // regenerated week can legitimately come back identical to the one before it. When that happened
+  // this control failed AND "undo reports the plan as changed" failed with it — undo genuinely had
+  // nothing to change — so the gate went red on a coin flip rather than on a bug, and cost a
+  // session's trust in the suite. That is WORKPLAN lesson 1, still live.
+  //
+  // Retrying a bounded number of times makes the control a statement about the ENGINE instead of
+  // about the dice. A genuinely broken regenerate_week still fails, because it fails all 20 times.
+  let changed = applyOperations(BASE, plan, [op({ tool: "regenerate_week" })]);
+  let regenTries = 1;
+  while (JSON.stringify(changed.plan) === JSON.stringify(plan) && regenTries < 20) {
+    changed = applyOperations(BASE, plan, [op({ tool: "regenerate_week" })]);
+    regenTries++;
+  }
+  check("regenerate_week really does change the plan (control)",
+    JSON.stringify(changed.plan) !== JSON.stringify(plan),
+    `regenerations tried: ${regenTries}`);
   const back = applyOperations(changed.profile, changed.plan, [op({ tool: "undo" })], snapshot);
   check("undo restores the exact plan", JSON.stringify(back.plan) === JSON.stringify(plan));
   check("undo names what it reversed", /before I rebuilt your week/i.test(back.notes.join(" ")), back.notes.join(" "));
