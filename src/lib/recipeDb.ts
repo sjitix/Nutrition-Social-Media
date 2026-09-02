@@ -7959,6 +7959,8 @@ export function recipeMicros(r: Recipe) {
 interface PickContext {
   target: number;
   proteinTarget?: number; // grams of protein this slot should aim for
+  carbTarget?: number; // grams of carbohydrate this slot should aim for
+  fatTarget?: number; // grams of fat this slot should aim for
   proteinDays: Record<string, number>;
   usedIds: Set<string>;
   usedNames: Set<string>;
@@ -8002,42 +8004,56 @@ function chooseRecipe(candidates: Recipe[], ctx: PickContext): Recipe | null {
     : [];
   if (fridgeMatch.length) pool = fridgeMatch;
 
-  const sorted = [...pool].sort(
-    (a, b) => Math.abs(a.calories - ctx.target) - Math.abs(b.calories - ctx.target),
-  );
-  // Among the closest calorie matches, prefer the recipe that reuses the most
-  // ingredients already on the week's shopping list — fewer distinct items means
-  // a cheaper, simpler shop. A little randomness keeps "generate again" fresh.
-  const top = sorted.slice(0, Math.min(6, sorted.length));
-  // Score rewards reusing the week's ingredients and picking cheaper recipes —
-  // both keep the shop affordable and accessible. It also penalizes recipes whose
-  // protein DENSITY falls short of the slot's target density, so the plan actually
-  // respects the protein macro (scaling later can't fix a low-protein-per-calorie
-  // pick). Randomness among the best keeps "generate again" fresh.
-  const targetDensity =
-    ctx.proteinTarget && ctx.target > 0 ? ctx.proteinTarget / ctx.target : 0;
+  // PRIMARY RANK — macro fit, scored on density PER CALORIE (portions scale to the slot's calorie
+  // target anyway, so what a dish really contributes is its grams-per-calorie). This used to be a
+  // pure calorie-distance sort with the macro terms bolted onto the tiebreak below, where they were
+  // outvoted by ingredient-reuse and fat ran 15-25% over target on every non-keto diet. Macro fit is
+  // the ONLY lever for a day's carb/fat balance — portion-scaling moves a meal's macros together,
+  // never their ratio — so it belongs in the primary rank, not the tiebreak.
+  const targetDensity = ctx.proteinTarget && ctx.target > 0 ? ctx.proteinTarget / ctx.target : 0;
+  const carbDensity = ctx.carbTarget && ctx.target > 0 ? ctx.carbTarget / ctx.target : 0;
+  const fatDensity = ctx.fatTarget && ctx.target > 0 ? ctx.fatTarget / ctx.target : 0;
+  const calDenom = Math.max(ctx.target, 1);
+  const fitDistance = (r: Recipe) => {
+    // Guard the divisor: fitDistance drives the PRIMARY sort now, so a 0-calorie recipe producing a
+    // NaN would corrupt the ordering, not just lose a tiebreak.
+    const cal = Math.max(1, r.calories);
+    return (
+      // Stay scalable to the slot's calories (the clamp is 0.6-1.8x), so calorie distance leads.
+      (Math.abs(r.calories - ctx.target) / calDenom) * 2 +
+      // Fat and carbs, two-sided — a dish can miss high or low. Keto keeps its own stronger one-sided
+      // carb pull below, so the generic carb term steps aside when keto is active.
+      (fatDensity > 0 ? Math.abs(r.fatGrams / cal - fatDensity) * 24 : 0) +
+      (carbDensity > 0 && !ctx.ketoCarbs ? Math.abs(r.carbsGrams / cal - carbDensity) * 11 : 0) +
+      // Protein only penalised when SHORT — scaling can't raise protein per calorie, so a low-protein
+      // pick can't be rescued downstream; being over is fine.
+      (targetDensity > 0 ? Math.max(0, targetDensity - r.proteinGrams / cal) * 12 : 0) +
+      // Keto: drive carbs as low as the eligible pool allows. Weighted to DOMINATE the fit (net carbs
+      // under 50g/day is a hard invariant, not a preference), the way the old one-sided carb term did.
+      (ctx.ketoCarbs ? (r.carbsGrams / cal) * 250 : 0)
+    );
+  };
+  const sorted = [...pool].sort((a, b) => fitDistance(a) - fitDistance(b));
+  // Among the best-fitting few, break ties by shopping convenience: reuse the week's ingredients,
+  // pick cheaper dishes, favour the fridge and a nutrient boost, and shed a "meh" rating. A little
+  // randomness among the near-best keeps "generate again" fresh.
+  const top = sorted.slice(0, Math.min(8, sorted.length));
   const score = (r: Recipe) =>
     r.ingredients.filter((i) => ctx.usedIngredients.has(i.name.trim().toLowerCase())).length -
     r.approxCost +
-    (ctx.preferFiber ? (r.fiberGrams ?? 0) * 0.5 : 0) -
-    (targetDensity > 0 ? Math.max(0, targetDensity - r.proteinGrams / r.calories) * 60 : 0) +
+    (ctx.preferFiber ? (r.fiberGrams ?? 0) * 0.5 : 0) +
     (ctx.fridge
       ? r.ingredients.filter((i) => ctx.fridge!.has(i.name.trim().toLowerCase())).length * 3
       : 0) +
-    // Nutrient boost, scored on DENSITY per calorie: scaling a portion raises the nutrient
-    // and the calories together, so only density tells an iron-rich meal from a big one.
-    // Normalised against the daily reference so every nutrient contributes on one scale.
     (ctx.boost
       ? microDensity(recipeMicros(r).micros, r.calories, ctx.boost) *
         (2000 / DAILY_REFERENCE[ctx.boost]) *
         4
       : 0) +
-    // On keto, prefer the LOWEST-carb dish among the eligible ones. The dietTag filter only says
-    // "under 20g"; portions then scale up to fill the day and the carbs scale with them. Scored on
-    // density per calorie for the same reason the nutrient boost is: a big meal is not a carby one.
+    // Keto again in the final pick: the fit-sort above puts the lowest-carb dishes in the window,
+    // but the random tiebreak must not then trade one away for a cheaper, higher-carb dish. Net
+    // carbs under 50g/day is a hard invariant, so keto carbs dominate the pick as well as the sort.
     (ctx.ketoCarbs ? -(r.carbsGrams / Math.max(1, r.calories)) * 900 : 0) -
-    // "It was alright, wouldn't have it again" (2). Enough to lose a tie, not enough to override
-    // a diet, the fridge, or the calorie fit. A 1 never gets this far — it's dropped upstream.
     ((ctx.ratings?.get(r.name.toLowerCase()) ?? 0) === 2 ? 8 : 0);
   const maxScore = Math.max(...top.map(score));
   const best = top.filter((r) => score(r) >= maxScore - 0.5);
@@ -8173,6 +8189,7 @@ function pickMealsForDay(
   const meals: Meal[] = [];
   for (const [type, share] of split) {
     const target = Math.round(profile.targetCalories * share);
+    const st = slotTargetMacros(profile, type); // this slot's macro share (keto-adjusted)
     // HARD rules — diet, allergies and exclusions are never relaxed.
     const hard = RECIPES.filter(
       (r) =>
@@ -8214,6 +8231,8 @@ function pickMealsForDay(
     const pick = chooseRecipe(candidates, {
       target,
       proteinTarget: Math.round(profile.proteinGrams * share),
+      carbTarget: st.carbs,
+      fatTarget: st.fat,
       proteinDays: ctx.proteinDays,
       usedIds: ctx.usedIds,
       usedNames: ctx.usedNames,
@@ -8381,7 +8400,7 @@ const MACRO_AXES = ["cal", "protein", "carbs", "fat", "fiber"] as const;
 // actually set and notices; carbs/fat/fiber follow. Calories must out-weigh the
 // combined carb+fat+fiber pull, otherwise the solver trades calories away to keep
 // those three happy and days land short (observed: 1852 kcal vs a 2000 target).
-const MACRO_WEIGHTS: Macros = { cal: 4, protein: 3, carbs: 1, fat: 1, fiber: 0.5 };
+const MACRO_WEIGHTS: Macros = { cal: 4, protein: 3, carbs: 2, fat: 3, fiber: 0.5 };
 const DAY_FIBER_TARGET = 30; // g/day (no per-user field yet; sensible default)
 const SLOT_WEIGHT = 1.5; // how hard we keep each meal near its share of the day
 const SCALE_LO = 0.6;
@@ -8414,8 +8433,9 @@ const KETO_NET_CARB_TARGET = 30;
  * modified — this is a derived target, so switching off keto restores what they chose.
  */
 function dayTargetMacros(p: UserProfile): Macros {
+  const fiber = p.fiberGrams ?? DAY_FIBER_TARGET;
   if (p.diet !== "keto")
-    return { cal: p.targetCalories, protein: p.proteinGrams, carbs: p.carbsGrams, fat: p.fatGrams, fiber: DAY_FIBER_TARGET };
+    return { cal: p.targetCalories, protein: p.proteinGrams, carbs: p.carbsGrams, fat: p.fatGrams, fiber };
 
   const carbs = Math.min(p.carbsGrams, KETO_NET_CARB_TARGET + DAY_FIBER_TARGET);
   const fatCalories = p.targetCalories - p.proteinGrams * 4 - carbs * 4;
@@ -8424,7 +8444,7 @@ function dayTargetMacros(p: UserProfile): Macros {
     protein: p.proteinGrams,
     carbs,
     fat: Math.max(p.fatGrams, Math.round(fatCalories / 9)),
-    fiber: DAY_FIBER_TARGET,
+    fiber,
   };
 }
 function slotShare(p: UserProfile, type: Recipe["type"]): number {
@@ -8697,13 +8717,22 @@ const dayTotals = (d: DayPlan) => ({
   protein: d.meals.reduce((s, m) => s + m.proteinGrams, 0),
 });
 
-const weekAverages = (plan: WeekPlan) => {
+// Fuller totals for the honesty note (carbs/fat/fiber too). Kept separate from dayTotals, whose
+// two-field shape flows into the agent read-tools and shouldn't grow here.
+const dayTotalsFull = (d: DayPlan) => ({
+  kcal: d.meals.reduce((s, m) => s + m.calories, 0),
+  protein: d.meals.reduce((s, m) => s + m.proteinGrams, 0),
+  carbs: d.meals.reduce((s, m) => s + m.carbsGrams, 0),
+  fat: d.meals.reduce((s, m) => s + m.fatGrams, 0),
+  fiber: d.meals.reduce((s, m) => s + (m.fiberGrams ?? 0), 0),
+});
+
+const weekAveragesFull = (plan: WeekPlan) => {
   const n = plan.days.length || 1;
-  const t = plan.days.map(dayTotals);
-  return {
-    kcal: Math.round(t.reduce((s, x) => s + x.kcal, 0) / n),
-    protein: Math.round(t.reduce((s, x) => s + x.protein, 0) / n),
-  };
+  const t = plan.days.map(dayTotalsFull);
+  const avg = (k: keyof ReturnType<typeof dayTotalsFull>) =>
+    Math.round(t.reduce((s, x) => s + x[k], 0) / n);
+  return { kcal: avg("kcal"), protein: avg("protein"), carbs: avg("carbs"), fat: avg("fat"), fiber: avg("fiber") };
 };
 
 
@@ -8731,7 +8760,11 @@ const PROTEIN_MISS = 8; // g/day we'll tolerate before admitting we fell short
  * pool tops out at 167g. That is a trust violation. The engine appends the truth — including
  * an explicit admission when a target is out of reach under the user's constraints.
  */
-function achievementNote(label: string, got: { kcal: number; protein: number }, p: UserProfile): string {
+function achievementNote(
+  label: string,
+  got: { kcal: number; protein: number; carbs?: number; fat?: number; fiber?: number },
+  p: UserProfile,
+): string {
   let note = `${label} ${got.kcal} kcal and ${got.protein}g protein.`;
   const short = p.proteinGrams - got.protein;
   if (short > PROTEIN_MISS)
@@ -8741,6 +8774,24 @@ function achievementNote(label: string, got: { kcal: number; protein: number }, 
   const calMiss = got.kcal - p.targetCalories;
   if (Math.abs(calMiss) > p.targetCalories * 0.1)
     note += ` That's ${Math.abs(calMiss)} kcal ${calMiss < 0 ? "below" : "above"} your ${p.targetCalories} kcal target — these recipes can't stretch further without unrealistic portions.`;
+  // Carbs and fat are steered at selection time but can't always land exactly; the note owes the
+  // user the same honesty on them as on calories/protein. Only disclose a real miss (>20% off),
+  // measured against the keto-adjusted day target.
+  const tgt = dayTargetMacros(p);
+  const keto = p.diet === "keto";
+  // On keto, carbs are a CEILING (the whole point is to drive them as low as the pool allows), so
+  // landing under is success — only flag carbs that run OVER. Every other diet treats carbs as a
+  // target and discloses a miss in either direction.
+  if (got.carbs != null && tgt.carbs > 0) {
+    const missed = keto ? got.carbs - tgt.carbs > tgt.carbs * 0.2 : Math.abs(got.carbs - tgt.carbs) > tgt.carbs * 0.2;
+    if (missed) note += ` Carbs come to ${got.carbs}g against about ${Math.round(tgt.carbs)}g.`;
+  }
+  if (got.fat != null && tgt.fat > 0 && Math.abs(got.fat - tgt.fat) > tgt.fat * 0.2)
+    note += ` Fat comes to ${got.fat}g against about ${Math.round(tgt.fat)}g.`;
+  // Fiber is a floor, not a ceiling — only flag a real shortfall, and not on keto, which is
+  // inherently low in fibre (and whose fix, more beans/whole grains, would break the diet).
+  if (!keto && got.fiber != null && got.fiber < tgt.fiber * 0.7)
+    note += ` Fiber is ${got.fiber}g, under the ${Math.round(tgt.fiber)}g I aim for — a serving of veg, beans or whole grains closes it.`;
   return note;
 }
 
@@ -9768,7 +9819,7 @@ export function applyOperations(
           }
           applyLocks();
           if (op.useIngredients?.length) curPlan = guaranteeFridge(p, curPlan, op.useIngredients, notes);
-          if (keepMacros(op)) notes.push(achievementNote("Your week now averages", weekAverages(curPlan), p));
+          if (keepMacros(op)) notes.push(achievementNote("Your week now averages", weekAveragesFull(curPlan), p));
           if (op.boostNutrient) notes.push(microNote(curPlan, op.boostNutrient));
         }
         break;
@@ -9787,7 +9838,7 @@ export function applyOperations(
           }
           applyLocks();
           if (op.useIngredients?.length) curPlan = guaranteeFridge(p, curPlan, op.useIngredients, notes);
-          if (keepMacros(op)) notes.push(achievementNote("Your week now averages", weekAverages(curPlan), p));
+          if (keepMacros(op)) notes.push(achievementNote("Your week now averages", weekAveragesFull(curPlan), p));
           if (op.boostNutrient) notes.push(microNote(curPlan, op.boostNutrient));
         }
         break;
@@ -9808,7 +9859,7 @@ export function applyOperations(
         curPlan = { ...curPlan, days: curPlan.days.map((d) => (d.day === op.day ? { ...newDay, meals } : d)) };
         applyLocks(new Set([op.day]), tp);
         const finalDay = curPlan.days.find((d) => d.day === op.day)!;
-        if (keepMacros(op)) notes.push(achievementNote(`${op.day} now has`, dayTotals(finalDay), tp));
+        if (keepMacros(op)) notes.push(achievementNote(`${op.day} now has`, dayTotalsFull(finalDay), tp));
         break;
       }
       case "swap_meal": {
@@ -9961,7 +10012,7 @@ export function applyOperations(
           }),
         );
         notes.push(...reportNotes(rep, p));
-        notes.push(achievementNote("Your week now averages", weekAverages(curPlan), p));
+        notes.push(achievementNote("Your week now averages", weekAveragesFull(curPlan), p));
         break;
       }
       case "log_meal": {

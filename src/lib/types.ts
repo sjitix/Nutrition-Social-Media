@@ -201,6 +201,9 @@ export interface UserProfile {
   proteinGrams: number;
   carbsGrams: number;
   fatGrams: number;
+  // Optional daily fiber target. Absent on older profiles and by default, so generation falls
+  // back to a sensible 30 g/day; set it (e.g. via the assistant's targetFiber) to steer the week.
+  fiberGrams?: number;
   // Simplicity controls, also defaulted + enforced in generation.
   maxCookTime: number; // minutes per meal (approx upper bound)
   maxIngredients: number; // ingredients per meal (upper bound)

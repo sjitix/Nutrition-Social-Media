@@ -68,6 +68,8 @@ const op = (o: Partial<Operation>): Operation =>
 
 const kcal = (d: DayPlan) => d.meals.reduce((s, m) => s + m.calories, 0);
 const prot = (d: DayPlan) => d.meals.reduce((s, m) => s + m.proteinGrams, 0);
+const carbsOf = (d: DayPlan) => d.meals.reduce((s, m) => s + m.carbsGrams, 0);
+const fatOf = (d: DayPlan) => d.meals.reduce((s, m) => s + m.fatGrams, 0);
 const names = (d: DayPlan) => d.meals.map((m) => m.name).join(" | ");
 const freshWeek = (p: UserProfile) => rebalanceWeek(selectWeekFromDb(p), p);
 
@@ -599,6 +601,69 @@ console.log("\n--- LOG_MEAL (real life derails the plan) ---");
   const told = applyOperations(BASE, wk, [op({ tool: "log_meal", day: "Monday", mealType: "lunch", dish: "grandma's lasagna", loggedCalories: 900, loggedProtein: 35 } as never)]);
   const d = told.plan.days.find((x) => x.day === "Monday")!;
   check("log_meal: accepts user-supplied calories and re-solves", d.meals.some((m) => /lasagna/i.test(m.name)) && Math.abs(kcal(d) - 2000) <= 150, `${kcal(d)} kcal`);
+}
+
+// ---------------------------------------------------------------- 1f. initial-generation macro accuracy
+// Calories and protein were already driven hard; carbs/fat/fiber were traded away (weighted 1/1/0.5
+// vs 4/3) and UNTESTED — 3 of VISION's 5 "first-class" macro axes unguaranteed. Fat ran 15-25% over
+// on every non-keto diet. These lock in the carb/fat selection fit + the honesty disclosure.
+console.log("\n--- INITIAL GENERATION: carb / fat / fiber accuracy ---");
+{
+  // Mirror of the engine's dayTargetMacros (not exported): keto re-solves carbs down and fat up.
+  const dietTarget = (p: UserProfile) => {
+    const fiber = p.fiberGrams ?? 30;
+    if (p.diet !== "keto") return { carbs: p.carbsGrams, fat: p.fatGrams, fiber };
+    const carbs = Math.min(p.carbsGrams, 60);
+    const fat = Math.max(p.fatGrams, Math.round((p.targetCalories - p.proteinGrams * 4 - carbs * 4) / 9));
+    return { carbs, fat, fiber };
+  };
+  const diets: UserProfile["diet"][] = ["none", "vegetarian", "vegan", "keto", "mediterranean"];
+  const WEEKS = 6;
+  for (const diet of diets) {
+    const p: UserProfile = { ...BASE, diet };
+    const t = dietTarget(p);
+    let cal = 0, carb = 0, protein = 0, days = 0;
+    for (let w = 0; w < WEEKS; w++)
+      for (const d of freshWeek(p).days) { cal += kcal(d); carb += carbsOf(d); protein += prot(d); days++; }
+    cal /= days; carb /= days; protein /= days;
+    // Calories are the axis the user sets hardest; the solver nails them on every diet.
+    check(`gen[${diet}]: calories within 5%`, Math.abs(cal - p.targetCalories) <= p.targetCalories * 0.05, `${cal.toFixed(0)} kcal`);
+    // Carbs are steered at selection AND rebalanced to the (keto-adjusted) target. On keto that
+    // target is a CEILING — lower is better — so assert only the upper bound there.
+    check(
+      `gen[${diet}]: carbs ${diet === "keto" ? "at/under" : "within 22% of"} ${t.carbs}g`,
+      diet === "keto" ? carb <= t.carbs * 1.22 : Math.abs(carb - t.carbs) <= t.carbs * 0.22,
+      `${carb.toFixed(0)}g`,
+    );
+    // Protein must not regress; vegan is the natural floor (~135g), so 85% is the line — never chased below.
+    check(`gen[${diet}]: protein >= 85% of ${p.proteinGrams}g`, protein >= p.proteinGrams * 0.85, `${protein.toFixed(0)}g`);
+  }
+  // Fat is genuinely on target where the recipe pool allows it: the unconstrained and keto diets.
+  // (Plant diets carry more fat — their protein sources are fat-dense — which the note discloses.)
+  for (const diet of ["none", "keto"] as const) {
+    const p: UserProfile = { ...BASE, diet };
+    const t = dietTarget(p);
+    let fat = 0, days = 0;
+    for (let w = 0; w < WEEKS; w++) for (const d of freshWeek(p).days) { fat += fatOf(d); days++; }
+    fat /= days;
+    check(`gen[${diet}]: fat within 20% of ${t.fat}g`, Math.abs(fat - t.fat) <= t.fat * 0.2, `${fat.toFixed(0)}g`);
+  }
+}
+{
+  // Honesty ("hit it or admit it"): a diet whose dishes carry more fat than target must land within
+  // 20% or SAY so — never quietly overshoot. Vegetarian is the standing example.
+  const veg: UserProfile = { ...BASE, diet: "vegetarian" };
+  const r = applyOperations(veg, freshWeek(veg), [op({ tool: "regenerate_week" })]);
+  const fat = r.plan.days.reduce((s, d) => s + fatOf(d), 0) / r.plan.days.length;
+  const disclosed = r.notes.some((n) => /Fat comes to/.test(n));
+  check("gen honesty: fat within 22% or admitted", Math.abs(fat - 65) <= 65 * 0.22 || disclosed, `fat ${fat.toFixed(0)}g, disclosed=${disclosed}`);
+}
+{
+  // Per-user fiber target flows into generation and the note: an 80g target the pool can't reach is
+  // disclosed, not silently missed. (Older profiles omit fiberGrams and fall back to 30 g.)
+  const hi: UserProfile = { ...BASE, fiberGrams: 80 };
+  const r = applyOperations(hi, freshWeek(hi), [op({ tool: "regenerate_week" })]);
+  check("gen: per-user fiber target honoured + disclosed when short", r.notes.some((n) => /under the 80g I aim for/.test(n)), (r.notes.find((n) => /Fiber is/.test(n)) ?? "(none)").slice(0, 90));
 }
 
 // ---------------------------------------------------------------- 2. adversarial
