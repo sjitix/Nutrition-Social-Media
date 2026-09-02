@@ -13,6 +13,7 @@
  * is a bug, and this file is where we find it before a user does.
  */
 import { selectWeekFromDb, rebalanceWeek, applyOperations, RECIPES, recipeMicros, newReport, reportNotes } from "@/lib/recipeDb";
+import { conditionBoosts } from "@/lib/conditions";
 import type { UserProfile, Operation, DayPlan, WeekPlan, Meal } from "@/lib/types";
 import { MealSchema } from "@/lib/types";
 import { FEED_RECIPES, filterFeed, sortFeed, HIGH_PROTEIN_G, type FeedFilter } from "@/lib/feed";
@@ -664,6 +665,28 @@ console.log("\n--- INITIAL GENERATION: carb / fat / fiber accuracy ---");
   const hi: UserProfile = { ...BASE, fiberGrams: 80 };
   const r = applyOperations(hi, freshWeek(hi), [op({ tool: "regenerate_week" })]);
   check("gen: per-user fiber target honoured + disclosed when short", r.notes.some((n) => /under the 80g I aim for/.test(n)), (r.notes.find((n) => /Fiber is/.test(n)) ?? "(none)").slice(0, 90));
+}
+
+// ---------------------------------------------------------------- 1g. condition -> nutrient detection
+// conditionBoosts derives the micronutrients a fresh plan should favour from durable profile facts.
+// (Detection only; the generation wiring + ask-vs-auto-apply UX are specced in CONDITION-AWARE-GEN.md
+// and land later. This locks the mapping + aging + whole-word matching so that work builds on it.)
+console.log("\n--- CONDITION -> NUTRIENT DETECTION ---");
+{
+  const today = new Date("2026-09-02");
+  const withMemory = (memory: UserProfile["memory"]): UserProfile => ({ ...BASE, memory });
+  const b = (memory: UserProfile["memory"]) => conditionBoosts(withMemory(memory), today);
+
+  const fresh = b([{ fact: "on my period", kind: "condition", since: "2026-09-01" }]);
+  check("period -> iron primary + magnesium", fresh[0] === "iron" && fresh.includes("magnesium"), JSON.stringify(fresh));
+  check("period ages out after its 7-day ttl",
+    b([{ fact: "on my period", kind: "condition", since: "2026-08-01" }]).length === 0);
+  const preg = b([{ fact: "I'm pregnant now", kind: "condition" }]);
+  check("pregnancy -> folate primary + iron + calcium",
+    preg[0] === "folate" && preg.includes("iron") && preg.includes("calcium"), JSON.stringify(preg));
+  check("'low on iron' parses to iron", b([{ fact: "I've been low on iron", kind: "context" }]).includes("iron"));
+  check("whole-word: 'periodically' does NOT fire period", b([{ fact: "I cook periodically", kind: "context" }]).length === 0);
+  check("no conditions -> no bias", b([]).length === 0);
 }
 
 // ---------------------------------------------------------------- 2. adversarial
