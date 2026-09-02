@@ -98,7 +98,7 @@ export function findRecipes(args: FindRecipesArgs = {}): { rows: RecipeRow[]; ma
     diet: args.diet ?? "all",
     highProtein: false,
     maxTime: args.maxTime ?? null,
-    query: args.query ?? "",
+    query: typeof args.query === "string" ? args.query : "",
   });
 
   // Two numeric facets filterFeed has no concept of. Applied here rather than by widening
@@ -110,7 +110,10 @@ export function findRecipes(args: FindRecipesArgs = {}): { rows: RecipeRow[]; ma
   );
 
   const sorted = sortFeed(narrowed, args.sort ?? "default");
-  const limit = Math.min(Math.max(1, args.limit ?? MAX_ROWS), MAX_ROWS);
+  // Coerce a model-supplied limit defensively: a non-numeric value must not become NaN and return an
+  // empty list with a NaN count.
+  const wantLimit = Number(args.limit);
+  const limit = Math.min(Number.isFinite(wantLimit) && wantLimit >= 1 ? Math.floor(wantLimit) : MAX_ROWS, MAX_ROWS);
   return {
     matched: sorted.length,
     shown: Math.min(limit, sorted.length),
@@ -122,6 +125,9 @@ export function findRecipes(args: FindRecipesArgs = {}): { rows: RecipeRow[]; ma
 
 export function inspectRecipe(name: string) {
   const key = name.trim().toLowerCase();
+  // An empty/whitespace name must miss cleanly — otherwise the includes() fallback below matches
+  // every recipe ("".includes("") === true) and hands back an arbitrary dish as a confident match.
+  if (!key) return { found: false as const, name, suggestion: [] as RecipeRow[] };
   const recipe: Recipe | undefined =
     RECIPES.find((r) => r.name.toLowerCase() === key) ??
     RECIPES.find((r) => r.name.toLowerCase().includes(key));

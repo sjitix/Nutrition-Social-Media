@@ -1707,16 +1707,27 @@ console.log("--- LOCK MEAL (a plan you can't pin isn't yours) ---");
   const monAfter = probe.days.find((d) => d.day === "Monday")!.meals;
   const hitSlot = monBefore.find((mm, i) => mm.name !== monAfter[i].name)?.type;
   if (hitSlot) {
+    // The contract: a swap unpins ONLY the slot it actually replaced. Where salmon lands is the
+    // matcher's call, and pinning a slot can push salmon elsewhere — so assert against where salmon
+    // ACTUALLY landed, not where it landed while unpinned. (Asserting the latter flaked: pin the
+    // slot, salmon dodges it, the pin correctly survives, and the fixed assumption fails.)
+    const monSalmonSlot = (r: ReturnType<typeof applyOperations>) =>
+      r.plan.days.find((d) => d.day === "Monday")!.meals.find((m) => /salmon/i.test(m.name))?.type;
+
     const pinnedThere = applyOperations(BASE, plan, [op({ tool: "lock_meal", day: "Monday", mealType: hitSlot })]).profile;
     const swapNoType = applyOperations(pinnedThere, plan, [op({ tool: "swap_meal", day: "Monday", dish: "salmon" })]);
-    check("a swap with no mealType still removes the pin it replaced",
-      (swapNoType.profile.lockedMeals ?? []).length === 0, `slot ${hitSlot}`);
-    check("...and a pin on a DIFFERENT slot survives that swap", (() => {
-      const other = (["breakfast", "lunch", "dinner"] as const).find((t) => t !== hitSlot)!;
-      const pinnedElsewhere = applyOperations(BASE, plan, [op({ tool: "lock_meal", day: "Monday", mealType: other })]).profile;
-      const r2 = applyOperations(pinnedElsewhere, plan, [op({ tool: "swap_meal", day: "Monday", dish: "salmon" })]);
-      return (r2.profile.lockedMeals ?? []).length === 1;
-    })());
+    const landed = monSalmonSlot(swapNoType);
+    const pins = (swapNoType.profile.lockedMeals ?? []).length;
+    check("a swap with no mealType unpins exactly the slot it replaced",
+      landed === hitSlot ? pins === 0 : pins === 1, `salmon->${landed ?? "?"}, pinned ${hitSlot}`);
+
+    const other = (["breakfast", "lunch", "dinner"] as const).find((t) => t !== hitSlot)!;
+    const pinnedElsewhere = applyOperations(BASE, plan, [op({ tool: "lock_meal", day: "Monday", mealType: other })]).profile;
+    const r2 = applyOperations(pinnedElsewhere, plan, [op({ tool: "swap_meal", day: "Monday", dish: "salmon" })]);
+    const landed2 = monSalmonSlot(r2);
+    check("a pin on a slot the swap did not replace survives",
+      landed2 === other ? (r2.profile.lockedMeals ?? []).length === 0 : (r2.profile.lockedMeals ?? []).length === 1,
+      `salmon->${landed2 ?? "?"}, pinned ${other}`);
   }
 
   // A pin on a slot the day no longer has is a phantom: never placed, never dropped, never said.
@@ -2510,6 +2521,13 @@ if (violations.size === 0) {
   const missed = inspectRecipe("a dish that does not exist anywhere");
   check("inspect_recipe: a miss is data the loop can read, not an exception",
     missed.found === false && Array.isArray(missed.suggestion));
+  // read-surface hardening (adversarial review): model-supplied edge args must not crash or mislead.
+  check("inspect_recipe: an empty/whitespace name misses cleanly (no arbitrary match)",
+    inspectRecipe("").found === false && inspectRecipe("   ").found === false);
+  const badLimit = findRecipes({ limit: "abc" } as never);
+  check("find_recipes: a non-numeric limit yields a finite count, not NaN",
+    Number.isFinite(badLimit.shown) && badLimit.shown <= MAX_ROWS && badLimit.rows.length === badLimit.shown);
+  check("find_recipes: a non-string query does not throw", Array.isArray(findRecipes({ query: 5 } as never).rows));
 
   // -- get_plan
   const week = getPlan(ctx);
@@ -2679,6 +2697,47 @@ if (violations.size === 0) {
     check("loop: a turn with no operations ends immediately", r.steps === 1);
     check("loop: the transcript keeps the user message first", r.transcript[0].role === "user");
     check("loop: MAX_STEPS defaults to the specified 8", MAX_STEPS === 8);
+  }
+
+  // 6. undo THROUGH the loop: the loop threads `previous` so an undo verb restores the pre-write
+  //    plan — and one level only, so after an undo there is nothing further back.
+  {
+    const w = scripted([turn("", [{ op: "constrain", diet: "vegetarian" } as unknown as PrimitiveOp]), turn("done")]);
+    const r1 = await runAgent({ ...base, model: w.fn });
+    const u = scripted([turn("", [{ op: "undo" } as unknown as PrimitiveOp]), turn("reverted")]);
+    const r2 = await runAgent({
+      profile: r1.profile, plan: r1.plan, message: "undo that", today: base.today,
+      previous: r1.previous, model: u.fn,
+    });
+    check("loop: undo restores the plan captured before the write",
+      Boolean(r1.previous) && JSON.stringify(r2.plan.days) === JSON.stringify(r1.previous!.plan.days));
+    check("loop: undo actually reverted the vegetarian week",
+      JSON.stringify(r2.plan.days) !== JSON.stringify(r1.plan.days));
+    check("loop: after an undo there is nothing further back", r2.previous === undefined);
+  }
+
+  // 7. one turn carrying BOTH a read and a write: both run in a single step — the read's result
+  //    reaches the model (a tool entry) and the write is applied.
+  {
+    const p = scripted([
+      turn("", [
+        { op: "find_recipes", diet: "vegetarian", limit: 2 } as unknown as PrimitiveOp,
+        { op: "constrain", diet: "vegetarian" } as unknown as PrimitiveOp,
+      ]),
+      turn("looked, then applied"),
+    ]);
+    const r = await runAgent({ ...base, model: p.fn });
+    const tools = r.transcript.filter((e) => e.role === "tool");
+    check("loop: a read and a write in the same turn both run",
+      tools.some((e) => e.name === "find_recipes") && tools.some((e) => e.name === "apply") && r.planChanged);
+  }
+
+  // 8. a remember op marks the profile changed, so the caller persists the new memory even on a
+  //    plan-unchanged turn.
+  {
+    const p = scripted([turn("", [{ op: "remember", fact: "lactose intolerant", kind: "allergy" } as unknown as PrimitiveOp]), turn("noted")]);
+    const r = await runAgent({ ...base, model: p.fn });
+    check("loop: a remember op marks the profile changed", r.profileChanged === true);
   }
 }
 
