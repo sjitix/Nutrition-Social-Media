@@ -54,6 +54,7 @@ merge-*.log
 
 # local test output (scratch)
 engine-*.log
+check-*.log
 
 # local server output (scratch)
 dev-server.log
