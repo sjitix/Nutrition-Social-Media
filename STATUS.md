@@ -6,7 +6,7 @@ local commits) and the 7B assistant (trained, awaiting eval).
 ## ▶ Meal-generation engine — 2026-09-02 (local commits, unpushed)
 
 Deterministic TypeScript engine (no model, runs everywhere). Three increments landed, each tested
-(engine suite **539 / 0**) and adversarially reviewed:
+(engine suite **548 / 0** after the safety/executor work below) and adversarially reviewed:
 
 - **Macro accuracy** (`2b2f6b6`) — `chooseRecipe` ranks by macro-density fit FIRST (not a tiebreak),
   so fat/carbs land near target instead of ~15–25% over; per-user fiber target; `achievementNote`
@@ -59,6 +59,13 @@ key property: `what_if` clones state and never mutates the real plan.
   network-behavior + security-sensitive, so I did not patch it autonomously. Minor: `decodeEntities`
   throws an uncaught RangeError (→ 500) on an out-of-range numeric HTML entity. The static guard is
   otherwise sound (http(s) only; blocks localhost/.local/private-IP & IPv6 literals; 3 MB cap; 15 s timeout).
+
+- **Executor hardening** (`08ce8ef`) — an adversarial review of the write-path executor found
+  `log_meal` silently DROPPING a logged meal on a slot the day lacks (a snack on a 3-meal plan) and
+  then misreporting the day's calories; now absorbed as a new slot (+3 regression tests). Also:
+  whole-week `swap_meal` discloses the week's macros honestly instead of a blanket "kept on target";
+  `regenerate_day` guarded against a missing day. Reported, not changed (numbers honest / convoluted):
+  single-day `swap_meal`'s unconditional "kept on target" label; a `scale_portions` success-note corner.
 
 ---
 
