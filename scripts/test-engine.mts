@@ -12,7 +12,7 @@
  * (diet, allergies, exclusions, cook time) are rules, not suggestions — a violation
  * is a bug, and this file is where we find it before a user does.
  */
-import { selectWeekFromDb, rebalanceWeek, applyOperations, RECIPES, recipeMicros, newReport, reportNotes } from "@/lib/recipeDb";
+import { selectWeekFromDb, rebalanceWeek, applyOperations, RECIPES, recipeMicros, newReport, reportNotes, selectConditionAwareWeek } from "@/lib/recipeDb";
 import { conditionBoosts } from "@/lib/conditions";
 import type { UserProfile, Operation, DayPlan, WeekPlan, Meal } from "@/lib/types";
 import { MealSchema } from "@/lib/types";
@@ -685,8 +685,49 @@ console.log("\n--- CONDITION -> NUTRIENT DETECTION ---");
   check("pregnancy -> folate primary + iron + calcium",
     preg[0] === "folate" && preg.includes("iron") && preg.includes("calcium"), JSON.stringify(preg));
   check("'low on iron' parses to iron", b([{ fact: "I've been low on iron", kind: "context" }]).includes("iron"));
+  check("deficiency parse is adjacency-based (co-mention does not fire)",
+    !b([{ fact: "low on time, want calcium-free meals", kind: "context" }]).includes("calcium"));
+  check("negated deficiency skipped (iron negated, vitamin D kept)", (() => {
+    const r = b([{ fact: "not deficient in iron, but low on vitamin D", kind: "context" }]);
+    return !r.includes("iron") && r.includes("vitD");
+  })());
   check("whole-word: 'periodically' does NOT fire period", b([{ fact: "I cook periodically", kind: "context" }]).length === 0);
   check("no conditions -> no bias", b([]).length === 0);
+}
+
+// ---------------------------------------------------------------- 1h. condition-aware BUILD (capability)
+// selectConditionAwareWeek derives a nutrient bias from a durable condition, guarantees it via the
+// existing boost machinery while macros hold, and discloses it. Capability is tested but NOT wired
+// into the live generatePlan path (ask-vs-auto-apply is a product decision; CONDITION-AWARE-GEN.md).
+console.log("\n--- CONDITION-AWARE BUILD (capability, unwired) ---");
+{
+  const ironOf = (p: WeekPlan) =>
+    p.days.reduce((s, d) => s + d.meals.reduce((a, m) => a + microsForIngredients(m.ingredients).micros.iron, 0), 0) / p.days.length;
+  const today = new Date().toISOString().slice(0, 10);
+  const PERIOD: UserProfile = { ...BASE, memory: [{ fact: "on my period", kind: "condition", since: today }] };
+  const N = 8;
+  let base = 0, cond = 0, macrosHeld = true, disclosed = false, doctor = false, rideOK = true;
+  for (let i = 0; i < N; i++) {
+    base += ironOf(freshWeek(BASE));
+    const { plan, notes } = selectConditionAwareWeek(PERIOD);
+    cond += ironOf(plan);
+    if (!plan.days.every((d) => Math.abs(kcal(d) - 2000) <= 200 && prot(d) >= 125)) macrosHeld = false;
+    if (notes.some((n) => /iron/i.test(n))) disclosed = true;
+    if (notes.some((n) => /doctor/.test(n))) doctor = true;
+    if (notes.length && (plan.notes?.length ?? 0) !== notes.length) rideOK = false;
+  }
+  check("condition-aware: period profile raises weekly iron", cond / N > base / N, `base=${(base / N).toFixed(1)} cond=${(cond / N).toFixed(1)} mg/day`);
+  check("condition-aware: calories/protein still on target", macrosHeld);
+  check("condition-aware: discloses iron + doctor when it adjusts", disclosed && doctor);
+  check("condition-aware: disclosure notes ride on the returned plan", rideOK);
+  check("condition-aware: no condition -> no notes, no bias", selectConditionAwareWeek(BASE).notes.length === 0);
+
+  // A different condition's PRIMARY nutrient also rises (pregnancy -> folate).
+  const PREG: UserProfile = { ...BASE, memory: [{ fact: "I'm pregnant", kind: "condition" }] };
+  const folOf = (p: WeekPlan) => weekMicroAverage2(p, "folate");
+  let bFol = 0, cFol = 0;
+  for (let i = 0; i < 6; i++) { bFol += folOf(freshWeek(PREG)); cFol += folOf(selectConditionAwareWeek(PREG).plan); }
+  check("condition-aware: pregnancy raises weekly folate (primary)", cFol / 6 > bFol / 6, `base=${(bFol / 6).toFixed(0)} cond=${(cFol / 6).toFixed(0)} mcg/day`);
 }
 
 // ---------------------------------------------------------------- 2. adversarial

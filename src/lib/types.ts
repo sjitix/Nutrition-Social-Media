@@ -46,6 +46,9 @@ export const DayPlanSchema = z.object({
 export const WeekPlanSchema = z.object({
   days: z.array(DayPlanSchema),
   weekSummary: z.string(),
+  // Optional engine disclosures attached to a freshly built plan (e.g. a condition-aware nutrient
+  // bias). Optional so every existing plan and API response stays valid without one.
+  notes: z.array(z.string()).optional(),
 });
 
 // The assistant returns only the days it modified (cheaper and far more

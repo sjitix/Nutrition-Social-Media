@@ -18,6 +18,7 @@ import {
 } from "./targets";
 import { SUBSTITUTES, INGREDIENT_ALIASES } from "./substitutions";
 import { SYMPTOMS, URGENT_FLAGS, CRISIS_FLAGS, PHRASE_NOISE } from "./symptoms";
+import { conditionBoosts } from "./conditions";
 import { NUTRIENT_TABLE } from "./nutrientTable.generated";
 import {
   microsForIngredients,
@@ -9330,6 +9331,74 @@ function guaranteeBoost(
     plan: prev,
     note: `I couldn't put more ${MICRO_LABEL[key]} into your week than it already has, so I left it alone.`,
   };
+}
+
+/**
+ * Name a condition-driven micronutrient bias to the user, honestly. Sits next to microNote and
+ * mirrors symptomNote's rule: food guidance, and it points at a doctor. Never claims completeness —
+ * the engine can only favour the nutrients it actually tracks.
+ */
+function conditionDisclosure(keys: MicroKey[]): string {
+  const labels = keys.map((k) => MICRO_LABEL[k]);
+  const list =
+    labels.length === 1
+      ? labels[0]
+      : labels.slice(0, -1).join(", ") + " and " + labels[labels.length - 1];
+  return (
+    `Because your profile notes a condition that calls for more ${list}, I've favoured meals ` +
+    `richer in ${list} while keeping your calories and protein on target. This is food guidance, ` +
+    `not medical advice — check anything health-related with your doctor.`
+  );
+}
+
+/**
+ * A first-plan build that honours durable conditions/deficiencies in the profile: the PRIMARY
+ * derived nutrient biases selection, the rest are secured in turn by guaranteeBoost. Macros stay
+ * the hard invariant (every guaranteeBoost path ends in rebalanceWeek), and no already-secured
+ * nutrient is allowed to fall below the unbiased baseline. Returns the plan (carrying its disclosure
+ * notes when it adjusted anything) plus those notes.
+ *
+ * Reuses the existing boost machinery end-to-end — no new hard-coded tools. NOT yet wired into the
+ * live generatePlan path: whether a fresh plan may auto-apply a condition (vs the assistant ASKing
+ * first, and free-text matching's false-positive risk) is a product decision. See
+ * CONDITION-AWARE-GEN.md. Exposed + tested so wiring is a one-line change once decided.
+ */
+export function selectConditionAwareWeek(profile: UserProfile): { plan: WeekPlan; notes: string[] } {
+  const wanted = conditionBoosts(profile).filter((k) => nutrientReachable(profile, k));
+  const baseline = rebalanceWeek(selectWeekFromDb(profile, undefined, false), profile);
+  if (!wanted.length) return { plan: baseline, notes: [] };
+
+  // The primary nutrient biases which dishes are chosen; a macro re-solve always follows.
+  const primary = wanted[0];
+  let plan = rebalanceWeek(selectWeekFromDb(profile, undefined, false, undefined, primary), profile);
+
+  // Secure each wanted nutrient in turn. guaranteeBoost only accepts a strict gain for its own key,
+  // but a later pass could claw an earlier one back down, so reject any pass that lowers an
+  // already-secured nutrient.
+  const secured: MicroKey[] = [];
+  const EPS = 1e-6;
+  for (const key of wanted) {
+    const candidate = guaranteeBoost(profile, baseline, plan, key).plan;
+    const holds = secured.every(
+      (s) => weekMicroAverage(candidate, s).amount >= weekMicroAverage(plan, s).amount - EPS,
+    );
+    if (holds) {
+      plan = candidate;
+      secured.push(key);
+    }
+  }
+
+  // Disclose only nutrients that actually ended above baseline — never claim a bias we couldn't
+  // deliver from the library.
+  const raised = secured.filter(
+    (k) => weekMicroAverage(plan, k).amount > weekMicroAverage(baseline, k).amount + EPS,
+  );
+  const notes: string[] = [];
+  if (raised.length) {
+    notes.push(conditionDisclosure(raised));
+    for (const k of raised) notes.push(microNote(plan, k));
+  }
+  return { plan: notes.length ? { ...plan, notes } : plan, notes };
 }
 
 /**

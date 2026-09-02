@@ -50,9 +50,10 @@ export const CONDITIONS: ConditionMap[] = [
     nutrients: ["vitD"], label: "low vitamin D", ttlDays: 0 },
 ];
 
+const esc = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 /** Whole-word test so "period" doesn't fire inside "periodically". Phrases may contain spaces. */
-const hasWord = (text: string, phrase: string): boolean =>
-  new RegExp(`\\b${phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(text);
+const hasWord = (text: string, phrase: string): boolean => new RegExp(`\\b${esc(phrase)}\\b`).test(text);
 
 /** A time-bound fact is live if it has no ttl, no `since`, or `since` is within ttl days of today. */
 function isLive(f: UserFact, ttlDays: number, today: Date): boolean {
@@ -80,9 +81,16 @@ export function conditionBoosts(p: UserProfile, today: Date = new Date()): Micro
     // (a) the condition table, honouring time-bound aging
     for (const c of CONDITIONS)
       if (c.triggers.some((t) => hasWord(text, t)) && isLive(f, c.ttlDays, today)) c.nutrients.forEach(push);
-    // (b) a directly stated deficiency: "low on iron", "vitamin D deficiency"
-    if (/\b(low on|deficient|deficiency)\b/.test(text))
-      for (const k of MICRO_KEYS) if (hasWord(text, MICRO_LABEL[k].toLowerCase())) push(k);
+    // (b) a directly stated deficiency: "low on iron", "vitamin D deficiency". The nutrient must sit
+    // ADJACENT to the cue, not merely co-occur in the sentence — otherwise "low on time, want
+    // calcium-free meals" would boost calcium — and a leading negation ("not deficient in iron") is
+    // skipped. This is a heuristic, not NLP: it errs toward NOT firing on ambiguous phrasing.
+    for (const k of MICRO_KEYS) {
+      const lbl = esc(MICRO_LABEL[k].toLowerCase());
+      const cue = new RegExp(`\\b(?:low on|lacking|short on|need more|deficient in) ${lbl}\\b|\\b${lbl} deficien(?:cy|t)\\b`);
+      const hit = cue.exec(text);
+      if (hit && !/\b(?:not|no|without)\s+\S*\s*$/.test(text.slice(0, hit.index))) push(k);
+    }
   }
   return out;
 }
