@@ -1,8 +1,35 @@
-# 🛠️ Live status — assistant v2 (7B rebuild)
+# 🛠️ Live status — NutriFlow
 
-**Last updated: 2026-08-16.**
+**Last updated: 2026-09-02.** Two active threads below: the meal-generation ENGINE (shipping now,
+local commits) and the 7B assistant (trained, awaiting eval).
 
-## ▶ Current stage
+## ▶ Meal-generation engine — 2026-09-02 (local commits, unpushed)
+
+Deterministic TypeScript engine (no model, runs everywhere). Three increments landed, each tested
+(engine suite **531 / 0**) and adversarially reviewed:
+
+- **Macro accuracy** (`2b2f6b6`) — `chooseRecipe` ranks by macro-density fit FIRST (not a tiebreak),
+  so fat/carbs land near target instead of ~15–25% over; per-user fiber target; `achievementNote`
+  discloses carb/fat/fiber misses honestly (plant-diet fat floors ~78g and is disclosed, not hidden).
+- **Condition detection** (`4f9a75b`) — `src/lib/conditions.ts`: a condition→nutrient table
+  (period→iron+magnesium, pregnancy→folate+iron+calcium, anaemia, menopause, osteoporosis…) plus
+  `conditionBoosts()` with fact-aging and adjacency-based deficiency parsing.
+- **Condition-aware build** (`4c0ce27`) — `selectConditionAwareWeek`: biases a fresh week toward a
+  condition's nutrients via the existing boost machinery, macros held, disclosed. TESTED but **NOT
+  wired to live generation** — see decisions below.
+
+**Your calls to unblock the condition feature** (full spec: `CONDITION-AWARE-GEN.md`):
+1. Ask-vs-auto-apply on a fresh plan — VISION says *ask*; safest is the assistant CLARIFY→`constrain`
+   path. Auto-apply needs the notes channel + accepts a free-text false-positive risk.
+2. Surface `WeekPlan.notes` in the UI, or keep condition bias in the assistant path only.
+
+**Diagnosed + parked** (data/product-gated, not bugs — see memory `recipe-db-constraints`): vegan/veg
+protein monotony (`MainProtein` enum has only 2 vegan / 4 veg sources — needs more recipes); budget
+`high` == `medium` (no recipe costs > 3).
+
+---
+
+## ▶ 7B assistant — trained, awaiting eval (unchanged since 2026-08-16)
 
 **✅ TRAINING FINISHED · ✅ MERGED TO GGUF ON THE DESKTOP · ⚠️ NO BACKUP YET.**
 
