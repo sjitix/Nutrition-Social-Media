@@ -43,6 +43,23 @@ variety tiebreak means a preview may not exactly match the eventual commit. Fixi
 engine) trades against deliberate regenerate-variety, so it's an architecture call. It is safe on the
 key property: `what_if` clones state and never mutates the real plan.
 
+## ▶ Safety & security — 2026-09-02
+
+- **Allergen leak FIXED** (`2fc6d22`) — prepared foods hid allergens their name didn't spell out, so a
+  nut / dairy / sesame / fish excluder was served pesto / hummus / Caesar dishes. `CATEGORY_TERMS` now
+  blocks them (pesto→nut+dairy, hummus→sesame, caesar dressing→fish); +6 tests. Suite **545 / 0**.
+
+- **⚠️ SECURITY — NEEDS YOUR ATTENTION (not patched): SSRF on `/api/import`.** `isSafePublicUrl`
+  (`src/lib/import.ts`) validates only the INITIAL url, but `fetchHtml` follows redirects
+  (`redirect:"follow"`), so a public link that 302-redirects to `http://169.254.169.254/` (cloud
+  metadata → credentials) or `http://127.0.0.1/` bypasses the guard and the server fetches it. It also
+  checks the hostname STRING, not the resolved IP, so a hostname resolving to a private IP (DNS
+  rebinding) slips through. The same `fetchHtml` backs `videoImport.ts`. A correct fix needs an
+  SSRF-safe fetch (connect-time IP validation / per-redirect re-validation) + integration tests —
+  network-behavior + security-sensitive, so I did not patch it autonomously. Minor: `decodeEntities`
+  throws an uncaught RangeError (→ 500) on an out-of-range numeric HTML entity. The static guard is
+  otherwise sound (http(s) only; blocks localhost/.local/private-IP & IPv6 literals; 3 MB cap; 15 s timeout).
+
 ---
 
 ## ▶ 7B assistant — trained, awaiting eval (unchanged since 2026-08-16)
