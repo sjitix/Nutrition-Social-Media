@@ -41,20 +41,28 @@ export interface FeedFilter {
 // actually delivers, and a 200 kcal snack at 40% protein still only has 20 g.
 export const HIGH_PROTEIN_G = 25;
 
-/** Every whitespace-separated term must appear in the name or an ingredient (AND), so "chicken rice"
- *  finds dishes with both. Case-insensitive substring. */
+/** Every whitespace-separated term must match a WORD in the name or an ingredient (AND), so
+ *  "chicken rice" finds dishes with both. Matched at word STARTS (so "chick" still finds "chicken")
+ *  rather than anywhere in the string — a plain substring made "oat" hit "goat cheese" and "ham" hit
+ *  "graham", the same over-match the allergen path abandoned. */
 function matchesQuery(it: FeedItem, query: string): boolean {
   const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
   if (!terms.length) return true;
-  const hay = (it.meal.name + " " + it.meal.ingredients.map((i) => i.name).join(" ")).toLowerCase();
-  return terms.every((t) => hay.includes(t));
+  const words = (it.meal.name + " " + it.meal.ingredients.map((i) => i.name).join(" "))
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+  return terms.every((t) => words.some((w) => w.startsWith(t)));
 }
 
 /** Pure, so it's unit-tested. Narrows the feed by every active facet (AND, not OR). */
 export function filterFeed(items: FeedItem[], f: FeedFilter): FeedItem[] {
   return items.filter((it) => {
     if (f.mealType !== "all" && it.meal.type !== f.mealType) return false;
-    if (f.diet !== "all" && !it.dietTags.includes(f.diet)) return false;
+    // A vegan dish satisfies a vegetarian filter (the suite's own dietOk invariant); the tags don't
+    // encode that subset, so spell it out rather than silently drop a lone-vegan recipe from the
+    // "vegetarian" feed / the agent's diet:"vegetarian" search.
+    if (f.diet !== "all" && !it.dietTags.includes(f.diet) && !(f.diet === "vegetarian" && it.dietTags.includes("vegan"))) return false;
     if (f.highProtein && it.meal.proteinGrams < HIGH_PROTEIN_G) return false;
     if (f.maxTime != null && it.meal.timeMinutes > f.maxTime) return false;
     if (!matchesQuery(it, f.query)) return false;

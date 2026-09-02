@@ -89,7 +89,12 @@ export function composeReply(args: {
   // reply — the model's prose is untrusted and, worse, the fine-tune learned to restate the notes,
   // which duplicated them ("Kept Monday on target. Kept Monday on target — 1993 kcal…"). So notes win
   // outright; the model's reply is only used when the engine is silent (a pure question / clarify).
-  if (notes.length) return notes.join(" ");
+  // Trim, drop empties, and DE-DUPLICATE before joining: the fine-tune's restatement was fixed, but
+  // the same note still arrives twice via a repeated op (single-shot) or an op repeated across loop
+  // steps (agentLoop accumulates every step's notes) — the user must not read the same sentence
+  // twice, and an all-empty notes array must fall through to the model/fallback, not return "".
+  const clean = [...new Set(notes.map((n) => n.trim()).filter(Boolean))];
+  if (clean.length) return clean.join(" ");
 
   const base = modelReply?.trim();
   if (base) return base;

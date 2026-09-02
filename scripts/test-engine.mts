@@ -1203,6 +1203,15 @@ console.log("--- REPLY COMPOSITION (who gets the last word) ---");
     composeReply({ modelReply: "", notes: [], planChanged: false }) === "Happy to help.");
   check("a silent model that changed the plan says so",
     composeReply({ modelReply: "", notes: [], planChanged: true }) === "Done — I updated your plan.");
+  // Notes are de-duplicated and empties dropped: the same note via a repeated op (or an op repeated
+  // across agent-loop steps, which accumulates every step's notes) must show ONCE, and an all-empty
+  // notes array must fall through rather than return a blank reply.
+  check("composeReply: a duplicated note is shown once, not twice",
+    composeReply({ modelReply: "", notes: ["Kept Monday on target.", "Kept Monday on target."], planChanged: true }) === "Kept Monday on target.");
+  check("composeReply: all-empty notes fall through to the model reply, not a blank",
+    composeReply({ modelReply: "Which day did you mean?", notes: ["", "  "], planChanged: false }) === "Which day did you mean?");
+  check("composeReply: all-empty notes with no model reply use the safe fallback",
+    composeReply({ modelReply: "", notes: [" "], planChanged: true }) === "Done — I updated your plan.");
 
   // Read-only tools must not make the UI think the week was rewritten.
   for (const t of ["answer", "weekly_report", "explain_meal", "substitute_ingredient", "symptom_check"])
@@ -1477,6 +1486,14 @@ console.log("--- FEED (browse the library, filtered) ---");
   check("feed: multi-term search is AND", both.every((it) => { const h = (it.meal.name + " " + it.meal.ingredients.map((i) => i.name).join(" ")).toLowerCase(); return h.includes("chicken") && h.includes("rice"); }));
   check("feed: an empty query matches everything", filterFeed(FEED_RECIPES, { ...all, query: "   " }).length === FEED_RECIPES.length);
   check("feed: gibberish matches nothing", filterFeed(FEED_RECIPES, { ...all, query: "zzxqwlk" }).length === 0);
+  // Word-START matching: "oat" must not collide with "goat"; "chick" must still find chicken.
+  const hayOf = (it: (typeof FEED_RECIPES)[number]) => (it.meal.name + " " + it.meal.ingredients.map((i) => i.name).join(" ")).toLowerCase();
+  const oatQ = filterFeed(FEED_RECIPES, { ...all, query: "oat" });
+  const goatQ = filterFeed(FEED_RECIPES, { ...all, query: "goat" });
+  check("feed: 'goat' finds goat dishes but 'oat' no longer collides with them",
+    goatQ.some((it) => /goat/i.test(hayOf(it))) && oatQ.every((it) => !/goat/i.test(hayOf(it))), `goat=${goatQ.length} oat=${oatQ.length}`);
+  check("feed: 'chick' still finds chicken (word-start prefix preserved)",
+    filterFeed(FEED_RECIPES, { ...all, query: "chick" }).some((it) => /chicken/i.test(hayOf(it))));
 
   // Sorting is a stable, correct re-ordering that preserves the set.
   const base = filterFeed(FEED_RECIPES, all);
