@@ -2390,7 +2390,10 @@ console.log("--- STREAK (daily-use habit hook) ---");
 {
   check("streak: prevDay steps back one day", prevDay("2026-03-01") === "2026-02-28");
   check("streak: prevDay crosses a year boundary", prevDay("2026-01-01") === "2025-12-31");
-  check("streak: isoDay formats UTC", isoDay(new Date(Date.UTC(2026, 7, 4))) === "2026-08-04");
+  check("streak: isoDay formats a LOCAL day", isoDay(new Date(2026, 7, 4)) === "2026-08-04");
+  // Regression: the key is the LOCAL calendar day, so a late-evening open counts on today — not
+  // tomorrow's UTC day, which used to break/inflate streaks for users west of UTC.
+  check("streak: a late local evening still keys to that local day", isoDay(new Date(2026, 7, 4, 23, 30)) === "2026-08-04");
 
   const today = "2026-08-04";
   check("streak: today alone is 1", currentStreak([today], today) === 1);

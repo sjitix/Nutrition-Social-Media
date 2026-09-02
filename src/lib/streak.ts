@@ -1,19 +1,24 @@
 /**
  * A gentle daily-use streak — the habit hook every widely-used app leans on. It counts REAL,
- * consecutive days the app was opened (recorded in localStorage), nothing fabricated. All date math
- * is pure and UTC-normalised so it's testable and timezone-stable, and "today" is always passed in.
+ * consecutive days the app was opened (recorded in localStorage), nothing fabricated. Day math is
+ * pure and keyed to the LOCAL calendar day — the same "today" the rest of the app shows — and
+ * "today" is always passed in.
  */
 
-/** A Date -> "YYYY-MM-DD" (UTC), the canonical day key we store and compare. */
+/**
+ * A Date -> "YYYY-MM-DD" using LOCAL calendar components. Must be local, not UTC: the rest of the app
+ * defines "today" locally (getDay / getHours / toLocaleDateString), so a UTC key broke AND inflated
+ * streaks near local midnight for users west of UTC — an evening open landed on the next UTC day,
+ * punching a hole in (or double-counting) the local-day sequence.
+ */
 export function isoDay(d: Date): string {
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-/** The day before an ISO day, as an ISO day. */
+/** The day before an ISO day, as an ISO day. Local-date arithmetic, so it round-trips with isoDay. */
 export function prevDay(iso: string): string {
   const [y, m, d] = iso.split("-").map(Number);
-  const t = Date.UTC(y, m - 1, d) - 86_400_000;
-  return isoDay(new Date(t));
+  return isoDay(new Date(y, m - 1, d - 1)); // day - 1 rolls month/year/leap boundaries correctly
 }
 
 /**
