@@ -6,7 +6,7 @@ local commits) and the 7B assistant (trained, awaiting eval).
 ## ▶ Meal-generation engine — 2026-09-02 (local commits, unpushed)
 
 Deterministic TypeScript engine (no model, runs everywhere). Three increments landed, each tested
-(engine suite **558 / 0** after the safety/hardening work below) and adversarially reviewed:
+(engine suite **559 / 0** after the safety/hardening work below) and adversarially reviewed:
 
 - **Macro accuracy** (`2b2f6b6`) — `chooseRecipe` ranks by macro-density fit FIRST (not a tiebreak),
   so fat/carbs land near target instead of ~15–25% over; per-user fiber target; `achievementNote`
@@ -74,10 +74,12 @@ key property: `what_if` clones state and never mutates the real plan.
   vegan as satisfying a vegetarian filter. Reported, not changed: `composeReply` crisis guard keys
   off truthiness (latent); `planWasChanged` is dead in the production flow.
 
-> **Review sweep complete (2026-09-02):** every non-trivial module — macro path, conditions,
-> `agentTools`, `agentLoop`, `exclusions`, `import`, the write-path executor, `targets`/`nutrients`,
-> `reply`/`feed` — adversarially reviewed; ~8 real bugs fixed, each with tests. Remaining files
-> (`grocery`, `streak`, `substitutions`, `storage`) are low-stakes. **12 local commits, unpushed.**
+> **Review sweep COMPLETE (2026-09-02) — EVERY module adversarially reviewed:** macro path,
+> conditions, `agentTools`, `agentLoop`, `exclusions`, `import`, the write-path executor,
+> `targets`/`nutrients`, `reply`/`feed`, `streak`/`grocery`/`substitutions`. ~9 real bugs fixed, each
+> with a test (suite **559 / 0**). `grocery` clean; `substitutions` safe (one flagged `miso→gluten`
+> policy call). **14 local commits, unpushed.** Owner-gated leftovers: the **SSRF fix** on `/api/import`;
+> `what_if` determinism; condition-aware wiring; the `soy sauce → miso` gluten policy; the 7B eval; the push.
 
 ---
 
