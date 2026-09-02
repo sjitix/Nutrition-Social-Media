@@ -12,28 +12,32 @@
  */
 
 /** Category token -> the concrete foods it must also block. */
+// Prepared/compound foods hide allergens their NAME doesn't spell out: pesto carries tree nuts
+// (pine/cashew) AND parmesan; hummus carries tahini (sesame); Caesar dressing carries anchovy (fish).
+// Each is listed under every allergen it can carry. Blocking an occasionally-safe prep is the right
+// failure direction — the alternative is putting an allergen on someone's plate.
 const CATEGORY_TERMS: Record<string, string[]> = {
-  nut: ["almond", "walnut", "pecan", "cashew", "hazelnut", "pistachio", "macadamia", "peanut", "nut"],
-  nuts: ["almond", "walnut", "pecan", "cashew", "hazelnut", "pistachio", "macadamia", "peanut", "nut"],
-  "tree nut": ["almond", "walnut", "pecan", "cashew", "hazelnut", "pistachio", "macadamia"],
-  "tree nuts": ["almond", "walnut", "pecan", "cashew", "hazelnut", "pistachio", "macadamia"],
+  nut: ["almond", "walnut", "pecan", "cashew", "hazelnut", "pistachio", "macadamia", "peanut", "nut", "pesto"],
+  nuts: ["almond", "walnut", "pecan", "cashew", "hazelnut", "pistachio", "macadamia", "peanut", "nut", "pesto"],
+  "tree nut": ["almond", "walnut", "pecan", "cashew", "hazelnut", "pistachio", "macadamia", "pesto"],
+  "tree nuts": ["almond", "walnut", "pecan", "cashew", "hazelnut", "pistachio", "macadamia", "pesto"],
 
-  dairy: ["milk", "cheese", "yogurt", "butter", "cream", "feta", "mozzarella", "cheddar", "parmesan", "ricotta", "halloumi", "dairy"],
-  lactose: ["milk", "cheese", "yogurt", "butter", "cream", "feta", "mozzarella", "cheddar", "parmesan", "ricotta", "halloumi"],
+  dairy: ["milk", "cheese", "yogurt", "butter", "cream", "feta", "mozzarella", "cheddar", "parmesan", "ricotta", "halloumi", "dairy", "pesto"],
+  lactose: ["milk", "cheese", "yogurt", "butter", "cream", "feta", "mozzarella", "cheddar", "parmesan", "ricotta", "halloumi", "pesto"],
   // "milk" is what people actually type for a cow's-milk-protein allergy. It must mean dairy,
   // not just the literal word, or cheddar sails straight through.
-  milk: ["milk", "cheese", "yogurt", "butter", "cream", "feta", "mozzarella", "cheddar", "parmesan", "ricotta", "halloumi", "dairy"],
+  milk: ["milk", "cheese", "yogurt", "butter", "cream", "feta", "mozzarella", "cheddar", "parmesan", "ricotta", "halloumi", "dairy", "pesto"],
 
   // teriyaki is soy sauce with wheat in it — it belongs in all three lists.
   gluten: ["bread", "pasta", "couscous", "bulgur", "orzo", "panko", "spaghetti", "penne", "noodle", "noodles", "bagel", "wrap", "tortilla", "flour", "muesli", "granola", "soy sauce", "teriyaki", "wheat", "toast", "bun"],
   wheat: ["bread", "pasta", "couscous", "bulgur", "orzo", "panko", "spaghetti", "penne", "bagel", "wrap", "tortilla", "flour", "teriyaki", "wheat", "toast", "bun"],
 
   shellfish: ["shrimp", "prawn", "prawns", "crab", "lobster"],
-  fish: ["salmon", "tuna", "cod", "mackerel", "trout", "anchovy", "fish"],
-  seafood: ["salmon", "tuna", "cod", "mackerel", "trout", "shrimp", "prawn", "prawns", "fish"],
+  fish: ["salmon", "tuna", "cod", "mackerel", "trout", "anchovy", "fish", "caesar dressing"],
+  seafood: ["salmon", "tuna", "cod", "mackerel", "trout", "shrimp", "prawn", "prawns", "fish", "caesar dressing"],
 
   soy: ["tofu", "tempeh", "edamame", "soy", "miso", "soy sauce", "teriyaki"],
-  sesame: ["sesame", "tahini"],
+  sesame: ["sesame", "tahini", "hummus"],
   pork: ["pork", "bacon", "chorizo", "sausage", "ham"],
   eggs: ["egg", "eggs"],
 };

@@ -378,6 +378,23 @@ console.log("\n--- ALLERGENS & DATA INTEGRITY (hard rules) ---");
   check("...but a nut butter is not dairy", !isDairy("chicken breast peanut butter brown rice"));
 }
 {
+  // Hidden allergens in prepared/compound foods (adversarial allergen review): the food's NAME never
+  // says the allergen, but it carries one. These slipped through until CATEGORY_TERMS learned them.
+  check("allergen: 'sesame' blocks hummus (tahini)",
+    haystackBlocked("Turkey & Hummus Power Wrap hummus wholemeal wrap", ["sesame"]) === true);
+  check("allergen: 'nuts' blocks pesto (pine nuts / cashews)",
+    haystackBlocked("Pesto Bean Pot pesto cannellini beans", ["nuts"]) === true);
+  check("allergen: 'dairy' blocks pesto (parmesan)",
+    haystackBlocked("Pesto Bean Pot pesto cannellini beans", ["dairy"]) === true);
+  check("allergen: 'fish' blocks Caesar dressing (anchovy)",
+    haystackBlocked("Chicken Caesar Bowl light caesar dressing romaine", ["fish"]) === true);
+  // ...and the new terms must not over-block a dish that merely rhymes / lacks the compound food.
+  check("allergen: 'sesame' leaves a hummus-free wrap alone",
+    haystackBlocked("Turkey Salad Wrap turkey lettuce wholemeal wrap", ["sesame"]) === false);
+  check("allergen: 'nuts' leaves a pesto-free bean pot alone",
+    haystackBlocked("Tomato Bean Pot cannellini beans tomato basil", ["nuts"]) === false);
+}
+{
   // ...but it must not over-block: "egg" is not "eggplant", "oat" is not "goat cheese".
   const noEgg: UserProfile = { ...BASE, dislikes: "egg" };
   check("'egg' does not block eggplant", haystackBlocked("Eggplant Parmesan eggplant", ["egg"]) === false);
