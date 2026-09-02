@@ -6,7 +6,7 @@ local commits) and the 7B assistant (trained, awaiting eval).
 ## ▶ Meal-generation engine — 2026-09-02 (local commits, unpushed)
 
 Deterministic TypeScript engine (no model, runs everywhere). Three increments landed, each tested
-(engine suite **531 / 0**) and adversarially reviewed:
+(engine suite **539 / 0**) and adversarially reviewed:
 
 - **Macro accuracy** (`2b2f6b6`) — `chooseRecipe` ranks by macro-density fit FIRST (not a tiebreak),
   so fat/carbs land near target instead of ~15–25% over; per-user fiber target; `achievementNote`
@@ -26,6 +26,22 @@ Deterministic TypeScript engine (no model, runs everywhere). Three increments la
 **Diagnosed + parked** (data/product-gated, not bugs — see memory `recipe-db-constraints`): vegan/veg
 protein monotony (`MainProtein` enum has only 2 vegan / 4 veg sources — needs more recipes); budget
 `high` == `medium` (no recipe costs > 3).
+
+## ▶ Agent layer — 2026-09-02 (local commit `fab49fd`)
+
+The pulled-in agent loop (`agentLoop.ts` / `agentTools.ts`) was built but never model-driven. Hardened
+its DETERMINISTIC contracts (VISION rule 2 — tested with scripted providers, no model):
+
+- **+5 loop tests**: undo through the loop restores the pre-write plan and clears the one-level undo
+  slot; a read + a write in one turn both run; a `remember` op marks the profile changed.
+- **`agentTools` read-surface bugs fixed** (adversarial review): `inspect_recipe("")` no longer
+  returns an arbitrary dish; `find_recipes` coerces bad `limit`/`query` args (no NaN, no throw).
+- **De-flaked** a swap/pin test that had assumed which slot a dish lands in.
+
+**Decision needed:** `what_if` previews are **non-deterministic** — `chooseRecipe`'s `Math.random`
+variety tiebreak means a preview may not exactly match the eventual commit. Fixing it (a seedable
+engine) trades against deliberate regenerate-variety, so it's an architecture call. It is safe on the
+key property: `what_if` clones state and never mutates the real plan.
 
 ---
 
