@@ -6,7 +6,7 @@ local commits) and the 7B assistant (trained, awaiting eval).
 ## ▶ Meal-generation engine — 2026-09-02 (local commits, unpushed)
 
 Deterministic TypeScript engine (no model, runs everywhere). Three increments landed, each tested
-(engine suite **548 / 0** after the safety/executor work below) and adversarially reviewed:
+(engine suite **558 / 0** after the safety/hardening work below) and adversarially reviewed:
 
 - **Macro accuracy** (`2b2f6b6`) — `chooseRecipe` ranks by macro-density fit FIRST (not a tiebreak),
   so fat/carbs land near target instead of ~15–25% over; per-user fiber target; `achievementNote`
@@ -66,6 +66,18 @@ key property: `what_if` clones state and never mutates the real plan.
   whole-week `swap_meal` discloses the week's macros honestly instead of a blanket "kept on target";
   `regenerate_day` guarded against a missing day. Reported, not changed (numbers honest / convoluted):
   single-day `swap_meal`'s unconditional "kept on target" label; a `scale_portions` success-note corner.
+
+- **Reply/feed hardening** (`f1d1e9e`) — `composeReply` now de-duplicates notes (the user was shown
+  the same sentence twice when an op repeated / notes accumulated across agent-loop steps) and can't
+  return a blank; feed search matches at WORD STARTS (`"oat"` no longer hits "goat", `"chick"` still
+  finds chicken) — the substring over-match the allergen path abandoned; `filterFeed` now treats
+  vegan as satisfying a vegetarian filter. Reported, not changed: `composeReply` crisis guard keys
+  off truthiness (latent); `planWasChanged` is dead in the production flow.
+
+> **Review sweep complete (2026-09-02):** every non-trivial module — macro path, conditions,
+> `agentTools`, `agentLoop`, `exclusions`, `import`, the write-path executor, `targets`/`nutrients`,
+> `reply`/`feed` — adversarially reviewed; ~8 real bugs fixed, each with tests. Remaining files
+> (`grocery`, `streak`, `substitutions`, `storage`) are low-stakes. **12 local commits, unpushed.**
 
 ---
 
