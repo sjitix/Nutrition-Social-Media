@@ -9927,8 +9927,8 @@ export function applyOperations(
           : newDay.meals;
         curPlan = { ...curPlan, days: curPlan.days.map((d) => (d.day === op.day ? { ...newDay, meals } : d)) };
         applyLocks(new Set([op.day]), tp);
-        const finalDay = curPlan.days.find((d) => d.day === op.day)!;
-        if (keepMacros(op)) notes.push(achievementNote(`${op.day} now has`, dayTotalsFull(finalDay), tp));
+        const finalDay = curPlan.days.find((d) => d.day === op.day);
+        if (keepMacros(op) && finalDay) notes.push(achievementNote(`${op.day} now has`, dayTotalsFull(finalDay), tp));
         break;
       }
       case "swap_meal": {
@@ -9964,7 +9964,10 @@ export function applyOperations(
           const wanted = op.dish.toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 2);
           if (wanted.length && wanted.some((w) => !match.name.toLowerCase().includes(w)))
             notes.push(`I didn't have "${op.dish}" — I used ${match.name}.`);
-          notes.push(`Set ${match.name} as your ${slot} every day${keepMacros(op) ? ", and kept each day on your targets" : ""}.`);
+          // Say what changed, then disclose the week's macros honestly (the same achievementNote the
+          // regenerate paths use) rather than an unverified blanket "kept each day on target".
+          notes.push(`Set ${match.name} as your ${slot} every day.`);
+          if (keepMacros(op)) notes.push(achievementNote("Your week now averages", weekAveragesFull(curPlan), p));
           break;
         }
         // Macro-aware pick: matches the requested dish, tie-broken toward the slot's
@@ -10125,7 +10128,14 @@ export function applyOperations(
         // this, logging a 1400 kcal breakfast rescaled the pinned dinner to its 0.6x floor and the
         // protein-upgrade lever was free to replace the dish outright.
         const locked = new Set([...slotsUpTo(op.mealType), ...lockedSlotsFor(p, op.day)]);
-        const withEaten = origDay.meals.map((m) => (m.type === op.mealType ? eaten! : m));
+        // A logged meal is a FACT to absorb, not an edit to an existing slot. If the day has no slot
+        // of this type (a 3-meal plan, a snack logged), ADD it — a plain replace-map would drop the
+        // eaten meal, rebalance the day as if it never happened, and then the note would claim
+        // calories the plan never actually carried (silent data loss + a false accounting).
+        const hasSlot = origDay.meals.some((m) => m.type === op.mealType);
+        const withEaten = hasSlot
+          ? origDay.meals.map((m) => (m.type === op.mealType ? eaten! : m))
+          : [...origDay.meals, eaten!];
         const newMeals = rebalanceDay(withEaten, p, locked, namesOnOtherDays(curPlan, op.day, p));
         curPlan = { ...curPlan, days: curPlan.days.map((d) => (d.day === op.day ? { ...d, meals: newMeals } : d)) };
 

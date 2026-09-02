@@ -620,6 +620,19 @@ console.log("\n--- LOG_MEAL (real life derails the plan) ---");
   const d = told.plan.days.find((x) => x.day === "Monday")!;
   check("log_meal: accepts user-supplied calories and re-solves", d.meals.some((m) => /lasagna/i.test(m.name)) && Math.abs(kcal(d) - 2000) <= 150, `${kcal(d)} kcal`);
 }
+{
+  // log_meal on a slot the day doesn't have (BASE is 3 meals — no snack) must ABSORB the eaten meal,
+  // not silently drop it and then misreport the day. A plain replace-map used to lose it entirely.
+  const wk = freshWeek(BASE);
+  // No dish -> the user-supplied 900 kcal is used verbatim (a matched recipe would carry its own).
+  const r = applyOperations(BASE, wk, [op({ tool: "log_meal", day: "Monday", mealType: "snack", loggedCalories: 900, loggedProtein: 20 } as never)]);
+  const mon = r.plan.days.find((x) => x.day === "Monday")!;
+  const snack = mon.meals.find((m) => m.type === "snack");
+  check("log_meal: a snack logged on a 3-meal day is ADDED at its logged calories, not dropped",
+    Boolean(snack) && snack!.calories === 900, `slots ${mon.meals.map((m) => m.type).join(",")}`);
+  check("log_meal: adding the snack gives the day a 4th slot (not a silent replace)", mon.meals.length === 4, `${mon.meals.length} meals`);
+  check("log_meal: the note reports it was logged", r.notes.some((n) => /Logged/.test(n)), (r.notes[0] ?? "").slice(0, 60));
+}
 
 // ---------------------------------------------------------------- 1f. initial-generation macro accuracy
 // Calories and protein were already driven hard; carbs/fat/fiber were traded away (weighted 1/1/0.5
