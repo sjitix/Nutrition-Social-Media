@@ -565,16 +565,34 @@ console.log("\n--- COMPUTE_TARGETS (the engine does the arithmetic) ---");
   // A tiny sedentary person on a deficit must not be planned below the floor.
   const t = computeTargets({ age: 65, heightCm: 150, weightKg: 45, sex: "female", activity: "sedentary", goal: "lose_weight" });
   check("calorie floor is enforced and disclosed", t.calories >= 1200 && t.clampedTo === 1200, `${t.calories} clampedTo=${t.clampedTo}`);
+  // Unknown / other sex (e.g. a nonbinary user) must still get the floor, not silently skip it.
+  const other = computeTargets({ age: 65, heightCm: 150, weightKg: 45, sex: "other" as never, activity: "sedentary", goal: "lose_weight" });
+  check("calorie floor applies for an unknown sex too", other.clampedTo === 1200 && other.calories === 1200, `${other.calories} clampedTo=${other.clampedTo}`);
 }
 {
   // The tool must refuse to invent a body weight.
   const wk = freshWeek(BASE);
   const partial = applyOperations(BASE, wk, [op({ tool: "compute_targets", age: 30, heightCm: 180 } as never)]);
   check("missing facts -> asks, never guesses", partial.notes.some((n) => /I need your/.test(n)) && partial.profile.targetCalories === 2000, partial.notes[0] ?? "(none)");
+  // Present but nonsensical (0 / negative) must be refused too — no NaN/zero/negative target slips out.
+  const zero = applyOperations(BASE, wk, [op({ tool: "compute_targets", age: 30, heightCm: 180, weightKg: 0, sex: "male", activity: "moderate" } as never)]);
+  check("invalid body stats -> refused, targets untouched", zero.notes.some((n) => /doesn't look right/.test(n)) && zero.profile.targetCalories === 2000, zero.notes[0] ?? "(none)");
+  const neg = applyOperations(BASE, wk, [op({ tool: "compute_targets", age: 30, heightCm: 180, weightKg: -80, sex: "male", activity: "moderate" } as never)]);
+  check("negative body stats -> refused too", neg.notes.some((n) => /doesn't look right/.test(n)) && neg.profile.proteinGrams === 150);
 
   const full = applyOperations(BASE, wk, [op({ tool: "compute_targets", age: 30, heightCm: 180, weightKg: 80, sex: "male", activity: "moderate", goal: "build_muscle" } as never)]);
   check("full facts -> profile targets are set", full.profile.targetCalories > 2900 && full.profile.proteinGrams === 152, `${full.profile.targetCalories} kcal, ${full.profile.proteinGrams}g protein`);
   check("compute_targets explains itself in plain English", full.notes.some((n) => /resting burn/.test(n)), (full.notes[0] ?? "").slice(0, 90));
+}
+{
+  // gramsFor must read a MIXED number ("1 1/2") as 1.5, not the old silent 100g misparse; and a
+  // plain "1/2" must still halve (regression guard for the widened regex). Ratios avoid magic grams.
+  const one = gramsFor("olive oil", "1 tbsp");
+  const oneHalf = gramsFor("olive oil", "1 1/2 tbsp");
+  const half = gramsFor("olive oil", "1/2 tbsp");
+  check("gramsFor: '1 1/2 tbsp' parses as 1.5x (mixed number), not a 100g misparse",
+    one != null && oneHalf != null && Math.abs(oneHalf - 1.5 * one) < 1e-9, `${one} -> ${oneHalf}`);
+  check("gramsFor: '1/2 tbsp' still halves", one != null && half != null && Math.abs(half - 0.5 * one) < 1e-9, `${half}`);
 }
 
 // ---------------------------------------------------------------- 1e. log_meal

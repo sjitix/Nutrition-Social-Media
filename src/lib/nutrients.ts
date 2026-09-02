@@ -24,11 +24,14 @@ export const emptyMicros = (): Micros =>
 
 /** Units a human writes: "70 g dry", "1 tbsp", "2" (a count), "1/2 piece", "1 can". */
 export function gramsFor(ingredient: string, quantity: string): number | null {
-  const m = quantity.trim().match(/^(\d+(?:\.\d+)?)(?:\s*\/\s*(\d+))?\s*([a-zA-Z-]+)?/);
+  // Optional leading whole number so MIXED numbers parse ("1 1/2 cups" = 1.5). Without it the whole
+  // was read as the amount and the "1/2" fell through to unit="count" -> a silent 100 g misparse
+  // (common on imported recipe pages). Groups: [1] whole, [2] number/numerator, [3] denominator, [4] unit.
+  const m = quantity.trim().match(/^(?:(\d+)\s+)?(\d+(?:\.\d+)?)(?:\s*\/\s*(\d+))?\s*([a-zA-Z-]+)?/);
   if (!m) return null;
-  const amount = m[2] ? Number(m[1]) / Number(m[2]) : Number(m[1]);
+  const amount = (m[1] ? Number(m[1]) : 0) + (m[3] ? Number(m[2]) / Number(m[3]) : Number(m[2]));
   if (!Number.isFinite(amount) || amount <= 0) return null;
-  const unit = (m[3] ?? "count").toLowerCase();
+  const unit = (m[4] ?? "count").toLowerCase();
   const key = ingredient.trim().toLowerCase();
   const g = UNIT_GRAMS.perIngredient[key]?.[unit] ?? UNIT_GRAMS.default[unit];
   return g == null ? null : amount * g;

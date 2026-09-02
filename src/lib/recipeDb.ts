@@ -10054,6 +10054,20 @@ export function applyOperations(
           notes.push(`I need your ${missing.join(", ")} before I can work out your targets.`);
           break;
         }
+        // Present but nonsensical (0, negative, non-finite) must be refused too — this is the layer
+        // that does the arithmetic so the model never does, and it must not turn a bad number into a
+        // NaN/negative calorie or protein target.
+        const bad = (
+          [
+            ["age", op.age],
+            ["height", op.heightCm],
+            ["weight", op.weightKg],
+          ] as const
+        ).filter(([, v]) => !Number.isFinite(v as number) || (v as number) <= 0).map(([k]) => k);
+        if (bad.length) {
+          notes.push(`Your ${bad.join(", ")} doesn't look right — I can only work targets from real, positive numbers.`);
+          break;
+        }
         const t = computeTargets({
           age: op.age!,
           heightCm: op.heightCm!,

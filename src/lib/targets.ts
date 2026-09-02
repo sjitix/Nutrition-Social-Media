@@ -68,7 +68,9 @@ export function computeTargets(input: TargetInput): Targets {
 
   // Never plan below the floor — you cannot hit micronutrient needs on less.
   let clampedTo: number | undefined;
-  const floor = CALORIE_FLOOR[input.sex];
+  // Fall back to the lower floor when sex is anything but male/female (unknown/other) — otherwise the
+  // safety floor is silently skipped and a small person on a deficit can be walked below it.
+  const floor = CALORIE_FLOOR[input.sex] ?? DEFAULT_CALORIE_FLOOR;
   if (calories < floor) {
     clampedTo = floor;
     calories = floor;
