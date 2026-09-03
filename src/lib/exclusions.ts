@@ -22,24 +22,32 @@ const CATEGORY_TERMS: Record<string, string[]> = {
   "tree nut": ["almond", "walnut", "pecan", "cashew", "hazelnut", "pistachio", "macadamia", "pesto"],
   "tree nuts": ["almond", "walnut", "pecan", "cashew", "hazelnut", "pistachio", "macadamia", "pesto"],
 
-  dairy: ["milk", "cheese", "yogurt", "butter", "cream", "feta", "mozzarella", "cheddar", "parmesan", "ricotta", "halloumi", "dairy", "pesto"],
-  lactose: ["milk", "cheese", "yogurt", "butter", "cream", "feta", "mozzarella", "cheddar", "parmesan", "ricotta", "halloumi", "pesto"],
+  dairy: ["milk", "cheese", "yogurt", "butter", "cream", "feta", "mozzarella", "cheddar", "parmesan", "ricotta", "halloumi", "dairy", "pesto", "caesar dressing"],
+  lactose: ["milk", "cheese", "yogurt", "butter", "cream", "feta", "mozzarella", "cheddar", "parmesan", "ricotta", "halloumi", "pesto", "caesar dressing"],
   // "milk" is what people actually type for a cow's-milk-protein allergy. It must mean dairy,
   // not just the literal word, or cheddar sails straight through.
-  milk: ["milk", "cheese", "yogurt", "butter", "cream", "feta", "mozzarella", "cheddar", "parmesan", "ricotta", "halloumi", "dairy", "pesto"],
+  milk: ["milk", "cheese", "yogurt", "butter", "cream", "feta", "mozzarella", "cheddar", "parmesan", "ricotta", "halloumi", "dairy", "pesto", "caesar dressing"],
 
-  // teriyaki is soy sauce with wheat in it — it belongs in all three lists.
-  gluten: ["bread", "pasta", "couscous", "bulgur", "orzo", "panko", "spaghetti", "penne", "noodle", "noodles", "bagel", "wrap", "tortilla", "flour", "muesli", "granola", "soy sauce", "teriyaki", "wheat", "toast", "bun"],
-  wheat: ["bread", "pasta", "couscous", "bulgur", "orzo", "panko", "spaghetti", "penne", "bagel", "wrap", "tortilla", "flour", "teriyaki", "wheat", "toast", "bun"],
+  // teriyaki AND the hyphenated soy sauces (soy-ginger / ginger-soy / sesame-soy) are soy sauce with
+  // wheat in it — they belong in all three lists. The hyphenated names slipped the "soy sauce" term:
+  // it is matched as a phrase and "soy-ginger sauce" does not contain it, so a coeliac excluding
+  // "gluten"/"wheat" was served them. (Found by an adversarial under-block review, 2026-09-03.)
+  gluten: ["bread", "pasta", "couscous", "bulgur", "orzo", "panko", "spaghetti", "penne", "noodle", "noodles", "bagel", "wrap", "tortilla", "flour", "muesli", "granola", "soy sauce", "soy-ginger sauce", "ginger-soy sauce", "sesame-soy sauce", "teriyaki", "wheat", "toast", "bun"],
+  wheat: ["bread", "pasta", "couscous", "bulgur", "orzo", "panko", "spaghetti", "penne", "bagel", "wrap", "tortilla", "flour", "soy sauce", "soy-ginger sauce", "ginger-soy sauce", "sesame-soy sauce", "teriyaki", "wheat", "toast", "bun"],
 
   shellfish: ["shrimp", "prawn", "prawns", "crab", "lobster"],
   fish: ["salmon", "tuna", "cod", "mackerel", "trout", "anchovy", "fish", "caesar dressing"],
   seafood: ["salmon", "tuna", "cod", "mackerel", "trout", "shrimp", "prawn", "prawns", "fish", "caesar dressing"],
 
-  soy: ["tofu", "tempeh", "edamame", "soy", "miso", "soy sauce", "teriyaki"],
-  sesame: ["sesame", "tahini", "hummus"],
+  soy: ["tofu", "tempeh", "edamame", "soy", "miso", "soy sauce", "soy-ginger sauce", "ginger-soy sauce", "sesame-soy sauce", "teriyaki"],
+  sesame: ["sesame", "tahini", "hummus", "sesame-soy sauce"],
   pork: ["pork", "bacon", "chorizo", "sausage", "ham"],
-  eggs: ["egg", "eggs"],
+  // caesar dressing is raw egg yolk + parmesan + anchovy — it hides egg and dairy the way its name
+  // hides the anchovy already covered under fish/seafood. Mirror the pesto (nut+dairy) precedent.
+  // BOTH "egg" and "eggs" are keyed (like nut/nuts): a singular allergy must expand too, or a user
+  // who typed "egg" would get no category expansion and Caesar dressing would slip straight through.
+  egg: ["egg", "eggs", "caesar dressing"],
+  eggs: ["egg", "eggs", "caesar dressing"],
 };
 
 /** Suffixes that still mean "the same food/verb": almond->almonds, bake->baked/baking. */
@@ -150,8 +158,8 @@ export function parseExclusionTokens(allergies: string, dislikes: string): strin
 /** Ingredient names containing gluten. Substring match against the ingredient name. */
 const GLUTEN_INGREDIENTS = [
   "bread", "pasta", "couscous", "bulgur", "orzo", "spaghetti", "penne", "panko", "bagel",
-  "tortilla", "wrap", "soy sauce", "muesli", "granola", "noodles", "toast", "bun", "wheat",
-  "flour", "pizza base",
+  "tortilla", "wrap", "soy sauce", "soy-ginger sauce", "ginger-soy sauce", "sesame-soy sauce",
+  "teriyaki", "muesli", "granola", "noodles", "toast", "bun", "wheat", "flour", "pizza base",
 ];
 
 /**
@@ -171,7 +179,7 @@ export function ingredientHasGluten(ingredientName: string): boolean {
 const NON_VEGAN = [
   "milk", "cheese", "yogurt", "butter", "cream", "feta", "mozzarella", "cheddar", "parmesan",
   "ricotta", "halloumi", "honey", "egg", "chicken", "beef", "pork", "turkey", "salmon", "tuna",
-  "cod", "shrimp", "prawns", "mackerel", "trout", "sausage", "steak", "bacon", "protein powder",
+  "cod", "shrimp", "prawn", "prawns", "mackerel", "trout", "sausage", "steak", "bacon", "protein powder",
   "ice cream",
 ];
 /** Contain a NON_VEGAN word but are plant foods. Without these, peanut butter reads as dairy. */
@@ -188,7 +196,7 @@ const VEGAN_EXCEPTIONS = [
 ];
 
 const NON_VEGETARIAN = [
-  "chicken", "beef", "pork", "turkey", "salmon", "tuna", "cod", "shrimp", "prawns", "mackerel",
+  "chicken", "beef", "pork", "turkey", "salmon", "tuna", "cod", "shrimp", "prawn", "prawns", "mackerel",
   "trout", "sausage", "steak", "bacon", "anchovy", "gelatin",
 ];
 

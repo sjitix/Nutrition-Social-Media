@@ -1412,7 +1412,7 @@ const SEED_RECIPES: RecipeSeed[] = [
     id: "d-chicken-veg-stirfry", name: "Chicken & Vegetable Stir-Fry with Rice", type: "dinner",
     cuisine: "asian", mainProtein: "chicken",
     timeMinutes: 20, approxCost: 2,
-    dietTags: ["gluten_free"],
+    dietTags: [],
     description: "Quick chicken stir-fry with mixed vegetables over rice.",
     ingredients: [
       { name: "chicken breast", quantity: "160 g" },

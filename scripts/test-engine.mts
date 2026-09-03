@@ -390,7 +390,20 @@ console.log("\n--- ALLERGENS & DATA INTEGRITY (hard rules) ---");
     haystackBlocked("Pesto Bean Pot pesto cannellini beans", ["dairy"]) === true);
   check("allergen: 'fish' blocks Caesar dressing (anchovy)",
     haystackBlocked("Chicken Caesar Bowl light caesar dressing romaine", ["fish"]) === true);
+  // Hyphenated soy sauces (soy-ginger / ginger-soy / sesame-soy) are wheat-bearing soy sauce but did
+  // not contain the phrase "soy sauce", so gluten/wheat missed them (adversarial under-block review).
+  check("allergen: 'gluten' blocks a hyphenated soy sauce",
+    haystackBlocked("Chicken Veg Stir-Fry soy-ginger sauce rice", ["gluten"]) === true);
+  check("allergen: 'wheat' blocks a hyphenated soy sauce",
+    haystackBlocked("Beef & Broccoli Bowl ginger-soy sauce rice", ["wheat"]) === true);
+  // Caesar dressing hides raw egg — and a SINGULAR "egg" allergy must expand to it, not just "eggs".
+  check("allergen: 'egg' (singular) blocks Caesar dressing (raw yolk)",
+    haystackBlocked("Chicken Caesar Bowl light caesar dressing romaine", ["egg"]) === true);
+  check("allergen: 'eggs' (plural) also blocks Caesar dressing",
+    haystackBlocked("Chicken Caesar Bowl light caesar dressing romaine", ["eggs"]) === true);
   // ...and the new terms must not over-block a dish that merely rhymes / lacks the compound food.
+  check("allergen: 'gluten' leaves a soy-free rice bowl alone",
+    haystackBlocked("Chicken Rice Bowl chicken brown rice broccoli", ["gluten"]) === false);
   check("allergen: 'sesame' leaves a hummus-free wrap alone",
     haystackBlocked("Turkey Salad Wrap turkey lettuce wholemeal wrap", ["sesame"]) === false);
   check("allergen: 'nuts' leaves a pesto-free bean pot alone",
