@@ -50,14 +50,16 @@ each with a regression test:
 suggestion for a gluten allergy — an owner dietary-policy call (blocking all miso over-blocks GF rice
 miso). Recorded in memory `recipe-db-constraints`.
 
-**Suite `test:engine` 582/0.** Every high-stakes path now has an adversarial review behind it. Since
+**Suite `test:engine` 589/0.** Every high-stakes path now has an adversarial review behind it. Since
 the sweep, all DONE + pushed: `what_if` seedable determinism (a `withSeed` seam so a simulation is
 reproducible while ordinary generation stays fresh), `gramsFor` units (cup/oz/kg/lb/l), the WORKPLAN
 de-dupe + lesson-35 repair, and a run of hardening fixes — `decodeEntities` RangeError→500, the
 single-day `swap_meal` honesty label, `composeReply`'s crisis guard keying off presence not truthiness,
-a trailing-dot SSRF bypass, and allergen under-block review #2 (hyphenated soy→gluten, Caesar→egg,
-singular-egg key). The trailing-dot and allergen holes were caught by adversarial SELF-reviews of the
-earlier work — worth repeating. `STATUS.md` carries the per-item detail; `WORKPLAN.md` the lessons.
+a trailing-dot SSRF bypass, allergen under-block review #2 (hyphenated soy→gluten, Caesar→egg,
+singular-egg key), and an executor review (`swap_meal` to a slot the day/week LACKS no longer fakes
+success — lesson 14 a third time; `log_meal`/`eating_out` reject a negative calorie number). The
+trailing-dot, allergen, and swap holes were all caught by adversarial SELF-reviews of the earlier work
+— a pattern clearly worth repeating. `STATUS.md` carries the per-item detail; `WORKPLAN.md` the lessons.
 
 **Owner-gated leftovers** (nothing else is autonomously completable): the SSRF connect-time-IP
 residual; the condition-aware generation WIRING decision (ask vs auto-apply); the `miso→gluten`

@@ -43,7 +43,7 @@ variety tiebreak means a preview may not exactly match the eventual commit. Fixi
 engine) trades against deliberate regenerate-variety, so it's an architecture call. It is safe on the
 key property: `what_if` clones state and never mutates the real plan.
 
-## ▶ Safety & security — 2026-09-02, updated 2026-09-03 (SSRF + 7 more fixes, all pushed; 582/0)
+## ▶ Safety & security — 2026-09-02, updated 2026-09-03 (SSRF + 8 more fixes, all pushed; 589/0)
 
 - **Allergen leak FIXED** (`2fc6d22`) — prepared foods hid allergens their name didn't spell out, so a
   nut / dairy / sesame / fish excluder was served pesto / hummus / Caesar dishes. `CATEGORY_TERMS` now
@@ -60,6 +60,21 @@ key property: `what_if` clones state and never mutates the real plan.
   real kimchi has fish sauce/shrimp; tikka masala sauce modeled as plain tomato so `Tikka Masala Tofu`
   reads vegan (and "creamy" in the chicken version — internal inconsistency); buffalo sauce modeled as
   sriracha (real has butter).
+
+- **Executor review FIXED** (`fbf4cc9`, 2026-09-03) — an adversarial pass over `applyOperations` (the
+  write path, the ONLY code allowed to claim a plan change). HIGH: `swap_meal` to a slot the day/week
+  lacks (a snack on a 3-meal plan) matched a real snack recipe but placed nothing, then the note
+  claimed the day / "every day" was updated — a dish never placed + a false claim (the exact two-layer
+  violation the design forbids). It was the missing sibling of the guard `log_meal` (adds the slot)
+  and `eating_out` (warns) already had — **lesson 14 a THIRD time**. Both swap paths now warn honestly
+  and the whole-week path only claims what it placed. MEDIUM: `log_meal`/`eating_out` accepted a
+  negative/non-finite calorie number and locked it into the day (the rebalancer then inflated the
+  others to cover a phantom deficit); now guarded `> 0 && finite` like the other numeric ops. 7 tests.
+  **Reviewed SOLID:** undo (restores exactly, spends the snapshot once), the `planChanged` deep-compare,
+  aliasing (no in-place mutation of caller/undo state), lock/pin handling. **Reported, NOT changed
+  (LOW):** `profileChanged` set true on no-op profile writes (redundant undo point; nothing real
+  dropped); whole-week swap drops pins with only implicit disclosure (marked deliberate); silent
+  no-op breaks on malformed ops.
 
 - **SECURITY — SSRF on `/api/import` FIXED** (`88df7ae`, 2026-09-03). `isSafePublicUrl`
   (`src/lib/import.ts`) validated only the INITIAL url while `fetchHtml` followed redirects
