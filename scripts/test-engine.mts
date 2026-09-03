@@ -235,7 +235,9 @@ console.log("\n--- SCENARIOS (user perspective) ---");
   check("swap: requested dish is present", names(d).toLowerCase().includes("oat"), names(d));
   check("swap: calories held (±120)", Math.abs(kcal(d) - 2000) <= 120, `${kcal(d)} kcal`);
   check("swap: protein recovered (>=138g)", prot(d) >= 138, `${prot(d)}g`);
-  check("swap: emits an honest macro note", r.notes.length === 1 && /protein/.test(r.notes[0]), r.notes[0] ?? "(none)");
+  check("swap: emits an honest macro note (discloses the day's actuals, not a blanket 'on target')",
+    r.notes.length === 1 && /protein/.test(r.notes[0]) && /Monday now has/.test(r.notes[0]) && !/Kept Monday on target/.test(r.notes[0]),
+    r.notes[0] ?? "(none)");
 }
 {
   // "It's my cheat day." -> engine must NOT touch the other meals.

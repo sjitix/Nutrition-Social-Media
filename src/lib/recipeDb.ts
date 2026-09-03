@@ -10058,8 +10058,6 @@ export function applyOperations(
           days: curPlan.days.map((d) => (d.day === op.day ? { ...d, meals: newMeals } : d)),
         };
         if (keepMacros(op)) {
-          const kcal = newMeals.reduce((s, m) => s + m.calories, 0);
-          const protein = newMeals.reduce((s, m) => s + m.proteinGrams, 0);
           // Meals the engine upgraded (a non-locked dish whose name changed) to fit
           // the requested dish in while holding macros.
           const bumped = newMeals.filter(
@@ -10067,10 +10065,18 @@ export function applyOperations(
               nm.type !== match.type &&
               !origDay.meals.some((om) => om.type === nm.type && om.name === nm.name),
           );
-          let note = `Kept ${op.day} on target — about ${kcal} kcal and ${protein}g protein.`;
-          if (bumped.length)
-            note += ` I bumped your ${bumped.map((b) => `${b.type} to ${b.name}`).join(" and ")} to make room.`;
-          notes.push(note);
+          // Disclose the day's ACTUAL macros (the same achievementNote the regenerate and whole-week
+          // swap paths use) instead of an unconditional "Kept on target". The rebalance holds the
+          // OTHER meals to target, but a large requested dish can still push the day off — and
+          // claiming "on target" when it isn't is the exact dishonesty the two-layer design forbids.
+          // This was the sibling the whole-week path had already been fixed for.
+          const finalDay = curPlan.days.find((d) => d.day === op.day);
+          if (finalDay) {
+            let note = achievementNote(`${op.day} now has`, dayTotalsFull(finalDay), p);
+            if (bumped.length)
+              note += ` I bumped your ${bumped.map((b) => `${b.type} to ${b.name}`).join(" and ")} to make room.`;
+            notes.push(note);
+          }
         }
         break;
       }
