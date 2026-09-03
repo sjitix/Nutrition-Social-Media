@@ -32,7 +32,7 @@ import { SUBSTITUTES } from "@/lib/substitutions";
 import { NUTRIENT_TABLE } from "@/lib/nutrientTable.generated";
 import { gramsFor } from "@/lib/nutrients";
 import { MICRO_KEYS, DAILY_REFERENCE, MICRO_LABEL } from "@/lib/nutrients";
-import { parseRecipeHtml, parseIngredient, isSafePublicUrl, importedToMeal } from "@/lib/import";
+import { parseRecipeHtml, parseIngredient, isSafePublicUrl, importedToMeal, decodeEntities } from "@/lib/import";
 import {
   findRecipes, inspectRecipe, getPlan, getProfile, getSaved, report, whatIf,
   runReadTool, isReadTool, READ_TOOL_NAMES, MAX_ROWS,
@@ -2310,6 +2310,13 @@ console.log("--- RECIPE IMPORT (paste a link -> plan-ready meal, deterministic) 
   check("import: blocks a decimal-encoded loopback IP", !isSafePublicUrl("http://2130706433/")); // 127.0.0.1
   // ...without over-blocking ordinary public recipe domains.
   check("import: still allows ordinary public recipe URLs", isSafePublicUrl("https://www.seriouseats.com/recipe") && isSafePublicUrl("http://cooking.nytimes.com/x"));
+
+  // decodeEntities must never crash on a malformed numeric entity. An out-of-range code point used
+  // to throw a RangeError that surfaced as a 500 on the import route; it is now left literal.
+  check("import: decodeEntities decodes valid hex + decimal numeric entities",
+    decodeEntities("&#x63;af&#233;") === "café");
+  check("import: an out-of-range numeric entity is left literal, not thrown on",
+    decodeEntities("x &#99999999; &#x110000; y") === "x &#99999999; &#x110000; y");
 
   // Ingredient parsing: quantity vs name, units, fractions, and the no-quantity case.
   check("import: parses '2 tbsp cumin seeds'", (() => { const p = parseIngredient("2 tbsp cumin seeds"); return p.quantity === "2 tbsp" && p.name === "cumin seeds"; })());

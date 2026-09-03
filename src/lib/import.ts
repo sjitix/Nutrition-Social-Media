@@ -135,9 +135,14 @@ const NAMED_ENTITIES: Record<string, string> = {
   ndash: "-", mdash: "—", hellip: "…", rsquo: "'", lsquo: "'", ldquo: '"', rdquo: '"',
 };
 export function decodeEntities(s: string): string {
+  // A code point outside U+0000..U+10FFFF makes String.fromCodePoint THROW a RangeError, which
+  // reached the import route as a 500 on a malformed page ("&#99999999;"). Decode valid code points;
+  // leave anything out of range as the literal entity it was, rather than crashing the parse.
+  const fromCp = (cp: number, raw: string) =>
+    Number.isFinite(cp) && cp >= 0 && cp <= 0x10ffff ? String.fromCodePoint(cp) : raw;
   return s
-    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
-    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
+    .replace(/&#x([0-9a-f]+);/gi, (m, h) => fromCp(parseInt(h, 16), m))
+    .replace(/&#(\d+);/g, (m, d) => fromCp(Number(d), m))
     .replace(/&([a-z0-9]+);/gi, (m, name) => NAMED_ENTITIES[name.toLowerCase()] ?? m);
 }
 const stripTags = (s: string) => decodeEntities(s.replace(/<[^>]*>/g, " ")).replace(/\s+/g, " ").trim();
