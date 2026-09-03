@@ -3765,7 +3765,13 @@ export const NUTRIENT_TABLE: Record<string, { fdcId: number; desc: string; per10
 export const UNIT_GRAMS: { default: Record<string, number>; perIngredient: Record<string, Record<string, number>> } = {
   "default": {
     "g": 1,
+    "kg": 1000,
+    "oz": 28.35,
+    "lb": 453.6,
     "ml": 1,
+    "l": 1000,
+    "cup": 240,
+    "cups": 240,
     "tbsp": 15,
     "tsp": 5,
     "piece": 100,

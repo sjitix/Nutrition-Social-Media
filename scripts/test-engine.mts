@@ -593,6 +593,17 @@ console.log("\n--- COMPUTE_TARGETS (the engine does the arithmetic) ---");
   check("gramsFor: '1 1/2 tbsp' parses as 1.5x (mixed number), not a 100g misparse",
     one != null && oneHalf != null && Math.abs(oneHalf - 1.5 * one) < 1e-9, `${one} -> ${oneHalf}`);
   check("gramsFor: '1/2 tbsp' still halves", one != null && half != null && Math.abs(half - 0.5 * one) < 1e-9, `${half}`);
+
+  // Weight + volume units added 2026-09-03 (cup/oz/kg/lb/l), so a pasted/imported quantity resolves
+  // to grams instead of silently dropping to null and lowering micro coverage. Weight units are
+  // exact; volume assumes a water-like density (a "cup" is the liquid cup). No recipe uses these
+  // yet, so this is import robustness, not a change to any existing dish's micros.
+  check("gramsFor: ounces (weight, exact)", gramsFor("chicken breast", "4 oz") === 4 * 28.35);
+  check("gramsFor: pounds", gramsFor("ground beef", "1 lb") === 453.6);
+  check("gramsFor: kilograms", gramsFor("flour", "2 kg") === 2000);
+  check("gramsFor: litres (volume, water-like)", gramsFor("stock", "1 l") === 1000);
+  check("gramsFor: a cup defaults to a liquid cup (240 g)", gramsFor("yogurt", "1 cup") === 240);
+  check("gramsFor: cups plural with a mixed number", gramsFor("rice", "1 1/2 cups") === 360);
 }
 
 // ---------------------------------------------------------------- 1e. log_meal

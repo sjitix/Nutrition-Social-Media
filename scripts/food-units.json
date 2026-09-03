@@ -5,11 +5,21 @@
     "but not all of our ingredients, so this table is explicit, reviewable, and versioned.",
     "",
     "'count' = a bare number with no unit ('eggs: 2', 'avocado: 1/2').",
-    "Values are grams unless noted. perIngredient overrides default."
+    "Values are grams unless noted. perIngredient overrides default.",
+    "Weight units (g, kg, oz, lb) are exact. Volume units (ml, l, cup) assume a water-like density;",
+    "'cup' defaults to 240 g (a liquid cup) - give a dry ingredient a perIngredient cup override if it",
+    "ever needs one, the way olive oil overrides tbsp. Our recipes use grams; these units mainly cover",
+    "pasted/imported quantities, and there micros (not the site-provided macros) are what use them."
   ],
   "default": {
     "g": 1,
+    "kg": 1000,
+    "oz": 28.35,
+    "lb": 453.6,
     "ml": 1,
+    "l": 1000,
+    "cup": 240,
+    "cups": 240,
     "tbsp": 15,
     "tsp": 5,
     "piece": 100,
