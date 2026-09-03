@@ -62,12 +62,12 @@ condition-aware wiring decision; the `miso→gluten` policy; the 7B eval (load t
 pushed once the SSRF fix landed (publicising a live hole before fixing it would have been wrong).
 If `git log origin/main..HEAD` is non-empty when you read this, push it.
 
-**DOC BUG found, NOT fixed:** `WORKPLAN.md` has its entire body DUPLICATED — two `## RESUME HERE`
-headers (lines 10 and 1014) and the halves have DIVERGED (~72 KB vs ~77 KB), so it is not a clean 2×
-copy. Left untouched: de-duping safely means reading both halves fully to find the canonical one,
-and deleting ~1000 lines of a build record on a wrong guess is worse than the duplication. Needs a
-manual de-dupe. Because of it, WORKPLAN's RESUME HERE was NOT refreshed this session — this CONTEXT
-block is the current handoff.
+**DOC BUG found and FIXED:** `WORKPLAN.md` had its entire body DUPLICATED (two `## RESUME HERE`
+headers) with the halves diverged, and a corruption at the seam that split lesson 35 so neither copy
+held it intact. Verified surgically first — diffed the halves (identical for ~984 lines, then one
+copy truncated/corrupted, the other complete), removed the corrupted older copy, reconstructed lesson
+35 from both, and refreshed WORKPLAN's RESUME HERE to 2026-09-03 (with new lessons 38-40). WORKPLAN
+is now single-copy and current; see its lesson 40 for the general rule.
 
 ---
 
