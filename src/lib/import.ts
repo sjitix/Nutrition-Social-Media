@@ -29,7 +29,12 @@ export interface ImportedRecipe {
   macrosSource: "site" | "none";
 }
 
-/** Only http(s), and never a private/loopback host — this fetches a URL the user pasted. */
+/**
+ * Only http(s), and never a private / loopback / link-local host or a bare non-public label — this
+ * fetches a URL the user pasted. It validates the URL STRING; a hostname that RESOLVES to a private
+ * IP (DNS rebinding) is not caught here (see the note in fetchHtml), so this is one layer, not the
+ * whole SSRF defence. The complete fix validates the resolved IP at connect time.
+ */
 export function isSafePublicUrl(raw: string): boolean {
   let u: URL;
   try {
@@ -39,12 +44,18 @@ export function isSafePublicUrl(raw: string): boolean {
   }
   if (u.protocol !== "http:" && u.protocol !== "https:") return false;
   const host = u.hostname.toLowerCase();
-  if (host === "localhost" || host.endsWith(".local")) return false;
-  // Block obvious private / link-local / loopback IP literals.
+  if (host === "localhost" || host.endsWith(".local") || host.endsWith(".internal")) return false;
+  // A public host is a dotted FQDN or a bracketed IPv6 literal (rejected below). A bare label
+  // ("intranet", "metadata", a container/service name) resolves internally — reject no-dot hosts.
+  if (!host.includes(".") && !host.startsWith("[")) return false;
+  // Private / loopback / link-local / CGNAT IPv4 literals. The WHATWG URL parser normalises
+  // decimal / octal / hex IPv4 (e.g. http://2130706433 -> 127.0.0.1) to dotted form, so those
+  // encodings are caught by these same tests.
   if (/^127\./.test(host) || /^10\./.test(host) || /^192\.168\./.test(host)) return false;
-  if (/^169\.254\./.test(host)) return false;
-  if (/^172\.(1[6-9]|2\d|3[01])\./.test(host)) return false;
-  if (host === "0.0.0.0" || host === "::1" || host.startsWith("[")) return false;
+  if (/^169\.254\./.test(host) || /^0\./.test(host)) return false; // link-local (incl. cloud metadata) + 0.0.0.0/8
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(host)) return false; // 172.16.0.0/12
+  if (/^100\.(6[4-9]|[789]\d|1[01]\d|12[0-7])\./.test(host)) return false; // 100.64.0.0/10 (CGNAT)
+  if (host === "::1" || host.startsWith("[")) return false; // any IPv6 literal (blunt but safe)
   return true;
 }
 
@@ -61,6 +72,13 @@ export async function fetchHtml(url: string): Promise<string> {
       redirect: "follow",
       signal: controller.signal,
     });
+    // A public URL can 302 to an internal one (169.254.169.254, 127.0.0.1) — the initial-URL check
+    // above never sees the redirect target. Re-validate the FINAL url and refuse to read the body
+    // if it landed somewhere unsafe, so an SSRF redirect can't hand internal content back to the
+    // user. (Residuals a string check can't close: the request still fires once, and a hostname
+    // that RESOLVES to a private IP isn't caught — the complete fix is connect-time IP validation
+    // via a custom undici dispatcher; tracked in STATUS.md.)
+    if (!isSafePublicUrl(res.url)) throw new Error("that link redirected somewhere I can't fetch.");
     if (!res.ok) throw new Error(`the site returned ${res.status}`);
     // Cap the body so a huge/streaming response can't exhaust memory.
     const buf = await res.arrayBuffer();

@@ -2292,6 +2292,13 @@ console.log("--- RECIPE IMPORT (paste a link -> plan-ready meal, deterministic) 
   check("import: blocks loopback IP", !isSafePublicUrl("http://127.0.0.1/x"));
   check("import: blocks private ranges", !isSafePublicUrl("http://192.168.1.1/x") && !isSafePublicUrl("http://10.0.0.5/x") && !isSafePublicUrl("http://169.254.1.1/x"));
   check("import: blocks non-http schemes", !isSafePublicUrl("ftp://example.com/x") && !isSafePublicUrl("file:///etc/passwd"));
+  // Extra SSRF bypass classes closed 2026-09-03.
+  check("import: blocks a bare internal hostname (no dot)", !isSafePublicUrl("http://metadata/latest") && !isSafePublicUrl("http://intranet/"));
+  check("import: blocks 0.0.0.0/8 and CGNAT", !isSafePublicUrl("http://0.0.0.1/x") && !isSafePublicUrl("http://100.64.0.1/x"));
+  check("import: blocks the .internal TLD", !isSafePublicUrl("http://foo.internal/x"));
+  check("import: blocks a decimal-encoded loopback IP", !isSafePublicUrl("http://2130706433/")); // 127.0.0.1
+  // ...without over-blocking ordinary public recipe domains.
+  check("import: still allows ordinary public recipe URLs", isSafePublicUrl("https://www.seriouseats.com/recipe") && isSafePublicUrl("http://cooking.nytimes.com/x"));
 
   // Ingredient parsing: quantity vs name, units, fractions, and the no-quantity case.
   check("import: parses '2 tbsp cumin seeds'", (() => { const p = parseIngredient("2 tbsp cumin seeds"); return p.quantity === "2 tbsp" && p.name === "cumin seeds"; })());
