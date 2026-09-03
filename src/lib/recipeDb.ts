@@ -7974,6 +7974,42 @@ interface PickContext {
   ratings?: ReadonlyMap<string, number>; // lowercased recipe name -> 1..5, what the user thought
 }
 
+// Selection makes ONE random choice — the tie-break among the near-best dishes in chooseRecipe —
+// and that is deliberately what keeps "generate again" fresh. `what_if` needs the opposite: a
+// simulation the agent can re-run and get the SAME answer, so it can reason about a change instead
+// of chasing a different preview each call. So the one random draw reads through this seam. The
+// default is Math.random (fresh); a caller wanting reproducibility wraps a SYNCHRONOUS selection
+// call in `withSeed`. Nothing else changes, so ordinary generation keeps its variety.
+let _rng: () => number = Math.random;
+
+/** mulberry32 — a tiny, fast, seedable PRNG. Uniform enough for a single tie-break index. */
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Run `fn` with selection's randomness seeded, so its result is reproducible. SYNCHRONOUS only —
+ * the seam is restored the instant `fn` returns, so anything async would run under the restored
+ * (unseeded) rng and defeat the point. `what_if` uses this to make a simulation stable; ordinary
+ * generation does not, so "generate again" stays fresh.
+ */
+export function withSeed<T>(seed: number, fn: () => T): T {
+  const prev = _rng;
+  _rng = mulberry32(seed);
+  try {
+    return fn();
+  } finally {
+    _rng = prev;
+  }
+}
+
 // Choose the best candidate: prefer unused dishes, then a fresh protein, then a
 // new cuisine for the day, then closest to the calorie target — with a little
 // randomness among the top few so "generate again" varies.
@@ -8058,7 +8094,7 @@ function chooseRecipe(candidates: Recipe[], ctx: PickContext): Recipe | null {
     ((ctx.ratings?.get(r.name.toLowerCase()) ?? 0) === 2 ? 8 : 0);
   const maxScore = Math.max(...top.map(score));
   const best = top.filter((r) => score(r) >= maxScore - 0.5);
-  return best[Math.floor(Math.random() * best.length)];
+  return best[Math.floor(_rng() * best.length)];
 }
 
 // Scale a numeric ingredient quantity ("150 g", "1/2 piece") by a factor so the

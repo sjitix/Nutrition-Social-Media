@@ -30,6 +30,7 @@ import {
   RECIPES,
   recipeToMeal,
   weeklyReportNote,
+  withSeed,
   type DietTag,
   type Recipe,
 } from "./recipeDb";
@@ -278,12 +279,19 @@ export function report(ctx: AgentContext, scope: "week" | "day" = "week", day?: 
  * functional, but "believed" is not good enough for a dry run whose entire purpose is to not
  * change anything — a clone makes the guarantee structural rather than a matter of trust.
  */
+// A fixed seed for what_if's selection randomness. Determinism is per-call — the same ctx and the
+// same operations always simulate to the same preview — which is what lets the agent compare two
+// options instead of chasing a different result each time it asks.
+const WHATIF_SEED = 0x5eed;
+
 export function whatIf(ctx: AgentContext, operations: PrimitiveOp[]) {
   const profile = structuredClone(ctx.profile);
   const plan = structuredClone(ctx.plan);
   const before = plan.days.map((d) => ({ day: d.day, ...dayTotals(d) }));
 
-  const res = applyPrimitives(profile, plan, operations, ctx.today);
+  // Seed selection so the simulation is reproducible (see withSeed in recipeDb). withSeed is
+  // synchronous-only, and applyPrimitives is synchronous, so the seam is restored correctly here.
+  const res = withSeed(WHATIF_SEED, () => applyPrimitives(profile, plan, operations, ctx.today));
 
   const after = res.plan.days.map((d) => ({ day: d.day, ...dayTotals(d) }));
   return {

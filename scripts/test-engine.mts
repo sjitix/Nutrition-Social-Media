@@ -2649,6 +2649,24 @@ if (violations.size === 0) {
   const noop = whatIf(ctx, []);
   check("what_if: no operations means no change claimed", noop.wouldChangePlan === false);
 
+  // what_if is DETERMINISTIC. The agent reasons about a possible change, so the same simulation
+  // must return the same preview every call — selection's tie-break randomness is seeded inside
+  // whatIf (see withSeed). regenerate_week rebuilds the whole week off the largest pool, where ties
+  // abound, so this varied between calls before the seam went in.
+  const regenOp = op({ tool: "regenerate_week" }) as unknown as PrimitiveOp;
+  const previews = Array.from({ length: 5 }, () => JSON.stringify(whatIf(ctx, [regenOp]).meals));
+  check("what_if: a regenerate simulation is reproducible across repeated calls",
+    previews.every((p) => p === previews[0]), `${new Set(previews).size} distinct of 5`);
+  // ...and the seam is SCOPED: a seeded what_if must not leave ordinary generation stuck on the
+  // seed. Rebuild the week many times UNSEEDED and confirm the picks still vary.
+  const unseeded = new Set(
+    Array.from({ length: 10 }, () =>
+      applyOperations(BASE, freshWeek(BASE), [op({ tool: "regenerate_week" })]).plan.days
+        .map((d) => d.meals.map((m) => m.name).join(",")).join("|")),
+  );
+  check("what_if: seeding is scoped — ordinary generation stays varied afterwards",
+    unseeded.size > 1, `${unseeded.size} distinct of 10`);
+
   // -- the dispatcher: it must NEVER throw, because the loop feeds its output back to the model
   check("runReadTool: dispatches a known tool",
     (runReadTool(ctx, "get_profile") as { targets?: unknown }).targets !== undefined);
