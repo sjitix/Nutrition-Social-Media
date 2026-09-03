@@ -82,8 +82,13 @@ export function composeReply(args: {
 }): string {
   const { modelReply, notes, replyOverride, planChanged } = args;
 
-  // The engine's word is final. Not prepended to, not appended to — the whole reply.
-  if (replyOverride) return replyOverride;
+  // The engine's word is final. Not prepended to, not appended to — the whole reply. Keyed off
+  // PRESENCE, not truthiness: an override is set only on a crisis or urgent symptom, where the model
+  // must be silenced entirely. If a bug ever set it to "", truthiness would fall through and let the
+  // model speak in front of the warning — the exact failure this line exists to prevent — so a
+  // present-but-empty override still wins and simply yields an empty reply: a safe, visible failure
+  // rather than a dangerous, silent one.
+  if (replyOverride !== undefined) return replyOverride;
 
   // Engine notes are AUTHORITATIVE computed facts. When the engine has something to say, that IS the
   // reply — the model's prose is untrusted and, worse, the fine-tune learned to restate the notes,

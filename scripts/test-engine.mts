@@ -807,7 +807,10 @@ console.log("\n--- ADVERSARIAL / EDGE CASES ---");
   const wk = freshWeek(vegan);
   const r = applyOperations(vegan, wk, [op({ tool: "swap_meal", day: "Friday", mealType: "dinner", dish: "grilled chicken" })]);
   const d = r.plan.days.find((x) => x.day === "Friday")!;
-  const meaty = /chicken|beef|pork|turkey|salmon|tuna|shrimp|fish|egg|yogurt|cheese|milk/i.test(names(d));
+  // Word-bounded, and `eggs?` not bare `egg` — a plain /egg/ matched "Eggplant", so this test flaked
+  // whenever the vegan Friday dinner landed on Lentil & Eggplant Stew. Same substring over-match the
+  // feed and allergen paths were fixed for; a diet test must not fail on a legitimate vegan dish.
+  const meaty = /\b(chicken|beef|pork|turkey|salmon|tuna|shrimp|fish|eggs?|yogurt|cheese|milk)\b/i.test(names(d));
   check("vegan: 'add chicken' cannot introduce animal products", !meaty, names(d));
 }
 {
@@ -1205,6 +1208,12 @@ console.log("--- REPLY COMPOSITION (who gets the last word) ---");
 
   check("a crisis reply discards the model's words entirely",
     composeReply({ modelReply: "Sounds like low iron! Let me fix your week.", notes: [CRISIS], replyOverride: CRISIS, planChanged: false }) === CRISIS);
+
+  // The guard keys off PRESENCE, not truthiness. If a bug ever produced an EMPTY crisis override,
+  // truthiness would fall through and let the model speak over the warning; presence yields the
+  // (empty) override instead — a safe, visible failure rather than a dangerous, silent one.
+  check("a present-but-empty override still silences the model (fail-safe)",
+    composeReply({ modelReply: "Sounds like low iron! Let me fix your week.", notes: ["ignored"], replyOverride: "", planChanged: false }) === "");
 
   check("engine notes are authoritative — the model's prose is dropped so it can never duplicate them",
     composeReply({ modelReply: "Done — kept Monday on target.", notes: ["Kept Monday on target — about 1993 kcal."], planChanged: true }) === "Kept Monday on target — about 1993 kcal.");
