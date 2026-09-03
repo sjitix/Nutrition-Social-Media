@@ -41,7 +41,7 @@ each with a regression test:
   across the Americas. Now local.
 - **SSRF on `/api/import`** (2026-09-03) — `isSafePublicUrl` only checked the initial URL while
   `fetchHtml` follows redirects. Tightened the guard (bare hostnames, 0.0.0.0/8, CGNAT, `.internal`,
-  decimal-IP) AND re-validate the post-redirect final URL. **Residual, documented:** a hostname that
+  decimal-IP, trailing-dot) AND re-validate the post-redirect final URL. **Residual, documented:** a hostname that
   RESOLVES to a private IP (DNS rebinding) + the request-fires-once are not fully closed — complete
   fix is connect-time IP validation via a custom undici dispatcher. `videoImport.ts` shares
   `fetchHtml`, so it's covered too.
@@ -50,7 +50,7 @@ each with a regression test:
 suggestion for a gluten allergy — an owner dietary-policy call (blocking all miso over-blocks GF rice
 miso). Recorded in memory `recipe-db-constraints`.
 
-**Suite `test:engine` 575/0.** Every high-stakes path now has an adversarial review behind it. Since
+**Suite `test:engine` 577/0.** Every high-stakes path now has an adversarial review behind it. Since
 the sweep, all DONE + pushed: `what_if` seedable determinism (a `withSeed` seam so a simulation is
 reproducible while ordinary generation stays fresh), `gramsFor` units (cup/oz/kg/lb/l), the WORKPLAN
 de-dupe + lesson-35 repair, and three more hardening fixes — `decodeEntities` RangeError→500, the

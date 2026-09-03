@@ -43,7 +43,7 @@ variety tiebreak means a preview may not exactly match the eventual commit. Fixi
 engine) trades against deliberate regenerate-variety, so it's an architecture call. It is safe on the
 key property: `what_if` clones state and never mutates the real plan.
 
-## ▶ Safety & security — 2026-09-02, updated 2026-09-03 (SSRF + 5 more fixes, all pushed; 575/0)
+## ▶ Safety & security — 2026-09-02, updated 2026-09-03 (SSRF + 6 more fixes, all pushed; 577/0)
 
 - **Allergen leak FIXED** (`2fc6d22`) — prepared foods hid allergens their name didn't spell out, so a
   nut / dairy / sesame / fish excluder was served pesto / hummus / Caesar dishes. `CATEGORY_TERMS` now
@@ -55,9 +55,12 @@ key property: `what_if` clones state and never mutates the real plan.
   metadata → credentials) or `http://127.0.0.1/` bypassed the guard and the server fetched it.
   `fetchHtml` now RE-VALIDATES the final url after redirects and refuses the body if it resolved
   somewhere private; the string guard now also rejects bare no-dot hosts (`metadata`, `intranet`),
-  the `.internal` TLD, `0.0.0.0/8` and CGNAT `100.64/10`, and — via WHATWG IPv4 normalisation —
-  decimal/octal/hex-encoded literals (`http://2130706433` → `127.0.0.1`). 5 regression tests; suite
-  **564 / 0**. The same `fetchHtml` backs `videoImport.ts`, so both import paths are covered.
+  the `.internal` TLD, `0.0.0.0/8` and CGNAT `100.64/10`, via WHATWG IPv4 normalisation
+  decimal/octal/hex-encoded literals (`http://2130706433` → `127.0.0.1`), and a TRAILING DOT on any
+  named host (`localhost.` / `metadata.google.internal.` resolve to the same internal host but slipped
+  every rule) — that last bypass was caught by an adversarial self-review AFTER the initial fix and
+  closed in `3fbca56`. Regression tests throughout; suite **577 / 0**. The same `fetchHtml` backs
+  `videoImport.ts`, so both import paths are covered.
   **Residual (documented in-code, NOT yet closed):** a hostname that RESOLVES to a private IP (DNS
   rebinding) still slips the string check, and the request fires once before the final-url re-check —
   the complete fix is connect-time IP validation via a custom undici dispatcher. (The related
