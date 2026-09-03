@@ -43,11 +43,23 @@ variety tiebreak means a preview may not exactly match the eventual commit. Fixi
 engine) trades against deliberate regenerate-variety, so it's an architecture call. It is safe on the
 key property: `what_if` clones state and never mutates the real plan.
 
-## ▶ Safety & security — 2026-09-02, updated 2026-09-03 (SSRF + 6 more fixes, all pushed; 577/0)
+## ▶ Safety & security — 2026-09-02, updated 2026-09-03 (SSRF + 7 more fixes, all pushed; 582/0)
 
 - **Allergen leak FIXED** (`2fc6d22`) — prepared foods hid allergens their name didn't spell out, so a
   nut / dairy / sesame / fish excluder was served pesto / hummus / Caesar dishes. `CATEGORY_TERMS` now
   blocks them (pesto→nut+dairy, hummus→sesame, caesar dressing→fish); +6 tests. Suite **545 / 0**.
+
+- **Allergen under-block review #2 FIXED** (`11ccb9f`, 2026-09-03) — a second adversarial pass hunting
+  the DANGEROUS direction (an allergen reaching an allergic user). Found: hyphenated soy sauces
+  (soy-ginger / ginger-soy / sesame-soy) evaded gluten/wheat because they don't contain the phrase
+  "soy sauce" — one dish, `d-chicken-veg-stirfry`, was consequently mislabeled `gluten_free` (fixed);
+  Caesar dressing was under `fish` only, not `eggs`/`dairy` (it's raw yolk + parmesan); the egg
+  category was keyed `eggs` only, so a SINGULAR `egg` allergy didn't expand. All fixed (+ `teriyaki`
+  added to `GLUTEN_INGREDIENTS`, + singular `prawn` in the veg checkers); 5 tests; dietTag integrity
+  clean. **Flagged, NOT changed (data-modeling calls for the owner):** kimchi tagged vegan/GF though
+  real kimchi has fish sauce/shrimp; tikka masala sauce modeled as plain tomato so `Tikka Masala Tofu`
+  reads vegan (and "creamy" in the chicken version — internal inconsistency); buffalo sauce modeled as
+  sriracha (real has butter).
 
 - **SECURITY — SSRF on `/api/import` FIXED** (`88df7ae`, 2026-09-03). `isSafePublicUrl`
   (`src/lib/import.ts`) validated only the INITIAL url while `fetchHtml` followed redirects
