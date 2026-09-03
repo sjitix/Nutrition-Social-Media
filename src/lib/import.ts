@@ -43,7 +43,12 @@ export function isSafePublicUrl(raw: string): boolean {
     return false;
   }
   if (u.protocol !== "http:" && u.protocol !== "https:") return false;
-  const host = u.hostname.toLowerCase();
+  // Strip a trailing dot (the DNS root label): "localhost." / "metadata.google.internal." resolve to
+  // the SAME internal host as the dotless form but would slip every named-host rule below — they are
+  // not === "localhost", do not .endsWith(".internal"), and still contain a "." so the no-dot rule
+  // skips them. WHATWG already strips the dot from IP literals (127.0.0.1. -> 127.0.0.1), so this
+  // only matters for named hosts. Strip all trailing dots defensively.
+  const host = u.hostname.toLowerCase().replace(/\.+$/, "");
   if (host === "localhost" || host.endsWith(".local") || host.endsWith(".internal")) return false;
   // A public host is a dotted FQDN or a bracketed IPv6 literal (rejected below). A bare label
   // ("intranet", "metadata", a container/service name) resolves internally — reject no-dot hosts.

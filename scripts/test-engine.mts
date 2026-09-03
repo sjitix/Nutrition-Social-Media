@@ -2321,6 +2321,12 @@ console.log("--- RECIPE IMPORT (paste a link -> plan-ready meal, deterministic) 
   check("import: blocks a decimal-encoded loopback IP", !isSafePublicUrl("http://2130706433/")); // 127.0.0.1
   // ...without over-blocking ordinary public recipe domains.
   check("import: still allows ordinary public recipe URLs", isSafePublicUrl("https://www.seriouseats.com/recipe") && isSafePublicUrl("http://cooking.nytimes.com/x"));
+  // A trailing dot (the DNS root label) resolves to the SAME internal host but slipped every
+  // named-host rule (not === "localhost", no .endsWith(".internal"), still contains a ".").
+  check("import: blocks trailing-dot internal hosts", !isSafePublicUrl("http://localhost./") &&
+    !isSafePublicUrl("http://metadata.google.internal./latest") && !isSafePublicUrl("http://intranet./") &&
+    !isSafePublicUrl("http://svc.local./"));
+  check("import: a trailing dot on a PUBLIC fqdn is still allowed", isSafePublicUrl("https://www.seriouseats.com./recipe"));
 
   // decodeEntities must never crash on a malformed numeric entity. An out-of-range code point used
   // to throw a RangeError that surfaced as a 500 on the import route; it is now left literal.
