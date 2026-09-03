@@ -240,6 +240,28 @@ console.log("\n--- SCENARIOS (user perspective) ---");
     r.notes[0] ?? "(none)");
 }
 {
+  // Executor write-path guards (adversarial review): a swap to a slot the day/week does NOT have must
+  // not fabricate success, and a negative/absurd calorie number must not poison the plan. BASE is a
+  // 3-meal plan, so no "snack" slot exists; "edamame" matches a real snack recipe (match.type=snack).
+  const wk = freshWeek(BASE);
+  const s1 = applyOperations(BASE, wk, [op({ tool: "swap_meal", day: "Tuesday", mealType: "snack", dish: "edamame" })]);
+  const t = s1.plan.days.find((x) => x.day === "Tuesday")!;
+  check("swap to a slot the day lacks adds nothing", t.meals.length === 3 && !t.meals.some((m) => m.type === "snack"));
+  check("swap to a slot the day lacks says so, no false 'now has'",
+    s1.notes.some((n) => /don't have a snack/i.test(n)) && !s1.notes.some((n) => /now has/i.test(n)), s1.notes.join(" | "));
+  const s2 = applyOperations(BASE, wk, [op({ tool: "swap_meal", mealType: "snack", dish: "edamame" })]);
+  check("whole-week swap to a missing slot changes nothing", s2.plan.days.every((d) => d.meals.length === 3));
+  check("whole-week swap to a missing slot never claims 'every day'",
+    s2.notes.some((n) => /none of your days have a snack/i.test(n)) && !s2.notes.some((n) => /every day/i.test(n)), s2.notes.join(" | "));
+  const s3 = applyOperations(BASE, wk, [op({ tool: "log_meal", day: "Monday", mealType: "lunch", dish: "zxcvbnm mystery", loggedCalories: -500 } as never)]);
+  const md = s3.plan.days.find((x) => x.day === "Monday")!;
+  check("log_meal never creates a negative-calorie meal", md.meals.every((mm) => mm.calories > 0));
+  check("log_meal with a bad number asks instead of poisoning the day", s3.notes.some((n) => /how many calories/i.test(n)), s3.notes.join(" | "));
+  const s4 = applyOperations(BASE, wk, [op({ tool: "eating_out", day: "Wednesday", mealType: "dinner", estimatedCalories: -300 })]);
+  const wd = s4.plan.days.find((x) => x.day === "Wednesday")!;
+  check("eating_out ignores a negative estimate (sane reserve)", wd.meals.every((mm) => mm.calories > 0));
+}
+{
   // "It's my cheat day." -> engine must NOT touch the other meals.
   const wk = freshWeek(BASE);
   const before = wk.days.find((x) => x.day === "Tuesday")!;

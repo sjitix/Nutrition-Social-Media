@@ -9470,7 +9470,11 @@ function eatingOut(
     notes.push(`You don't have a ${mealType} on ${day}, so there's nothing for me to set aside there.`);
     return plan;
   }
-  const reserve = estimated ?? Math.round(p.targetCalories * Math.max(slotShare(p, mealType), RESTAURANT_SHARE));
+  // A negative / non-finite estimate is treated as no estimate — otherwise `-300 ?? default` keeps
+  // the -300 and reserves a negative block. Fall back to the computed restaurant-sized reserve.
+  const reserve = estimated != null && estimated > 0 && Number.isFinite(estimated)
+    ? estimated
+    : Math.round(p.targetCalories * Math.max(slotShare(p, mealType), RESTAURANT_SHARE));
 
   const placeholder: Meal = {
     name: `${mealType[0].toUpperCase()}${mealType.slice(1)} out`,
@@ -9980,9 +9984,14 @@ export function applyOperations(
             break;
           }
           const slot = op.mealType ?? match.type;
+          let placedDays = 0;
           for (const day of DAYS) {
             const origDay = curPlan.days.find((d) => d.day === day);
             if (!origDay) continue;
+            // Only days that HAVE this slot can be swapped — the .map below can't add one. Skipping
+            // stops a "snack every day" on a 3-meal plan from silently rebalancing every day and then
+            // claiming a swap that never happened (guarded after the loop).
+            if (!origDay.meals.some((m) => m.type === match.type)) continue;
             // A pin on this slot is overridden by an explicit whole-week swap (and removed, quietly
             // here — one summary note below covers the week rather than seven pin notices).
             if (p.lockedMeals?.some((l) => l.day === day && l.mealType === slot)) {
@@ -9996,13 +10005,21 @@ export function applyOperations(
               ? rebalanceDay(swapped, p, new Set([match.type, ...lockedSlotsFor(p, day)]), namesOnOtherDays(curPlan, day, p))
               : swapped;
             curPlan = { ...curPlan, days: curPlan.days.map((d) => (d.day === day ? { ...d, meals: newMeals } : d)) };
+            placedDays++;
+          }
+          // No day had the slot — nothing was placed, so don't claim it was.
+          if (placedDays === 0) {
+            notes.push(`None of your days have a ${slot} to swap, so I left the week as it is. Tell me if you'd like to add ${match.name} as a new ${slot} and I'll fit it in.`);
+            break;
           }
           const wanted = op.dish.toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 2);
           if (wanted.length && wanted.some((w) => !match.name.toLowerCase().includes(w)))
             notes.push(`I didn't have "${op.dish}" — I used ${match.name}.`);
           // Say what changed, then disclose the week's macros honestly (the same achievementNote the
           // regenerate paths use) rather than an unverified blanket "kept each day on target".
-          notes.push(`Set ${match.name} as your ${slot} every day.`);
+          notes.push(placedDays === DAYS.length
+            ? `Set ${match.name} as your ${slot} every day.`
+            : `Set ${match.name} as your ${slot} on the ${placedDays} day${placedDays === 1 ? "" : "s"} that have one.`);
           if (keepMacros(op)) notes.push(achievementNote("Your week now averages", weekAveragesFull(curPlan), p));
           break;
         }
@@ -10033,6 +10050,14 @@ export function applyOperations(
               ? `${loose.name} takes ${loose.timeMinutes} min, over your ${p.maxCookTime}-min limit — I left ${op.day} as it is.`
               : `I don't have anything like "${op.dish}" that fits your plan.`,
           );
+          break;
+        }
+        // swap_meal REPLACES a slot; the .map below cannot add one. On a 3-meal plan a swap for a
+        // "snack" matches a real snack recipe but replaces nothing, then the note falsely claims the
+        // day was updated — the missing-slot bug log_meal and eating_out already guard. A swap edits
+        // an EXISTING slot, so (like eating_out) say the truth rather than fabricating one.
+        if (!origDay.meals.some((m) => m.type === match.type)) {
+          notes.push(`You don't have a ${op.mealType ?? match.type} on ${op.day} to swap. Tell me if you'd like to add one and I'll fit it in.`);
           break;
         }
         const share =
@@ -10159,13 +10184,17 @@ export function applyOperations(
           const match = findRecipeForSwap(op.dish, undefined, p, false);
           if (match) eaten = { ...toMeal(match), type: op.mealType };
         }
-        if (!eaten && op.loggedCalories) {
+        // Guard the model's number the way update_profile/compute_targets do: a negative or non-finite
+        // logged calorie count is "truthy", was locked into the day, and then the rebalancer inflated
+        // the other meals to cover the phantom deficit. A bad number is treated as no number, so we
+        // fall through to the !eaten branch below and ask, rather than poisoning the day.
+        if (!eaten && op.loggedCalories && op.loggedCalories > 0 && Number.isFinite(op.loggedCalories)) {
           eaten = {
             name: op.dish ? op.dish : "Logged meal",
             type: op.mealType,
             description: "Logged by you.",
             calories: op.loggedCalories,
-            proteinGrams: op.loggedProtein ?? 0,
+            proteinGrams: op.loggedProtein && op.loggedProtein > 0 ? op.loggedProtein : 0,
             carbsGrams: 0,
             fatGrams: 0,
             timeMinutes: 0,
