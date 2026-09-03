@@ -43,22 +43,25 @@ variety tiebreak means a preview may not exactly match the eventual commit. Fixi
 engine) trades against deliberate regenerate-variety, so it's an architecture call. It is safe on the
 key property: `what_if` clones state and never mutates the real plan.
 
-## ▶ Safety & security — 2026-09-02
+## ▶ Safety & security — 2026-09-02, updated 2026-09-03 (SSRF fixed + pushed)
 
 - **Allergen leak FIXED** (`2fc6d22`) — prepared foods hid allergens their name didn't spell out, so a
   nut / dairy / sesame / fish excluder was served pesto / hummus / Caesar dishes. `CATEGORY_TERMS` now
   blocks them (pesto→nut+dairy, hummus→sesame, caesar dressing→fish); +6 tests. Suite **545 / 0**.
 
-- **⚠️ SECURITY — NEEDS YOUR ATTENTION (not patched): SSRF on `/api/import`.** `isSafePublicUrl`
-  (`src/lib/import.ts`) validates only the INITIAL url, but `fetchHtml` follows redirects
-  (`redirect:"follow"`), so a public link that 302-redirects to `http://169.254.169.254/` (cloud
-  metadata → credentials) or `http://127.0.0.1/` bypasses the guard and the server fetches it. It also
-  checks the hostname STRING, not the resolved IP, so a hostname resolving to a private IP (DNS
-  rebinding) slips through. The same `fetchHtml` backs `videoImport.ts`. A correct fix needs an
-  SSRF-safe fetch (connect-time IP validation / per-redirect re-validation) + integration tests —
-  network-behavior + security-sensitive, so I did not patch it autonomously. Minor: `decodeEntities`
-  throws an uncaught RangeError (→ 500) on an out-of-range numeric HTML entity. The static guard is
-  otherwise sound (http(s) only; blocks localhost/.local/private-IP & IPv6 literals; 3 MB cap; 15 s timeout).
+- **SECURITY — SSRF on `/api/import` FIXED** (`88df7ae`, 2026-09-03). `isSafePublicUrl`
+  (`src/lib/import.ts`) validated only the INITIAL url while `fetchHtml` followed redirects
+  (`redirect:"follow"`), so a public link that 302-redirected to `http://169.254.169.254/` (cloud
+  metadata → credentials) or `http://127.0.0.1/` bypassed the guard and the server fetched it.
+  `fetchHtml` now RE-VALIDATES the final url after redirects and refuses the body if it resolved
+  somewhere private; the string guard now also rejects bare no-dot hosts (`metadata`, `intranet`),
+  the `.internal` TLD, `0.0.0.0/8` and CGNAT `100.64/10`, and — via WHATWG IPv4 normalisation —
+  decimal/octal/hex-encoded literals (`http://2130706433` → `127.0.0.1`). 5 regression tests; suite
+  **564 / 0**. The same `fetchHtml` backs `videoImport.ts`, so both import paths are covered.
+  **Residual (documented in-code, NOT yet closed):** a hostname that RESOLVES to a private IP (DNS
+  rebinding) still slips the string check, and the request fires once before the final-url re-check —
+  the complete fix is connect-time IP validation via a custom undici dispatcher. Minor, still open:
+  `decodeEntities` throws an uncaught RangeError (→ 500) on an out-of-range numeric HTML entity.
 
 - **Executor hardening** (`08ce8ef`) — an adversarial review of the write-path executor found
   `log_meal` silently DROPPING a logged meal on a slot the day lacks (a snack on a 3-meal plan) and
@@ -77,9 +80,11 @@ key property: `what_if` clones state and never mutates the real plan.
 > **Review sweep COMPLETE (2026-09-02) — EVERY module adversarially reviewed:** macro path,
 > conditions, `agentTools`, `agentLoop`, `exclusions`, `import`, the write-path executor,
 > `targets`/`nutrients`, `reply`/`feed`, `streak`/`grocery`/`substitutions`. ~9 real bugs fixed, each
-> with a test (suite **559 / 0**). `grocery` clean; `substitutions` safe (one flagged `miso→gluten`
-> policy call). **14 local commits, unpushed.** Owner-gated leftovers: the **SSRF fix** on `/api/import`;
-> `what_if` determinism; condition-aware wiring; the `soy sauce → miso` gluten policy; the 7B eval; the push.
+> with a test (suite **564 / 0**). `grocery` clean; `substitutions` safe (one flagged `miso→gluten`
+> policy call). **All 18 commits PUSHED** (origin/main at `ce9a141`, 2026-09-03) — the SSRF fix and
+> the push are both done. Remaining leftovers: `what_if` seedable determinism (in progress);
+> `gramsFor` unit coverage (cup/oz/kg/l); condition-aware generation wiring; the `soy sauce → miso`
+> gluten policy call; the 7B eval.
 
 ---
 
