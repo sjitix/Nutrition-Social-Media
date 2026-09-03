@@ -43,7 +43,7 @@ variety tiebreak means a preview may not exactly match the eventual commit. Fixi
 engine) trades against deliberate regenerate-variety, so it's an architecture call. It is safe on the
 key property: `what_if` clones state and never mutates the real plan.
 
-## ▶ Safety & security — 2026-09-02, updated 2026-09-03 (SSRF fixed + pushed)
+## ▶ Safety & security — 2026-09-02, updated 2026-09-03 (SSRF + 5 more fixes, all pushed; 575/0)
 
 - **Allergen leak FIXED** (`2fc6d22`) — prepared foods hid allergens their name didn't spell out, so a
   nut / dairy / sesame / fish excluder was served pesto / hummus / Caesar dishes. `CATEGORY_TERMS` now
@@ -60,31 +60,38 @@ key property: `what_if` clones state and never mutates the real plan.
   **564 / 0**. The same `fetchHtml` backs `videoImport.ts`, so both import paths are covered.
   **Residual (documented in-code, NOT yet closed):** a hostname that RESOLVES to a private IP (DNS
   rebinding) still slips the string check, and the request fires once before the final-url re-check —
-  the complete fix is connect-time IP validation via a custom undici dispatcher. Minor, still open:
-  `decodeEntities` throws an uncaught RangeError (→ 500) on an out-of-range numeric HTML entity.
+  the complete fix is connect-time IP validation via a custom undici dispatcher. (The related
+  `decodeEntities` RangeError→500 on an out-of-range numeric HTML entity is now FIXED, `b83d917`:
+  valid code points decode, out-of-range ones stay literal; +2 tests.)
 
 - **Executor hardening** (`08ce8ef`) — an adversarial review of the write-path executor found
   `log_meal` silently DROPPING a logged meal on a slot the day lacks (a snack on a 3-meal plan) and
   then misreporting the day's calories; now absorbed as a new slot (+3 regression tests). Also:
   whole-week `swap_meal` discloses the week's macros honestly instead of a blanket "kept on target";
-  `regenerate_day` guarded against a missing day. Reported, not changed (numbers honest / convoluted):
-  single-day `swap_meal`'s unconditional "kept on target" label; a `scale_portions` success-note corner.
+  `regenerate_day` guarded against a missing day. Since FIXED: single-day `swap_meal` now uses the
+  honest `achievementNote` too (`b7fadc1`), matching the whole-week path. `scale_portions` was
+  reviewed and left as-is — its note already states the day's actual kcal vs target and discloses
+  every skipped meal, so it never claims false success.
 
 - **Reply/feed hardening** (`f1d1e9e`) — `composeReply` now de-duplicates notes (the user was shown
   the same sentence twice when an op repeated / notes accumulated across agent-loop steps) and can't
   return a blank; feed search matches at WORD STARTS (`"oat"` no longer hits "goat", `"chick"` still
   finds chicken) — the substring over-match the allergen path abandoned; `filterFeed` now treats
-  vegan as satisfying a vegetarian filter. Reported, not changed: `composeReply` crisis guard keys
-  off truthiness (latent); `planWasChanged` is dead in the production flow.
+  vegan as satisfying a vegetarian filter. Since FIXED: `composeReply`'s crisis guard now keys off
+  PRESENCE not truthiness (`c5994f6`), so a future empty override still silences the model (a bare
+  `/egg/` in a diet test that matched "Eggplant" was word-bounded in the same commit). `planWasChanged`
+  is left in place — unused in the flow, but it documents, by being the rejected alternative, why the
+  engine reports COMPARED change rather than which tools were named.
 
 > **Review sweep COMPLETE (2026-09-02) — EVERY module adversarially reviewed:** macro path,
 > conditions, `agentTools`, `agentLoop`, `exclusions`, `import`, the write-path executor,
 > `targets`/`nutrients`, `reply`/`feed`, `streak`/`grocery`/`substitutions`. ~9 real bugs fixed, each
-> with a test (suite **564 / 0**). `grocery` clean; `substitutions` safe (one flagged `miso→gluten`
-> policy call). **All 18 commits PUSHED** (origin/main at `ce9a141`, 2026-09-03) — the SSRF fix and
-> the push are both done. Remaining leftovers: `what_if` seedable determinism (in progress);
-> `gramsFor` unit coverage (cup/oz/kg/l); condition-aware generation wiring; the `soy sauce → miso`
-> gluten policy call; the 7B eval.
+> with a test (suite **575 / 0**). `grocery` clean; `substitutions` safe (one flagged `miso→gluten`
+> policy call). **All work PUSHED** (origin/main, 2026-09-03). Since the sweep: `what_if` seedable
+> determinism (`b19c27d`), `gramsFor` units cup/oz/kg/lb/l (`5b72286`), WORKPLAN de-dupe + lesson-35
+> repair (`9d67e83`), decodeEntities/single-day-swap/composeReply hardening (`b83d917`/`b7fadc1`/`c5994f6`).
+> Remaining leftovers (all owner-gated): condition-aware generation WIRING (the ask-vs-auto-apply UX
+> call); the `soy sauce → miso` gluten policy call; the 7B eval.
 
 ---
 
