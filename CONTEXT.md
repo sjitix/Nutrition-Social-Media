@@ -9,7 +9,39 @@ Everything described here is committed and pushed to `main`. Nothing is only on 
 
 ## Where it left off
 
-### >>> READ THIS FIRST — the state on 2026-09-03 <<<
+### >>> READ THIS FIRST — the state on 2026-09-06 <<<
+
+**Brainstorm + "get the app ready" session.** Two big things landed (both correct the 2026-09-03 audit,
+which was written blind to the running LM Studio):
+
+1. **The AI assistant is CONNECTED and working locally — it was a config typo, not a missing brain.**
+   The audit (see the published `MVP Mission Control` artifact) said "no real model ever completed a v2
+   turn." Real cause: `.env.local` had `LOCAL_AI_MODEL=nutriflow-v9`, but LM Studio serves it as
+   `nutriflow-assistant-v9`. Fixed. LM Studio here holds 13 models incl. fine-tunes v4–v11 (1.5B Qwen2),
+   gpt-oss-20b, qwen2.5-7b, qwen3-30b. Benchmarked on `eval:hardcases`: **v8 is best** (100% schemaOk,
+   93% on DO commands, 69% overall — weak only on decline/refuse, it over-acts). `.env.local` is now
+   `LOCAL_AI_MODEL=nutriflow-assistant-v8,openai/gpt-oss-20b`. **Live smoke test PASSED** end to end:
+   `/api/plan` builds a real engine week, `/api/assistant-v2` (provider:local) turned it vegetarian
+   (0/21 meaty), `planChanged:true`. NOTE `.env.local` is gitignored/per-machine — this fix is LOCAL
+   only; the public Vercel deploy is still demo-mode (the $0-hosting decision is unmade).
+
+2. **/sage now shows the USER's real plan, not the shared demo fixture** — the audit's #1 gap. The
+   functional trio is per-user: **Week** (`WeekBoard.tsx` — regenerate + assistant link + build-my-plan),
+   **Groceries** (real shopping list from the saved week; also fixed the drifted grocery-tick key), and
+   **Assistant** (loads the user's plan, persists edits back so they show on Week/Groceries). Bridge:
+   `src/app/sage/myPlan.ts` (`loadMyWeek`/`generateMyWeek` via `/api/plan`, `groceriesFromWeek`). It reads
+   the same localStorage the classic `/plan` app writes at `/onboarding`. Home stays a landing/showcase;
+   Today unchanged (noted follow-up). `PLAN_ENGINE=db` was already set so `/api/plan` = `selectWeekFromDb`.
+   Commits `69b5a02` (Week), `64e4d41` (Groceries+Assistant); tsc + build green. **To test:** `npm run dev`
+   with LM Studio running → `/onboarding` builds your plan → `/sage/plan` shows it → chat edits persist.
+
+**Still open (owner calls, laid out in the `MVP Mission Control` artifact):** the four v1 decisions
+(assistant $0-hosting, one-app-vs-two, accounts, the "share a reel" headline); the assistant's
+decline/refuse weakness; the crisis-guard pre-scan (must land before any live model ships publicly);
+Today per-user; the `/sage/plan` 211 kB bundle (split the image helper out of `recipes.ts`). The
+one-month MVP plan + a 9-department audit live in that artifact.
+
+### >>> the state on 2026-09-03 <<<
 
 A long autonomous session on the ENGINE plus a full hardening sweep. All work is committed to `main`
 (see the PUSH NOTE at the end of this block for whether it's pushed).
