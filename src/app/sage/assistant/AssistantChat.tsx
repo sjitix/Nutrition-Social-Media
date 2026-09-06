@@ -1,7 +1,9 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { summariseWeek } from "../weekStats";
+import { loadMyWeek } from "../myPlan";
+import { savePlan, saveProfile } from "@/lib/storage";
 import type { ChatMessage, PlanSnapshot, UserProfile, WeekPlan } from "@/lib/types";
 
 /**
@@ -79,7 +81,20 @@ export default function AssistantChat({
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [personalized, setPersonalized] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // On the client, swap the shared demo week for THIS person's saved plan if they've built one, so
+  // the assistant edits their real week (and persists the change) rather than the sample. Runs after
+  // the first paint, which is why the page can stay a server component rendering the demo instantly.
+  useEffect(() => {
+    const mine = loadMyWeek();
+    if (mine) {
+      setPlan(mine.week);
+      setProf(mine.profile);
+      setPersonalized(true);
+    }
+  }, []);
 
   async function send(text: string) {
     const message = text.trim();
@@ -152,6 +167,12 @@ export default function AssistantChat({
       const nextProf = (data?.profile as UserProfile | undefined) ?? prof;
       setPlan(nextPlan);
       setProf(nextProf);
+      // When it's the person's OWN plan, persist the engine's change so the Week and Groceries
+      // screens reflect it. On the sample week there is nothing to save (and we don't pretend to).
+      if (personalized) {
+        savePlan(nextPlan);
+        saveProfile(nextProf);
+      }
       // Undo is one level deep by design, and the snapshot rides the conversation because the
       // server keeps no state. Threading it back is what makes "undo that" work on the next turn.
       setPrevious(data?.previous as PlanSnapshot | undefined);
@@ -295,6 +316,12 @@ export default function AssistantChat({
           {busy ? "…" : "Send"}
         </button>
       </form>
+
+      <p className="mt-6 max-w-[70ch] pb-14 text-[12px] leading-relaxed text-mut">
+        {personalized
+          ? "You're editing your saved plan — changes are kept and show up on your Week and Groceries screens. Every change is made by the engine and reported by it; the assistant decides what to do and never does the arithmetic."
+          : "You're editing the shared sample week, in your browser only — nothing is saved until you build your own plan. Every change is made by the engine and reported by it; the assistant does no arithmetic. With no AI key the route answers in demo mode and leaves the plan alone, which is how the public deployment is set up on purpose."}
+      </p>
     </div>
   );
 }

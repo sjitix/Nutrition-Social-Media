@@ -1,6 +1,5 @@
-"use client";
-
 import { loadPlan, loadProfile, savePlan } from "@/lib/storage";
+import { groupByAisle, type Aisle } from "@/lib/grocery";
 import { summariseWeek, type WeekStats } from "./weekStats";
 import type { UserProfile, WeekPlan } from "@/lib/types";
 
@@ -44,4 +43,31 @@ export async function generateMyWeek(profile: UserProfile): Promise<MyWeek> {
   const week = data.plan as WeekPlan;
   savePlan(week);
   return { week, stats: summariseWeek(week), profile };
+}
+
+export interface GroceryRow {
+  name: string;
+  quantity: string;
+  count: number;
+}
+
+/**
+ * The week's shopping list, deduped across the seven days and bucketed by aisle with the same tested
+ * `groupByAisle` the server page uses. Pure (no engine), so it runs on the client to build the list
+ * from THIS person's plan. Seven days repeat a lot of staples, so an ingredient seen N times becomes
+ * one row with a ×N badge rather than N lines.
+ */
+export function groceriesFromWeek(week: WeekPlan): { aisle: Aisle; items: GroceryRow[] }[] {
+  const seen = new Map<string, GroceryRow>();
+  for (const d of week.days) {
+    for (const m of d.meals) {
+      for (const ing of m.ingredients) {
+        const key = ing.name.trim().toLowerCase();
+        const hit = seen.get(key);
+        if (hit) hit.count += 1;
+        else seen.set(key, { name: ing.name, quantity: ing.quantity, count: 1 });
+      }
+    }
+  }
+  return groupByAisle([...seen.values()]);
 }

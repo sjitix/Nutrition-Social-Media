@@ -10,9 +10,10 @@ import { demoWeek, DEMO } from "../demo";
  * for a specific reason: `demo.ts` imports the engine, and the engine carries all 501 recipes, so
  * a client component importing it would ship the whole recipe database to the browser.
  *
- * What the reader is editing is the SAMPLE week, in their own browser, and the page says so. It is
- * not persisted — /sage has no per-reader storage — and claiming otherwise would be the kind of
- * quiet lie the rest of this design avoids.
+ * The server hands it the shared demo week; on the client, AssistantChat swaps in THIS person's
+ * saved plan if they have one and persists the engine's edits back to it (so the Week and Groceries
+ * screens reflect them). A first-time visitor with no saved plan edits the sample, in-browser only,
+ * and the disclaimer under the chat says exactly which of the two is happening — no quiet lie.
  */
 export default function SageAssistantPage() {
   const { raw } = demoWeek();
@@ -29,14 +30,6 @@ export default function SageAssistantPage() {
       </div>
 
       <AssistantChat initialPlan={raw} profile={DEMO} />
-
-      <p className="mt-6 max-w-[70ch] pb-14 text-[12px] leading-relaxed text-mut">
-        You are editing the sample week shown across these screens, in your browser only — nothing
-        here is saved. Every change is made by the engine and reported by it; the assistant decides
-        what to do and never does the arithmetic. With no AI key configured the route answers in
-        demo mode and leaves the plan alone, which is how the public deployment is set up on
-        purpose.
-      </p>
     </div>
   );
 }
