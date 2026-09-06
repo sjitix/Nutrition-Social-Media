@@ -61,3 +61,4 @@ tsc.log
 dev-server.log
 prod-server.log
 out/
+eval-*.log
