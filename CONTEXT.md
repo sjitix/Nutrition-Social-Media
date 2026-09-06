@@ -9,7 +9,46 @@ Everything described here is committed and pushed to `main`. Nothing is only on 
 
 ## Where it left off
 
-### >>> READ THIS FIRST — the state on 2026-09-06 <<<
+### >>> READ THIS FIRST — evening 2026-09-06: the open thread is the assistant model/hosting choice <<<
+
+**No code changed this session — it was a strategy + hardware experiment. Repo is clean, nothing to push.**
+The question driving it (owner's words): *strive for a smart LLM that understands conversation and takes
+effective decisions*, with ≤5 s replies, while KEEPING the deterministic engine — the LLM-decision layer and
+the engine layer intertwine, so **do not "simplify" by dropping the engine** (owner corrected this twice).
+Owner is open to spending — on cloud or on hardware.
+
+**What we PROVED (full detail in memory `local-70b-inference-speed`):** downloaded and ran
+**Llama-3.3-70B-Instruct Q4_K_M** locally on the desktop (`lms get "llama-3.3-70b@Q4_K_M"`, auto GPU
+offload, ~53 GB RAM free after unloading qwen3-30b). It WORKS and is genuinely smart — correctly handled
+"make Tuesday lunch vegetarian but keep protein high" with a specific swap + real rationale. But it runs at
+**~0.58 tok/s** (75 tokens took 130 s); the multi-step agent loop would be **~15–40 min per message**. So on
+8 GB VRAM, *smart = big = slow* is now empirically settled, not just theorized. The 70B GGUF stays in LM
+Studio (`meta/llama-3.3-70b`) for occasional slow use.
+
+**THE OPEN DECISION — owner's to make — how to get smart AND fast:**
+- **(A) Cloud hosted 70B — recommended first step.** Groq free tier (Llama-3.3-70B, ~1–2 s, no card needed)
+  or OpenRouter (free `:free` models are rate-limited to ~50/day until you park $10, then ~1000/day; paid
+  ~$0.3–0.9 per M tokens ≈ pennies/week). **3-line `.env` change, NO code** — the app already speaks
+  OpenAI-compatible via `LOCAL_AI_URL` + `LOCAL_AI_API_KEY`. Same change on Vercel would end its demo-mode.
+- **(B) 24 GB+ single device — local, private, $0 running.** Used RTX 3090 (~$700, drops into the current
+  PC) or A6000 48 GB (~$4k); or a 128 GB unified-memory box (Mac Studio M-Ultra ~$4k / AMD Strix Halo ~$2k /
+  NVIDIA DGX Spark ~$3–4k). Full comparison table was given in chat.
+- **(C) Accept slower local** — gpt-oss-20b (~13 s warm) is the best usable LOCAL model on this hardware.
+
+**PICK UP TOMORROW:** ask the owner which of A / B / C. If **A**: get a Groq key, then set `.env.local`
+(and Vercel env) to `AI_PROVIDER=local`, `LOCAL_AI_URL=https://api.groq.com/openai/v1`,
+`LOCAL_AI_API_KEY=<key>`, `LOCAL_AI_MODEL=llama-3.3-70b-versatile`, and run the burger + smoke tests
+(`scratchpad/burger.mjs`, `smoke.mjs`). **Independent of the model choice**, the assistant still has quality
+bugs that are prompt/grounding work, not model size: it invents recipes not in the 501-library, puts emoji
+in replies (violates the no-emoji rule), and the engine's fuzzy swap-match is weak (returned a shrimp salad
+for "burger"). Those should be fixed regardless of which brain we land on.
+
+**Machine state at shutdown:** `.env.local` reverted to `LOCAL_AI_MODEL=openai/gpt-oss-20b` (usable default)
+so the app works tomorrow once LM Studio loads gpt-oss-20b. The dev server (`npm run dev -- -H 0.0.0.0`) and
+a cloudflared quick tunnel were running this session; both die on shutdown — relaunch them tomorrow if you
+want laptop access. `.env.local` is gitignored/per-machine, so none of these model swaps are in git.
+
+### >>> the state on 2026-09-06 — assistant connected + /sage per-user (still current) <<<
 
 **Brainstorm + "get the app ready" session.** Two big things landed (both correct the 2026-09-03 audit,
 which was written blind to the running LM Studio):
