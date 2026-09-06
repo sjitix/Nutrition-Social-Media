@@ -620,10 +620,11 @@ async function localRunAssistant(
 
 export async function generatePlan(profile: UserProfile): Promise<WeekPlan> {
   const p = withTargetDefaults(profile);
-  // Opt-in DB engine (Phase A): select from the curated recipe library instead
-  // of generating with the LLM. Off unless PLAN_ENGINE=db, so the live path is
-  // unchanged. This is the direction the app moves toward (see VISION.md).
-  if (process.env.PLAN_ENGINE === "db") return rebalanceWeek(selectWeekFromDb(p), p);
+  // The curated DB engine is now the DEFAULT plan generator: deterministic, $0, needs no model —
+  // so /api/plan builds a real per-user week on the public deploy with no key and no config, which
+  // is the direction the app moves toward (see VISION.md). Set PLAN_ENGINE=llm to force the old
+  // model-generated path instead.
+  if (process.env.PLAN_ENGINE !== "llm") return rebalanceWeek(selectWeekFromDb(p), p);
   return resolveProvider() === "local" ? localGeneratePlan(p) : claudeGeneratePlan(p);
 }
 
