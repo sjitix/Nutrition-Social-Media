@@ -281,6 +281,50 @@ console.log("\n--- SCENARIOS (user perspective) ---");
   check("targetProtein=200 raises avg protein + persists", avgA > avgB + 8 && r.profile.proteinGrams === 200, `${avgB} -> ${avgA}`);
 }
 {
+  // EDIT PRESERVATION — a week-wide change keeps the plan the user built. The re-solve used to
+  // rebuild the week from scratch, silently discarding every dish the user had swapped in; it now
+  // keeps each dish that still passes the CHANGED rules and re-picks only the slots that now break.
+  const wk = freshWeek(BASE);
+  const before = wk.days.flatMap((d) => d.meals.map((m) => m.name));
+
+  // (A) A pure TARGET change touches no dish's eligibility, so every dish is kept and only the
+  // portions re-scale. A from-scratch rebuild would reshuffle the whole week.
+  const calShift = applyOperations(BASE, wk, [op({ tool: "update_profile", targetCalories: BASE.targetCalories + 150 })]);
+  const afterCal = calShift.plan.days.flatMap((d) => d.meals.map((m) => m.name));
+  const keptCal = before.filter((n, i) => n === afterCal[i]).length;
+  check("update_profile (calorie change) keeps the dishes the user already had",
+    keptCal >= before.length - 3, `${keptCal}/${before.length} dishes preserved`);
+
+  // (B) A dish the user SWAPPED in survives a later, unrelated week-wide change.
+  const swap = applyOperations(BASE, wk, [op({ tool: "swap_meal", day: "Monday", mealType: "lunch", dish: "chicken" })]);
+  const swappedLunch = swap.plan.days.find((d) => d.day === "Monday")!.meals.find((m) => m.type === "lunch")!.name;
+  const afterBenign = applyOperations(BASE, swap.plan, [op({ tool: "update_profile", excludeFoods: ["zzznotafood"] })]);
+  const lunchAfter = afterBenign.plan.days.find((d) => d.day === "Monday")!.meals.find((m) => m.type === "lunch")!.name;
+  check("a swapped-in dish survives a later unrelated week-wide change", lunchAfter === swappedLunch, `${swappedLunch} -> ${lunchAfter}`);
+
+  // (C) A change a dish DOES violate replaces just that dish, while dishes that were already
+  // compliant stay in place (position-identical), not reshuffled.
+  const meatIn = applyOperations(BASE, wk, [op({ tool: "swap_meal", day: "Monday", mealType: "lunch", dish: "chicken" })]);
+  const meatLunch = meatIn.plan.days.find((d) => d.day === "Monday")!.meals.find((m) => m.type === "lunch")!.name;
+  const beforeVeg = meatIn.plan.days.flatMap((d) => d.meals.map((m) => m.name));
+  const veg = applyOperations(BASE, meatIn.plan, [op({ tool: "update_profile", diet: "vegetarian" })]);
+  const afterVeg = veg.plan.days.flatMap((d) => d.meals.map((m) => m.name));
+  const monLunchVeg = veg.plan.days.find((d) => d.day === "Monday")!.meals.find((m) => m.type === "lunch")!.name;
+  const allVeg = veg.plan.days.every((d) => d.meals.every((m) => {
+    const rr = recipeByName.get(m.name.toLowerCase());
+    return rr ? dietOk(rr.dietTags, "vegetarian") : true;
+  }));
+  let keptVeg = 0, wereVeg = 0;
+  for (let i = 0; i < beforeVeg.length; i++) {
+    const rr = recipeByName.get(beforeVeg[i].toLowerCase());
+    if (rr && dietOk(rr.dietTags, "vegetarian")) { wereVeg++; if (afterVeg[i] === beforeVeg[i]) keptVeg++; }
+  }
+  check("go vegetarian replaces the violating meat dish", monLunchVeg !== meatLunch, `${meatLunch} -> ${monLunchVeg}`);
+  check("go vegetarian: the whole week is vegetarian", allVeg);
+  check("go vegetarian: already-vegetarian dishes are kept, not reshuffled",
+    keptVeg >= Math.floor(wereVeg * 0.5), `${keptVeg}/${wereVeg} veg dishes preserved`);
+}
+{
   // "I've got salmon to use up."
   const wk = freshWeek(BASE);
   // The fridge used to be a BIAS: the selector preferred matching recipes per slot, but the

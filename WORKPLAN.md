@@ -7,11 +7,24 @@
 
 ---
 
-## RESUME HERE (last updated: 2026-09-03)
+## RESUME HERE (last updated: 2026-09-16)
 
 `main` is green and **fully pushed** — `git log origin/main..HEAD` is empty. `npm run test:engine`
-**572 / 0** (was 449), 501 recipes, `check:recipes` green. **`CONTEXT.md`'s 2026-09-03 top block is
-the live cross-session state**; this section is the build record.
+**594 / 0**, 501 recipes, `check:recipes` green. **`CONTEXT.md`'s top block is the live cross-session
+state**; this section is the build record.
+
+### >>> SINCE 2026-09-16: edit-preserving week-wide re-solve <<<
+
+**"Considering changes after generation"** (owner's ask; assistant parked till later). A week-wide
+change used to rebuild the week from scratch (`selectWeekFromDb`), silently discarding every dish the
+user had swapped in — "swap 4 meals, then say 'no onions'" lost all four (swaps were never recorded on
+the profile). Now `update_profile` and `compute_targets` do an **edit-preserving** re-solve: keep each
+current dish that still passes the CHANGED rules, re-pick only the slots that now break, then
+`rebalanceWeek` as before. Implemented as an optional `keep: { plan, keepIf }` on `selectWeekFromDb`,
+threaded into `pickMealsForDay`; kept dishes are pre-marked used so a replacement can't duplicate one
+that survives on another day. `regenerate_week` still rebuilds from scratch (explicit "start over"),
+and a re-theme (`cuisine`, fiber/nutrient boost, fridge clear-out) also reselects — those only bite
+during selection. +3 regression tests; suite **594 / 0**. Two gotchas → lessons **41–42**.
 
 ### >>> SINCE 2026-09-03: two meal-gen features, an engine hardening sweep, a doc repair <<<
 
@@ -1072,6 +1085,20 @@ Each of these was discovered by doing the work, and each earned its place.
     lesson 35 so NEITHER half held it intact — the header lived in one copy (truncated), the body in
     the other. `git checkout` is the safety net; verify a doc surgically (diff the halves, isolate
     what is unique) before deleting ~1000 lines, and reconstruct across copies rather than trusting one.
+41. **A week-wide re-solve that rebuilds from scratch throws away the user's edits.** `update_profile`
+    used to call `selectWeekFromDb` fresh on any change, so a dish the user swapped in vanished the
+    moment they said "no onions" or "set protein to 180" — the swap was never recorded on the profile,
+    so nothing could restore it. Fix: keep every current dish that still passes the CHANGED rules and
+    re-pick only the violators (an optional `keep` on `selectWeekFromDb`). But a re-THEME is not a
+    filter — `cuisine`, a fiber/nutrient push, a fridge clear-out only bite during SELECTION, so a
+    "keep everything" pass silently ignores them ("make it italian" changed nothing). Preserve edits for
+    FILTER/TARGET changes; reselect from scratch for a re-theme (and for explicit `regenerate_week`).
+42. **Preserve the kept dish's portions verbatim; don't re-cook it from base.** The first cut re-scaled
+    each kept dish to its slot share via `scaleRecipeToTarget`, differing from the already-rebalanced
+    input, so `rebalanceWeek` landed on slightly different portions and `planChanged` flipped with the
+    RNG seed of the starting week — a genuinely idempotent change (relaxing a diet, restating the current
+    target) reported "changed" on some seeds, not others. `rebalanceWeek` has no RNG; the non-determinism
+    was entirely the re-cook. Push the existing meal object as-is and let the rebalancer scale it.
 
 ---
 

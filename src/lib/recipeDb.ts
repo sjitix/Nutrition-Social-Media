@@ -8221,11 +8221,38 @@ function pickMealsForDay(
   cuisinePref?: Cuisine,
   preferFiber?: boolean,
   report?: SelectionReport,
+  keep?: KeepDay,
 ): Meal[] {
   const dayCuisines = new Set<string>();
   const meals: Meal[] = [];
   for (const [type, share] of split) {
     const target = Math.round(profile.targetCalories * share);
+    // Edit-preserving re-solve: if the user already has a dish in this slot and it still satisfies
+    // the CHANGED rules, keep it in place rather than re-pick — so a week-wide change keeps the plan
+    // they built and only replaces the slots that now break. The kept meal is pushed VERBATIM (its
+    // current portions), not re-cooked from base: rebalanceWeek runs afterward and re-scales it if a
+    // target actually changed, so a no-op change (relaxing a diet, restating the current target)
+    // reproduces the week exactly instead of jittering the portions. A meal we can't find in the
+    // library (a logged / eating-out entry) is likewise kept verbatim, never guessed at.
+    if (keep) {
+      const existing = keep.meals.find((m) => m.type === type);
+      if (existing) {
+        const base = RECIPES.find((r) => r.name === existing.name);
+        if (!base) {
+          meals.push(existing);
+          continue;
+        }
+        if (keep.keepIf(base)) {
+          ctx.usedIds.add(base.id);
+          ctx.usedNames.add(base.name.toLowerCase());
+          ctx.proteinDays[base.mainProtein] = (ctx.proteinDays[base.mainProtein] ?? 0) + 1;
+          dayCuisines.add(base.cuisine);
+          for (const ing of base.ingredients) ctx.usedIngredients.add(ing.name.trim().toLowerCase());
+          meals.push(existing);
+          continue;
+        }
+      }
+    }
     const st = slotTargetMacros(profile, type); // this slot's macro share (keto-adjusted)
     // HARD rules — diet, allergies and exclusions are never relaxed.
     const hard = RECIPES.filter(
@@ -8297,6 +8324,16 @@ function pickMealsForDay(
 }
 
 // Assemble a full week by selecting from the library under all constraints.
+/**
+ * Edit-preserving re-solve. When a WEEK-WIDE change comes in (go vegetarian, no onions, protein
+ * 180, cheaper), the old behaviour rebuilt the week from scratch and silently discarded every dish
+ * the user had swapped in. Passing `keep` tells the selector instead: keep each dish in `plan` that
+ * still passes `keepIf`, and only re-pick the slots that now break a rule. Kept dishes are pre-marked
+ * used so a replaced slot can't duplicate one that survived on another day.
+ */
+type KeepEdits = { plan: WeekPlan; keepIf: (r: Recipe) => boolean };
+type KeepDay = { meals: Meal[]; keepIf: (r: Recipe) => boolean };
+
 export function selectWeekFromDb(
   profile: UserProfile,
   cuisinePref?: Cuisine,
@@ -8304,6 +8341,7 @@ export function selectWeekFromDb(
   seedIngredients?: string[],
   boost?: MicroKey,
   report?: SelectionReport,
+  keep?: KeepEdits,
 ): WeekPlan {
   const split = localSplit(profile.mealsPerDay);
   const cap = budgetCap(profile.budget);
@@ -8325,9 +8363,27 @@ export function selectWeekFromDb(
     }
   }
 
+  // Edit-preserving re-solve: pre-mark every dish we intend to KEEP as already used, so a slot we
+  // DO re-pick can't duplicate a kept dish that survives on another day (the same reason a locked
+  // dish is pre-marked above).
+  if (keep) {
+    for (const d of keep.plan.days) {
+      for (const m of d.meals) {
+        const r = RECIPES.find((x) => x.name === m.name);
+        if (r && keep.keepIf(r)) {
+          ctx.usedIds.add(r.id);
+          ctx.usedNames.add(r.name.toLowerCase());
+        }
+      }
+    }
+  }
+
   const days = DAYS.map((day) => ({
     day,
-    meals: pickMealsForDay(profile, split, cap, tokens, ctx, cuisinePref, preferFiber, report),
+    meals: pickMealsForDay(
+      profile, split, cap, tokens, ctx, cuisinePref, preferFiber, report,
+      keep ? { meals: keep.plan.days.find((d) => d.day === day)?.meals ?? [], keepIf: keep.keepIf } : undefined,
+    ),
   }));
 
   const avg = Math.round(
@@ -9914,11 +9970,27 @@ export function applyOperations(
         if (op.excludeFoods?.length) p.dislikes = mergeDislikes(p.dislikes, op.excludeFoods);
         profileChanged = true;
         // Re-solve every day onto the macro targets so the base plan actually hits
-        // protein/calories, not just each meal's calorie share.
+        // protein/calories, not just each meal's calorie share. This re-solve PRESERVES the plan the
+        // user built: keep every dish that still satisfies the CHANGED rules and only re-pick the
+        // slots that now break, instead of a from-scratch week that silently discarded their swaps.
+        // Diet and dislikes are hard; budget and cook-time force a replacement only when the user
+        // actually tightened them this turn.
         {
           const rep = newReport();
           const prev = curPlan;
-          const built = selectWeekFromDb(p, normalizeCuisine(op.cuisine ?? null), fiberOn(op), op.useIngredients, op.boostNutrient ?? undefined, rep);
+          const capNew = budgetCap(p.budget);
+          const tokNew = exclusionTokens(p);
+          const keepIf = (r: Recipe) =>
+            passesDiet(r, p.diet) &&
+            !blockedByExclusions(r, tokNew) &&
+            (op.budget ? r.approxCost <= capNew : true) &&
+            (op.maxCookTime && op.maxCookTime > 0 ? r.timeMinutes <= p.maxCookTime + 5 : true);
+          // A re-THEME request (a cuisine, a fiber/nutrient push, or a fridge clear-out) is the user
+          // asking for DIFFERENT dishes — those preferences only take effect during SELECTION, so a
+          // "keep everything" pass would silently ignore them. Preserve edits only for FILTER and
+          // TARGET changes; a re-theme reselects the week from scratch, exactly as before.
+          const reTheme = !!(op.cuisine || fiberOn(op) || op.boostNutrient || op.useIngredients?.length);
+          const built = selectWeekFromDb(p, normalizeCuisine(op.cuisine ?? null), fiberOn(op), op.useIngredients, op.boostNutrient ?? undefined, rep, reTheme ? undefined : { plan: prev, keepIf });
           curPlan = keepMacros(op) ? rebalanceWeek(built, p) : built;
           notes.push(...reportNotes(rep, p));
           if (op.boostNutrient) {
@@ -10156,7 +10228,11 @@ export function applyOperations(
         };
         profileChanged = true;
         const rep = newReport();
-        curPlan = rebalanceWeek(selectWeekFromDb(p, undefined, false, undefined, undefined, rep), p);
+        // Targets changed, not constraints — every current dish is still valid, so keep them all and
+        // just re-scale onto the new macros (a from-scratch week would needlessly reshuffle dishes).
+        const tok = exclusionTokens(p);
+        const keepIf = (r: Recipe) => passesDiet(r, p.diet) && !blockedByExclusions(r, tok);
+        curPlan = rebalanceWeek(selectWeekFromDb(p, undefined, false, undefined, undefined, rep, { plan: curPlan, keepIf }), p);
         applyLocks();
         notes.push(
           explainTargets(t, {

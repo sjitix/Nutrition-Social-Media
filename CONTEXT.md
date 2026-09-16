@@ -9,9 +9,29 @@ Everything described here is committed and pushed to `main`. Nothing is only on 
 
 ## Where it left off
 
-### >>> READ THIS FIRST — evening 2026-09-06: the open thread is the assistant model/hosting choice <<<
+### >>> READ THIS FIRST — 2026-09-16: meal-gen now PRESERVES edits on a week-wide re-solve <<<
 
-**No code changed this session — it was a strategy + hardware experiment. Repo is clean, nothing to push.**
+**Shipped this session (committed + pushed).** Assistant is parked (owner: "later"); worked on meal
+GENERATION — specifically "considering changes after generation." A week-wide change (go vegetarian,
+no onions, set protein) used to rebuild the week from scratch and silently discard every dish the user
+had swapped in. Now `update_profile` + `compute_targets` do an **edit-preserving** re-solve: keep each
+current dish that still passes the CHANGED rules, re-pick only the slots that now break, rebalance as
+before. `regenerate_week` and re-theme requests (cuisine / fiber / nutrient boost / fridge) still
+reselect from scratch on purpose (those preferences only take effect during selection). Code:
+`selectWeekFromDb` gained an optional `keep` arg threaded into `pickMealsForDay` (`src/lib/recipeDb.ts`);
++3 regression tests in `scripts/test-engine.mts`; `npm run test:engine` **594 / 0**. See WORKPLAN
+"SINCE 2026-09-16" + lessons 41–42 for the two gotchas (a re-theme is not a filter; preserve portions
+verbatim or `planChanged` goes RNG-seed-dependent).
+
+**Still the open thread (owner's call, unchanged since 2026-09-06):** the assistant model/hosting
+choice — cloud 70B (Groq, ~1–2 s, recommended) vs a 24 GB+ device vs staying on gpt-oss-20b (~13 s, the
+current `.env.local` default). The local 70B test proved smart-but-0.58 tok/s (memory
+`local-70b-inference-speed`). Independent assistant quality bugs still open: invents non-library
+recipes, emoji in replies, weak fuzzy swap-match.
+
+### >>> 2026-09-06 (evening): the assistant model/hosting experiment <<<
+
+**No code changed that session — it was a strategy + hardware experiment.**
 The question driving it (owner's words): *strive for a smart LLM that understands conversation and takes
 effective decisions*, with ≤5 s replies, while KEEPING the deterministic engine — the LLM-decision layer and
 the engine layer intertwine, so **do not "simplify" by dropping the engine** (owner corrected this twice).
