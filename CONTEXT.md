@@ -9,7 +9,37 @@ Everything described here is committed and pushed to `main`. Nothing is only on 
 
 ## Where it left off
 
-### >>> READ THIS FIRST — 2026-09-16: meal-gen now PRESERVES edits on a week-wide re-solve <<<
+### >>> READ THIS FIRST — 2026-09-17 shutdown: tomorrow is a planned 10-hour build day <<<
+
+**State:** `main` clean + pushed; `npm run test:engine` **594/0**. No batch code written yet — today was
+DESIGN only. A full, adversarially-reviewed design for the new **batch-cooking / meal-prep mode** lives in
+**`docs/batch-mode/`** (read its `README.md` first — it has the build order, the 3 must-fix bugs, and the
+owner's pending decisions). Visual summary: https://claude.ai/artifact/DYonDYakhAemoUyH1ceXQQ
+
+**What meal-prep mode is:** a 2nd planning mode beside "fresh" — cook a small overlapping recipe set in
+bulk over 1–2 sessions, rotate the servings across days (cook a few times, eat varied). Toggle fresh↔batch
+anytime, persists. Owner is committed to building it "full-featured."
+
+**== TOMORROW — 10-HOUR PLAN (two tracks; start Track K FIRST so its rate-limited eval marinates all day) ==**
+
+**Track K — Kimi K3 beta test on FREE cloud (owner's explicit ask; DO NOT argue "we don't need the params" — the point is to TRY it and then decide on hardware):**
+- K1 (~45m): find the free path to Kimi K3, in order — OpenRouter (is `moonshotai/kimi-k3` listed? free `:free` variant, else pennies PAYG?), Moonshot's own platform (platform.moonshot.ai — free trial credits on signup?), and the free web chat kimi.com as a manual-eval fallback. Owner may need to sign up / paste a key.
+- K2: wire it into `.env.local` — `AI_PROVIDER=local`, `LOCAL_AI_URL=<endpoint>`, `LOCAL_AI_API_KEY=<key>`, `LOCAL_AI_MODEL=<kimi-k3 id>` (app already speaks OpenAI-compatible; 3-line change, no code).
+- K3: run `npm run eval:hardcases` (45 cases) + the scratchpad burger/smoke tests against Kimi K3; because of free-tier limits run it slowly in the background through the day.
+- K4 (end of day): write the readout — quality vs gpt-oss-20b/the local 70B, latency, rate-limit friction → the verdict: **is Kimi-scale quality worth buying hardware for?** That's the whole beta test.
+
+**Track B — build meal-prep mode M1 (the day's main work; follow `docs/batch-mode/02-milestone-plan.md`):**
+- B0 (~45m): **M0 feasibility spike** (was going to run tonight, interrupted). Confirm ≥2 (and ≥3) diet-passing dishes/slot for none/veg/vegan/keto/med + ingredient-quantity coverage for the bulk list. Decide K per diet. Vegan/keto may need K=1 with an honest note (critique pressure-test #9).
+- B1 (~1h): M1a schema — optional `planMode`/`batchCadence` on `UserProfile`; `sessions`/`batches`/`planMode` on `WeekPlanSchema`; `batchId` on `MealSchema`; new `CookingSession`/`Batch` schemas; `withPlanDefaults`; `KEYS.batchPlan`.
+- B2 (~2.5h): M1b engine — extract `candidatesForSlot` (no fresh behavior change), write `selectBatchWeek` + `rebalanceBatchWeek` + `buildWeek`, branch `ai.ts:627`. **Apply critique fixes H2 (per-site gate, do NOT universalize buildWeek) + H3 (mode change forces rebuild).**
+- B3 (~1.5h): tests — fresh-path byte-identical (same-seed `withSeed`), batch shape, cook-once, rotation, clamp, divisor (`servings===base.servings`), rebalancer protection, schema-not-stripped, vegan relax. `npm run test:engine` GREEN → commit + push.
+- B4 (~1.5h): M1c toggle — SidePanel segmented Fresh|Meal-prep control (new SVG icon, **no emoji**), Mode context in `layout.tsx`, `myPlan.ts` wiring + dual-week cache. `tsc` + `build` → commit + push.
+- B5 (~30m): manual smoke — `npm run dev -- -H 0.0.0.0` + a fresh cloudflared tunnel; flip toggle → batch week renders; flip back → instant fresh.
+- Wrap (~30m): update VISION (batch mode as a direction), WORKPLAN (M1 shipped + lessons), CONTEXT. Commit + push. Finalize the Kimi readout.
+
+**Machine state at shutdown:** `.env.local` = `LOCAL_AI_MODEL=openai/gpt-oss-20b` (usable local default). Dev server + cloudflared tunnel are down (relaunch tomorrow for B5). The 70B GGUF is still in LM Studio (`meta/llama-3.3-70b`) if a local comparison is wanted for the Kimi readout.
+
+### >>> 2026-09-16: meal-gen now PRESERVES edits on a week-wide re-solve <<<
 
 **Shipped this session (committed + pushed).** Assistant is parked (owner: "later"); worked on meal
 GENERATION — specifically "considering changes after generation." A week-wide change (go vegetarian,
