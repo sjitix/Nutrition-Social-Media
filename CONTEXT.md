@@ -9,38 +9,40 @@ Everything described here is committed and pushed to `main`. Nothing is only on 
 
 ## Where it left off
 
-### >>> READ THIS FIRST — 2026-09-18: batch / meal-prep mode M1 is SHIPPED <<<
+### >>> READ THIS FIRST — 2026-09-18: batch / meal-prep mode is COMPLETE (M1–M6) <<<
 
-**State:** `main` clean + pushed. `npm run test:engine` **613/0**; tsc + production build green. Batch
-(meal-prep) mode's **vertical slice (M1) is live end-to-end**: a `planMode:'batch'` profile builds a
-deterministic small-set-cooked-large, rotated week (2 cooking sessions, ~15 batches, ~11 distinct
-dishes vs fresh's 21), toggled from a **Fresh|Prep control in the /sage sidebar**, persisted, lossless
-to switch. Verified via the engine suite AND a live `/api/plan` smoke (HTTP 200, real batch week back).
+**State:** `main` clean + pushed. `npm run test:engine` **628/0**; tsc + production build green. The whole
+**batch / meal-prep planning mode is shipped end-to-end** — all six milestones from `docs/batch-mode/`:
+- **M1** (`e2a4274`,`ca54688`) — schema + deterministic engine (`selectBatchWeek`/`rebalanceBatchWeek`/
+  `buildWeek`) + the /sage **Fresh|Prep toggle** (persisted, lossless per-mode cache).
+- **M2** (`53ff175`) — rebuild-site parity: a batch user's edits stay batch (fix **H2**); `regenerate_day`
+  refused in batch; `planMode` preserved on every returned profile.
+- **M3** (`57357b4`) — ingredient-overlap-driven selection + weekly-cadence **freeze safety**
+  (`keepDays`/`freezesWell` allow-list; freeze-tag the tail, disclose honestly).
+- **M4** (`24c141b`,`e42965b`) — per-session **bulk grocery** list + efficiency metric; fix **H1** (divide
+  by `recipe.servings` before ×totalServings). `src/lib/batchGrocery.ts` + the Groceries UI.
+- **M5** (`fc7757f`) — **assistant integration**: `constrain{planMode,cadence}` → update_profile → batch;
+  fix **H3** (a mode change forces a rebuild, never keep-paths the old dishes); single-meal swap refused.
+- **M6** (`0403356`) — render parity: Week board batch banner + mode-aware copy, sidebar **cook-cadence**
+  control (weekly/every3days), mobile toggle.
 
-Commits: `e2a4274` (schema+engine+tests, M1a/b), `ca54688` (shell toggle, M1c). Design record +
-milestone plan: **`docs/batch-mode/`**. B0 feasibility spike confirmed every diet supplies ≥3 dishes/slot
-and ingredient quantities resolve 100% — no K=1 relaxation needed.
+Verified by the engine suite (~34 batch tests) + a live `/api/plan` smoke. All three critique bugs
+(H1/H2/H3) are fixed and asserted. B0 spike: every diet supplies ≥3 dishes/slot, quantities resolve 100%.
 
-**NEXT (build order, from `docs/batch-mode/02-milestone-plan.md`):**
-- **M2 — DONE (`53ff175`).** Rebuild-site parity: `update_profile`/`regenerate_week`/`compute_targets`
-  gate on `p.planMode` (batch→`buildWeek`, fresh path untouched, fix **H2**); `regenerate_day` refused in
-  batch with an honest note; `planMode` preserved on every returned profile. (**H3** moved to **M5** — it
-  needs `op.planMode`, which M5 adds; there is no batch→fresh-via-op path until then.)
-- **M3 (NEXT)** — efficiency selection (promote ingredient-overlap to a primary selection term) +
-  weekly-cadence freeze safety (`keepDays` allow-list; freeze-tag the tail past fridge-safe). · **M4**
-  bulk grocery + fix **H1** (divide by `recipe.servings` before ×totalServings) · **M5** assistant
-  integration + **H3** (contract change) · **M6** render parity (Week session cards / Today / mobile
-  toggle) + live cross-screen re-render (M1 uses a reload).
-- Owner's 4 product leans (cadence default=every3days, weekly-in-v1=defer, screen parity=Week-first,
-  /cook route=fold in) stand as defaults in the README — confirm when convenient.
+**Remaining batch tail (all OPTIONAL polish — the feature works without it):** `/sage/today` still shows
+the fixed demo Monday (needs `loadMyWeek`/mode wiring); whole-batch swaps + per-batch locks in the
+assistant (a single-meal swap is refused, and a lock is a silent no-op in batch); a live cross-screen
+re-render (mode/cadence switches currently reload). Note: every-3-days efficiency is modest (cook ~15 vs
+21) — weekly cadence is the bigger saving; a money-saved figure was deliberately skipped (would need the
+cost model without double-counting the existing bulk-pack assumption).
 
-**Track K — Kimi K3 beta test: NOT started (needs the owner).** Sign up / paste a free-tier key
-(OpenRouter `moonshotai/kimi-k3`, or Moonshot's platform free credits), then it's a 3-line `.env.local`
-change to run `eval:hardcases` against it and judge quality/latency → decide on hardware. Steps are in
-the 2026-09-17 block below. (Do NOT argue "we don't need the params" — the point is to try it first.)
+**Track K — Kimi K3 beta test: NOT started (needs the owner).** Sign up / paste a free-tier key (OpenRouter
+`moonshotai/kimi-k3`, or Moonshot's platform free credits); then it's a 3-line `.env.local` change to run
+`eval:hardcases` against it and judge quality/latency → decide on hardware. Steps in the 2026-09-17 block
+below. (Do NOT argue "we don't need the params" — the point is to try it first.)
 
-**Machine state:** `.env.local` = `LOCAL_AI_MODEL=openai/gpt-oss-20b`. Dev server + tunnel down (smoke
-cleaned up). `.next` is dev-mode — run `npm run build` fresh before any prod serve.
+**Machine state:** `.env.local` = `LOCAL_AI_MODEL=openai/gpt-oss-20b`. Dev server + tunnel down. `.next` is
+a PRODUCTION build (last `npm run build`) — delete it or rebuild before running `npm run dev`.
 
 ### >>> 2026-09-17: the day plan (Track B / M1 done 09-18; Track K / Kimi still pending an owner key) <<<
 

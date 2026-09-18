@@ -10,7 +10,7 @@
 ## RESUME HERE (last updated: 2026-09-18)
 
 `main` is green and **fully pushed** — `git log origin/main..HEAD` is empty. `npm run test:engine`
-**613 / 0**, 501 recipes, `check:recipes` green. **`CONTEXT.md`'s top block is the live cross-session
+**628 / 0**, 501 recipes, `check:recipes` green. **`CONTEXT.md`'s top block is the live cross-session
 state**; this section is the build record.
 
 ### >>> SINCE 2026-09-18: batch / meal-prep mode — M1 vertical slice shipped <<<
@@ -30,8 +30,14 @@ green; a live `/api/plan` smoke returns a batch week. The B0 spike confirmed eve
 dishes/slot (no K=1 relaxation needed) and ingredient quantities resolve 100%. New lesson **43** below.
 **M2 (`53ff175`)** then added rebuild-site parity: `update_profile`/`regenerate_week`/`compute_targets`
 gate on `p.planMode` so a batch user's edits stay batch (fresh path untouched — fix H2); `regenerate_day`
-is refused in batch; `planMode` is preserved on every returned profile. Suite **→613/0**. M3–M6 remain
-(see `docs/batch-mode/`; H1→M4, H3→M5).
+is refused in batch; `planMode` is preserved on every returned profile. **M3** (`57357b4`) — overlap-driven
+selection + weekly-cadence freeze safety (`keepDays`/`freezesWell` allow-list, honest freeze notes). **M4**
+(`24c141b`,`e42965b`) — per-session bulk grocery (`src/lib/batchGrocery.ts`) + efficiency metric + fix H1
+(divide by `recipe.servings` before ×totalServings). **M5** (`fc7757f`) — assistant integration
+(`constrain{planMode,cadence}`) + fix H3 (a mode change forces a rebuild, never keep-paths); single-meal
+swap refused in batch. **M6** (`0403356`) — render parity (Week batch banner, cook-cadence control, mobile
+toggle). Suite **→628/0**; all three critique bugs (H1/H2/H3) fixed + asserted. **Batch mode is COMPLETE.**
+Optional tail: /sage/today demo-only, whole-batch swaps + batch locks, live cross-screen re-render.
 
 ### >>> SINCE 2026-09-16: edit-preserving week-wide re-solve <<<
 
