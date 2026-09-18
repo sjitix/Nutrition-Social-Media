@@ -10169,6 +10169,16 @@ export function applyOperations(
         // Diet and dislikes are hard; budget and cook-time force a replacement only when the user
         // actually tightened them this turn.
         {
+          // Batch mode rebuilds the whole meal-prep week deterministically via buildWeek (=
+          // selectBatchWeek + rebalanceBatchWeek). The fresh keep/cuisine/boost path below is left
+          // UNTOUCHED (fix H2 — the one-arg gate is used ONLY for the batch branch, never over fresh's args).
+          if (p.planMode === "batch") {
+            curPlan = buildWeek(p);
+            if (curPlan.notes?.length) notes.push(...curPlan.notes);
+            applyLocks();
+            notes.push(achievementNote("Your week now averages", weekAveragesFull(curPlan), p));
+            break;
+          }
           const rep = newReport();
           const prev = curPlan;
           const capNew = budgetCap(p.budget);
@@ -10200,6 +10210,14 @@ export function applyOperations(
       }
       case "regenerate_week": {
         {
+          // Batch mode regenerates the meal-prep week deterministically; the fresh path is unchanged.
+          if (p.planMode === "batch") {
+            curPlan = buildWeek(p);
+            if (curPlan.notes?.length) notes.push(...curPlan.notes);
+            applyLocks();
+            notes.push(achievementNote("Your week now averages", weekAveragesFull(curPlan), p));
+            break;
+          }
           const rep = newReport();
           const prev = curPlan;
           const built = selectWeekFromDb(p, normalizeCuisine(op.cuisine ?? null), fiberOn(op), op.useIngredients, op.boostNutrient ?? undefined, rep);
@@ -10219,6 +10237,12 @@ export function applyOperations(
       }
       case "regenerate_day": {
         if (!op.day) break;
+        // In meal-prep mode a day's meals are servings from a cooking session, so rebuilding a single
+        // day in isolation would break "cook once, eat across days". Refuse honestly rather than desync.
+        if (p.planMode === "batch") {
+          notes.push(`In meal-prep mode ${op.day}'s meals come from a batch you cook once, so I can't rebuild just that day without breaking the plan. Regenerate the whole week, or switch to Fresh to change a single day.`);
+          break;
+        }
         const tp: UserProfile = { ...p }; // per-day overrides — not persisted
         if (op.diet) tp.diet = op.diet;
         if (op.targetCalories && op.targetCalories > 0) tp.targetCalories = op.targetCalories;
@@ -10421,11 +10445,17 @@ export function applyOperations(
         };
         profileChanged = true;
         const rep = newReport();
-        // Targets changed, not constraints — every current dish is still valid, so keep them all and
-        // just re-scale onto the new macros (a from-scratch week would needlessly reshuffle dishes).
-        const tok = exclusionTokens(p);
-        const keepIf = (r: Recipe) => passesDiet(r, p.diet) && !blockedByExclusions(r, tok);
-        curPlan = rebalanceWeek(selectWeekFromDb(p, undefined, false, undefined, undefined, rep, { plan: curPlan, keepIf }), p);
+        if (p.planMode === "batch") {
+          // Batch mode: rebuild the meal-prep week onto the new targets (deterministic).
+          curPlan = buildWeek(p);
+          if (curPlan.notes?.length) notes.push(...curPlan.notes);
+        } else {
+          // Targets changed, not constraints — every current dish is still valid, so keep them all and
+          // just re-scale onto the new macros (a from-scratch week would needlessly reshuffle dishes).
+          const tok = exclusionTokens(p);
+          const keepIf = (r: Recipe) => passesDiet(r, p.diet) && !blockedByExclusions(r, tok);
+          curPlan = rebalanceWeek(selectWeekFromDb(p, undefined, false, undefined, undefined, rep, { plan: curPlan, keepIf }), p);
+        }
         applyLocks();
         notes.push(
           explainTargets(t, {

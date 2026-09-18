@@ -391,6 +391,38 @@ console.log("\n--- SCENARIOS (user perspective) ---");
   check("batch: vegan week builds and every dish is vegan", veganOk && vegan.days.length === 7);
 }
 {
+  // === BATCH MODE — rebuild-site & op parity (M2) ===
+  const bp: UserProfile = { ...BASE, planMode: "batch", batchCadence: "every3days" };
+  const bw = buildWeek(bp);
+
+  const rw = applyOperations(bp, bw, [op({ tool: "regenerate_week" })]);
+  check("batch M2: regenerate_week stays batch (not reverted to fresh)",
+    rw.plan.planMode === "batch" && (rw.plan.sessions?.length ?? 0) === 2 && rw.profile.planMode === "batch",
+    `mode=${rw.plan.planMode} sessions=${rw.plan.sessions?.length} profile=${rw.profile.planMode}`);
+
+  const up = applyOperations(bp, bw, [op({ tool: "update_profile", targetProtein: 190 })]);
+  const upDistinct = new Set(up.plan.days.flatMap((d) => d.meals.map((m) => m.name))).size;
+  check("batch M2: update_profile stays batch-shaped (not a fresh 21-dish week)",
+    up.plan.planMode === "batch" && (up.plan.batches?.length ?? 0) > 0 && upDistinct <= 5 * BASE.mealsPerDay,
+    `mode=${up.plan.planMode} distinct=${upDistinct}`);
+
+  const ct = applyOperations(bp, bw, [op({ tool: "compute_targets", age: 30, heightCm: 180, weightKg: 80, sex: "male", activity: "moderate" })]);
+  check("batch M2: compute_targets stays batch-shaped",
+    ct.plan.planMode === "batch" && (ct.plan.sessions?.length ?? 0) === 2, `mode=${ct.plan.planMode}`);
+
+  const rd = applyOperations(bp, bw, [op({ tool: "regenerate_day", day: "Tuesday" })]);
+  check("batch M2: regenerate_day is refused with an honest note (no single-day desync)",
+    rd.planChanged === false && rd.notes.some((n) => /meal-prep|cook once|batch/i.test(n)), rd.notes.join(" | ") || "(no note)");
+
+  check("batch M2: planMode preserved on the returned profile after every op",
+    rw.profile.planMode === "batch" && up.profile.planMode === "batch" && ct.profile.planMode === "batch" && rd.profile.planMode === "batch");
+
+  // Fresh regression: the same ops on a fresh profile stay fresh (the batch branch never fires).
+  const fr = applyOperations(BASE, freshWeek(BASE), [op({ tool: "update_profile", targetProtein: 190 })]);
+  check("batch M2: a fresh profile's update_profile stays fresh (no planMode/sessions leak)",
+    fr.plan.planMode !== "batch" && !fr.plan.sessions && fr.profile.planMode !== "batch");
+}
+{
   // "I've got salmon to use up."
   const wk = freshWeek(BASE);
   // The fridge used to be a BIAS: the selector preferred matching recipes per slot, but the
