@@ -8769,7 +8769,7 @@ export const rebalanceWeek = (plan: WeekPlan, profile: UserProfile): WeekPlan =>
 // untouched. See docs/batch-mode/.
 // ===========================================================================
 
-const BATCH_SEED = 0x5eed; // batch selection is DETERMINISTic — a fixed seed for chooseRecipe's tiebreak
+const BATCH_SEED = 0x5eed; // batch selection is deterministic by construction; the seed only guards any RNG a reused helper might touch
 
 /** Split the fixed Mon–Sun week into cooking sessions for the cadence. */
 function partitionSessions(cadence: NonNullable<UserProfile["batchCadence"]>): CookingSession[] {
@@ -8782,6 +8782,25 @@ function partitionSessions(cadence: NonNullable<UserProfile["batchCadence"]>): C
     { id: "s1", cookDay: DAYS[0], coversDays: [DAYS[0], DAYS[1], DAYS[2]], label: `${DAYS[0]} cook` },
     { id: "s2", cookDay: DAYS[3], coversDays: [DAYS[3], DAYS[4], DAYS[5], DAYS[6]], label: `${DAYS[3]} cook` },
   ];
+}
+
+// Coarse, curated fridge-shelf-life + freezability heuristics for meal-prep (labelled coarse in the UI).
+// keepDays = days a cooked portion stays good REFRIGERATED. freezesWell is an ALLOW-list — we never tell
+// someone to freeze a dish that freezes badly; an unknown dish defaults to "don't freeze".
+const BATCH_SHORT_KEEP = /salad|lettuce|greens|slaw|poke|ceviche|sashimi|sushi|tartare|carpaccio/i;
+const BATCH_LONG_KEEP = /stew|chill?i|curry|soup|bake|casserole|ragu|bolognes|dal|daal|lentil|bean|chickpea|braise|roast|stock|sauce/i;
+export function keepDays(r: Recipe): number {
+  const hay = `${r.name} ${r.ingredients.map((i) => i.name).join(" ")}`.toLowerCase();
+  if (BATCH_SHORT_KEEP.test(hay)) return 2;
+  if (BATCH_LONG_KEEP.test(hay)) return 4;
+  return 3;
+}
+const BATCH_FREEZE_BAD = /salad|lettuce|greens|slaw|poke|ceviche|sashimi|sushi|tartare|avocado|yogurt|yoghurt|crisp|fried/i;
+const BATCH_FREEZE_OK = /stew|chill?i|curry|soup|bake|casserole|ragu|bolognes|dal|daal|lentil|bean|chickpea|braise|sauce|stock|meatball|patty|burger|burrito|wrap|muffin|ball|bread|porridge|oat|rice|grain|pasta|noodle/i;
+export function freezesWell(r: Recipe): boolean {
+  const hay = `${r.name} ${r.ingredients.map((i) => i.name).join(" ")}`.toLowerCase();
+  if (BATCH_FREEZE_BAD.test(hay)) return false;
+  return BATCH_FREEZE_OK.test(hay);
 }
 
 /**
@@ -8807,35 +8826,49 @@ function batchCandidates(profile: UserProfile, type: Recipe["type"], cap: number
 }
 
 /**
- * Pick K DISTINCT dishes for a slot, reusing the tested `chooseRecipe` ranking (macro fit first,
- * then an ingredient-overlap/cost tiebreak). `staples` seeds the overlap so the chosen dishes — and
- * later slots — lean on shared ingredients (the efficiency payoff; strengthened in M3). Caller runs
- * under `withSeed`, so the result is deterministic.
+ * Pick K DISTINCT dishes for a slot, deterministically. Selection blends macro FIT with ingredient
+ * OVERLAP against the session's growing staple set (M3 promotes overlap to a primary term — the
+ * efficiency payoff), penalises a dish that won't keep for the whole session and can't be frozen (so
+ * long sessions lean on fridge/freezer-safe dishes and the freeze advice stays honest), and shades
+ * cheaper. No RNG — ties break on recipe id.
  */
 function pickKForSlot(
   pool: Recipe[],
   k: number,
   ctx: {
-    target: number; proteinTarget: number; carbTarget: number; fatTarget: number;
-    ketoCarbs: boolean; ratings: ReadonlyMap<string, number>; staples: Set<string>;
+    target: number; proteinTarget: number; ketoCarbs: boolean;
+    ratings: ReadonlyMap<string, number>; staples: Set<string>; coverDays: number;
   },
 ): Recipe[] {
+  // Fit distance (lower = better): calorie distance leads (portions scale within the clamp), plus a
+  // protein SHORTFALL penalty (scaling can't raise protein per calorie) and a keto carb pull.
+  const fit = (r: Recipe) => {
+    const cal = Math.max(1, r.calories);
+    const calDist = Math.abs(r.calories - ctx.target) / Math.max(ctx.target, 1);
+    const protShort = ctx.target > 0 ? Math.max(0, ctx.proteinTarget / ctx.target - r.proteinGrams / cal) : 0;
+    return calDist * 2 + protShort * 12 + (ctx.ketoCarbs ? (r.carbsGrams / cal) * 250 : 0);
+  };
   const chosen: Recipe[] = [];
   const usedIds = new Set<string>();
-  const usedNames = new Set<string>();
-  const usedIngredients = new Set<string>(ctx.staples);
-  const dayCuisines = new Set<string>();
+  const staples = new Set<string>(ctx.staples); // grows as we pick -> the K dishes share ingredients
   for (let i = 0; i < k; i++) {
-    const pick = chooseRecipe(pool, {
-      target: ctx.target, proteinTarget: ctx.proteinTarget, carbTarget: ctx.carbTarget, fatTarget: ctx.fatTarget,
-      proteinDays: {}, usedIds, usedNames, dayCuisines, usedIngredients, ketoCarbs: ctx.ketoCarbs, ratings: ctx.ratings,
-    });
-    if (!pick) break;
-    chosen.push(pick);
-    usedIds.add(pick.id);
-    usedNames.add(pick.name.toLowerCase());
-    dayCuisines.add(pick.cuisine);
-    for (const ing of pick.ingredients) usedIngredients.add(ing.name.trim().toLowerCase());
+    const cands = pool.filter((r) => !usedIds.has(r.id));
+    if (!cands.length) break;
+    const score = (r: Recipe) => {
+      const overlap = r.ingredients.filter((ing) => staples.has(ing.name.trim().toLowerCase())).length;
+      const rating = ctx.ratings.get(r.name.toLowerCase()) ?? 0;
+      const unsafe = ctx.coverDays > keepDays(r) && !freezesWell(r) ? 10 : 0;
+      return fit(r) - overlap * 0.9 + r.approxCost * 0.3 + (rating === 1 ? 6 : rating === 2 ? 1 : 0) + unsafe;
+    };
+    let best = cands[0];
+    let bestScore = score(best);
+    for (const r of cands) {
+      const s = score(r);
+      if (s < bestScore || (s === bestScore && r.id < best.id)) { best = r; bestScore = s; }
+    }
+    chosen.push(best);
+    usedIds.add(best.id);
+    for (const ing of best.ingredients) staples.add(ing.name.trim().toLowerCase());
   }
   return chosen;
 }
@@ -8855,12 +8888,12 @@ export function selectBatchWeek(profile: UserProfile): WeekPlan {
     const batches: Batch[] = [];
     const placed = new Map<string, Meal>(); // `${day}|${type}` -> the plated serving
     const notes: string[] = [];
+    const unsafe = new Set<string>(); // dishes eaten past fridge life that also don't freeze -> warn
 
     for (const session of sessions) {
       const staples = new Set<string>(); // ingredients used so far this session -> rewards overlap
       split.forEach(([type, share], slotIndex) => {
         const target = Math.round(profile.targetCalories * share);
-        const st = slotTargetMacros(profile, type);
         const pool = batchCandidates(profile, type, cap, tokens);
         if (!pool.length) {
           notes.push(`I couldn't find a ${type} that fits your ${profile.diet !== "none" ? profile.diet + " " : ""}rules for the ${session.label}.`);
@@ -8871,8 +8904,8 @@ export function selectBatchWeek(profile: UserProfile): WeekPlan {
           : session.coversDays.length >= 4 ? 3 : 2;
         const k = Math.min(want, pool.length);
         const chosen = pickKForSlot(pool, k, {
-          target, proteinTarget: Math.round(profile.proteinGrams * share), carbTarget: st.carbs, fatTarget: st.fat,
-          ketoCarbs: profile.diet === "keto", ratings, staples,
+          target, proteinTarget: Math.round(profile.proteinGrams * share),
+          ketoCarbs: profile.diet === "keto", ratings, staples, coverDays: session.coversDays.length,
         });
         if (!chosen.length) return;
         if (chosen.length < 2 && session.coversDays.length > 1)
@@ -8882,6 +8915,8 @@ export function selectBatchWeek(profile: UserProfile): WeekPlan {
         const batchByDish = new Map<string, Batch>();
         session.coversDays.forEach((day, i) => {
           const dish = chosen[(i + slotIndex) % chosen.length]; // rotate; different offset per slot
+          const kd = keepDays(dish);
+          const fw = freezesWell(dish);
           let b = batchByDish.get(dish.id);
           if (!b) {
             const scaled = scaleRecipeToTarget(dish, target);
@@ -8898,16 +8933,32 @@ export function selectBatchWeek(profile: UserProfile): WeekPlan {
                 ...(scaled.fiberGrams != null ? { fiberGrams: scaled.fiberGrams } : {}),
               },
               placements: [],
+              keepDays: kd,
             };
             batchByDish.set(dish.id, b);
             batches.push(b);
           }
           b.totalServings += 1;
-          b.placements.push({ day, slot: type });
+          // `i` is the day-offset within the session. A portion eaten past the dish's fridge life is
+          // freeze-tagged ONLY if it freezes well; a past-life dish that freezes badly becomes a safety
+          // warning, never a false "freeze it".
+          const past = i >= kd;
+          const frozen = past && fw;
+          if (frozen && b.freezeFrom == null) b.freezeFrom = i;
+          if (past && !fw) unsafe.add(dish.name);
+          b.placements.push({ day, slot: type, ...(frozen ? { frozen: true } : {}) });
           placed.set(`${day}|${type}`, { ...toMeal(scaleRecipeToTarget(dish, target)), batchId: b.id });
         });
       });
     }
+
+    // Disclose freezing (weekly cadence, or the tail of an every-3-days session) and any dish that
+    // won't keep or freeze — honest, coarse guidance, never a false "freeze this".
+    const frozenNames = [...new Set(batches.filter((b) => b.placements.some((pl) => pl.frozen)).map((b) => b.recipeName))];
+    if (frozenNames.length)
+      notes.push(`Some portions sit past their fridge life — freeze the later servings of ${frozenNames.slice(0, 4).join(", ")}${frozenNames.length > 4 ? " and others" : ""}. (Shelf-life here is a coarse guide.)`);
+    if (unsafe.size)
+      notes.push(`Heads up: ${[...unsafe].slice(0, 3).join(", ")} keep best eaten within a few days and don't freeze well — the every-3-days cadence suits them better.`);
 
     const days = DAYS.map((day) => ({
       day,

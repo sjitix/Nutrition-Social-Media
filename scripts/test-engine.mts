@@ -12,7 +12,7 @@
  * (diet, allergies, exclusions, cook time) are rules, not suggestions — a violation
  * is a bug, and this file is where we find it before a user does.
  */
-import { selectWeekFromDb, rebalanceWeek, applyOperations, RECIPES, recipeMicros, newReport, reportNotes, selectConditionAwareWeek, buildWeek, selectBatchWeek, rebalanceBatchWeek, withSeed } from "@/lib/recipeDb";
+import { selectWeekFromDb, rebalanceWeek, applyOperations, RECIPES, recipeMicros, newReport, reportNotes, selectConditionAwareWeek, buildWeek, selectBatchWeek, rebalanceBatchWeek, withSeed, keepDays, freezesWell } from "@/lib/recipeDb";
 import { conditionBoosts } from "@/lib/conditions";
 import type { UserProfile, Operation, DayPlan, WeekPlan, Meal } from "@/lib/types";
 import { MealSchema, WeekPlanSchema } from "@/lib/types";
@@ -421,6 +421,39 @@ console.log("\n--- SCENARIOS (user perspective) ---");
   const fr = applyOperations(BASE, freshWeek(BASE), [op({ tool: "update_profile", targetProtein: 190 })]);
   check("batch M2: a fresh profile's update_profile stays fresh (no planMode/sessions leak)",
     fr.plan.planMode !== "batch" && !fr.plan.sessions && fr.profile.planMode !== "batch");
+}
+{
+  // === BATCH MODE — efficiency + freeze safety (M3) ===
+  const salad = RECIPES.find((r) => /salad|greens|slaw/i.test(r.name));
+  const keeper = RECIPES.find((r) => /stew|chill?i|curry|soup|lentil|bean/i.test(r.name));
+  if (salad) check("batch M3: a salad keeps <=2 fridge days and isn't freeze-tagged",
+    keepDays(salad) <= 2 && !freezesWell(salad), `${salad.name} keep=${keepDays(salad)} freeze=${freezesWell(salad)}`);
+  if (keeper) check("batch M3: a stew/bean dish keeps 4 days and freezes well",
+    keepDays(keeper) === 4 && freezesWell(keeper), `${keeper.name} keep=${keepDays(keeper)} freeze=${freezesWell(keeper)}`);
+
+  // Weekly cadence freeze-tags the later portions — safely.
+  const weekly = buildWeek({ ...BASE, planMode: "batch", batchCadence: "weekly" });
+  const wkFrozen = (weekly.batches ?? []).flatMap((b) => b.placements.filter((pl) => pl.frozen));
+  check("batch M3: weekly cadence freeze-tags some later portions", wkFrozen.length > 0, `${wkFrozen.length} frozen placements`);
+  const allFrozenSafe = (weekly.batches ?? []).every((b) =>
+    b.placements.every((pl) => !pl.frozen || freezesWell(recipeByName.get(b.recipeName.toLowerCase())!)));
+  check("batch M3: every freeze-tagged portion is a dish that freezes well (no false freeze advice)", allFrozenSafe);
+  check("batch M3: weekly cadence discloses the freezing in a note",
+    (weekly.notes ?? []).some((n) => /freeze/i.test(n)), (weekly.notes ?? []).join(" | ") || "(no notes)");
+
+  const e3 = buildWeek({ ...BASE, planMode: "batch", batchCadence: "every3days" });
+  const e3Frozen = (e3.batches ?? []).flatMap((b) => b.placements.filter((pl) => pl.frozen));
+  check("batch M3: every-3-days freezes no more than weekly", e3Frozen.length <= wkFrozen.length, `e3=${e3Frozen.length} weekly=${wkFrozen.length}`);
+
+  // Ingredient overlap: the batch week's dishes share staples (the efficiency payoff).
+  const dishNames = [...new Set(e3.days.flatMap((d) => d.meals.map((m) => m.name)))];
+  const ingCount = new Map<string, number>();
+  for (const n of dishNames) {
+    const set = new Set((recipeByName.get(n.toLowerCase())?.ingredients ?? []).map((i) => i.name.trim().toLowerCase()));
+    for (const ing of set) ingCount.set(ing, (ingCount.get(ing) ?? 0) + 1);
+  }
+  const shared = [...ingCount.values()].filter((c) => c >= 2).length;
+  check("batch M3: the week's dishes share staple ingredients (overlap-driven selection)", shared >= 3, `${shared} ingredients shared by >=2 dishes`);
 }
 {
   // "I've got salmon to use up."
