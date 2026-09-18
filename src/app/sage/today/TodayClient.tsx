@@ -2,6 +2,9 @@
 
 import Image from "next/image";
 import { useEffect, useState } from "react";
+import { loadMyWeek } from "../myPlan";
+import { imageForMeal, cutoutForMeal } from "@/lib/recipes";
+import type { Meal } from "@/lib/types";
 
 export interface DayMeal {
   name: string;
@@ -43,19 +46,39 @@ const SLOT_LABEL: Record<DayMeal["type"], string> = {
 const clock = (h: number) => `${String(Math.floor(h)).padStart(2, "0")}:${h % 1 ? "30" : "00"}`;
 
 export function TodayClient({
-  day,
-  meals,
-  targets,
+  day: initialDay,
+  meals: initialMeals,
+  targets: initialTargets,
 }: {
   day: string;
   meals: DayMeal[];
   targets: Targets;
 }) {
-  // Server render and first client render agree: the start of the day, nothing eaten. An effect
-  // then moves it to the reader's real hour. Reading the clock during the first pass would be a
-  // hydration mismatch, and on the static export it would bake in the build machine's clock.
+  // Server render and first client render agree: the shared demo day, start of day, nothing eaten.
+  // Effects then move it to the reader's real hour AND — if they've built a week — their real TODAY.
+  // Reading either during the first pass would be a hydration mismatch, and on the static export the
+  // clock would bake in the build machine's.
+  const [day, setDay] = useState(initialDay);
+  const [meals, setMeals] = useState(initialMeals);
+  const [targets, setTargets] = useState(initialTargets);
   const [hour, setHour] = useState(0);
   const [pinned, setPinned] = useState(false);
+  useEffect(() => {
+    // Swap the shared demo for THIS person's real day (fresh or meal-prep), if they have a saved week.
+    const mine = loadMyWeek();
+    if (!mine) return;
+    const todayIdx = (new Date().getDay() + 6) % 7; // week days are Monday-first; getDay() is Sunday=0
+    const d = mine.week.days[todayIdx];
+    if (!d) return;
+    const toDayMeal = (m: Meal): DayMeal => ({
+      name: m.name, type: m.type, description: m.description,
+      calories: m.calories, protein: m.proteinGrams, fibre: m.fiberGrams ?? 0,
+      minutes: m.timeMinutes, image: imageForMeal(m.name), cutout: cutoutForMeal(m.name),
+    });
+    setDay(d.day);
+    setMeals(d.meals.map(toDayMeal));
+    setTargets({ calories: mine.profile.targetCalories, protein: mine.profile.proteinGrams, fibre: mine.profile.fiberGrams ?? 30 });
+  }, []);
   useEffect(() => {
     const at = Number(new URLSearchParams(window.location.search).get("at"));
     const ok = Number.isFinite(at) && at >= 0 && at < 24;

@@ -22,12 +22,12 @@ import { TodayClient, type DayMeal } from "./TodayClient";
  * So the composition lives here, in the shell, and drops the board's internal nav row because the
  * sidebar is that nav.
  *
- * WHY THE DAY IS MONDAY. Every figure on `/sage` comes from one fixture week, computed once in
- * `demo.ts` so no two tabs can describe different weeks. Today shows that week's Monday and says
- * "Monday" — it does not claim to be the reader's own day, because there is no reader's own data
- * here. The HOUR is real, so "up next" genuinely moves through the day. Monday is also the day the
- * demo profile pins the photographed poke bowl to, which is how the plate has a photograph on it
- * without any component special-casing a dish.
+ * WHY THE DAY IS MONDAY (for the DEMO). Every figure on `/sage` comes from one fixture week, computed
+ * once in `demo.ts` so no two tabs can describe different weeks. The SERVER renders that week's Monday
+ * for the first paint and for a visitor with no plan — then `TodayClient` swaps in THIS reader's real
+ * day (their weekday, fresh or meal-prep) once it can read the browser clock + localStorage. The HOUR
+ * is real, so "up next" genuinely moves through the day. Monday is also the day the demo profile pins
+ * the photographed poke bowl to, which is how the demo plate has a photograph without special-casing.
  */
 export default function SageTodayPage() {
   const { days } = demoWeek();
