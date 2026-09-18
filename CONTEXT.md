@@ -11,7 +11,7 @@ Everything described here is committed and pushed to `main`. Nothing is only on 
 
 ### >>> READ THIS FIRST — 2026-09-18: batch / meal-prep mode M1 is SHIPPED <<<
 
-**State:** `main` clean + pushed. `npm run test:engine` **607/0**; tsc + production build green. Batch
+**State:** `main` clean + pushed. `npm run test:engine` **613/0**; tsc + production build green. Batch
 (meal-prep) mode's **vertical slice (M1) is live end-to-end**: a `planMode:'batch'` profile builds a
 deterministic small-set-cooked-large, rotated week (2 cooking sessions, ~15 batches, ~11 distinct
 dishes vs fresh's 21), toggled from a **Fresh|Prep control in the /sage sidebar**, persisted, lossless
@@ -22,13 +22,15 @@ milestone plan: **`docs/batch-mode/`**. B0 feasibility spike confirmed every die
 and ingredient quantities resolve 100% — no K=1 relaxation needed.
 
 **NEXT (build order, from `docs/batch-mode/02-milestone-plan.md`):**
-- **M2** — rebuild-site parity: route `update_profile`/`regenerate_week`/`compute_targets` per-mode
-  (fix **H2**, per-site gate — do NOT universalize `buildWeek`), handle `regenerate_day`/mutating ops in
-  batch, apply **H3** (a mode change must FORCE a rebuild, not keep-path — else batch→fresh keeps the
-  repeats), and preserve `planMode` on every op that returns a profile.
-- **M3** efficiency selection + weekly-cadence freeze safety · **M4** bulk grocery + fix **H1** (divide by
-  `recipe.servings` before ×totalServings) · **M5** assistant integration (contract change) · **M6** render
-  parity (Week session cards / Today / mobile toggle) + live cross-screen re-render (M1 uses a reload).
+- **M2 — DONE (`53ff175`).** Rebuild-site parity: `update_profile`/`regenerate_week`/`compute_targets`
+  gate on `p.planMode` (batch→`buildWeek`, fresh path untouched, fix **H2**); `regenerate_day` refused in
+  batch with an honest note; `planMode` preserved on every returned profile. (**H3** moved to **M5** — it
+  needs `op.planMode`, which M5 adds; there is no batch→fresh-via-op path until then.)
+- **M3 (NEXT)** — efficiency selection (promote ingredient-overlap to a primary selection term) +
+  weekly-cadence freeze safety (`keepDays` allow-list; freeze-tag the tail past fridge-safe). · **M4**
+  bulk grocery + fix **H1** (divide by `recipe.servings` before ×totalServings) · **M5** assistant
+  integration + **H3** (contract change) · **M6** render parity (Week session cards / Today / mobile
+  toggle) + live cross-screen re-render (M1 uses a reload).
 - Owner's 4 product leans (cadence default=every3days, weekly-in-v1=defer, screen parity=Week-first,
   /cook route=fold in) stand as defaults in the README — confirm when convenient.
 

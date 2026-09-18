@@ -9,10 +9,10 @@ Produced 2026-09-17 by: 7-subsystem code map → 3 independent designs → synth
 adversarial critique (verdict: **NO-GO as written → GO after 3 fixes**, all folded into the milestones).
 Visual summary artifact: https://claude.ai/artifact/DYonDYakhAemoUyH1ceXQQ
 
-**Status (2026-09-18): M1 (the vertical slice) is SHIPPED** — `selectBatchWeek`/`rebalanceBatchWeek`/
-`buildWeek` + the schema + the `/sage` Fresh|Prep toggle; `test:engine` 607/0, build green, a live
-`/api/plan` smoke returns a batch week (commits `e2a4274`, `ca54688`). **M2–M6 remain** — this doc is
-still the build script; the 3 must-fix bugs below (H1→M4, H2→done in M1, H3→M2) still apply to M2+.
+**Status (2026-09-18): M1 + M2 SHIPPED** — M1 (engine + schema + `/sage` Fresh|Prep toggle) and M2
+(rebuild-site parity — a batch user's edits stay batch). Commits `e2a4274`, `ca54688`, `53ff175`;
+`test:engine` 613/0, build green, `/api/plan` smoke returns a batch week. **M3–M6 remain** — this doc is
+still the build script. Must-fix bugs: **H1**→M4, **H2**→done (M1/M2), **H3**→M5 (needs `op.planMode`).
 
 ## Files (read in order)
 1. [`00-current-state-map.md`](00-current-state-map.md) — how planning works TODAY, exact `file:line`

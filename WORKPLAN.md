@@ -10,7 +10,7 @@
 ## RESUME HERE (last updated: 2026-09-18)
 
 `main` is green and **fully pushed** — `git log origin/main..HEAD` is empty. `npm run test:engine`
-**607 / 0**, 501 recipes, `check:recipes` green. **`CONTEXT.md`'s top block is the live cross-session
+**613 / 0**, 501 recipes, `check:recipes` green. **`CONTEXT.md`'s top block is the live cross-session
 state**; this section is the build record.
 
 ### >>> SINCE 2026-09-18: batch / meal-prep mode — M1 vertical slice shipped <<<
@@ -27,8 +27,11 @@ untouched; the base recipe name stays intact. A **Fresh|Prep toggle** in the `/s
 `planMode` and switches losslessly (each mode's week cached under its own storage key). Commits
 `e2a4274` (M1a/b: schema+engine+13 tests) + `ca54688` (M1c: toggle). Suite **594→607/0**; tsc + build
 green; a live `/api/plan` smoke returns a batch week. The B0 spike confirmed every diet supplies ≥3
-dishes/slot (no K=1 relaxation needed) and ingredient quantities resolve 100%. M2–M6 remain (see
-`docs/batch-mode/02-milestone-plan.md`, incl. the 3 must-fix bugs H1–H3). New lesson **43** below.
+dishes/slot (no K=1 relaxation needed) and ingredient quantities resolve 100%. New lesson **43** below.
+**M2 (`53ff175`)** then added rebuild-site parity: `update_profile`/`regenerate_week`/`compute_targets`
+gate on `p.planMode` so a batch user's edits stay batch (fresh path untouched — fix H2); `regenerate_day`
+is refused in batch; `planMode` is preserved on every returned profile. Suite **→613/0**. M3–M6 remain
+(see `docs/batch-mode/`; H1→M4, H3→M5).
 
 ### >>> SINCE 2026-09-16: edit-preserving week-wide re-solve <<<
 
