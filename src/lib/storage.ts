@@ -12,6 +12,9 @@ const KEYS = {
   saved: "nutriflow.saved",
   groceriesChecked: "nutriflow.groceriesChecked",
   visits: "nutriflow.visits",
+  // The batch-mode week, cached alongside the fresh week (under `plan`) so a fresh<->batch toggle is
+  // instant and lossless. One key, defined here only — a second ad-hoc key once drifted (savedStore.ts).
+  batchPlan: "nutriflow.batchPlan",
 } as const;
 
 const IMPORTS_CAP = 24;
@@ -36,6 +39,11 @@ export const saveProfile = (p: UserProfile) => write(KEYS.profile, p);
 
 export const loadPlan = () => read<WeekPlan>(KEYS.plan);
 export const savePlan = (p: WeekPlan) => write(KEYS.plan, p);
+
+// The batch-mode week, cached so toggling fresh<->batch is instant and doesn't lose the built week.
+// Null until batch mode is first built. The active/displayed week stays under `plan`.
+export const loadBatchPlan = () => read<WeekPlan>(KEYS.batchPlan);
+export const saveBatchPlan = (p: WeekPlan) => write(KEYS.batchPlan, p);
 
 export const loadChat = () => read<ChatMessage[]>(KEYS.chat) ?? [];
 export const saveChat = (m: ChatMessage[]) => write(KEYS.chat, m);

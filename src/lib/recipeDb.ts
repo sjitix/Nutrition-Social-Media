@@ -10,6 +10,8 @@ import {
   type LockedMeal,
   type MealRating,
   type PlanSnapshot,
+  type Batch,
+  type CookingSession,
 } from "./types";
 import { haystackBlocked, parseExclusionTokens, dietTagConflicts, wordMatches } from "./exclusions";
 import {
@@ -8756,6 +8758,197 @@ export const rebalanceWeek = (plan: WeekPlan, profile: UserProfile): WeekPlan =>
   });
   return { ...plan, days };
 };
+
+// ===========================================================================
+// Meal-prep / batch mode — a deterministic SIBLING of the fresh selector above.
+// Instead of a distinct dish per meal, it picks a small OVERLAPPING set per slot per
+// cooking SESSION, cooks each in bulk, and ROTATES the servings across the session's
+// days so no two consecutive days are identical. The bulk multiplier lives on a NEW
+// axis (`Batch.totalServings`), never on per-plate macros or the clamped scalers, and
+// never on `Meal.servings` (that stays the macro divisor). The fresh path above is
+// untouched. See docs/batch-mode/.
+// ===========================================================================
+
+const BATCH_SEED = 0x5eed; // batch selection is DETERMINISTic — a fixed seed for chooseRecipe's tiebreak
+
+/** Split the fixed Mon–Sun week into cooking sessions for the cadence. */
+function partitionSessions(cadence: NonNullable<UserProfile["batchCadence"]>): CookingSession[] {
+  if (cadence === "weekly") {
+    return [{ id: "s1", cookDay: DAYS[0], coversDays: [...DAYS], label: `${DAYS[0]} cook` }];
+  }
+  // every3days: cook twice — Mon covers Mon–Wed (3 days), Thu covers Thu–Sun (4, at the fridge edge;
+  // M3 freeze-tags the tail). Two sessions.
+  return [
+    { id: "s1", cookDay: DAYS[0], coversDays: [DAYS[0], DAYS[1], DAYS[2]], label: `${DAYS[0]} cook` },
+    { id: "s2", cookDay: DAYS[3], coversDays: [DAYS[3], DAYS[4], DAYS[5], DAYS[6]], label: `${DAYS[3]} cook` },
+  ];
+}
+
+/**
+ * Eligible dishes for one slot, under the same HARD rules + SOFT-relaxation ladder the fresh
+ * selector uses. Kept as its own copy (close to pickMealsForDay's candidate block) so the fresh hot
+ * path is provably untouched for M1; a later milestone may share it.
+ */
+function batchCandidates(profile: UserProfile, type: Recipe["type"], cap: number, tokens: string[]): Recipe[] {
+  const hard = RECIPES.filter(
+    (r) => r.type === type && !r.treatOnly && passesDiet(r, profile.diet) && !blockedByExclusions(r, tokens),
+  );
+  const fast = (r: Recipe) => r.timeMinutes <= profile.maxCookTime + 5;
+  let c = hard.filter((r) => fast(r) && r.ingredients.length <= profile.maxIngredients + 1 && r.approxCost <= cap);
+  if (!c.length) c = hard.filter((r) => fast(r) && r.approxCost <= cap);
+  if (!c.length) c = hard.filter(fast);
+  if (!c.length) c = hard.filter((r) => r.timeMinutes <= profile.maxCookTime + 15);
+  if (!c.length) c = hard;
+  if (profile.mealRatings?.length) {
+    const allowed = c.filter((r) => !bannedForUser(profile, r.name));
+    if (allowed.length) c = allowed;
+  }
+  return c;
+}
+
+/**
+ * Pick K DISTINCT dishes for a slot, reusing the tested `chooseRecipe` ranking (macro fit first,
+ * then an ingredient-overlap/cost tiebreak). `staples` seeds the overlap so the chosen dishes — and
+ * later slots — lean on shared ingredients (the efficiency payoff; strengthened in M3). Caller runs
+ * under `withSeed`, so the result is deterministic.
+ */
+function pickKForSlot(
+  pool: Recipe[],
+  k: number,
+  ctx: {
+    target: number; proteinTarget: number; carbTarget: number; fatTarget: number;
+    ketoCarbs: boolean; ratings: ReadonlyMap<string, number>; staples: Set<string>;
+  },
+): Recipe[] {
+  const chosen: Recipe[] = [];
+  const usedIds = new Set<string>();
+  const usedNames = new Set<string>();
+  const usedIngredients = new Set<string>(ctx.staples);
+  const dayCuisines = new Set<string>();
+  for (let i = 0; i < k; i++) {
+    const pick = chooseRecipe(pool, {
+      target: ctx.target, proteinTarget: ctx.proteinTarget, carbTarget: ctx.carbTarget, fatTarget: ctx.fatTarget,
+      proteinDays: {}, usedIds, usedNames, dayCuisines, usedIngredients, ketoCarbs: ctx.ketoCarbs, ratings: ctx.ratings,
+    });
+    if (!pick) break;
+    chosen.push(pick);
+    usedIds.add(pick.id);
+    usedNames.add(pick.name.toLowerCase());
+    dayCuisines.add(pick.cuisine);
+    for (const ing of pick.ingredients) usedIngredients.add(ing.name.trim().toLowerCase());
+  }
+  return chosen;
+}
+
+/**
+ * Build a meal-prep week: a small overlapping recipe set per slot per session, cooked in bulk and
+ * rotated across the session's days. Deterministic. Each plated Meal is one normal serving (per-
+ * serving macros, base name intact), tagged with its `batchId`; the bulk count is `Batch.totalServings`.
+ */
+export function selectBatchWeek(profile: UserProfile): WeekPlan {
+  return withSeed(BATCH_SEED, () => {
+    const split = localSplit(profile.mealsPerDay);
+    const cap = budgetCap(profile.budget);
+    const tokens = exclusionTokens(profile);
+    const ratings = ratingMap(profile);
+    const sessions = partitionSessions(profile.batchCadence ?? "every3days");
+    const batches: Batch[] = [];
+    const placed = new Map<string, Meal>(); // `${day}|${type}` -> the plated serving
+    const notes: string[] = [];
+
+    for (const session of sessions) {
+      const staples = new Set<string>(); // ingredients used so far this session -> rewards overlap
+      split.forEach(([type, share], slotIndex) => {
+        const target = Math.round(profile.targetCalories * share);
+        const st = slotTargetMacros(profile, type);
+        const pool = batchCandidates(profile, type, cap, tokens);
+        if (!pool.length) {
+          notes.push(`I couldn't find a ${type} that fits your ${profile.diet !== "none" ? profile.diet + " " : ""}rules for the ${session.label}.`);
+          return;
+        }
+        const want = profile.batchVariety && profile.batchVariety > 0
+          ? profile.batchVariety
+          : session.coversDays.length >= 4 ? 3 : 2;
+        const k = Math.min(want, pool.length);
+        const chosen = pickKForSlot(pool, k, {
+          target, proteinTarget: Math.round(profile.proteinGrams * share), carbTarget: st.carbs, fatTarget: st.fat,
+          ketoCarbs: profile.diet === "keto", ratings, staples,
+        });
+        if (!chosen.length) return;
+        if (chosen.length < 2 && session.coversDays.length > 1)
+          notes.push(`Only one ${type} fits your rules, so it repeats across the ${session.label}.`);
+        for (const r of chosen) for (const ing of r.ingredients) staples.add(ing.name.trim().toLowerCase());
+
+        const batchByDish = new Map<string, Batch>();
+        session.coversDays.forEach((day, i) => {
+          const dish = chosen[(i + slotIndex) % chosen.length]; // rotate; different offset per slot
+          let b = batchByDish.get(dish.id);
+          if (!b) {
+            const scaled = scaleRecipeToTarget(dish, target);
+            b = {
+              id: `${session.id}-${type}-${dish.id}`,
+              sessionId: session.id,
+              recipeName: dish.name,
+              slot: type,
+              totalServings: 0,
+              servingFactor: Math.max(0.6, Math.min(1.8, target / dish.calories)),
+              perServing: {
+                calories: scaled.calories, proteinGrams: scaled.proteinGrams,
+                carbsGrams: scaled.carbsGrams, fatGrams: scaled.fatGrams,
+                ...(scaled.fiberGrams != null ? { fiberGrams: scaled.fiberGrams } : {}),
+              },
+              placements: [],
+            };
+            batchByDish.set(dish.id, b);
+            batches.push(b);
+          }
+          b.totalServings += 1;
+          b.placements.push({ day, slot: type });
+          placed.set(`${day}|${type}`, { ...toMeal(scaleRecipeToTarget(dish, target)), batchId: b.id });
+        });
+      });
+    }
+
+    const days = DAYS.map((day) => ({
+      day,
+      meals: split.map(([type]) => placed.get(`${day}|${type}`)).filter((m): m is Meal => !!m),
+    }));
+    const avg = Math.round(days.reduce((s, d) => s + d.meals.reduce((m, x) => m + x.calories, 0), 0) / Math.max(1, days.length));
+    return {
+      days,
+      weekSummary: `A meal-prep week: ${batches.length} dishes cooked over ${sessions.length} session${sessions.length > 1 ? "s" : ""}, rotated across the week (about ${avg.toLocaleString()} kcal/day).`,
+      planMode: "batch" as const,
+      sessions,
+      batches,
+      ...(notes.length ? { notes } : {}),
+    };
+  });
+}
+
+/**
+ * Rebalance a batch week. Every batch-cooked slot is passed as a LockedSlot, so the rebalancer's
+ * portion-scaling (lever 1) and protein upgrade-swap (lever 2) both SKIP it — a batch serving is
+ * cooked once and eaten identically across its days, and lever 2 must never swap one instance for a
+ * different dish. A non-batch slot (none in M1) still balances.
+ */
+export const rebalanceBatchWeek = (plan: WeekPlan, profile: UserProfile): WeekPlan => {
+  const days = plan.days.map((d) => {
+    const locked: LockedSlots = new Set(d.meals.filter((m) => m.batchId).map((m) => m.type));
+    return { ...d, meals: rebalanceDay(d.meals, profile, locked) };
+  });
+  return { ...plan, days };
+};
+
+/**
+ * The single mode gate for the PRIMARY generation entry (ai.ts generatePlan) and the demo. The
+ * edit/rebuild sites in applyOperations keep their OWN per-site gate (they pass keep/cuisine/boost/
+ * report), so fresh behavior there is untouched — do NOT route those through this one-arg helper.
+ */
+export function buildWeek(profile: UserProfile): WeekPlan {
+  return profile.planMode === "batch"
+    ? rebalanceBatchWeek(selectBatchWeek(profile), profile)
+    : rebalanceWeek(selectWeekFromDb(profile), profile);
+}
 
 // Macro-aware swap: among the recipes that match the requested dish name, pick the
 // one whose macro profile best fits the slot — so "pancakes" on a high-protein plan

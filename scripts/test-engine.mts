@@ -12,10 +12,10 @@
  * (diet, allergies, exclusions, cook time) are rules, not suggestions — a violation
  * is a bug, and this file is where we find it before a user does.
  */
-import { selectWeekFromDb, rebalanceWeek, applyOperations, RECIPES, recipeMicros, newReport, reportNotes, selectConditionAwareWeek } from "@/lib/recipeDb";
+import { selectWeekFromDb, rebalanceWeek, applyOperations, RECIPES, recipeMicros, newReport, reportNotes, selectConditionAwareWeek, buildWeek, selectBatchWeek, rebalanceBatchWeek, withSeed } from "@/lib/recipeDb";
 import { conditionBoosts } from "@/lib/conditions";
 import type { UserProfile, Operation, DayPlan, WeekPlan, Meal } from "@/lib/types";
-import { MealSchema } from "@/lib/types";
+import { MealSchema, WeekPlanSchema } from "@/lib/types";
 import { FEED_RECIPES, filterFeed, sortFeed, HIGH_PROTEIN_G, type FeedFilter } from "@/lib/feed";
 import { videoPlatform, extractVideoText } from "@/lib/videoImport";
 import { aisleFor, groupByAisle, AISLE_ORDER } from "@/lib/grocery";
@@ -323,6 +323,72 @@ console.log("\n--- SCENARIOS (user perspective) ---");
   check("go vegetarian: the whole week is vegetarian", allVeg);
   check("go vegetarian: already-vegetarian dishes are kept, not reshuffled",
     keptVeg >= Math.floor(wereVeg * 0.5), `${keptVeg}/${wereVeg} veg dishes preserved`);
+}
+{
+  // === MEAL-PREP / BATCH MODE (M1) ===
+  // Fresh path must be byte-identical through buildWeek (no regression). Seed BOTH the same so the
+  // one random tiebreak in selection lines up (rebalance has no RNG); buildWeek's fresh branch IS
+  // rebalanceWeek(selectWeekFromDb(...)).
+  const freshA = withSeed(1, () => JSON.stringify(rebalanceWeek(selectWeekFromDb(BASE), BASE)));
+  const freshB = withSeed(1, () => JSON.stringify(buildWeek(BASE)));
+  check("batch: fresh path via buildWeek is byte-identical (no fresh regression)", freshA === freshB);
+
+  const bp: UserProfile = { ...BASE, planMode: "batch", batchCadence: "every3days" };
+  const w = buildWeek(bp);
+  check("batch: 7 days, mealsPerDay meals each",
+    w.days.length === 7 && w.days.every((d) => d.meals.length === BASE.mealsPerDay), w.days.map((d) => d.meals.length).join(","));
+  check("batch: stamped planMode=batch with 2 sessions",
+    w.planMode === "batch" && (w.sessions?.length ?? 0) === 2, `mode=${w.planMode} sessions=${w.sessions?.length}`);
+  check("batch: batches present; totalServings === placements",
+    (w.batches?.length ?? 0) > 0 && (w.batches ?? []).every((b) => b.totalServings === b.placements.length && b.totalServings > 0), `${w.batches?.length} batches`);
+
+  const distinct = new Set(w.days.flatMap((d) => d.meals.map((m) => m.name))).size;
+  const freshDistinct = new Set(freshWeek(BASE).days.flatMap((d) => d.meals.map((m) => m.name))).size;
+  check("batch: far fewer distinct dishes than fresh",
+    distinct < freshDistinct && distinct <= 5 * BASE.mealsPerDay, `batch ${distinct} vs fresh ${freshDistinct}`);
+
+  let cookOnce = true;
+  for (const b of w.batches ?? []) {
+    const plates = w.days.flatMap((d) => d.meals).filter((m) => m.batchId === b.id);
+    const f = plates[0];
+    if (!f || !plates.every((m) => m.name === f.name && m.calories === f.calories && m.proteinGrams === f.proteinGrams)) cookOnce = false;
+  }
+  check("batch: every serving of a batch is identical (cook once, eat N)", cookOnce);
+
+  let clampOk = true, nameOk = true;
+  for (const m of w.days.flatMap((d) => d.meals)) {
+    const base = recipeByName.get(m.name.toLowerCase());
+    if (!base) { nameOk = false; continue; }
+    if (m.calories > base.calories * 1.8 + 1 || m.calories < base.calories * 0.6 - 1) clampOk = false;
+  }
+  check("batch: base recipe name intact on every plate (rescalable)", nameOk);
+  check("batch: every plate within the 0.6-1.8x portion clamp", clampOk);
+
+  // servings stays the seed's divisor, NOT a cook count (the cook count is Batch.totalServings)
+  const divisorOk = w.days.flatMap((d) => d.meals).every((m) => m.servings === recipeByName.get(m.name.toLowerCase())?.servings);
+  check("batch: Meal.servings unchanged from the seed (divisor not overloaded)", divisorOk);
+
+  let rotationOk = true;
+  for (let i = 1; i < w.days.length; i++) {
+    const a = w.days[i - 1].meals.map((m) => m.name).join("|");
+    const b2 = w.days[i].meals.map((m) => m.name).join("|");
+    if (a && a === b2) rotationOk = false;
+  }
+  check("batch: no two consecutive days identical in every slot", rotationOk);
+
+  const raw = selectBatchWeek(bp);
+  const rb = rebalanceBatchWeek(raw, bp);
+  check("batch: rebalancer leaves pure-batch days unchanged (no lever-2 swap of a batch)",
+    JSON.stringify(raw.days) === JSON.stringify(rb.days));
+
+  const parsed = WeekPlanSchema.safeParse(w);
+  check("batch: WeekPlanSchema keeps sessions/batches (not stripped)",
+    parsed.success && (parsed.data.sessions?.length ?? 0) === 2 && (parsed.data.batches?.length ?? 0) > 0,
+    parsed.success ? "ok" : parsed.error.issues[0]?.message);
+
+  const vegan = buildWeek({ ...BASE, planMode: "batch", batchCadence: "every3days", diet: "vegan" });
+  const veganOk = vegan.days.flatMap((d) => d.meals).every((m) => { const r = recipeByName.get(m.name.toLowerCase()); return r ? dietOk(r.dietTags, "vegan") : true; });
+  check("batch: vegan week builds and every dish is vegan", veganOk && vegan.days.length === 7);
 }
 {
   // "I've got salmon to use up."

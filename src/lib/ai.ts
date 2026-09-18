@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
-import { selectWeekFromDb, rebalanceWeek } from "./recipeDb";
+import { buildWeek } from "./recipeDb";
 import { AssistantTurnV2Schema, type AssistantTurnV2 } from "./primitives";
 import { assistantV2SystemPrompt } from "./promptV2";
 import {
@@ -33,6 +33,13 @@ export function withTargetDefaults(profile: UserProfile): UserProfile {
     maxCookTime: profile.maxCookTime || DEFAULT_TARGETS.maxCookTime,
     maxIngredients: profile.maxIngredients || DEFAULT_TARGETS.maxIngredients,
   };
+}
+
+// Default the planning mode for any profile that predates it (absent = the original "fresh"
+// behavior), so generation and every mode branch always see a concrete planMode. Nothing validates
+// UserProfile at runtime (/api/plan casts the body), so the default is applied here in code.
+export function withPlanDefaults(profile: UserProfile): UserProfile {
+  return { ...profile, planMode: profile.planMode ?? "fresh" };
 }
 
 // How the day's calories are split across meals, so plans come out balanced
@@ -619,12 +626,15 @@ async function localRunAssistant(
 // ---------------------------------------------------------------------------
 
 export async function generatePlan(profile: UserProfile): Promise<WeekPlan> {
-  const p = withTargetDefaults(profile);
-  // The curated DB engine is now the DEFAULT plan generator: deterministic, $0, needs no model —
-  // so /api/plan builds a real per-user week on the public deploy with no key and no config, which
+  const p = withPlanDefaults(withTargetDefaults(profile));
+  // Batch (meal-prep) mode is a DB-only concept — the servings + rotation math the LLM path can't
+  // express — so it forces the deterministic engine regardless of PLAN_ENGINE.
+  if (p.planMode === "batch") return buildWeek(p);
+  // The curated DB engine is otherwise the DEFAULT plan generator: deterministic, $0, needs no model
+  // — so /api/plan builds a real per-user week on the public deploy with no key and no config, which
   // is the direction the app moves toward (see VISION.md). Set PLAN_ENGINE=llm to force the old
-  // model-generated path instead.
-  if (process.env.PLAN_ENGINE !== "llm") return rebalanceWeek(selectWeekFromDb(p), p);
+  // model-generated path instead. buildWeek dispatches fresh vs batch on p.planMode.
+  if (process.env.PLAN_ENGINE !== "llm") return buildWeek(p);
   return resolveProvider() === "local" ? localGeneratePlan(p) : claudeGeneratePlan(p);
 }
 

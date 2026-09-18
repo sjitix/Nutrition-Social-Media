@@ -31,6 +31,9 @@ export const MealSchema = z.object({
   // derived from the ingredients must be divided by this or a single muffin claims the
   // iron of the whole tin.
   servings: z.number().optional(),
+  // Backlink to the batch this plate was cooked in (meal-prep mode). Optional so a normal fresh
+  // meal validates unchanged; the sessions/batches index on WeekPlan is the source of truth.
+  batchId: z.string().optional(),
   // Set only on meals imported from a link (Phase 2). Lets the drawer show a "View original"
   // link back to the source. Optional so the model never emits it and stock recipes don't carry it.
   sourceUrl: z.string().url().optional(),
@@ -43,12 +46,59 @@ export const DayPlanSchema = z.object({
   meals: z.array(MealSchema),
 });
 
+// Meal-prep mode: a cooking SESSION (one cook day that feeds several days) and a BATCH (one recipe
+// cooked to N servings in a session, its servings placed across day+slot meals). Both are an OVERLAY
+// index on WeekPlan — each placed Meal is still a normal Meal, so a fresh plan needs none of this.
+// See docs/batch-mode/.
+export const CookingSessionSchema = z.object({
+  id: z.string(),
+  cookDay: z.enum(DAYS),
+  coversDays: z.array(z.enum(DAYS)),
+  label: z.string().optional(),
+});
+
+export const BatchSchema = z.object({
+  id: z.string(),
+  sessionId: z.string(),
+  // EXACT base-recipe name — the engine looks meals up by lowercased name, so this must match.
+  recipeName: z.string(),
+  slot: z.enum(MEAL_TYPES),
+  // The cook multiplier — a NEW axis. Never Meal.servings (that stays the per-serving macro divisor).
+  totalServings: z.number().int().positive(),
+  // The clamp-free per-serving scale actually applied to one plated portion.
+  servingFactor: z.number(),
+  // Audit copy of the one plated serving's macros (each day eats one serving; macros are per-serving).
+  perServing: z.object({
+    calories: z.number(),
+    proteinGrams: z.number(),
+    carbsGrams: z.number(),
+    fatGrams: z.number(),
+    fiberGrams: z.number().optional(),
+  }),
+  placements: z.array(z.object({
+    day: z.enum(DAYS),
+    slot: z.enum(MEAL_TYPES),
+    frozen: z.boolean().optional(),
+  })),
+  // Shelf-life (days the batch keeps refrigerated) + the placement index past which portions are
+  // freeze-tagged. Set on the weekly cadence (M3); absent on every3days.
+  keepDays: z.number().int().optional(),
+  freezeFrom: z.number().int().optional(),
+  // Per-session bulk shopping snapshot (summed, not per-serving). Filled by the grocery layer (M4).
+  bulkIngredients: z.array(IngredientSchema).optional(),
+});
+
 export const WeekPlanSchema = z.object({
   days: z.array(DayPlanSchema),
   weekSummary: z.string(),
   // Optional engine disclosures attached to a freshly built plan (e.g. a condition-aware nutrient
   // bias). Optional so every existing plan and API response stays valid without one.
   notes: z.array(z.string()).optional(),
+  // Meal-prep overlay: the mode the plan was built in, and its cooking sessions + batches. Optional
+  // AND declared on the schema (not just the type) so z.object doesn't strip them on the validate path.
+  planMode: z.enum(["fresh", "batch"]).optional(),
+  sessions: z.array(CookingSessionSchema).optional(),
+  batches: z.array(BatchSchema).optional(),
 });
 
 // The assistant returns only the days it modified (cheaper and far more
@@ -161,6 +211,8 @@ export type Ingredient = z.infer<typeof IngredientSchema>;
 export type Meal = z.infer<typeof MealSchema>;
 export type DayPlan = z.infer<typeof DayPlanSchema>;
 export type WeekPlan = z.infer<typeof WeekPlanSchema>;
+export type CookingSession = z.infer<typeof CookingSessionSchema>;
+export type Batch = z.infer<typeof BatchSchema>;
 export type AssistantResponse = z.infer<typeof AssistantResponseSchema>;
 export type Operation = z.infer<typeof OperationSchema>;
 export type AssistantTurn = z.infer<typeof AssistantTurnSchema>;
@@ -198,6 +250,16 @@ export interface UserProfile {
   dislikes: string;
   budget: "low" | "medium" | "high";
   mealsPerDay: 3 | 4;
+  // Planning mode. Absent = "fresh" (a distinct dish per meal — the original behavior). "batch" =
+  // meal-prep: a small recipe set cooked in bulk over cooking sessions and rotated across days.
+  // Optional so every stored profile keeps working (absent is treated as fresh).
+  planMode?: "fresh" | "batch";
+  // Batch cadence: one cooking session per week (some portions freeze-tagged) or one every 3 days
+  // (fridge-safe, the default). Only meaningful when planMode === "batch".
+  batchCadence?: "weekly" | "every3days";
+  // Distinct dishes to rotate per slot within a session (the K knob). Optional; the engine defaults
+  // it from the cadence and clamps to the available pool.
+  batchVariety?: number;
   // Daily targets the plan must hit. Defaulted in onboarding so the user doesn't
   // have to set them every time; enforced in code during generation.
   targetCalories: number;
