@@ -10319,10 +10319,56 @@ export function applyOperations(
       }
       case "swap_meal": {
         if (!op.dish) break;
-        // In meal-prep mode a meal is one serving of a batch you cook once; swapping a single serving
-        // would desync the cook. Refuse honestly (whole-batch swaps are a later refinement).
+        // Meal-prep: a meal is one serving of a batch cooked once. Swapping "Monday lunch" swaps the
+        // WHOLE batch that serving belongs to (every day it feeds), so the cook stays in sync and every
+        // serving stays identical. With no day, set the dish across every batch in that slot.
         if (p.planMode === "batch") {
-          notes.push(`In meal-prep mode your meals are servings from batches you cook once, so I can't swap just one without breaking the plan. Regenerate the week, or switch to Fresh to change a single meal.`);
+          const match = findRecipeForSwap(op.dish, op.mealType ?? undefined, p);
+          if (!match) {
+            notes.push(`I don't have anything like "${op.dish}" that fits your plan, so I left the week as it is.`);
+            break;
+          }
+          const slot = op.mealType ?? match.type;
+          const targetBatchIds = new Set<string>();
+          if (op.day) {
+            const m = curPlan.days.find((d) => d.day === op.day)?.meals.find((x) => x.type === slot);
+            if (m?.batchId) targetBatchIds.add(m.batchId);
+          } else {
+            for (const b of curPlan.batches ?? []) if (b.slot === slot) targetBatchIds.add(b.id);
+          }
+          if (!targetBatchIds.size) {
+            notes.push(`You don't have a ${slot} batch to swap. Regenerate the week if you'd like ${match.name} added.`);
+            break;
+          }
+          const share = localSplit(p.mealsPerDay).find((s) => s[0] === slot)?.[1] ?? 1 / p.mealsPerDay;
+          const target = Math.round(p.targetCalories * share);
+          const scaled = scaleRecipeToTarget(match, target);
+          const plate = toMeal(scaled);
+          curPlan = {
+            ...curPlan,
+            days: curPlan.days.map((d) => ({
+              ...d,
+              meals: d.meals.map((m) => (m.batchId && targetBatchIds.has(m.batchId) ? { ...plate, batchId: m.batchId } : m)),
+            })),
+            batches: (curPlan.batches ?? []).map((b) => targetBatchIds.has(b.id)
+              ? {
+                  ...b,
+                  recipeName: match.name,
+                  servingFactor: Math.max(0.6, Math.min(1.8, target / match.calories)),
+                  perServing: {
+                    calories: scaled.calories, proteinGrams: scaled.proteinGrams,
+                    carbsGrams: scaled.carbsGrams, fatGrams: scaled.fatGrams,
+                    ...(scaled.fiberGrams != null ? { fiberGrams: scaled.fiberGrams } : {}),
+                  },
+                }
+              : b),
+          };
+          const asked = op.dish.toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 2);
+          if (asked.length && asked.some((w) => !match.name.toLowerCase().includes(w)))
+            notes.push(`I didn't have "${op.dish}" — I used ${match.name}.`);
+          notes.push(op.day
+            ? `Swapped your ${op.day} ${slot} to ${match.name} — that's a whole batch, so every day it feeds now has it.`
+            : `Set ${match.name} as your ${slot} across the week.`);
           break;
         }
         // "Pancakes every day", "make every lunch a big salad" — NO specific day means apply the dish

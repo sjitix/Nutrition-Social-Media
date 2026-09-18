@@ -49,7 +49,8 @@ a good `reply` with `operations: []`.
   - "I'm low on iron but keep me vegetarian" → `constrain` (boostNutrient iron, diet vegetarian).
   - "switch me to meal-prep, cook every 3 days" → `constrain` (planMode "batch", cadence "every3days").
     A mode change rebuilds the week from scratch in the new mode (never keep-paths the old dishes). In
-    meal-prep mode a single-meal `swap` is refused (a meal is one serving of a batch you cook once).
+    meal-prep mode a `swap` replaces the WHOLE batch that meal belongs to (every day that batch feeds),
+    so the cook stays in sync — a single serving is never swapped in isolation.
 
 ### The other verbs (genuinely distinct actions, not menu-padding)
 - **`swap`** — put a specific dish in a slot. `{ op, dish, scope:{slot, days?} }` (days omitted = every

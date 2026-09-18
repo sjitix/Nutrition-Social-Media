@@ -507,10 +507,14 @@ console.log("\n--- SCENARIOS (user perspective) ---");
     ops.length === 1 && ops[0].tool === "update_profile" && ops[0].planMode === "batch",
     JSON.stringify(ops[0]).slice(0, 80));
 
-  // A single-meal swap in batch is refused honestly (would desync a cook).
+  // A meal swap in batch replaces the WHOLE batch it belongs to (cook-once preserved).
+  const monLunchBatch = bw.days.find((d) => d.day === "Monday")!.meals.find((m) => m.type === "lunch")!.batchId!;
   const sw = applyOperations(bp, bw, [op({ tool: "swap_meal", day: "Monday", mealType: "lunch", dish: "chicken" })]);
-  check("batch M5: a single-meal swap is refused in batch (no cook desync)",
-    sw.planChanged === false && sw.notes.some((n) => /meal-prep|batch|cook once/i.test(n)), sw.notes.join(" | ") || "(no note)");
+  const swBatchMeals = sw.plan.days.flatMap((d) => d.meals).filter((m) => m.batchId === monLunchBatch);
+  check("batch M5: a meal swap replaces its whole batch (cook-once preserved)",
+    sw.planChanged && swBatchMeals.length > 0 && swBatchMeals.every((m) => m.name === swBatchMeals[0].name) &&
+    (sw.plan.batches ?? []).find((b) => b.id === monLunchBatch)?.recipeName === swBatchMeals[0].name,
+    `${swBatchMeals.length} servings -> ${swBatchMeals[0]?.name}`);
 }
 {
   // "I've got salmon to use up."
