@@ -8,18 +8,35 @@ import { RefreshIcon } from "@/components/icons";
 import { SLOTS } from "../demo";
 import { loadMyWeek, generateMyWeek } from "../myPlan";
 import type { WeekStats } from "../weekStats";
-import type { UserProfile } from "@/lib/types";
+import type { UserProfile, WeekPlan } from "@/lib/types";
 
 interface Targets {
   targetCalories: number;
   proteinGrams: number;
   mealsPerDay: number;
 }
+interface BatchInfo {
+  sessions: number;
+  batches: number;
+  cadence: string;
+  notes: string[];
+}
 interface View {
   stats: WeekStats;
   targets: Targets;
   personalized: boolean;
   profile: UserProfile | null;
+  batch: BatchInfo | null;
+}
+
+function batchInfo(week: WeekPlan, profile: UserProfile): BatchInfo | null {
+  if (week.planMode !== "batch") return null;
+  return {
+    sessions: week.sessions?.length ?? 0,
+    batches: week.batches?.length ?? 0,
+    cadence: profile.batchCadence === "weekly" ? "weekly" : "every 3 days",
+    notes: week.notes ?? [],
+  };
 }
 
 /**
@@ -30,7 +47,7 @@ interface View {
  * copy of that arithmetic the whole app shares.
  */
 export default function WeekBoard({ demo }: { demo: { stats: WeekStats; targets: Targets } }) {
-  const [view, setView] = useState<View>({ ...demo, personalized: false, profile: null });
+  const [view, setView] = useState<View>({ ...demo, personalized: false, profile: null, batch: null });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -46,6 +63,7 @@ export default function WeekBoard({ demo }: { demo: { stats: WeekStats; targets:
         },
         personalized: true,
         profile: mine.profile,
+        batch: batchInfo(mine.week, mine.profile),
       });
     }
   }, []);
@@ -56,7 +74,7 @@ export default function WeekBoard({ demo }: { demo: { stats: WeekStats; targets:
     setErr(null);
     try {
       const mine = await generateMyWeek(view.profile);
-      setView((v) => ({ ...v, stats: mine.stats }));
+      setView((v) => ({ ...v, stats: mine.stats, batch: batchInfo(mine.week, mine.profile) }));
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Couldn't regenerate just now.");
     } finally {
@@ -80,7 +98,7 @@ export default function WeekBoard({ demo }: { demo: { stats: WeekStats; targets:
       <div className="flex flex-wrap items-baseline justify-between gap-4">
         <span className="text-[10px] font-bold uppercase tracking-[0.26em] text-mut">
           {personalized ? "Your plan" : "Sample week"} · {days.length} days · {totalMeals} meals ·{" "}
-          {uniqueDishes} distinct dishes
+          {view.batch ? `${view.batch.batches} dishes over ${view.batch.sessions} cook session${view.batch.sessions > 1 ? "s" : ""}` : `${uniqueDishes} distinct dishes`}
         </span>
         <div className="flex flex-wrap gap-2">
           {personalized ? (
@@ -121,6 +139,25 @@ export default function WeekBoard({ demo }: { demo: { stats: WeekStats; targets:
       )}
       {err && (
         <p className="mt-3 rounded-[10px] bg-red-50 px-4 py-3 text-[12.5px] text-red-700">{err}</p>
+      )}
+
+      {view.batch && (
+        <div className="mt-4 rounded-[10px] bg-panel p-4 text-white">
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+            <span className="rounded-full bg-white/12 px-2.5 py-1 text-[9.5px] font-bold uppercase tracking-[0.16em]">Meal-prep</span>
+            <span className="text-[12.5px] leading-snug text-white/85">
+              Cook <b className="font-semibold text-white">{view.batch.batches} dishes</b> over{" "}
+              <b className="font-semibold text-white">{view.batch.sessions} session{view.batch.sessions > 1 ? "s" : ""}</b> ({view.batch.cadence}), then rotate the servings across the week.
+            </span>
+          </div>
+          {view.batch.notes.length > 0 && (
+            <ul className="mt-2.5 space-y-1 border-t border-white/15 pt-2.5 text-[11px] leading-relaxed text-white/65">
+              {view.batch.notes.map((n, i) => (
+                <li key={i}>{n}</li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
 
       {/* ---------- the photograph strip ---------- */}

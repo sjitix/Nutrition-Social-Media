@@ -66,6 +66,15 @@ export async function switchPlanMode(mode: "fresh" | "batch"): Promise<MyWeek | 
   return generateMyWeek(next);
 }
 
+/** Change the meal-prep cooking cadence (weekly vs every 3 days) and rebuild the batch week. */
+export async function switchBatchCadence(cadence: "weekly" | "every3days"): Promise<MyWeek | null> {
+  const profile = loadProfile();
+  if (!profile || profile.planMode !== "batch") return null;
+  const next: UserProfile = { ...profile, batchCadence: cadence };
+  saveProfile(next);
+  return generateMyWeek(next);
+}
+
 export interface GroceryRow {
   name: string;
   quantity: string;

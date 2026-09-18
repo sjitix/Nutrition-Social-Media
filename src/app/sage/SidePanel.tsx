@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { MobileNav, SideNav } from "./SideNav";
 import { loadProfile } from "@/lib/storage";
-import { switchPlanMode } from "./myPlan";
+import { switchPlanMode, switchBatchCadence } from "./myPlan";
 
 // Planning-mode icons (SVG only — no emoji). Fresh = a single plated dish; Prep = a pot.
 const IconFresh = () => (
@@ -44,9 +44,12 @@ export function SidePanel() {
   // after mount so there's no hydration mismatch. A switch rebuilds the week and reloads so every
   // mounted screen re-reads it (a live cross-screen re-render is a later refinement).
   const [mode, setMode] = useState<"fresh" | "batch">("fresh");
+  const [cadence, setCadence] = useState<"weekly" | "every3days">("every3days");
   const [busy, setBusy] = useState(false);
   useEffect(() => {
-    if (loadProfile()?.planMode === "batch") setMode("batch");
+    const p = loadProfile();
+    if (p?.planMode === "batch") setMode("batch");
+    if (p?.batchCadence === "weekly") setCadence("weekly");
   }, []);
   const choose = async (next: "fresh" | "batch") => {
     if (busy || next === mode) return;
@@ -57,6 +60,16 @@ export function SidePanel() {
     setBusy(true);
     try {
       await switchPlanMode(next);
+      window.location.reload();
+    } catch {
+      setBusy(false);
+    }
+  };
+  const chooseCadence = async (c: "weekly" | "every3days") => {
+    if (busy || c === cadence) return;
+    setBusy(true);
+    try {
+      await switchBatchCadence(c);
       window.location.reload();
     } catch {
       setBusy(false);
@@ -102,9 +115,27 @@ export function SidePanel() {
 
         {/* Mobile keeps the account dot where the toggle sits on desktop; the panel is a bar there
             and has nothing to collapse. */}
-        <span className="grid h-8 w-8 place-items-center rounded-full bg-panel text-[11.5px] font-bold text-cream lg:hidden">
-          A
-        </span>
+        <div className="flex items-center gap-2 lg:hidden">
+          <div className="flex items-center gap-0.5 rounded-full bg-tint p-0.5">
+            <button
+              type="button" onClick={() => choose("fresh")} aria-pressed={mode === "fresh"} disabled={busy} title="Fresh"
+              className={"grid h-7 w-7 place-items-center rounded-full transition " + (mode === "fresh" ? "bg-panel text-cream" : "text-mut")}
+            >
+              <IconFresh />
+              <span className="sr-only">Fresh planning</span>
+            </button>
+            <button
+              type="button" onClick={() => choose("batch")} aria-pressed={mode === "batch"} disabled={busy} title="Meal-prep"
+              className={"grid h-7 w-7 place-items-center rounded-full transition " + (mode === "batch" ? "bg-panel text-cream" : "text-mut")}
+            >
+              <IconPrep />
+              <span className="sr-only">Meal-prep planning</span>
+            </button>
+          </div>
+          <span className="grid h-8 w-8 place-items-center rounded-full bg-panel text-[11.5px] font-bold text-cream">
+            A
+          </span>
+        </div>
 
         <button
           type="button"
@@ -161,6 +192,26 @@ export function SidePanel() {
                 <IconPrep /> Prep
               </button>
             </div>
+            {mode === "batch" && (
+              <div className="mt-3">
+                <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-mut">Cook cadence</div>
+                <div className="flex gap-1 rounded-[10px] border border-line bg-cream p-1">
+                  <button
+                    type="button" onClick={() => chooseCadence("every3days")} aria-pressed={cadence === "every3days"} disabled={busy}
+                    className={"flex-1 rounded-[7px] px-2 py-1.5 text-[11.5px] font-semibold transition disabled:opacity-60 " + (cadence === "every3days" ? "bg-panel text-cream" : "text-mut hover:text-plum")}
+                  >
+                    Every 3 days
+                  </button>
+                  <button
+                    type="button" onClick={() => chooseCadence("weekly")} aria-pressed={cadence === "weekly"} disabled={busy}
+                    className={"flex-1 rounded-[7px] px-2 py-1.5 text-[11.5px] font-semibold transition disabled:opacity-60 " + (cadence === "weekly" ? "bg-panel text-cream" : "text-mut hover:text-plum")}
+                  >
+                    Weekly
+                  </button>
+                </div>
+                {cadence === "weekly" && <p className="mt-1.5 text-[10.5px] leading-snug text-mut">One cook — some portions get frozen.</p>}
+              </div>
+            )}
           </div>
         ) : (
           <button
