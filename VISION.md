@@ -6,6 +6,23 @@ phased build order; this file holds the **quality bar and the constraint model**
 every phase must satisfy. Read it before judging whether a feature or model is "good
 enough" — the answer depends on these goals.
 
+## Two ways to plan: fresh and meal-prep (decided direction, 2026-09-18)
+
+The planner offers **two modes**, chosen per user and switchable at any time:
+- **Fresh** — a distinct dish at every meal (~21/week). Maximum variety; the original behaviour.
+- **Meal-prep / batch** — a small, ingredient-overlapping recipe set cooked in bulk over 1–2 cooking
+  sessions and rotated across the days, so you cook a handful of times but still don't eat the same
+  thing two days running. The point is **money + less food waste** (bulk buying, shared staples, cook
+  once), made measurable (fewer cook events, ingredient overlap, a bulk shopping list).
+
+Both fill the same weekly-plan shape, so every screen renders either. Batch is a **deterministic
+sibling** of the fresh engine — the bulk multiplier lives on its own axis, never on per-serving macros —
+gated by one optional profile field. Quality bar for batch: still hit the user's macros (within the
+honest limits of cooking once), respect food safety (cooked food keeps ~3–4 days → the every-3-days
+cadence is the default; the weekly cadence freeze-tags what won't keep), and never claim a variety it
+doesn't have. Full design + build plan: `docs/batch-mode/`. M1 (the vertical slice) shipped 2026-09-18;
+M2–M6 follow.
+
 ## Hard constraint: $0 running cost, local-only AI
 
 > **⚠️ SCOPED 2026-08-16 — read this before quoting the rule below.** This section used to forbid

@@ -7,11 +7,28 @@
 
 ---
 
-## RESUME HERE (last updated: 2026-09-16)
+## RESUME HERE (last updated: 2026-09-18)
 
 `main` is green and **fully pushed** — `git log origin/main..HEAD` is empty. `npm run test:engine`
-**594 / 0**, 501 recipes, `check:recipes` green. **`CONTEXT.md`'s top block is the live cross-session
+**607 / 0**, 501 recipes, `check:recipes` green. **`CONTEXT.md`'s top block is the live cross-session
 state**; this section is the build record.
+
+### >>> SINCE 2026-09-18: batch / meal-prep mode — M1 vertical slice shipped <<<
+
+The second planning MODE from `docs/batch-mode/` landed as a working end-to-end slice. `planMode:'batch'`
+builds a deterministic small-set-cooked-large, rotated week: `selectBatchWeek` picks 2–3 overlapping
+dishes per slot per cooking session (reusing `chooseRecipe`'s tested macro ranking, bypassing its
+variety gates, seeded for determinism), cooks each in bulk on a NEW `Batch.totalServings` axis, and
+rotates the servings across the session's days. `rebalanceBatchWeek` passes batch slots as `LockedSlots`
+so the rebalancer can't rescale or upgrade-swap a batch. `buildWeek` is the mode gate **at the generation
+entry only** (fix H2 — the edit/rebuild sites are untouched, so fresh behaviour is byte-identical, and a
+test asserts it). Per-serving macros, `Meal.servings` (the divisor) and the 0.6–1.8× clamp are all
+untouched; the base recipe name stays intact. A **Fresh|Prep toggle** in the `/sage` sidebar persists
+`planMode` and switches losslessly (each mode's week cached under its own storage key). Commits
+`e2a4274` (M1a/b: schema+engine+13 tests) + `ca54688` (M1c: toggle). Suite **594→607/0**; tsc + build
+green; a live `/api/plan` smoke returns a batch week. The B0 spike confirmed every diet supplies ≥3
+dishes/slot (no K=1 relaxation needed) and ingredient quantities resolve 100%. M2–M6 remain (see
+`docs/batch-mode/02-milestone-plan.md`, incl. the 3 must-fix bugs H1–H3). New lesson **43** below.
 
 ### >>> SINCE 2026-09-16: edit-preserving week-wide re-solve <<<
 
@@ -1099,6 +1116,17 @@ Each of these was discovered by doing the work, and each earned its place.
     RNG seed of the starting week — a genuinely idempotent change (relaxing a diet, restating the current
     target) reported "changed" on some seeds, not others. `rebalanceWeek` has no RNG; the non-determinism
     was entirely the re-cook. Push the existing meal object as-is and let the rebalancer scale it.
+43. **A second planning "mode" is a SIBLING selector, not a flag threaded through the hot path.** Batch
+    mode inverts the fresh selector's core contract (avoid repeats → controlled reuse), so it shipped as
+    `selectBatchWeek`/`rebalanceBatchWeek`/`buildWeek` BESIDE the fresh path, which stayed byte-identical
+    (asserted by a test). Three decisions kept it safe: (a) the bulk ×N got its OWN field
+    (`Batch.totalServings`) instead of overloading `Meal.servings` (a macro divisor) or routing 3–7× through
+    the 0.6–1.8× clamp; (b) the mode gate (`buildWeek`) sits ONLY at the generation entry, never dropped
+    into the edit/rebuild sites — a one-arg gate there would have silently dropped fresh's keep/cuisine/
+    boost/report args (the reviewer caught this as "H2" before a line was written); (c) batch's intentional
+    repeats need `chooseRecipe`'s variety gates BYPASSED and a fixed `withSeed` for determinism. Grounding
+    the design in a real code map + an adversarial critique BEFORE coding turned three would-be silent bugs
+    into pre-written test cases.
 
 ---
 

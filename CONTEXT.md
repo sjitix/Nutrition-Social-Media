@@ -9,7 +9,38 @@ Everything described here is committed and pushed to `main`. Nothing is only on 
 
 ## Where it left off
 
-### >>> READ THIS FIRST — 2026-09-17 shutdown: tomorrow is a planned 10-hour build day <<<
+### >>> READ THIS FIRST — 2026-09-18: batch / meal-prep mode M1 is SHIPPED <<<
+
+**State:** `main` clean + pushed. `npm run test:engine` **607/0**; tsc + production build green. Batch
+(meal-prep) mode's **vertical slice (M1) is live end-to-end**: a `planMode:'batch'` profile builds a
+deterministic small-set-cooked-large, rotated week (2 cooking sessions, ~15 batches, ~11 distinct
+dishes vs fresh's 21), toggled from a **Fresh|Prep control in the /sage sidebar**, persisted, lossless
+to switch. Verified via the engine suite AND a live `/api/plan` smoke (HTTP 200, real batch week back).
+
+Commits: `e2a4274` (schema+engine+tests, M1a/b), `ca54688` (shell toggle, M1c). Design record +
+milestone plan: **`docs/batch-mode/`**. B0 feasibility spike confirmed every diet supplies ≥3 dishes/slot
+and ingredient quantities resolve 100% — no K=1 relaxation needed.
+
+**NEXT (build order, from `docs/batch-mode/02-milestone-plan.md`):**
+- **M2** — rebuild-site parity: route `update_profile`/`regenerate_week`/`compute_targets` per-mode
+  (fix **H2**, per-site gate — do NOT universalize `buildWeek`), handle `regenerate_day`/mutating ops in
+  batch, apply **H3** (a mode change must FORCE a rebuild, not keep-path — else batch→fresh keeps the
+  repeats), and preserve `planMode` on every op that returns a profile.
+- **M3** efficiency selection + weekly-cadence freeze safety · **M4** bulk grocery + fix **H1** (divide by
+  `recipe.servings` before ×totalServings) · **M5** assistant integration (contract change) · **M6** render
+  parity (Week session cards / Today / mobile toggle) + live cross-screen re-render (M1 uses a reload).
+- Owner's 4 product leans (cadence default=every3days, weekly-in-v1=defer, screen parity=Week-first,
+  /cook route=fold in) stand as defaults in the README — confirm when convenient.
+
+**Track K — Kimi K3 beta test: NOT started (needs the owner).** Sign up / paste a free-tier key
+(OpenRouter `moonshotai/kimi-k3`, or Moonshot's platform free credits), then it's a 3-line `.env.local`
+change to run `eval:hardcases` against it and judge quality/latency → decide on hardware. Steps are in
+the 2026-09-17 block below. (Do NOT argue "we don't need the params" — the point is to try it first.)
+
+**Machine state:** `.env.local` = `LOCAL_AI_MODEL=openai/gpt-oss-20b`. Dev server + tunnel down (smoke
+cleaned up). `.next` is dev-mode — run `npm run build` fresh before any prod serve.
+
+### >>> 2026-09-17: the day plan (Track B / M1 done 09-18; Track K / Kimi still pending an owner key) <<<
 
 **State:** `main` clean + pushed; `npm run test:engine` **594/0**. No batch code written yet — today was
 DESIGN only. A full, adversarially-reviewed design for the new **batch-cooking / meal-prep mode** lives in
