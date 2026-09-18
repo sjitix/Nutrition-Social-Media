@@ -36,8 +36,9 @@ selection + weekly-cadence freeze safety (`keepDays`/`freezesWell` allow-list, h
 (divide by `recipe.servings` before ×totalServings). **M5** (`fc7757f`) — assistant integration
 (`constrain{planMode,cadence}`) + fix H3 (a mode change forces a rebuild, never keep-paths); single-meal
 swap refused in batch. **M6** (`0403356`) — render parity (Week batch banner, cook-cadence control, mobile
-toggle). Suite **→628/0**; all three critique bugs (H1/H2/H3) fixed + asserted. **Batch mode is COMPLETE.**
-Optional tail: /sage/today demo-only, whole-batch swaps + batch locks, live cross-screen re-render.
+toggle). Suite **→628/0**; all three critique bugs (H1/H2/H3) fixed + asserted. **Batch mode is COMPLETE.** Tail
+cleared too: whole-batch swaps (`f50345e`) + Today parity (`30500de`). Remaining minor: live cross-screen
+re-render (switches reload); per-batch locks (benign — batch is deterministic). Kimi K3 beta needs an owner key.
 
 ### >>> SINCE 2026-09-16: edit-preserving week-wide re-solve <<<
 

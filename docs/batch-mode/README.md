@@ -13,8 +13,9 @@ Visual summary artifact: https://claude.ai/artifact/DYonDYakhAemoUyH1ceXQQ
 M2 rebuild-site parity (`53ff175`), M3 overlap selection + freeze safety (`57357b4`), M4 bulk grocery +
 metric (`24c141b`,`e42965b`), M5 assistant integration (`fc7757f`), M6 render parity (`0403356`).
 `test:engine` **628/0**, build green. **All three must-fix bugs fixed: H1** (M4, servings divisor), **H2**
-(M1/M2, per-site gate), **H3** (M5, mode change forces rebuild). Optional tail: `/sage/today` demo-only,
-whole-batch swaps + per-batch locks in the assistant, live cross-screen re-render (switches reload).
+(M1/M2, per-site gate), **H3** (M5, mode change forces rebuild). Tail cleared: **whole-batch swaps**
+(`f50345e`) + **Today parity** (`30500de`) DONE. Remaining (minor): a live cross-screen re-render
+(switches reload); per-batch locks (benign — batch is deterministic, so regenerate yields the same week).
 
 ## Files (read in order)
 1. [`00-current-state-map.md`](00-current-state-map.md) — how planning works TODAY, exact `file:line`

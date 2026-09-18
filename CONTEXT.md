@@ -29,12 +29,15 @@ Everything described here is committed and pushed to `main`. Nothing is only on 
 Verified by the engine suite (~34 batch tests) + a live `/api/plan` smoke. All three critique bugs
 (H1/H2/H3) are fixed and asserted. B0 spike: every diet supplies ≥3 dishes/slot, quantities resolve 100%.
 
-**Remaining batch tail (all OPTIONAL polish — the feature works without it):** `/sage/today` still shows
-the fixed demo Monday (needs `loadMyWeek`/mode wiring); whole-batch swaps + per-batch locks in the
-assistant (a single-meal swap is refused, and a lock is a silent no-op in batch); a live cross-screen
-re-render (mode/cadence switches currently reload). Note: every-3-days efficiency is modest (cook ~15 vs
-21) — weekly cadence is the bigger saving; a money-saved figure was deliberately skipped (would need the
-cost model without double-counting the existing bulk-pack assumption).
+**Batch tail — now mostly cleared:** DONE beyond M6 — **whole-batch swaps** (`f50345e`: swapping one
+meal replaces its whole batch, cook-once preserved) and **Today parity** (`30500de`: Today shows the
+reader's real weekday, batch or fresh, not just the demo Monday). REMAINING (all minor/optional): a
+**live cross-screen re-render** (mode/cadence switches currently `window.location.reload()` — works,
+just a flash; a Mode context would remove it but touches every /sage client screen); per-batch **locks**
+are a benign near-no-op (batch is deterministic, so regenerating already yields the same week — a lock
+only bites once you switch to fresh). Note: every-3-days efficiency is modest (cook ~15 vs 21) — **weekly
+cadence is the bigger saving** (cook 9 for 21 meals); a money-saved figure was deliberately skipped
+(would double-count the existing bulk-pack cost model).
 
 **Track K — Kimi K3 beta test: NOT started (needs the owner).** Sign up / paste a free-tier key (OpenRouter
 `moonshotai/kimi-k3`, or Moonshot's platform free credits); then it's a 3-line `.env.local` change to run
