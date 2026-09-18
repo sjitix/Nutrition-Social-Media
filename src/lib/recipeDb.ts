@@ -10212,6 +10212,12 @@ export function applyOperations(
         if (op.targetCarbs && op.targetCarbs > 0) p.carbsGrams = op.targetCarbs;
         if (op.targetFat && op.targetFat > 0) p.fatGrams = op.targetFat;
         if (op.excludeFoods?.length) p.dislikes = mergeDislikes(p.dislikes, op.excludeFoods);
+        // A planning-mode switch (fresh <-> meal-prep). A mode CHANGE must rebuild from scratch in the
+        // new mode, never keep-path the old mode's dishes (fix H3: batch->fresh keeping the batch's
+        // repeats instead of 21 distinct dishes) — so capture it BEFORE applying the new mode.
+        const modeChanged = !!op.planMode && op.planMode !== p.planMode;
+        if (op.planMode) p.planMode = op.planMode;
+        if (op.batchCadence) p.batchCadence = op.batchCadence;
         profileChanged = true;
         // Re-solve every day onto the macro targets so the base plan actually hits
         // protein/calories, not just each meal's calorie share. This re-solve PRESERVES the plan the
@@ -10244,7 +10250,7 @@ export function applyOperations(
           // "keep everything" pass would silently ignore them. Preserve edits only for FILTER and
           // TARGET changes; a re-theme reselects the week from scratch, exactly as before.
           const reTheme = !!(op.cuisine || fiberOn(op) || op.boostNutrient || op.useIngredients?.length);
-          const built = selectWeekFromDb(p, normalizeCuisine(op.cuisine ?? null), fiberOn(op), op.useIngredients, op.boostNutrient ?? undefined, rep, reTheme ? undefined : { plan: prev, keepIf });
+          const built = selectWeekFromDb(p, normalizeCuisine(op.cuisine ?? null), fiberOn(op), op.useIngredients, op.boostNutrient ?? undefined, rep, (reTheme || modeChanged) ? undefined : { plan: prev, keepIf });
           curPlan = keepMacros(op) ? rebalanceWeek(built, p) : built;
           notes.push(...reportNotes(rep, p));
           if (op.boostNutrient) {
@@ -10313,6 +10319,12 @@ export function applyOperations(
       }
       case "swap_meal": {
         if (!op.dish) break;
+        // In meal-prep mode a meal is one serving of a batch you cook once; swapping a single serving
+        // would desync the cook. Refuse honestly (whole-batch swaps are a later refinement).
+        if (p.planMode === "batch") {
+          notes.push(`In meal-prep mode your meals are servings from batches you cook once, so I can't swap just one without breaking the plan. Regenerate the week, or switch to Fresh to change a single meal.`);
+          break;
+        }
         // "Pancakes every day", "make every lunch a big salad" — NO specific day means apply the dish
         // to that slot on ALL days. This is the whole-week operation the model previously couldn't
         // express: it had to emit seven separate swaps, so it did one (Monday) and falsely claimed

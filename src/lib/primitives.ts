@@ -35,6 +35,8 @@ export interface ConstrainOp {
   boostNutrient?: Nutrient;
   maxCookTime?: number;
   preserveMacros?: boolean;
+  planMode?: "fresh" | "batch";      // switch fresh <-> meal-prep
+  cadence?: "weekly" | "every3days"; // meal-prep cooking cadence
 }
 
 export interface RememberOp {
@@ -68,6 +70,7 @@ export function expandConstrain(c: ConstrainOp): Operation[] {
         targetCalories: t.calories ?? null, targetProtein: t.protein ?? null,
         targetCarbs: t.carbs ?? null, targetFat: t.fat ?? null, targetFiber: t.fiber ?? null,
         boostNutrient: c.boostNutrient ?? null, preserveMacros: c.preserveMacros ?? null,
+        planMode: c.planMode ?? null, batchCadence: c.cadence ?? null,
       } as Operation,
     ];
   }
@@ -225,6 +228,8 @@ export const PrimitiveOpSchema = z.discriminatedUnion("op", [
     boostNutrient: nutrientEnum.optional(),
     maxCookTime: z.number().optional(),
     preserveMacros: z.boolean().optional(),
+    planMode: z.enum(["fresh", "batch"]).optional(),
+    cadence: z.enum(["weekly", "every3days"]).optional(),
   }),
   z.object({ op: z.literal("remember"), fact: z.string(), kind: z.enum(["preference", "allergy", "condition", "goal", "context"]).optional() }),
   z.object({ op: z.literal("swap"), dish: z.string(), slot: slotEnum.optional(), days: z.array(dayEnum).optional() }),

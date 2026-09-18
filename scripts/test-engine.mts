@@ -485,6 +485,34 @@ console.log("\n--- SCENARIOS (user perspective) ---");
     `cook ${eff.cookEvents} vs fresh ${eff.freshCookEvents}, shared=${eff.sharedIngredients}`);
 }
 {
+  // === BATCH MODE — assistant integration + H3 (M5) ===
+  // Switch fresh -> batch via update_profile (the whole-plan front door both assistants share).
+  const toBatch = applyOperations(BASE, freshWeek(BASE), [op({ tool: "update_profile", planMode: "batch" })]);
+  check("batch M5: 'switch to meal-prep' via update_profile builds a batch week",
+    toBatch.plan.planMode === "batch" && (toBatch.plan.sessions?.length ?? 0) === 2 && toBatch.profile.planMode === "batch" && toBatch.planChanged,
+    `mode=${toBatch.plan.planMode} sessions=${toBatch.plan.sessions?.length}`);
+
+  // H3: switching batch -> fresh must REBUILD fresh (~21 distinct), not keep the batch's repeats.
+  const bp: UserProfile = { ...BASE, planMode: "batch", batchCadence: "every3days" };
+  const bw = buildWeek(bp);
+  const toFresh = applyOperations(bp, bw, [op({ tool: "update_profile", planMode: "fresh" })]);
+  const freshDistinct = new Set(toFresh.plan.days.flatMap((d) => d.meals.map((m) => m.name))).size;
+  check("batch M5 (H3): batch->fresh rebuilds a fresh week, not the batch's repeats",
+    toFresh.plan.planMode !== "batch" && !toFresh.plan.sessions && freshDistinct >= 18,
+    `mode=${toFresh.plan.planMode} distinct=${freshDistinct}`);
+
+  // v2 primitive carries the mode through to update_profile.
+  const ops = expandConstrain({ op: "constrain", scope: "week", planMode: "batch", cadence: "weekly" });
+  check("batch M5: constrain{planMode} expands to update_profile carrying planMode",
+    ops.length === 1 && ops[0].tool === "update_profile" && ops[0].planMode === "batch",
+    JSON.stringify(ops[0]).slice(0, 80));
+
+  // A single-meal swap in batch is refused honestly (would desync a cook).
+  const sw = applyOperations(bp, bw, [op({ tool: "swap_meal", day: "Monday", mealType: "lunch", dish: "chicken" })]);
+  check("batch M5: a single-meal swap is refused in batch (no cook desync)",
+    sw.planChanged === false && sw.notes.some((n) => /meal-prep|batch|cook once/i.test(n)), sw.notes.join(" | ") || "(no note)");
+}
+{
   // "I've got salmon to use up."
   const wk = freshWeek(BASE);
   // The fridge used to be a BIAS: the selector preferred matching recipes per slot, but the

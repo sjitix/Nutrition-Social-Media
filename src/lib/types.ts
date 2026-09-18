@@ -148,6 +148,9 @@ export const OperationSchema = z.object({
   cuisine: z.string().nullable().optional(),
   diet: z.enum(["none", "vegetarian", "vegan", "keto", "mediterranean"]).nullable().optional(),
   budget: z.enum(["low", "medium", "high"]).nullable().optional(),
+  // Meal-prep mode switch (M5). update_profile persists these + rebuilds the week in the new mode.
+  planMode: z.enum(["fresh", "batch"]).nullable().optional(),
+  batchCadence: z.enum(["weekly", "every3days"]).nullable().optional(),
   excludeFoods: z.array(z.string()).optional(),
   // "I have chicken, rice and broccoli" → bias selection toward recipes that use
   // these on-hand ingredients. Optional; omit/[] when not relevant.

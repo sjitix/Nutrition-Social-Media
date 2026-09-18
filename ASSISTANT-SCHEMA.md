@@ -37,7 +37,9 @@ a good `reply` with `operations: []`.
     "targets": { "calories": 1800, "protein": 200, "carbs": 150, "fat": 60, "fiber": 30 },
     "boostNutrient": "iron",
     "maxCookTime": 20,
-    "preserveMacros": true                 // default true; false only for a declared treat
+    "preserveMacros": true,                // default true; false only for a declared treat
+    "planMode": "batch",                   // meal-prep mode switch (scope week only) — "fresh" | "batch"
+    "cadence": "every3days"                // meal-prep cook cadence: "every3days" (default) | "weekly"
   }
   ```
   - "make it cheaper + vegetarian, no mushrooms" → one `constrain` (scope week, budget, diet, exclude).
@@ -45,6 +47,9 @@ a good `reply` with `operations: []`.
   - "lighter on weekends" → `constrain` (scope [Sat,Sun], targets.calories lower).
   - "more protein at breakfast" → `constrain` (scope slot breakfast, targets.protein higher).
   - "I'm low on iron but keep me vegetarian" → `constrain` (boostNutrient iron, diet vegetarian).
+  - "switch me to meal-prep, cook every 3 days" → `constrain` (planMode "batch", cadence "every3days").
+    A mode change rebuilds the week from scratch in the new mode (never keep-paths the old dishes). In
+    meal-prep mode a single-meal `swap` is refused (a meal is one serving of a batch you cook once).
 
 ### The other verbs (genuinely distinct actions, not menu-padding)
 - **`swap`** — put a specific dish in a slot. `{ op, dish, scope:{slot, days?} }` (days omitted = every
