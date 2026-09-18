@@ -9,7 +9,30 @@ Everything described here is committed and pushed to `main`. Nothing is only on 
 
 ## Where it left off
 
-### >>> READ THIS FIRST — 2026-09-18: batch / meal-prep mode is COMPLETE (M1–M6) <<<
+### >>> READ THIS FIRST — 2026-09-19 shutdown: batch mode DONE; tomorrow is the KIMI K3 beta test <<<
+
+**State:** `main` clean + fully pushed (HEAD `af212f3`). `npm run test:engine` **628/0**, build green. The
+batch / meal-prep planning mode is **COMPLETE** — all M1–M6 + the tail (whole-batch swaps, Today parity).
+Full record in the block just below and in `docs/batch-mode/`. Nothing is in flight; nothing is broken.
+
+**TOMORROW — one agenda: the Kimi K3 beta test (owner is committed to trying it; do NOT argue "we don't
+need the params").**
+1. Find the free-tier path — OpenRouter (`moonshotai/kimi-k3` — free `:free` variant, else pennies PAYG),
+   else Moonshot's own platform (platform.moonshot.ai) free trial credits, else the free web chat
+   (kimi.com) for a manual eyeball. The owner will sign up / paste a key.
+2. Wire it into `.env.local` (3-line, OpenAI-compatible, NO code): `AI_PROVIDER=local`,
+   `LOCAL_AI_URL=<endpoint>`, `LOCAL_AI_API_KEY=<key>`, `LOCAL_AI_MODEL=<kimi-k3 id>`.
+3. Run `npm run eval:hardcases` + the scratchpad `burger.mjs`/`smoke.mjs` tests against it; because of
+   free-tier rate limits, run slowly in the background.
+4. Write the readout — quality vs gpt-oss-20b / the local 70B, latency, rate-limit friction → the verdict:
+   **is Kimi-scale quality worth buying hardware for?** That's the whole point of the test.
+
+**Machine state:** `.env.local` = `LOCAL_AI_MODEL=openai/gpt-oss-20b` (revert to this after the Kimi test).
+No dev server / tunnel running. `.next` is a PRODUCTION build — delete it or rebuild before `npm run dev`.
+The only non-Kimi loose ends are optional batch polish (live cross-screen re-render; per-batch locks) —
+see the block below; skip unless asked.
+
+### >>> 2026-09-18: batch / meal-prep mode is COMPLETE (M1–M6) <<<
 
 **State:** `main` clean + pushed. `npm run test:engine` **628/0**; tsc + production build green. The whole
 **batch / meal-prep planning mode is shipped end-to-end** — all six milestones from `docs/batch-mode/`:
