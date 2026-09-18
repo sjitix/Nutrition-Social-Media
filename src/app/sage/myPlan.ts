@@ -1,4 +1,4 @@
-import { loadPlan, loadProfile, savePlan } from "@/lib/storage";
+import { loadPlan, loadProfile, savePlan, saveProfile, loadBatchPlan, saveBatchPlan } from "@/lib/storage";
 import { groupByAisle, type Aisle } from "@/lib/grocery";
 import { summariseWeek, type WeekStats } from "./weekStats";
 import type { UserProfile, WeekPlan } from "@/lib/types";
@@ -24,12 +24,15 @@ export interface MyWeek {
 /** This device's saved week, or null when the person hasn't set one up yet (→ show the demo). */
 export function loadMyWeek(): MyWeek | null {
   const profile = loadProfile();
-  const week = loadPlan();
-  if (!profile || !week || !Array.isArray(week.days) || week.days.length === 0) return null;
+  if (!profile) return null;
+  // Each mode's week is cached under its own key, so a fresh<->batch toggle is lossless.
+  const week = profile.planMode === "batch" ? loadBatchPlan() : loadPlan();
+  if (!week || !Array.isArray(week.days) || week.days.length === 0) return null;
   return { week, stats: summariseWeek(week), profile };
 }
 
-/** Build a fresh week for this profile through the real engine (server side) and persist it. */
+/** Build this profile's week through the real engine (server side) and persist it under the key for
+ *  its mode (fresh -> `plan`, batch -> `batchPlan`). /api/plan dispatches fresh vs batch on planMode. */
 export async function generateMyWeek(profile: UserProfile): Promise<MyWeek> {
   const res = await fetch("/api/plan", {
     method: "POST",
@@ -41,8 +44,26 @@ export async function generateMyWeek(profile: UserProfile): Promise<MyWeek> {
     throw new Error(data.error ?? "Couldn't build your week just now — is the app running?");
   }
   const week = data.plan as WeekPlan;
-  savePlan(week);
+  if (profile.planMode === "batch") saveBatchPlan(week);
+  else savePlan(week);
   return { week, stats: summariseWeek(week), profile };
+}
+
+/**
+ * Flip the planning mode (fresh <-> meal-prep) and return the week to show. Persists the choice on
+ * the profile; each mode's week lives under its own key, so if the target mode was already built we
+ * reuse it (lossless), otherwise we build it. The caller reloads so every mounted screen re-reads it.
+ */
+export async function switchPlanMode(mode: "fresh" | "batch"): Promise<MyWeek | null> {
+  const profile = loadProfile();
+  if (!profile) return null;
+  const next: UserProfile = { ...profile, planMode: mode };
+  saveProfile(next);
+  const cached = mode === "batch" ? loadBatchPlan() : loadPlan();
+  if (cached && Array.isArray(cached.days) && cached.days.length) {
+    return { week: cached, stats: summariseWeek(cached), profile: next };
+  }
+  return generateMyWeek(next);
 }
 
 export interface GroceryRow {

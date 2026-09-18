@@ -1,8 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { MobileNav, SideNav } from "./SideNav";
+import { loadProfile } from "@/lib/storage";
+import { switchPlanMode } from "./myPlan";
+
+// Planning-mode icons (SVG only — no emoji). Fresh = a single plated dish; Prep = a pot.
+const IconFresh = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <circle cx="12" cy="12" r="8.2" /><circle cx="12" cy="12" r="3" />
+  </svg>
+);
+const IconPrep = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M5 11h14l-1 6.6A2 2 0 0 1 16 19.5H8A2 2 0 0 1 6 17.6L5 11Z" /><path d="M8 11a4 4 0 0 1 8 0" /><path d="M9 5.4 8.2 7.6M15 5.4 15.8 7.6" />
+  </svg>
+);
 
 /**
  * The sidebar, and the control that closes it.
@@ -26,6 +40,28 @@ export function SidePanel() {
   // name on hover, so nothing is unreachable — and it gives the page ~190px more width, which the
   // photography-led screens spend on the plate.
   const [open, setOpen] = useState(false);
+  // Planning mode. Default "fresh" for the first (server-matching) render, then read the real choice
+  // after mount so there's no hydration mismatch. A switch rebuilds the week and reloads so every
+  // mounted screen re-reads it (a live cross-screen re-render is a later refinement).
+  const [mode, setMode] = useState<"fresh" | "batch">("fresh");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (loadProfile()?.planMode === "batch") setMode("batch");
+  }, []);
+  const choose = async (next: "fresh" | "batch") => {
+    if (busy || next === mode) return;
+    if (!loadProfile()) {
+      window.location.href = "/onboarding"; // no plan yet — build one first
+      return;
+    }
+    setBusy(true);
+    try {
+      await switchPlanMode(next);
+      window.location.reload();
+    } catch {
+      setBusy(false);
+    }
+  };
 
   return (
     /* The QUIET sidebar from `sage-07`: the same sage family as the page, told apart by a hairline
@@ -94,21 +130,62 @@ export function SidePanel() {
         <MobileNav />
       </div>
 
-      <div
-        className={
-          "mt-auto hidden items-center gap-2.5 py-6 lg:flex " +
-          (open ? "px-6" : "flex-col px-0")
-        }
-      >
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-panel text-[11.5px] font-bold text-cream">
-          A
-        </span>
-        <Link
-          href="/classic"
-          className={"text-[12px] text-mut hover:text-plum " + (open ? "" : "hidden")}
-        >
-          Switch to the original design
-        </Link>
+      <div className={"mt-auto hidden py-6 lg:block " + (open ? "px-6" : "px-0")}>
+        {/* Planning mode: fresh vs meal-prep. Always reachable; collapses to one icon on the rail. */}
+        {open ? (
+          <div className="mb-5">
+            <div className="mb-2 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-mut">Planning</div>
+            <div className="flex gap-1 rounded-[11px] border border-line bg-cream p-1" role="group" aria-label="Planning mode">
+              <button
+                type="button"
+                onClick={() => choose("fresh")}
+                aria-pressed={mode === "fresh"}
+                disabled={busy}
+                className={
+                  "flex flex-1 items-center justify-center gap-1.5 rounded-[8px] px-2 py-1.5 text-[12.5px] font-semibold transition disabled:opacity-60 " +
+                  (mode === "fresh" ? "bg-panel text-cream" : "text-mut hover:text-plum")
+                }
+              >
+                <IconFresh /> Fresh
+              </button>
+              <button
+                type="button"
+                onClick={() => choose("batch")}
+                aria-pressed={mode === "batch"}
+                disabled={busy}
+                className={
+                  "flex flex-1 items-center justify-center gap-1.5 rounded-[8px] px-2 py-1.5 text-[12.5px] font-semibold transition disabled:opacity-60 " +
+                  (mode === "batch" ? "bg-panel text-cream" : "text-mut hover:text-plum")
+                }
+              >
+                <IconPrep /> Prep
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => choose(mode === "fresh" ? "batch" : "fresh")}
+            disabled={busy}
+            title={mode === "fresh" ? "Switch to meal-prep" : "Switch to fresh"}
+            className="mx-auto mb-4 grid h-9 w-9 place-items-center rounded-[10px] text-mut transition hover:bg-cream hover:text-plum disabled:opacity-60"
+          >
+            {mode === "fresh" ? <IconFresh /> : <IconPrep />}
+            <span className="sr-only">Planning mode: {mode === "fresh" ? "fresh" : "meal-prep"} — switch</span>
+          </button>
+        )}
+
+        <div className={"flex items-center gap-2.5 " + (open ? "" : "flex-col")}>
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-panel text-[11.5px] font-bold text-cream">
+            A
+          </span>
+          <Link
+            href="/classic"
+            className={"text-[12px] text-mut hover:text-plum " + (open ? "" : "hidden")}
+          >
+            Switch to the original design
+          </Link>
+        </div>
       </div>
     </header>
   );
