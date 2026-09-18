@@ -25,6 +25,7 @@ import { assistantV2SystemPrompt } from "@/lib/promptV2";
 import { validateExample, validateBatch, type TrainingExample } from "@/lib/dataValidate";
 import { generateExamples } from "@/lib/genV2";
 import { microsForIngredients } from "@/lib/nutrients";
+import { bulkGroceriesFromWeek, formatBulkQuantity, batchEfficiency } from "@/lib/batchGrocery";
 import { haystackBlocked, dietTagConflicts, parseExclusionTokens } from "@/lib/exclusions";
 import { bmr, computeTargets, hydrationTarget } from "@/lib/targets";
 import { composeReply, planWasChanged, describeOperations, READ_ONLY_TOOLS } from "@/lib/reply";
@@ -454,6 +455,34 @@ console.log("\n--- SCENARIOS (user perspective) ---");
   }
   const shared = [...ingCount.values()].filter((c) => c >= 2).length;
   check("batch M3: the week's dishes share staple ingredients (overlap-driven selection)", shared >= 3, `${shared} ingredients shared by >=2 dishes`);
+}
+{
+  // === BATCH MODE — bulk grocery + efficiency (M4) ===
+  check("batch M4: formatBulkQuantity renders friendly packs",
+    formatBulkQuantity("rice", 1500) === "1.5 kg" && /egg/.test(formatBulkQuantity("eggs", 165)) && /can/.test(formatBulkQuantity("chopped tomatoes", 700)),
+    `${formatBulkQuantity("rice", 1500)} | ${formatBulkQuantity("eggs", 165)} | ${formatBulkQuantity("chopped tomatoes", 700)}`);
+
+  // H1: the ingredient list is per recipe.servings, so bulk divides by servings BEFORE x totalServings.
+  const fakeMeal: Meal = { name: "Test Bake", type: "dinner", description: "", calories: 500, proteinGrams: 30, carbsGrams: 50, fatGrams: 15, timeMinutes: 30, servings: 2, ingredients: [{ name: "rice", quantity: "100 g" }], steps: [], batchId: "b1" };
+  const fakeWeek: WeekPlan = {
+    days: [{ day: "Monday", meals: [fakeMeal] }], weekSummary: "", planMode: "batch",
+    sessions: [{ id: "s1", cookDay: "Monday", coversDays: ["Monday"] }],
+    batches: [{ id: "b1", sessionId: "s1", recipeName: "Test Bake", slot: "dinner", totalServings: 4, servingFactor: 1, perServing: { calories: 500, proteinGrams: 30, carbsGrams: 50, fatGrams: 15 }, placements: [{ day: "Monday", slot: "dinner" }] }],
+  };
+  const riceRow = bulkGroceriesFromWeek(fakeWeek)[0]?.aisles.flatMap((a) => a.items).find((it) => it.name === "rice");
+  check("batch M4 (H1): bulk grams = list/servings x totalServings (no 3x over-shop)",
+    riceRow?.grams === 200, `rice=${riceRow?.grams}g (expected 200 = 100/2 * 4)`);
+
+  const bw = buildWeek({ ...BASE, planMode: "batch", batchCadence: "every3days" });
+  const sg = bulkGroceriesFromWeek(bw);
+  check("batch M4: a per-session bulk list, fully resolved to grams",
+    sg.length === 2 && sg.every((s) => s.coverage === 1 && s.aisles.some((a) => a.items.length > 0)),
+    `sessions=${sg.length} coverage=${sg.map((s) => s.coverage.toFixed(2)).join(",")}`);
+
+  const eff = batchEfficiency(bw);
+  check("batch M4: efficiency metric — far fewer cook events than fresh",
+    eff.cookEvents < eff.freshCookEvents && eff.freshCookEvents === 21 && eff.sessions === 2 && eff.sharedIngredients >= 3,
+    `cook ${eff.cookEvents} vs fresh ${eff.freshCookEvents}, shared=${eff.sharedIngredients}`);
 }
 {
   // "I've got salmon to use up."
