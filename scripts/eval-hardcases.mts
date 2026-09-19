@@ -45,6 +45,11 @@ const MODEL = process.env.MODEL ?? env.LOCAL_AI_MODEL ?? "nutriflow-assistant";
 // tokens before the JSON, so the cap is higher for hosted runs and overridable.
 const API_KEY = process.env.LOCAL_AI_API_KEY ?? env.LOCAL_AI_API_KEY ?? "";
 const MAX_TOKENS = Number(process.env.MAX_TOKENS ?? (API_KEY ? 2000 : 900));
+// A per-request deadline (bare fetch has none) and a concurrency pool. Both default to the old behaviour
+// for local runs; hosted queues (NVIDIA NIM sits ~200s deep on the free tier but serves requests in
+// parallel) want a long timeout and EVAL_CONCURRENCY high to keep the wall-clock sane.
+const REQ_TIMEOUT_MS = Number(process.env.REQ_TIMEOUT_MS ?? (API_KEY ? 300000 : 120000));
+const CONCURRENCY = Math.max(1, Number(process.env.EVAL_CONCURRENCY ?? 1));
 
 interface HardCase {
   id: string;
@@ -88,7 +93,13 @@ async function post(turns: HardCase["turns"], fmt: Fmt): Promise<Response> {
     messages: [{ role: "system", content: SYSTEM }, ...turns.map((t) => ({ role: t.role, content: t.text }))],
   };
   if (fmt) body.response_format = fmt;
-  return fetch(`${BASE_URL}/chat/completions`, { method: "POST", headers, body: JSON.stringify(body) });
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), REQ_TIMEOUT_MS);
+  try {
+    return await fetch(`${BASE_URL}/chat/completions`, { method: "POST", headers, body: JSON.stringify(body), signal: ac.signal });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 let workingFmt: Fmt | undefined; // undefined = not yet probed; then pinned to the first format that worked
@@ -116,60 +127,86 @@ const stat = { n: 0, schemaOk: 0, actedRight: 0, changed: 0 };
 const byBucket: Record<string, { n: number; right: number }> = {};
 const lines: string[] = [];
 
-console.log(`\nmodel: ${MODEL}\nendpoint: ${BASE_URL}\ncases: ${CASES.length}\n`);
+console.log(`\nmodel: ${MODEL}\nendpoint: ${BASE_URL}\ncases: ${CASES.length}   concurrency: ${CONCURRENCY}\n`);
 
-for (const c of CASES) {
+type CaseResult = { bucket: string; schemaOk: boolean; actedRight: boolean; changed: boolean; line: string; fatal?: string };
+
+/** Grade ONE case: ask the model, parse the envelope, run the ops through the real engine. Never throws
+ *  — a request/parse failure returns a result the tally counts as a miss, so one bad case can't sink the run. */
+async function runCase(c: HardCase): Promise<CaseResult> {
   let raw: string;
   try {
     raw = await ask(c.turns);
   } catch (e) {
     const msg = (e as Error).message;
-    if (stat.n === 0 && isNoModel(msg)) {
-      console.log(`No model reachable at ${BASE_URL} (${msg.slice(0, 80)}).`);
-      console.log("Load the trained model in LM Studio and re-run — nothing to grade yet.");
-      process.exit(0);
-    }
-    lines.push(`✗ ${c.id.padEnd(22)} [${c.bucket}] request failed: ${msg.slice(0, 60)}`);
-    stat.n++;
-    (byBucket[c.bucket] ??= { n: 0, right: 0 }).n++;
-    continue;
+    return {
+      bucket: c.bucket, schemaOk: false, actedRight: false, changed: false,
+      fatal: isNoModel(msg) ? msg : undefined,
+      line: `✗ ${c.id.padEnd(22)} [${c.bucket}] request failed: ${msg.slice(0, 60)}`,
+    };
   }
-  stat.n++;
-  const b = (byBucket[c.bucket] ??= { n: 0, right: 0 });
-  b.n++;
-
   const m = raw.match(/\{[\s\S]*\}/); // models sometimes wrap the JSON in prose/fences
   let parsed: z.infer<typeof AssistantTurnV2Schema> | null = null;
   try {
     const obj = JSON.parse(m ? m[0] : raw);
     const v = AssistantTurnV2Schema.safeParse(obj);
-    if (v.success) { parsed = v.data; stat.schemaOk++; }
+    if (v.success) parsed = v.data;
   } catch {
     /* schema miss falls through to the failure line below */
   }
   if (!parsed) {
-    lines.push(`✗ ${c.id.padEnd(22)} [${c.bucket}] bad schema: ${raw.replace(/\s+/g, " ").slice(0, 70)}`);
-    continue;
+    return {
+      bucket: c.bucket, schemaOk: false, actedRight: false, changed: false,
+      line: `✗ ${c.id.padEnd(22)} [${c.bucket}] bad schema: ${raw.replace(/\s+/g, " ").slice(0, 70)}`,
+    };
   }
-
   const ops = parsed.operations as PrimitiveOp[];
   const acted = ops.length > 0;
   const expectAct = c.bucket === "do";
   const actedRight = acted === expectAct;
-  if (actedRight) { stat.actedRight++; b.right++; }
-
   let changed = false;
   try {
     const res = applyPrimitives(PROFILE, PLAN, ops);
     changed = res.planChanged || res.profileChanged;
-    if (changed) stat.changed++;
   } catch {
     /* an op the engine rejects still counts as a wrong action below */
   }
-
   const mark = actedRight ? "✓" : "✗";
   const did = acted ? (changed ? "acted+changed" : "acted") : "held";
-  lines.push(`${mark} ${c.id.padEnd(22)} [${c.bucket}] want ${expectAct ? "ACT " : "HOLD"} · got ${did.padEnd(13)} · "${parsed.reply.replace(/\s+/g, " ").slice(0, 64)}"`);
+  return {
+    bucket: c.bucket, schemaOk: true, actedRight, changed,
+    line: `${mark} ${c.id.padEnd(22)} [${c.bucket}] want ${expectAct ? "ACT " : "HOLD"} · got ${did.padEnd(13)} · "${parsed.reply.replace(/\s+/g, " ").slice(0, 64)}"`,
+  };
+}
+
+// Warm up on the first case alone: pins the working response_format before the pool fires (so workers
+// don't each re-probe the ladder) and, if nothing is reachable, exits 0 cleanly exactly like before.
+const results: CaseResult[] = new Array(CASES.length);
+results[0] = await runCase(CASES[0]);
+if (results[0].fatal) {
+  console.log(`No model reachable at ${BASE_URL} (${results[0].fatal.slice(0, 80)}).`);
+  console.log("Load the trained model in LM Studio and re-run — nothing to grade yet.");
+  process.exit(0);
+}
+
+// Bounded-concurrency pool over the rest; index-keyed so per-case output stays in case order regardless
+// of completion order. CONCURRENCY defaults to 1 (sequential, unchanged for local runs).
+let next = 1;
+async function worker(): Promise<void> {
+  for (let i = next++; i < CASES.length; i = next++) {
+    results[i] = await runCase(CASES[i]);
+  }
+}
+await Promise.all(Array.from({ length: Math.min(CONCURRENCY, Math.max(0, CASES.length - 1)) }, worker));
+
+for (const r of results) {
+  stat.n++;
+  const b = (byBucket[r.bucket] ??= { n: 0, right: 0 });
+  b.n++;
+  if (r.schemaOk) stat.schemaOk++;
+  if (r.actedRight) { stat.actedRight++; b.right++; }
+  if (r.changed) stat.changed++;
+  lines.push(r.line);
 }
 
 const pct = (x: number, d = stat.n) => (d ? `${((x / d) * 100).toFixed(0)}%` : "—").padStart(4);
