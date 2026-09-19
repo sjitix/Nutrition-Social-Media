@@ -50,6 +50,9 @@ const MAX_TOKENS = Number(process.env.MAX_TOKENS ?? (API_KEY ? 2000 : 900));
 // parallel) want a long timeout and EVAL_CONCURRENCY high to keep the wall-clock sane.
 const REQ_TIMEOUT_MS = Number(process.env.REQ_TIMEOUT_MS ?? (API_KEY ? 300000 : 120000));
 const CONCURRENCY = Math.max(1, Number(process.env.EVAL_CONCURRENCY ?? 1));
+// Hosted free tiers rate-limit hard (NVIDIA NIM 429s on a burst). Retry those with exponential backoff
+// + jitter so a transient 429/503 doesn't turn into a scored miss; other errors surface immediately.
+const MAX_RETRIES = Number(process.env.EVAL_RETRIES ?? 5);
 
 interface HardCase {
   id: string;
@@ -104,19 +107,28 @@ async function post(turns: HardCase["turns"], fmt: Fmt): Promise<Response> {
 
 let workingFmt: Fmt | undefined; // undefined = not yet probed; then pinned to the first format that worked
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 async function ask(turns: HardCase["turns"]): Promise<string> {
   const ladder: Fmt[] = workingFmt === undefined ? [SCHEMA_FORMAT, OBJECT_FORMAT, null] : [workingFmt];
   let lastErr = "";
   for (const fmt of ladder) {
-    const res = await post(turns, fmt);
-    if (res.ok) {
-      workingFmt = fmt;
-      const j = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-      return j.choices?.[0]?.message?.content ?? "";
-    }
-    lastErr = `${res.status} ${(await res.text()).slice(0, 160)}`;
-    // Only step down the ladder on a format-related 400; any other error is real — surface it.
-    if (!(res.status === 400 && /response_format|json_schema|schema|guided|structured/i.test(lastErr))) {
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      const res = await post(turns, fmt);
+      if (res.ok) {
+        workingFmt = fmt;
+        const j = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+        return j.choices?.[0]?.message?.content ?? "";
+      }
+      lastErr = `${res.status} ${(await res.text()).slice(0, 160)}`;
+      // Rate-limited / transiently unavailable: back off (2s,4s,8s,16s,30s cap + jitter) and retry SAME fmt.
+      if ((res.status === 429 || res.status === 503) && attempt < MAX_RETRIES) {
+        await sleep(Math.min(30000, 2000 * 2 ** attempt) + Math.floor(Math.random() * 1000));
+        continue;
+      }
+      // Format-related 400: stop retrying and step DOWN the ladder to the next format.
+      if (res.status === 400 && /response_format|json_schema|schema|guided|structured/i.test(lastErr)) break;
+      // Anything else is a real error — surface it.
       throw new Error(lastErr);
     }
   }
