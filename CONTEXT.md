@@ -36,6 +36,11 @@ retry with backoff). No `src/lib` change, so the engine suite is untouched; the 
   bucket to the 84% baseline — that's the number that decides whether K3-scale quality is worth hardware.
 - **Free K3 is a batch service, not interactive:** ~4 min/reply also exceeds Vercel's serverless timeout, so a
   free beta site needs a FAST free model (same NVIDIA key) for the live app + free K3 for OFFLINE evals only.
+- **The fast free beta model is settled: `openai/gpt-oss-20b` on NVIDIA — measured ~2.8s, clean output, free,
+  no card.** It's the SAME model as the 84% baseline, so the live beta can run known-good quality with no local
+  GPU and inside Vercel's timeout. (Non-obvious: the "flash"/"lightning"-named models — `glm-5.3-flash`,
+  `nemotron-3.5-lightning-30b-a3b`, `deepseek-v4-flash` — all TIMED OUT at 60s on the free tier; the name
+  doesn't mean fast there. Probe before trusting a model's speed on this tier.)
 
 **Machine state:** `.env.local` is UNTOUCHED — still `LOCAL_AI_MODEL=openai/gpt-oss-20b`. The `nvapi-` key was
 passed via the ENVIRONMENT for the eval command only, never written to disk (nothing to revert; key is the
