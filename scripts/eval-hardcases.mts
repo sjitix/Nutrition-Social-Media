@@ -16,8 +16,15 @@
  * The nuanced split among clarify vs decline vs refuse is semantic (all emit no ops), so the harness
  * prints every reply for a human to eyeball — it grades the coarse act/hold correctly and hands you
  * the material for the rest. If no model is reachable, it says so and exits 0 (nothing to grade yet).
+ *
+ * EVERY RUN WRITES A SCORECARD to data/eval-runs/<timestamp>-<model>.json, and that path is
+ * deliberately NOT gitignored. This grader used to print and forget: a Kimi K3 run that existed to
+ * decide whether to buy hardware is gone with the terminal it printed to, so the decision it was
+ * meant to settle had to be re-run. The scorecard also separates INFRA failures (timeout, 429) from
+ * model misses — they are the same shape in a tally, and conflating them once produced a 40% that
+ * had nothing to do with the model (WORKPLAN lesson 44).
  */
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import { assistantV2SystemPrompt } from "@/lib/promptV2";
@@ -135,13 +142,28 @@ async function ask(turns: HardCase["turns"]): Promise<string> {
   throw new Error(lastErr || "request failed");
 }
 
-const stat = { n: 0, schemaOk: 0, actedRight: 0, changed: 0 };
+const stat = { n: 0, schemaOk: 0, actedRight: 0, changed: 0, infra: 0 };
 const byBucket: Record<string, { n: number; right: number }> = {};
 const lines: string[] = [];
 
 console.log(`\nmodel: ${MODEL}\nendpoint: ${BASE_URL}\ncases: ${CASES.length}   concurrency: ${CONCURRENCY}\n`);
 
-type CaseResult = { bucket: string; schemaOk: boolean; actedRight: boolean; changed: boolean; line: string; fatal?: string };
+type CaseResult = {
+  id: string;
+  bucket: string;
+  schemaOk: boolean;
+  actedRight: boolean;
+  changed: boolean;
+  line: string;
+  fatal?: string;
+  /** The case never reached the model (timeout, 429 storm, transport error) — an INFRA miss, not a
+   *  model miss. Counted separately because the two are indistinguishable in the tally otherwise,
+   *  and a rate-limit storm once produced a 40% that had nothing to do with model quality. */
+  infra?: boolean;
+  /** What the model actually replied, kept for the scorecard so the clarify/decline/refuse nuance
+   *  can be re-read later by a human instead of only scrolling past once. */
+  reply?: string;
+};
 
 /** Grade ONE case: ask the model, parse the envelope, run the ops through the real engine. Never throws
  *  — a request/parse failure returns a result the tally counts as a miss, so one bad case can't sink the run. */
@@ -152,8 +174,9 @@ async function runCase(c: HardCase): Promise<CaseResult> {
   } catch (e) {
     const msg = (e as Error).message;
     return {
-      bucket: c.bucket, schemaOk: false, actedRight: false, changed: false,
+      id: c.id, bucket: c.bucket, schemaOk: false, actedRight: false, changed: false,
       fatal: isNoModel(msg) ? msg : undefined,
+      infra: true,
       line: `✗ ${c.id.padEnd(22)} [${c.bucket}] request failed: ${msg.slice(0, 60)}`,
     };
   }
@@ -168,7 +191,8 @@ async function runCase(c: HardCase): Promise<CaseResult> {
   }
   if (!parsed) {
     return {
-      bucket: c.bucket, schemaOk: false, actedRight: false, changed: false,
+      id: c.id, bucket: c.bucket, schemaOk: false, actedRight: false, changed: false,
+      reply: raw.replace(/\s+/g, " ").slice(0, 400),
       line: `✗ ${c.id.padEnd(22)} [${c.bucket}] bad schema: ${raw.replace(/\s+/g, " ").slice(0, 70)}`,
     };
   }
@@ -186,7 +210,8 @@ async function runCase(c: HardCase): Promise<CaseResult> {
   const mark = actedRight ? "✓" : "✗";
   const did = acted ? (changed ? "acted+changed" : "acted") : "held";
   return {
-    bucket: c.bucket, schemaOk: true, actedRight, changed,
+    id: c.id, bucket: c.bucket, schemaOk: true, actedRight, changed,
+    reply: parsed.reply.replace(/\s+/g, " ").slice(0, 400),
     line: `${mark} ${c.id.padEnd(22)} [${c.bucket}] want ${expectAct ? "ACT " : "HOLD"} · got ${did.padEnd(13)} · "${parsed.reply.replace(/\s+/g, " ").slice(0, 64)}"`,
   };
 }
@@ -218,6 +243,7 @@ for (const r of results) {
   if (r.schemaOk) stat.schemaOk++;
   if (r.actedRight) { stat.actedRight++; b.right++; }
   if (r.changed) stat.changed++;
+  if (r.infra) stat.infra++;
   lines.push(r.line);
 }
 
@@ -229,3 +255,52 @@ console.log("by bucket:");
 for (const [k, v] of Object.entries(byBucket)) console.log(`  ${k.padEnd(9)} ${v.right}/${v.n}`);
 console.log("\nper-case (eyeball the reply for clarify/decline/refuse nuance):");
 for (const l of lines) console.log("  " + l);
+
+// Lesson 44: an infra failure and a wrong answer are the same shape in the tally. Say so LOUDLY
+// rather than letting a rate-limit storm be read as a model weakness — that mistake already
+// produced a 40% that had nothing to do with the model.
+if (stat.infra > 0) {
+  console.log(
+    `\n!! ${stat.infra}/${stat.n} cases NEVER REACHED THE MODEL (timeout / 429 / transport).` +
+      `\n!! The headline above grades the infrastructure as much as the model. Lower EVAL_CONCURRENCY,` +
+      `\n!! raise EVAL_RETRIES, and re-run before quoting any number from this run.`,
+  );
+}
+
+// Persist the scorecard. The grader used to print and forget, and a Kimi K3 run that was meant to
+// decide a hardware question is gone with the terminal it printed to. A run that is not written
+// down did not happen — so every run now leaves a file, and the file is NOT gitignored.
+const runDir = join(ROOT, "data", "eval-runs");
+mkdirSync(runDir, { recursive: true });
+const slug = MODEL.replace(/[^\w.-]+/g, "-").slice(0, 60);
+const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+const outPath = join(runDir, `${stamp}-${slug}.json`);
+writeFileSync(
+  outPath,
+  JSON.stringify(
+    {
+      ranAt: new Date().toISOString(),
+      model: MODEL,
+      endpoint: BASE_URL,
+      keyed: Boolean(API_KEY), // never the key itself
+      settings: { concurrency: CONCURRENCY, maxRetries: MAX_RETRIES, reqTimeoutMs: REQ_TIMEOUT_MS, maxTokens: MAX_TOKENS },
+      cases: stat.n,
+      summary: {
+        schemaOk: stat.schemaOk,
+        actedRight: stat.actedRight,
+        changedState: stat.changed,
+        infraFailures: stat.infra,
+        trustworthy: stat.infra === 0,
+      },
+      byBucket,
+      results: results.map((r) => ({
+        id: r.id, bucket: r.bucket, schemaOk: r.schemaOk, actedRight: r.actedRight,
+        changed: r.changed, infra: Boolean(r.infra), reply: r.reply ?? "",
+      })),
+    },
+    null,
+    2,
+  ) + "\n",
+  "utf8",
+);
+console.log(`\nscorecard: ${outPath.replace(ROOT, ".")}`);
