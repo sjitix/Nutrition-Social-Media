@@ -27,6 +27,12 @@ a missing one — it is believed. So:
 - **Changed `01-…md`?** Update `milestones.html` and republish. Same for the other two.
 - **Wrote a worklog entry?** Add it to `worklog.html` and republish, and update the counters at the
   top (days logged, open deferrals).
+
+**The day log's timeline is history ONLY** — dated entries for days that actually happened, appended
+one per work-day. The schedule ahead sits below it in a separate `<details class="upcoming">` block,
+**collapsed by default**, and a day moves out of that block into the timeline only once it has been
+worked. (Owner's instruction, left as a comment on `#d-next`, 2026-09-19.) Do not reintroduce
+planned entries into the timeline: a record of intentions is the one thing a work log must not be.
 - **Moved a module boundary?** The map doc and `module-map.html` both change, in that commit.
 - Update the `SYNCED` / `COMMIT` stamp in the page header every time. It is how the owner knows
   whether what they are looking at is current.

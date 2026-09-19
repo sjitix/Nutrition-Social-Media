@@ -508,7 +508,7 @@ everything ─► D4 release</pre>
   // Mark the blocks a click should anchor to. Done in script so the markup stays clean, and so the
   // shell's own comment mode anchors a click anywhere inside a block to that whole block.
   var MARK = ['.day', '.contract', '.mod', '.layer', '.step', '.rule', '.defer', '.entry', '.stat',
-              '.callout', '.deps', '.trap', '.howto', '.split', 'tbody tr', '.blk li', 'ol.judge li',
+              '.callout', '.up-row', '.deps', '.trap', '.howto', '.split', 'tbody tr', '.blk li', 'ol.judge li',
               'p.lede', 'pre.tmpl', 'h1', 'h2', 'h3', 'footer'];
   document.querySelectorAll(MARK.join(',')).forEach(function (el) {
     el.setAttribute('data-comment-target', '');

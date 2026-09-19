@@ -89,6 +89,28 @@
   .gate { font-family: "IBM Plex Mono", monospace; font-size: 11.5px; color: var(--mut);
     border-top: 1px solid var(--line); padding-top: 11px; margin-top: 16px; line-height: 1.7; }
 
+  /* The schedule ahead: deliberately NOT part of the historical flow, and collapsed by default. */
+  .upcoming { border: 1px solid var(--line); border-radius: 12px; background: var(--sunk); }
+  .upcoming > summary { cursor: pointer; list-style: none; padding: 17px 20px; display: flex;
+    align-items: center; gap: 13px; font-family: Archivo, ui-sans-serif, sans-serif;
+    font-size: 16.5px; font-weight: 600; color: var(--ink); }
+  .upcoming > summary::-webkit-details-marker { display: none; }
+  .upcoming > summary::before { content: "+"; font-family: "IBM Plex Mono", monospace; font-size: 15px;
+    color: var(--accent); background: var(--accent-soft); width: 27px; height: 27px; border-radius: 8px;
+    display: grid; place-items: center; flex: none; }
+  .upcoming[open] > summary::before { content: "\2212"; }
+  .upcoming > summary:hover { color: var(--accent); }
+  .upcoming > summary .c { margin-left: auto; font: 500 10.5px "IBM Plex Mono", monospace;
+    color: var(--mut); letter-spacing: .1em; text-transform: uppercase; }
+  .up-body { padding: 0 20px 18px; display: grid; gap: 14px; }
+  .up-row { display: grid; grid-template-columns: 88px 1fr; gap: 16px; align-items: start;
+    border-top: 1px solid var(--line); padding-top: 14px; }
+  .up-row .w { font: 500 10.5px "IBM Plex Mono", monospace; color: var(--mut);
+    letter-spacing: .1em; text-transform: uppercase; padding-top: 3px; }
+  .up-row h4 { font-size: 15px; font-weight: 600; }
+  .up-row p { font-size: 13px; margin: 6px 0 0; max-width: 70ch; }
+  @media (max-width: 580px) { .up-row { grid-template-columns: 1fr; gap: 6px; } }
+
   .defers { border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--sh-sm); overflow: hidden; }
   .defer { display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: baseline;
     border-bottom: 1px solid var(--line); padding: 14px 18px; font-size: 13.5px; background: var(--page); }
@@ -177,6 +199,8 @@
   <section id="timeline">
     <div class="shead"><span class="eyebrow">What happened</span><span class="rule"></span></div>
     <h2>The record</h2>
+    <p class="lede">Only days that actually happened, each with its date, appended at the end of every work-day.
+      Nothing planned appears here — the schedule ahead is in its own collapsed block below.</p>
     <div class="tl" style="margin-top:20px">
 
       <article class="entry" id="d-2026-09-19">
@@ -228,36 +252,45 @@
         </div>
       </article>
 
-      <article class="entry planned" id="d-next">
-        <div class="box">
-          <div class="ehead"><span class="date">NEXT</span><span class="pill plan">day 1 · planned</span></div>
-          <h3>A1 — freeze the contracts</h3>
-          <p style="font-size:13.5px;margin:7px 0 0">Build <span class="mono">npm run check:boundaries</span> so the
-            module map becomes enforced truth rather than a document. Parallel: this log gets its second entry.</p>
-          <div class="gate">GATE · check:boundaries + tsc</div>
-        </div>
-      </article>
-
-      <article class="entry planned">
-        <div class="box">
-          <div class="ehead"><span class="date">THEN</span><span class="pill plan">days 2–4 · planned</span></div>
-          <h3>Split recipeDb, then the payload boundary</h3>
-          <p style="font-size:13.5px;margin:7px 0 0">Data out of engine, then the executor, each behind a barrel that
-            leaves every call site untouched. Then stop shipping 501 recipes to the browser.</p>
-          <div class="gate">GATE · test:engine, identical count · then npm run build, first-load JS compared</div>
-        </div>
-      </article>
-
-      <article class="entry planned">
-        <div class="box">
-          <div class="ehead"><span class="date">AFTER</span><span class="pill plan">days 5–12 · planned</span></div>
-          <h3>Safety, logging, one app, the assistant that speaks first, release</h3>
-          <p style="font-size:13.5px;margin:7px 0 0">The crisis pre-scan is the one hard ordering constraint: nothing
-            public gets a live model before it lands.</p>
-        </div>
-      </article>
-
     </div>
+  </section>
+
+  <section id="upcoming-sec">
+    <div class="shead"><span class="eyebrow">Not history yet</span><span class="rule"></span></div>
+    <details class="upcoming" id="upcoming">
+      <summary>Upcoming — the schedule ahead<span class="c">12 days · collapsed</span></summary>
+      <div class="up-body">
+        <div class="up-row">
+          <div class="w">Day 1</div>
+          <div>
+            <h4>A1 — freeze the contracts</h4>
+            <p>Build <span class="mono">npm run check:boundaries</span> so the module map becomes enforced truth
+              rather than a document. Parallel: this log gets its second entry.</p>
+            <div class="gate" style="margin-top:9px;padding-top:9px">GATE · check:boundaries + tsc</div>
+          </div>
+        </div>
+        <div class="up-row">
+          <div class="w">Days 2–4</div>
+          <div>
+            <h4>Split recipeDb, then the payload boundary</h4>
+            <p>Data out of engine, then the executor, each behind a barrel that leaves every call site untouched.
+              Then stop shipping 501 recipes to the browser.</p>
+            <div class="gate" style="margin-top:9px;padding-top:9px">GATE · test:engine, identical count · then npm run build, first-load JS compared</div>
+          </div>
+        </div>
+        <div class="up-row">
+          <div class="w">Days 5–12</div>
+          <div>
+            <h4>Safety, logging, one app, the assistant that speaks first, release</h4>
+            <p>The crisis pre-scan is the one hard ordering constraint: nothing public gets a live model before
+              it lands.</p>
+          </div>
+        </div>
+        <p style="font-size:12.5px;color:var(--mut);margin:4px 0 0">A day moves out of this block and into the
+          record above only once it has actually happened — with its date, what it solved, and what it deferred.
+          The full plan lives on the <a href="https://claude.ai/artifact/5jeC8s1S7QiHs9LLh4uGMV">V1 schedule</a>.</p>
+      </div>
+    </details>
   </section>
 
   <section id="deferred">
@@ -318,7 +351,7 @@
   // Mark the blocks a click should anchor to. Done in script so the markup stays clean, and so the
   // shell's own comment mode anchors a click anywhere inside a block to that whole block.
   var MARK = ['.day', '.contract', '.mod', '.layer', '.step', '.rule', '.defer', '.entry', '.stat',
-              '.callout', '.deps', '.trap', '.howto', '.split', 'tbody tr', '.blk li', 'ol.judge li',
+              '.callout', '.up-row', '.deps', '.trap', '.howto', '.split', 'tbody tr', '.blk li', 'ol.judge li',
               'p.lede', 'pre.tmpl', 'h1', 'h2', 'h3', 'footer'];
   document.querySelectorAll(MARK.join(',')).forEach(function (el) {
     el.setAttribute('data-comment-target', '');

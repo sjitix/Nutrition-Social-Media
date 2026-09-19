@@ -13,6 +13,11 @@ The survey of existing tools that led here, and why a hosted one was not chosen,
 
 ## Rules
 
+0. **The history holds only what actually happened.** A file exists for a day once that day has been
+   worked, and it carries its date. **Nothing planned goes in here** — the schedule ahead lives in
+   `docs/v1/01-dimensions-and-milestones.md` and, on the board, in a separate collapsed block. Mixing
+   the two makes a record of intentions, which is the one thing a work log must not become.
+   (Owner's instruction, 2026-09-19, left as a comment on the day-log board.)
 1. **One file per day.** Never append to a shared file — two machines writing the same day's file is
    a merge conflict, and this repo has already had a doc silently duplicate and diverge
    (WORKPLAN lesson 40).
