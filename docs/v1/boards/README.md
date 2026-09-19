@@ -31,6 +31,47 @@ a missing one — it is believed. So:
 - Update the `SYNCED` / `COMMIT` stamp in the page header every time. It is how the owner knows
   whether what they are looking at is current.
 
+## Commenting is built INTO the pages — don't remove it
+
+The first version relied on the claude.ai shell's own comment mode, and the owner could not find it:
+*"I cannot leave comments anywhere."* So each board now carries its own commenting affordances,
+wired to the platform's real comment store through the **`comments` capability**, declared as:
+
+```
+capabilities: {"comments": {"composer_only": true}}
+```
+
+`composer_only` grants exactly one verb — `openComposer({element} | {range})` — which opens the
+shell's own composer anchored wherever the page says. **It never prompts for consent and keeps the
+artifact publicly shareable**, unlike the full `{comments: {}}` form, which the pages do not need
+because the shell does all the posting.
+
+Two entry points, both in the injected block at the bottom of each HTML file:
+
+- **Select any text** → a "Comment on this" button appears by the selection → `openComposer({range})`
+  so the thread quotes those exact words. This is the precise anchor, and the one to prefer.
+- **"Comment on anything"** (fixed, bottom right) → the page enters comment mode, blocks get a
+  crosshair and a hover outline, and a click calls `openComposer({element})` for the block it landed
+  in. Escape leaves the mode.
+
+A script marks the commentable blocks with `data-comment-target` (`.day`, `.contract`, `.mod`,
+`.layer`, `.entry`, `tbody tr`, `.blk li`, headings…). That attribute does double duty: the page's
+own click handler uses it, and it also tells the shell's native comment mode to anchor a click
+anywhere inside a block to that whole block.
+
+**Rules that come from the capability's contract, and are easy to break by accident:**
+
+- The page must **never build its own list of threads**. The shell renders every thread, pin and
+  card. The page's job is only to open the composer.
+- `openComposer` is called **only from a deliberate click** — never on load, on a timer, or in a
+  loop. Programmatic opens are rate-limited.
+- `{opened: false}` is a **soft refusal**, not an error (usually a composer already holds typed
+  text). Do nothing; never retry.
+- `unavailable` / `not_granted` are **permanent for that view**: hide the affordance and say
+  commenting is off here, rather than showing a failure.
+- The capability resolves **after** load, so the button stays hidden until it does. **If a view
+  cannot run capabilities at all, no button appears** — that view has to be opened on claude.ai.
+
 ## How the comment loop works
 
 1. The owner selects anything on a board and leaves a comment — a day, a module, a rule, a single

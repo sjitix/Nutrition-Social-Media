@@ -127,6 +127,32 @@
     .layer .lab { border-right: 0; border-bottom: 1px solid var(--line); display: flex; gap: 10px; align-items: baseline; }
     .row2 { grid-template-columns: 1fr; gap: 3px; }
   }
+
+  /* Click-to-comment — the page's own entry point into claude.ai's comment composer. */
+  .cmt-btn { position: fixed; right: 18px; bottom: 18px; z-index: 50; display: none;
+    align-items: center; gap: 9px; font: 500 13px "IBM Plex Sans", ui-sans-serif, sans-serif;
+    padding: 12px 18px; border-radius: 999px; border: 1px solid var(--line-strong);
+    background: var(--page); color: var(--ink); cursor: pointer;
+    box-shadow: 0 8px 24px -8px rgba(16,17,20,.3); }
+  .cmt-btn.ready { display: inline-flex; }
+  .cmt-btn:hover { border-color: var(--accent); }
+  .cmt-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .cmt-btn .d { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); flex: none; }
+  .cmt-btn.active .d { background: #fff; }
+  body.cmt-on [data-comment-target] { cursor: crosshair; }
+  body.cmt-on [data-comment-target]:hover { outline: 2px solid var(--accent); outline-offset: 3px;
+    border-radius: 6px; background: var(--accent-soft); }
+  .cmt-sel { position: absolute; z-index: 60; display: none; border: 0; cursor: pointer;
+    font: 500 12px "IBM Plex Sans", ui-sans-serif, sans-serif; padding: 8px 14px;
+    border-radius: 999px; background: var(--accent); color: #fff;
+    box-shadow: 0 8px 22px -8px rgba(59,60,224,.55); }
+  .cmt-sel.show { display: inline-flex; }
+  .cmt-toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 84px; z-index: 70;
+    display: none; background: var(--ink); color: #fff; font-size: 13px; padding: 11px 17px;
+    border-radius: 9px; max-width: min(92vw, 460px); text-align: center;
+    box-shadow: 0 8px 24px -8px rgba(16,17,20,.4); }
+  .cmt-toast.show { display: block; }
+  @media (max-width: 580px) { .cmt-btn { right: 12px; bottom: 12px; padding: 11px 15px; } }
 </style>
 
 <div class="wrap">
@@ -152,10 +178,12 @@
   <div class="howto">
     <div class="mk"></div>
     <div>
-      <p><b>Comment anywhere on this page.</b> Select a module, a layer, a rule — anything — and leave a comment.
-        Then tell me “evaluate my comments” and I will read every thread, change the map and the underlying
-        document, and republish this board.</p>
-      <p>To let me reply inside a thread, use <b>Send to Claude</b> on it. I can read every comment either way.</p>
+      <p><b>Two ways to comment, and both land on the exact spot.</b> <b>Select any text</b> and a
+        &ldquo;Comment on this&rdquo; button appears &mdash; the comment quotes those exact words. Or press
+        <b>Comment on anything</b> at the bottom right, then click any block on the page.</p>
+      <p>Then tell me <b>&ldquo;evaluate my comments&rdquo;</b> and I will read every thread, see exactly where
+        each one sits, change both this board and the document behind it, and republish. To let me reply
+        inside a thread, use <b>Send to Claude</b> on it &mdash; I can read every comment either way.</p>
     </div>
   </div>
 
@@ -397,3 +425,112 @@
     because it is believed.
   </footer>
 </div>
+
+<button class="cmt-btn" id="cmtBtn" type="button" aria-pressed="false">
+  <span class="d" aria-hidden="true"></span><span id="cmtLabel">Comment on anything</span>
+</button>
+<button class="cmt-sel" id="cmtSel" type="button">Comment on this</button>
+<div class="cmt-toast" id="cmtToast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  // Mark the blocks a click should anchor to. Done in script so the markup stays clean, and so the
+  // shell's own comment mode anchors a click anywhere inside a block to that whole block.
+  var MARK = ['.day', '.contract', '.mod', '.layer', '.step', '.rule', '.defer', '.entry', '.stat',
+              '.callout', '.deps', '.trap', '.howto', '.split', 'tbody tr', '.blk li', 'ol.judge li',
+              'p.lede', 'pre.tmpl', 'h1', 'h2', 'h3', 'footer'];
+  document.querySelectorAll(MARK.join(',')).forEach(function (el) {
+    el.setAttribute('data-comment-target', '');
+  });
+
+  var btn = document.getElementById('cmtBtn');
+  var label = document.getElementById('cmtLabel');
+  var selBtn = document.getElementById('cmtSel');
+  var toastEl = document.getElementById('cmtToast');
+  var api = null, on = false, timer = null;
+
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(timer);
+    timer = setTimeout(function () { toastEl.classList.remove('show'); }, 4000);
+  }
+
+  function setMode(next) {
+    on = next;
+    document.body.classList.toggle('cmt-on', on);
+    btn.classList.toggle('active', on);
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    label.textContent = on ? 'Pick a spot  ·  Esc to stop' : 'Comment on anything';
+  }
+
+  // Permanent for this view: stop offering it rather than letting it fail repeatedly.
+  function unavailable() {
+    setMode(false);
+    btn.classList.remove('ready');
+    selBtn.classList.remove('show');
+    toast('Commenting is not available in this view. Open the page on claude.ai to comment.');
+  }
+
+  function open(target) {
+    if (!api) return;
+    api.openComposer(target).then(function (r) {
+      // r.opened === false is a soft refusal (a composer is already open with typed text). Do nothing.
+      if (r && r.opened) setMode(false);
+    }, function (e) {
+      var code = e && e.code;
+      if (code === 'unavailable' || code === 'not_granted' ||
+          code === 'capability_disabled' || code === 'capability_removed') unavailable();
+      else if (code === 'rate_limited') toast('Too many at once — give it a moment.');
+      else toast('That spot could not take a comment. Try selecting the text instead.');
+    });
+  }
+
+  btn.addEventListener('click', function () { setMode(!on); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && on) setMode(false); });
+
+  // Comment mode: a click anywhere lands on the block it fell inside.
+  document.addEventListener('click', function (e) {
+    if (!on || !api) return;
+    if (e.target.closest('#cmtBtn') || e.target.closest('#cmtSel')) return;
+    var el = e.target.closest('[data-comment-target]');
+    if (!el) return;
+    e.preventDefault();
+    e.stopPropagation();
+    open({ element: el });
+  }, true);
+
+  // Selecting text offers a comment on those exact words, which is the precise anchor.
+  function offerSelection() {
+    var s = window.getSelection();
+    if (!api || !s || s.isCollapsed || !s.rangeCount) { selBtn.classList.remove('show'); return; }
+    if (s.toString().trim().length < 2) { selBtn.classList.remove('show'); return; }
+    var r = s.getRangeAt(0).getBoundingClientRect();
+    if (!r || (!r.width && !r.height)) { selBtn.classList.remove('show'); return; }
+    selBtn.style.left = Math.max(12, r.left + window.scrollX) + 'px';
+    selBtn.style.top = Math.max(8, r.top + window.scrollY - 42) + 'px';
+    selBtn.classList.add('show');
+  }
+  document.addEventListener('mouseup', function () { setTimeout(offerSelection, 10); });
+  document.addEventListener('scroll', function () { selBtn.classList.remove('show'); }, true);
+  selBtn.addEventListener('mousedown', function (e) { e.preventDefault(); }); // keep the selection alive
+  selBtn.addEventListener('click', function () {
+    var s = window.getSelection();
+    if (s && s.rangeCount && !s.isCollapsed) open({ range: s.getRangeAt(0) });
+    selBtn.classList.remove('show');
+  });
+
+  // The capability resolves after the page loads, so the affordance appears when it is ready.
+  // This only reads; it never prompts and never writes.
+  (function wait(n) {
+    if (window.claude && typeof window.claude.use === 'function') {
+      Promise.resolve(window.claude.use('comments')).then(function (c) {
+        api = c;
+        if (api) btn.classList.add('ready');
+      }, function () { api = null; });
+      return;
+    }
+    if (n > 0) setTimeout(function () { wait(n - 1); }, 250);
+  })(40);
+})();
+</script>
