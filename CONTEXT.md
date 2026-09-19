@@ -9,28 +9,49 @@ Everything described here is committed and pushed to `main`. Nothing is only on 
 
 ## Where it left off
 
-### >>> READ THIS FIRST — 2026-09-19 shutdown: batch mode DONE; tomorrow is the KIMI K3 beta test <<<
+### >>> READ THIS FIRST — 2026-09-19: batch DONE · Kimi K3 beta IN PROGRESS · NEXT = V1 milestones + MODULARIZATION <<<
 
-**State:** `main` clean + fully pushed (HEAD `af212f3`). `npm run test:engine` **628/0**, build green. The
-batch / meal-prep planning mode is **COMPLETE** — all M1–M6 + the tail (whole-batch swaps, Today parity).
-Full record in the block just below and in `docs/batch-mode/`. Nothing is in flight; nothing is broken.
+**State:** `main` clean + fully pushed. Batch / meal-prep mode is **COMPLETE** (M1–M6 + tail — block below +
+`docs/batch-mode/`). `npm run test:engine` **628/0**. Today's work was the **Kimi K3 beta test** + the eval
+tooling to run it: three pushed commits — `c941165` (eval speaks to keyed hosted endpoints: auth header +
+`response_format` fallback ladder), `aa04ac2` (per-request timeout + concurrency pool), `66325b2` (429/503
+retry with backoff). No `src/lib` change, so the engine suite is untouched; the eval bundles clean.
 
-**TOMORROW — one agenda: the Kimi K3 beta test (owner is committed to trying it; do NOT argue "we don't
-need the params").**
-1. Find the free-tier path — OpenRouter (`moonshotai/kimi-k3` — free `:free` variant, else pennies PAYG),
-   else Moonshot's own platform (platform.moonshot.ai) free trial credits, else the free web chat
-   (kimi.com) for a manual eyeball. The owner will sign up / paste a key.
-2. Wire it into `.env.local` (3-line, OpenAI-compatible, NO code): `AI_PROVIDER=local`,
-   `LOCAL_AI_URL=<endpoint>`, `LOCAL_AI_API_KEY=<key>`, `LOCAL_AI_MODEL=<kimi-k3 id>`.
-3. Run `npm run eval:hardcases` + the scratchpad `burger.mjs`/`smoke.mjs` tests against it; because of
-   free-tier rate limits, run slowly in the background.
-4. Write the readout — quality vs gpt-oss-20b / the local 70B, latency, rate-limit friction → the verdict:
-   **is Kimi-scale quality worth buying hardware for?** That's the whole point of the test.
+**KIMI K3 BETA — where it stands (owner is committed to trying it; do NOT argue "we don't need the params"):**
+- **Path chosen: NVIDIA's free NIM tier** — `build.nvidia.com`, OpenAI-compatible at
+  `https://integrate.api.nvidia.com/v1`, `nvapi-` key. Free, no card, credit system removed (Aug 2026), 40 RPM.
+  `moonshotai/kimi-k3` IS provisioned for free; `kimi-k2.6` is NOT (404). OpenRouter was the earlier plan but
+  K3 there is paid (~$1.95/$10.92 per M) — NVIDIA free won.
+- **Measured free-tier reality:** ~200–250s latency PER request (pure queue wait; generation itself ~1s).
+  Requests ARE served in parallel (3 at once all returned ~200s), so `EVAL_CONCURRENCY` collapses wall-clock.
+  Concurrency 10 tripped the rate limiter (429 storm) → hence the backoff-retry + drop to concurrency 3.
+- **BASELINE — gpt-oss-20b (local, all 45 hard cases): schemaOk 100%, actedRight 84%** (do 24/27, clarify 6/7,
+  refuse 5/5, **decline 3/6**). Its weak spot is FAKING declines (fake B12 fix, fake fasting window, household
+  doubling) + guessing a weight-loss deficit. Full per-case output was in the run log.
+- **K3 first impression** (from ~23 cases that beat the rate limit before the clean re-run): strong on DO;
+  passed `pin-keep` + `general-qa` that gpt-oss FAILED; BUT **over-acted on the emotional cases**
+  (`health-period`, `eating-problem` — should hold+ask, it edited the plan). That over-act is a **PROMPT fix,
+  not training** — we CANNOT fine-tune a 2.8T model on this hardware; the fine-tune pipeline is for the 7B.
+- **CLEAN FULL RE-RUN IN FLIGHT** at this handoff (concurrency 3 + retry, ~50 min). Compare its `decline`
+  bucket to the 84% baseline — that's the number that decides whether K3-scale quality is worth hardware.
+- **Free K3 is a batch service, not interactive:** ~4 min/reply also exceeds Vercel's serverless timeout, so a
+  free beta site needs a FAST free model (same NVIDIA key) for the live app + free K3 for OFFLINE evals only.
 
-**Machine state:** `.env.local` = `LOCAL_AI_MODEL=openai/gpt-oss-20b` (revert to this after the Kimi test).
-No dev server / tunnel running. `.next` is a PRODUCTION build — delete it or rebuild before `npm run dev`.
-The only non-Kimi loose end is per-batch locks (a benign no-op — batch is deterministic); the live
-cross-screen re-render is now done (`11f1085`). See the block below; skip unless asked.
+**Machine state:** `.env.local` is UNTOUCHED — still `LOCAL_AI_MODEL=openai/gpt-oss-20b`. The `nvapi-` key was
+passed via the ENVIRONMENT for the eval command only, never written to disk (nothing to revert; key is the
+owner's, not in the repo). LM Studio serves gpt-oss-20b. `.next` is a PRODUCTION build — rebuild before `npm run dev`.
+
+**>>> THE NEXT CONVERSATION IS A NEW PLANNING CONVERSATION — its brief is in `docs/v1-modularization-kickoff.md`.**
+Four threads, in the owner's words:
+1. **Daily milestones to ship Version 1** — split the remaining product "dimensions" (modules) into day-sized
+   milestones, worked individually AND in parallel, keeping the relationships between modules optimal.
+2. **Re-architect the whole app as MODULES / ADTs** — each module exposes a NAME + DESCRIPTION (a stable
+   contract); internals are PRIVATE; changing a module's backend must not break its consumers while the
+   contract holds. Solve explicitly: **"what stays public vs private to each module."** Existing seams already
+   in this spirit: `storage.ts`, `savedStore.ts`, `reply.ts` (`READ_ONLY_TOOLS`), `agentTools.ts`, the `ModelFn` injection.
+3. **Keep the Kimi thread alive** — read the clean re-run scorecard, make the hardware/hosting call.
+4. **Build a daily-history page** — log per work-day: which milestone, how much solved, what issues, defer-or-not.
+   The new agent should SEARCH for existing software that already does this BEFORE building a bespoke artifact.
 
 ### >>> 2026-09-18: batch / meal-prep mode is COMPLETE (M1–M6) <<<
 

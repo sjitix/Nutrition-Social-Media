@@ -7,11 +7,48 @@
 
 ---
 
-## RESUME HERE (last updated: 2026-09-18)
+## RESUME HERE (last updated: 2026-09-19)
 
 `main` is green and **fully pushed** — `git log origin/main..HEAD` is empty. `npm run test:engine`
 **628 / 0**, 501 recipes, `check:recipes` green. **`CONTEXT.md`'s top block is the live cross-session
 state**; this section is the build record.
+
+### >>> SINCE 2026-09-19: Kimi K3 beta test + eval hardened for hosted endpoints <<<
+
+The owner wants to try **Kimi K3** on a FREE tier to decide whether Kimi-scale quality justifies buying
+hardware (explicit standing rule: **do NOT argue "we don't need the params" — try it first**). Landed on
+**NVIDIA's free NIM catalog** (`build.nvidia.com`, OpenAI-compatible, `nvapi-` key, no card, 40 RPM) —
+`moonshotai/kimi-k3` is provisioned free (OpenRouter's K3 is paid; NVIDIA won). To grade it, the eval
+(`scripts/eval-hardcases.mts`) gained three things, each a general improvement, not a Kimi hack:
+- `c941165` — talk to keyed hosted routes: `Authorization: Bearer` from `LOCAL_AI_API_KEY` (only when set,
+  so the local LM-Studio path is byte-identical) + a `response_format` fallback ladder (strict json_schema →
+  json_object → none, pin the first that works), since hosted routes don't all accept strict schemas.
+- `aa04ac2` — per-request `AbortController` timeout (bare fetch has none — one wedged call would hang the
+  whole run) + a bounded **concurrency pool** (`EVAL_CONCURRENCY`, default 1 = unchanged for local),
+  index-keyed so per-case output stays in case order. Grading refactored into a non-throwing `runCase()`.
+- `66325b2` — retry 429/503 with exponential backoff + jitter (`EVAL_RETRIES`, default 5).
+
+**Findings (the point of the exercise):**
+- **Free K3 latency is ~200–250s per request** — pure queue wait (generation itself ~1s); free requests are
+  deprioritised behind paid. Requests ARE served in parallel (measured: 3 at once → ~200s, not 600s), so
+  concurrency rescues wall-clock. Concurrency 10 tripped a burst 429 storm → backoff + concurrency 3.
+- **Baseline gpt-oss-20b (local, 45 cases): schemaOk 100%, actedRight 84%** — do 24/27, clarify 6/7,
+  refuse 5/5, **decline 3/6**. Weak spot = FAKING declines (fake B12 fix, fake fasting window, household
+  doubling) + guessing a weight-loss deficit. This is the bar K3 must beat.
+- **K3 preview (partial, pre-clean-run): strong on DO** — passed `pin-keep` + `general-qa` that gpt-oss
+  failed — but **over-acted on the emotional cases** (`health-period`, `eating-problem`: should hold+ask).
+  That over-act is a **prompt fix, not training** — K3 (2.8T) cannot be fine-tuned on this hardware.
+- **Free K3 is a batch service, not interactive:** ~4 min/reply also exceeds Vercel's serverless timeout, so
+  a free hosted beta needs a fast free model for the live site + free K3 for offline evals only.
+
+A clean full re-run (concurrency 3 + retry) was in flight at handoff; its `decline`-bucket score vs the 84%
+baseline is the number that decides the hardware question. New lesson **44** below (measure the harness before
+you trust the score — a rate-limit storm produced a bogus 40% that had nothing to do with model quality).
+
+**NEXT: a new planning conversation** — daily milestones to ship **V1**, a **modularization / ADT
+re-architecture** (public-vs-private module contracts so a module's internals can change without breaking
+its consumers), the Kimi hardware call, and a **daily-history page** (search for existing software first).
+Brief: `docs/v1-modularization-kickoff.md`.
 
 ### >>> SINCE 2026-09-18: batch / meal-prep mode — M1 vertical slice shipped <<<
 
@@ -1137,6 +1174,16 @@ Each of these was discovered by doing the work, and each earned its place.
     repeats need `chooseRecipe`'s variety gates BYPASSED and a fixed `withSeed` for determinism. Grounding
     the design in a real code map + an adversarial critique BEFORE coding turned three would-be silent bugs
     into pre-written test cases.
+
+44. **Measure the harness before you trust the score.** The first K3 eval came back 40% actedRight — a
+    number that had nothing to do with the model: 17 of 45 cases had failed with `429 Too Many Requests`
+    and 3 had timed out, because concurrency 10 tripped the free tier's burst limit and the old code
+    re-fired instantly with no backoff, cascading. A rate-limit failure and a wrong answer both show up as
+    a missed case, so an unguarded hosted-endpoint run can silently grade the infrastructure instead of the
+    model. Fixes that make a hosted eval trustworthy: a per-request timeout (bare fetch never times out),
+    429/503 retry with backoff, and conservative concurrency proven against the endpoint first (a 3-at-once
+    probe drew zero 429s; 10 stormed). Never report a hosted eval's headline number without checking the
+    per-case log for infra failures first.
 
 ---
 
