@@ -13,6 +13,9 @@
 **628 / 0**, 501 recipes, `check:recipes` green. **`CONTEXT.md`'s top block is the live cross-session
 state**; this section is the build record.
 
+**The V1 plan now lives in `docs/v1/`** — the day-by-day milestone schedule, the module map (public
+vs private per module), the Kimi decision, and the daily worklog. Read it before picking up work.
+
 ### >>> SINCE 2026-09-19: Kimi K3 beta test + eval hardened for hosted endpoints <<<
 
 The owner wants to try **Kimi K3** on a FREE tier to decide whether Kimi-scale quality justifies buying
@@ -45,10 +48,31 @@ A clean full re-run (concurrency 3 + retry) was in flight at handoff; its `decli
 baseline is the number that decides the hardware question. New lesson **44** below (measure the harness before
 you trust the score — a rate-limit storm produced a bogus 40% that had nothing to do with model quality).
 
-**NEXT: a new planning conversation** — daily milestones to ship **V1**, a **modularization / ADT
-re-architecture** (public-vs-private module contracts so a module's internals can change without breaking
-its consumers), the Kimi hardware call, and a **daily-history page** (search for existing software first).
-Brief: `docs/v1-modularization-kickoff.md`.
+### >>> SINCE 2026-09-19 (evening): the V1 plan — milestones, module map, Kimi call, worklog <<<
+
+The planning conversation briefed in `docs/v1-modularization-kickoff.md` ran and delivered all four
+outputs to **`docs/v1/`** (`6388cac`, `1f1a5ca`, `87cdbc3`, `bba7202`), plus one code change
+(`d0fc57e`). **Nothing in `src/lib` was touched**, so the engine suite stands at 628/0.
+
+- **`01-dimensions-and-milestones.md`** — 22 dimensions enumerated against the code, a 12-day V1
+  schedule across four parallel tracks, the dependency graph, and the owner-gated decisions dated by
+  when each starts blocking. The V1 bar is stated so milestones can be judged against it.
+- **`02-module-map.md`** — per-module public contract / private internals / invariants / allowed
+  dependents; the layer model; a 3-phase reorganisation (seal → split `recipeDb` → move folders);
+  and the spec for `check:boundaries`.
+- **`03-kimi-decision.md`** — the decision rule is pre-committed *before* the number exists.
+- **`04-daily-history.md` + `docs/worklog/`** — existing tools surveyed first, as asked;
+  markdown-in-repo chosen, with the reasoning, and the first entry written.
+
+**What the planning measured, which nothing had measured before:** `src/lib` exports **232 names, 68
+imported by nothing** (35 more only by `scripts/`, correct); **no import cycles** across 27 modules;
+`recipeDb.ts` is **71% recipe data, 11% engine, 17% executor**; `ai.ts:runAssistant` is dead code;
+and **the crisis guard has no pre-scan** — it fires only when the model routes to `symptom_check`, so
+a crisis message answered as `answer` reaches the user in the model's words. That last one is a
+blocker on shipping a live model publicly.
+
+**NEXT: execute Day 1** — build `npm run check:boundaries`, then split `recipeDb.ts` behind a barrel
+with an unchanged `test:engine` count as the gate. New lessons **45–46** below.
 
 ### >>> SINCE 2026-09-18: batch / meal-prep mode — M1 vertical slice shipped <<<
 
@@ -1184,6 +1208,29 @@ Each of these was discovered by doing the work, and each earned its place.
     429/503 retry with backoff, and conservative concurrency proven against the endpoint first (a 3-at-once
     probe drew zero 429s; 10 stormed). Never report a hosted eval's headline number without checking the
     per-case log for infra failures first.
+
+45. **A measurement that only printed to stdout did not happen.** The Kimi K3 clean re-run was the
+    number meant to decide whether to buy hardware. It finished, it was read once, and it is gone —
+    the grader never wrote a file, so it is not in `data/`, not in git, not anywhere. The decision it
+    existed to settle has to be re-run from scratch. Two rules out of it: **anything that takes
+    minutes to produce and informs a decision writes itself to disk** (`d0fc57e` — every
+    `eval:hardcases` run now leaves `data/eval-runs/<timestamp>-<model>.json`), and **check that the
+    path is not gitignored** — `/data/*` would have swallowed it silently, which is the same failure
+    wearing a different hat. Related: lesson 33 (the doc read from a phone is the one that must not
+    go stale) and lesson 17 (knowledge that lives only in a chat gets re-derived, badly).
+
+46. **The true public surface of a module is what someone else imports, and it can be measured.**
+    "What should be public?" was answered by opinion for 27 modules until it was simply counted:
+    parse every named import in `src/` and `scripts/`, resolve it to a module, compare against that
+    module's exports. `src/lib` publishes **232 names and 68 are imported by nothing at all** —
+    `primitives.ts` alone exports 29 and 7 are used, the other 22 being the per-op interfaces, i.e.
+    the shape of the implementation published as API. It also found dead code no reading had noticed
+    (`ai.ts:runAssistant`, no importer anywhere) and confirmed **zero import cycles**, which turned
+    the layering work from "fix the tangle" into "protect what is already true". Two refinements
+    that matter: count `scripts/` **separately**, because a test harness must reach inside a module
+    and is not an ordinary consumer (35 names are correctly private-to-`src`, public-to-harness);
+    and check for `import * as` first, since a namespace import makes the whole count a lie — there
+    were none, which is the only reason the numbers can be trusted.
 
 ---
 

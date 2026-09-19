@@ -9,7 +9,41 @@ Everything described here is committed and pushed to `main`. Nothing is only on 
 
 ## Where it left off
 
-### >>> READ THIS FIRST — 2026-09-19: batch DONE · Kimi K3 beta IN PROGRESS · NEXT = V1 milestones + MODULARIZATION <<<
+### >>> READ THIS FIRST — 2026-09-19 (evening): THE V1 PLAN EXISTS. NEXT = EXECUTE DAY 1. <<<
+
+**The planning conversation briefed in `docs/v1-modularization-kickoff.md` is DONE.** All four
+deliverables are written, committed and pushed, and they live in **`docs/v1/`**:
+
+| doc | what it settles |
+|---|---|
+| `01-dimensions-and-milestones.md` | 22 product dimensions enumerated **against the code**, then a **12-day V1 schedule** over four parallel tracks, with the dependency graph and every owner-gated decision dated by when it starts blocking |
+| `02-module-map.md` | **the heart of it** — every module's public contract, private internals, invariants, allowed dependents; the layer model; a 3-phase reorganisation; and the spec for a `check:boundaries` gate |
+| `03-kimi-decision.md` | the hardware/hosting call, with the decision rule **pre-committed before the number exists** |
+| `04-daily-history.md` + `docs/worklog/` | tools surveyed, markdown-in-repo chosen, and the first daily entry written |
+
+**NEXT SESSION STARTS AT DAY 1** of the schedule: land `02-module-map.md` as enforced truth by
+building **`npm run check:boundaries`** (layering, barrels-only imports, only `storage.ts` may name a
+storage key, no client component imports the engine, no cycles, no emoji) — then D2/D3 split
+`recipeDb.ts` behind a barrel, with `test:engine` returning an identical count as the gate.
+
+**Four things the planning found that the docs did not say, all verified against the code:**
+1. **The crisis guard has NO PRE-SCAN.** It fires only when the model routes to `symptom_check`, so a
+   crisis message the model chooses to simply *answer* reaches the user in the model's own words.
+   **This blocks shipping a live model publicly** (milestone C2).
+2. **`src/lib` exports 232 names; 68 are imported by NOTHING** (and 35 more only by `scripts/`, which
+   is correct). `primitives.ts` exports 29 and 7 are used. `ai.ts:runAssistant` is **dead code**.
+   **No import cycles exist** across all 27 modules — the gate protects that, it doesn't fix it.
+3. **There are TWO apps.** `src/app/plan/page.tsx` is 1,819 lines of a parallel product beside
+   `/sage`, and only one can be V1 (milestone B2, owner's call).
+4. **Nothing in the UI writes a meal log**, so Today infers "eaten" from the clock and the assistant
+   can never reason about what actually happened (milestone B1).
+
+**The K3 re-run has to be repeated — its result was LOST** (see the corrected bullet below), and the
+root cause is fixed: `d0fc57e` makes every `eval:hardcases` run write a scorecard to
+`data/eval-runs/` (un-gitignored on purpose) and count infra failures apart from model misses, so a
+429 storm can never again be read as a model weakness.
+
+### >>> 2026-09-19 (daytime): batch DONE · Kimi K3 beta <<<
 
 **State:** `main` clean + fully pushed. Batch / meal-prep mode is **COMPLETE** (M1–M6 + tail — block below +
 `docs/batch-mode/`). `npm run test:engine` **628/0**. Today's work was the **Kimi K3 beta test** + the eval
@@ -32,8 +66,12 @@ retry with backoff). No `src/lib` change, so the engine suite is untouched; the 
   passed `pin-keep` + `general-qa` that gpt-oss FAILED; BUT **over-acted on the emotional cases**
   (`health-period`, `eating-problem` — should hold+ask, it edited the plan). That over-act is a **PROMPT fix,
   not training** — we CANNOT fine-tune a 2.8T model on this hardware; the fine-tune pipeline is for the 7B.
-- **CLEAN FULL RE-RUN IN FLIGHT** at this handoff (concurrency 3 + retry, ~50 min). Compare its `decline`
-  bucket to the 84% baseline — that's the number that decides whether K3-scale quality is worth hardware.
+- **~~CLEAN FULL RE-RUN IN FLIGHT~~ — ITS RESULT IS LOST, AND MUST BE RE-RUN.** The grader only ever printed
+  to stdout, and the terminal is gone; it is not in `data/`, not in git, not in any temp directory. Fixed at
+  the root (`d0fc57e`): every run now writes `data/eval-runs/<timestamp>-<model>.json`. Re-run it with the
+  owner's `nvapi-` key, then apply the **pre-committed decision rule in `docs/v1/03-kimi-decision.md` §5** —
+  the rule is written down already so the number decides something instead of being interpreted afterwards.
+  **A run whose `infraFailures` is not 0 is void** and must be re-run at lower concurrency.
 - **Free K3 is a batch service, not interactive:** ~4 min/reply also exceeds Vercel's serverless timeout, so a
   free beta site needs a FAST free model (same NVIDIA key) for the live app + free K3 for OFFLINE evals only.
 - **The fast free beta model is settled: `openai/gpt-oss-20b` on NVIDIA — measured ~2.8s, clean output, free,
@@ -46,8 +84,9 @@ retry with backoff). No `src/lib` change, so the engine suite is untouched; the 
 passed via the ENVIRONMENT for the eval command only, never written to disk (nothing to revert; key is the
 owner's, not in the repo). LM Studio serves gpt-oss-20b. `.next` is a PRODUCTION build — rebuild before `npm run dev`.
 
-**>>> THE NEXT CONVERSATION IS A NEW PLANNING CONVERSATION — its brief is in `docs/v1-modularization-kickoff.md`.**
-Four threads, in the owner's words:
+**>>> THAT PLANNING CONVERSATION HAS NOW HAPPENED — its output is `docs/v1/` (see the top block).**
+The four threads it was asked to answer, in the owner's words, are kept here because they are the
+brief the plan is judged against:
 1. **Daily milestones to ship Version 1** — split the remaining product "dimensions" (modules) into day-sized
    milestones, worked individually AND in parallel, keeping the relationships between modules optimal.
 2. **Re-architect the whole app as MODULES / ADTs** — each module exposes a NAME + DESCRIPTION (a stable

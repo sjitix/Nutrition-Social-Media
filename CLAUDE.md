@@ -206,7 +206,16 @@ disabled) — good for showing the UI without any AI.
   them with the reason each was kept or rejected.
   `designs/midjourney-dish-photography.md` is the style system for food photography — read it
   before generating any dish image.
-- `data/` — eval and hard-case sets. `scripts/` — the test suite and tooling.
+- `data/` — eval and hard-case sets, plus **`data/eval-runs/`, the scorecard every `eval:hardcases`
+  run writes** (committed on purpose: a measurement that only printed to stdout is one that did not
+  happen). `scripts/` — the test suite and tooling.
+- **`docs/v1/` — the V1 plan, and the first thing to read before picking up work.**
+  `01-dimensions-and-milestones.md` is the day-by-day schedule; **`02-module-map.md` is the module
+  contract** — what stays public vs private per module, the layer model (who may import whom), the
+  invariants, and the reorganisation. Treat it the way you treat the tests: if the code and the map
+  disagree, one of them is a bug. `03-kimi-decision.md` holds the model/hardware call;
+  `04-daily-history.md` explains `docs/worklog/`, **one file per work-day**, which is part of a day's
+  definition of done. `docs/batch-mode/` is the meal-prep design record.
 - `public/food/` — per-recipe photographs. The twelve stock photos were once deleted because
   keyword regexes served one image as 46 different dishes; imagery is back, but the **mechanism**
   changed: `imageForMeal` is an **exact recipe-name map** (`RECIPE_IMAGES` in `lib/recipes.ts`), a
@@ -300,6 +309,8 @@ LM Studio: load model, push GPU offload to max, context >= 8192, Start Server on
   | `VISION.md` | the product north star and quality bar | a directional decision is made about what the product IS |
   | `ASSISTANT-SCHEMA.md` | the assistant contract: the turn shape, the primitives, and (v3, at the bottom) the READ SURFACE and AGENT LOOP, both now BUILT (`agentTools.ts`, `agentLoop.ts`) and wired to `/api/assistant-v2` — no screen calls them yet | the assistant's capabilities or contract change |
   | `STATUS.md` + `public/status.html` | the fine-tune run. **Served publicly** — it must never claim something is running when it is not | the training state changes |
+  | `docs/v1/02-module-map.md` | the module contract: public vs private per module, the layer model, the invariants | **a module boundary moves — in the SAME commit that moves it** |
+  | `docs/worklog/YYYY-MM-DD.md` | what was tackled that day, how much got solved, what blocked, what deferred | **every work-day, the same day** |
 
   Update **during** the work, not only at the end — a session can be cut short, and unwritten
   context is lost context. Specifically, write it down whenever:
