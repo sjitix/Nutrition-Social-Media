@@ -311,6 +311,15 @@ LM Studio: load model, push GPU offload to max, context >= 8192, Start Server on
   | `STATUS.md` + `public/status.html` | the fine-tune run. **Served publicly** — it must never claim something is running when it is not | the training state changes |
   | `docs/v1/02-module-map.md` | the module contract: public vs private per module, the layer model, the invariants | **a module boundary moves — in the SAME commit that moves it** |
   | `docs/worklog/YYYY-MM-DD.md` | what was tackled that day, how much got solved, what blocked, what deferred | **every work-day, the same day** |
+  | `docs/v1/boards/*.html` | the three LIVE visual boards the owner reads and comments on | **in the same commit as the document each one mirrors** — see `docs/v1/boards/README.md` |
+
+  **The three visual boards are not decoration — they are how the owner steers.** The V1 schedule,
+  the module map and the day log each have a published page the owner comments on directly, the way
+  you comment on a Google Doc. When they say **"evaluate my comments"**, read every thread with the
+  `ArtifactComments` tool, treat each comment as an instruction about the exact element it is
+  anchored to, then change **both the source document and the board**, republish, commit and push.
+  **Republish to the URL recorded in `docs/v1/boards/README.md`** — publishing without it creates a
+  duplicate page and strands the owner's comments on the old one.
 
   Update **during** the work, not only at the end — a session can be cut short, and unwritten
   context is lost context. Specifically, write it down whenever:

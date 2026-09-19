@@ -1,0 +1,260 @@
+<title>NutriFlow Day Log</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --cream: #f5f2e7; --card: #fbf9f2; --tint: #dfe6da; --tint-pale: #e9eee3;
+    --ink: #1c2419; --body: #38452f; --mut: #5c6656; --line: #d8d4c2;
+    --forest: #3d5233; --panel: #26331f; --mint: #2e7d52; --clay: #9e4a2f; --amber: #a97a33;
+  }
+  :root:not([data-theme="light"]) { @media (prefers-color-scheme: dark) {
+    --cream: #12180f; --card: #1b2317; --tint: #232e1e; --tint-pale: #1e2719;
+    --ink: #eef2e8; --body: #cdd6c4; --mut: #94a08c; --line: #313d2a;
+    --forest: #9dbb8a; --panel: #0c1207; --mint: #74c495; --clay: #e08a66; --amber: #d9b061;
+  }}
+  :root[data-theme="dark"] {
+    --cream: #12180f; --card: #1b2317; --tint: #232e1e; --tint-pale: #1e2719;
+    --ink: #eef2e8; --body: #cdd6c4; --mut: #94a08c; --line: #313d2a;
+    --forest: #9dbb8a; --panel: #0c1207; --mint: #74c495; --clay: #e08a66; --amber: #d9b061;
+  }
+  body { background: var(--cream); color: var(--body);
+    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif; line-height: 1.5; }
+  .wrap { max-width: 1020px; margin: 0 auto; padding-block: 28px 64px; padding-left: 20px; padding-right: 20px; }
+  h1, h2, h3 { font-family: Fraunces, "Iowan Old Style", Georgia, serif; color: var(--ink);
+    font-weight: 600; text-wrap: balance; margin: 0; }
+  h1 { font-size: clamp(30px, 6vw, 46px); line-height: 1.05; letter-spacing: -.01em; }
+  h2 { font-size: clamp(20px, 3.4vw, 26px); margin-bottom: 10px; }
+  h3 { font-size: 17px; }
+  p { margin: 0 0 10px; }
+  a { color: var(--forest); }
+  .eyebrow { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11px;
+    letter-spacing: .13em; text-transform: uppercase; color: var(--mut); }
+  .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+  .lede { font-size: 16px; max-width: 64ch; }
+  header.top { border-bottom: 2px solid var(--ink); padding-bottom: 18px; margin-bottom: 26px; }
+  .nav { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 18px; }
+  .nav a, .nav span { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .06em;
+    text-transform: uppercase; padding: 5px 11px; border: 1px solid var(--line);
+    border-radius: 999px; text-decoration: none; color: var(--mut); background: var(--card); }
+  .nav span { background: var(--forest); color: var(--cream); border-color: var(--forest); }
+  .stamp { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 14px;
+    font-family: "IBM Plex Mono", monospace; font-size: 11.5px; color: var(--mut); }
+  .stamp b { color: var(--body); font-weight: 500; }
+  .howto { background: var(--tint); border-left: 3px solid var(--forest);
+    padding: 14px 16px; margin: 22px 0 30px; border-radius: 2px; }
+  .howto p { margin: 0; font-size: 13.5px; }
+  .howto p + p { margin-top: 7px; }
+  section { margin-bottom: 42px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(136px, 1fr)); gap: 1px;
+    background: var(--line); border: 1px solid var(--line); }
+  .stat { background: var(--card); padding: 15px 16px; }
+  .stat .v { font-family: Fraunces, Georgia, serif; font-size: 32px; font-weight: 600; color: var(--ink);
+    line-height: 1; font-variant-numeric: tabular-nums; }
+  .stat .l { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .09em;
+    text-transform: uppercase; color: var(--mut); margin-top: 7px; }
+
+  .tl { position: relative; padding-left: 26px; }
+  .tl::before { content: ""; position: absolute; left: 6px; top: 8px; bottom: 8px;
+    width: 2px; background: var(--line); }
+  .entry { position: relative; margin-bottom: 18px; }
+  .entry::before { content: ""; position: absolute; left: -26px; top: 16px; width: 14px; height: 14px;
+    border-radius: 50%; background: var(--forest); border: 3px solid var(--cream); }
+  .entry.planned::before { background: var(--cream); border: 2px solid var(--line); }
+  .entry .box { border: 1px solid var(--line); background: var(--card); border-radius: 3px; padding: 16px 18px; }
+  .entry.planned .box { background: transparent; border-style: dashed; }
+  .ehead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin-bottom: 4px; }
+  .date { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--forest); font-weight: 500; }
+  .pill { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 3px; white-space: nowrap; }
+  .pill.done { background: color-mix(in srgb, var(--mint) 20%, transparent); color: var(--mint); }
+  .pill.part { background: color-mix(in srgb, var(--amber) 22%, transparent); color: var(--amber); }
+  .pill.none { background: color-mix(in srgb, var(--clay) 18%, transparent); color: var(--clay); }
+  .pill.plan { background: var(--tint-pale); color: var(--mut); }
+  .blocks { display: grid; gap: 12px; margin-top: 13px; }
+  .blk h4 { font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--mut); margin: 0 0 5px; font-weight: 500; }
+  .blk ul { margin: 0; padding-left: 17px; font-size: 13.5px; }
+  .blk li { margin-bottom: 5px; }
+  .blk li::marker { color: var(--line); }
+  .blk.found { background: var(--tint); border-radius: 3px; padding: 11px 13px; }
+  .blk.found h4 { color: var(--forest); }
+  .gate { font-family: "IBM Plex Mono", monospace; font-size: 11.5px; color: var(--mut);
+    border-top: 1px dashed var(--line); padding-top: 9px; margin-top: 13px; }
+  .defer { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: baseline;
+    border-bottom: 1px solid var(--line); padding: 9px 0; font-size: 13.5px; }
+  .defer:last-child { border-bottom: 0; }
+  .defer .to { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--forest);
+    background: var(--tint); padding: 2px 8px; border-radius: 3px; white-space: nowrap; }
+  .rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 11px; margin-top: 14px; }
+  .rule { border: 1px solid var(--line); background: var(--card); border-radius: 3px; padding: 12px 14px; }
+  .rule .n { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; color: var(--forest); font-weight: 500; }
+  .rule p { font-size: 13px; margin: 5px 0 0; }
+  pre.tmpl { background: var(--panel); color: #dfe9d9; font-family: "IBM Plex Mono", monospace;
+    font-size: 12px; line-height: 1.7; padding: 17px 19px; border-radius: 3px; overflow-x: auto; margin: 14px 0 0; }
+  footer { border-top: 1px solid var(--line); margin-top: 46px; padding-top: 18px; font-size: 12px; color: var(--mut); }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="nav">
+      <a href="https://claude.ai/artifact/5jeC8s1S7QiHs9LLh4uGMV">V1 schedule</a>
+      <a href="https://claude.ai/artifact/BRu96iPYni7HgzHzjwFMGR">Module map</a>
+      <span>Day log</span>
+    </div>
+    <div class="eyebrow">NutriFlow · planning board 3 of 3</div>
+    <h1>The day log</h1>
+    <p class="lede" style="margin-top:12px">One entry per work-day: which milestone was tackled, how much of it was
+      solved, what got in the way, and what moved to another day. Solid dots are days that happened; hollow ones are
+      the schedule ahead.</p>
+    <div class="stamp">
+      <span>SOURCE <b>docs/worklog/</b></span>
+      <span>SYNCED <b>2026-09-19</b></span>
+      <span>COMMIT <b>173baf7</b></span>
+    </div>
+  </header>
+
+  <div class="howto">
+    <p><b>Comment anywhere on this page.</b> Select a day, a deferral, a line you disagree with, and leave a comment.
+      Then tell me “evaluate my comments” and I will read every thread, act on it, and republish this board.</p>
+    <p>To let me reply inside a thread, use <b>Send to Claude</b> on it. I can read every comment either way.</p>
+  </div>
+
+  <section id="totals">
+    <div class="stats">
+      <div class="stat"><div class="v">1</div><div class="l">days logged</div></div>
+      <div class="stat"><div class="v">1</div><div class="l">milestones done</div></div>
+      <div class="stat"><div class="v">12</div><div class="l">days to V1</div></div>
+      <div class="stat"><div class="v">4</div><div class="l">open deferrals</div></div>
+    </div>
+  </section>
+
+  <section id="timeline">
+    <div class="eyebrow">What happened</div>
+    <h2>The record</h2>
+    <div class="tl" style="margin-top:18px">
+
+      <article class="entry" id="d-2026-09-19">
+        <div class="box">
+          <div class="ehead">
+            <span class="date">2026-09-19</span>
+            <span class="pill done">solved · done</span>
+          </div>
+          <h3>V1 planning: milestones, module map, the Kimi call, the daily history</h3>
+          <p style="font-size:13px;color:var(--mut);margin:4px 0 0">Milestone: the four deliverables of the planning
+            brief. No product code was meant to change, and none did.</p>
+          <div class="blocks">
+            <div class="blk">
+              <h4>What moved</h4>
+              <ul>
+                <li>22 product dimensions enumerated against the code, then a 12-day schedule across four parallel tracks with the dependency graph.</li>
+                <li>The module map: every module's public contract, private internals, invariants and allowed dependents, plus a spec for <span class="mono">check:boundaries</span>.</li>
+                <li>The Kimi decision, with the rule written down <i>before</i> the deciding number exists.</li>
+                <li>Every eval run now writes a scorecard to <span class="mono">data/eval-runs/</span>, and infra failures are counted apart from model misses.</li>
+              </ul>
+            </div>
+            <div class="blk found">
+              <h4>What I found that the docs did not say</h4>
+              <ul>
+                <li><b>The crisis guard has no pre-scan.</b> It fires only when the model routes to <span class="mono">symptom_check</span>, so a crisis message the model chooses to simply answer reaches the user in the model's own words. That blocks shipping a live model publicly.</li>
+                <li><b>The Kimi K3 clean re-run is gone</b> — the grader only printed to stdout. Root cause fixed; the number still has to be re-measured.</li>
+                <li><b><span class="mono">src/lib</span> exports 232 names; 68 are imported by nothing</b>, and 35 more only by <span class="mono">scripts/</span>. <span class="mono">primitives.ts</span> alone exports 29 and uses 7.</li>
+                <li><b><span class="mono">ai.ts:runAssistant</span> is dead code</b> — no import anywhere.</li>
+                <li><b>No import cycles exist</b> across all 27 modules, verified by depth-first search.</li>
+                <li><b>Two apps, not one.</b> <span class="mono">src/app/plan/page.tsx</span> is 1,819 lines of a parallel product beside <span class="mono">/sage</span>.</li>
+                <li><b>Nothing in the UI writes a meal log</b>, so Today infers “eaten” from the clock.</li>
+              </ul>
+            </div>
+            <div class="blk">
+              <h4>What got in the way</h4>
+              <ul>
+                <li>A heredoc ate the backslashes in the first analysis script, exactly as the standing note says it does. Cost one run. The lesson was already recorded and it recurred anyway — which is the argument for keeping it recorded.</li>
+                <li>My first “~60 unconsumed exports” figure was imprecise. Measured properly it is 68 or 103 depending on whether tooling counts as a consumer. Corrected before the commit landed rather than left as a soft number in a document that will be believed.</li>
+              </ul>
+            </div>
+            <div class="blk">
+              <h4>Concurrently, from the owner</h4>
+              <ul>
+                <li><span class="mono">63b6313</span> — <span class="mono">gpt-oss-20b</span> on NVIDIA measured at <b>~2.8&nbsp;s</b>, free, and the same model as the 84% baseline, so the public beta can run known-good quality at $0. Every model <i>named</i> for speed — <span class="mono">glm-5.3-flash</span>, <span class="mono">nemotron-3.5-lightning-30b-a3b</span>, <span class="mono">deepseek-v4-flash</span> — timed out at 60&nbsp;s on that tier.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="gate">GATE · tsc clean · eval:hardcases exercised against a scripted provider · no src/lib change, so test:engine stands at 628/0 · pushed 6388cac, 1f1a5ca, d0fc57e, 87cdbc3, bba7202, 173baf7</div>
+        </div>
+      </article>
+
+      <article class="entry planned" id="d-next">
+        <div class="box">
+          <div class="ehead"><span class="date">NEXT</span><span class="pill plan">day 1 · planned</span></div>
+          <h3>A1 — freeze the contracts</h3>
+          <p style="font-size:13.5px;margin:6px 0 0">Build <span class="mono">npm run check:boundaries</span> so the
+            module map becomes enforced truth rather than a document. Parallel: this log gets its second entry.</p>
+          <div class="gate">GATE · check:boundaries + tsc</div>
+        </div>
+      </article>
+
+      <article class="entry planned">
+        <div class="box">
+          <div class="ehead"><span class="date">THEN</span><span class="pill plan">days 2–4 · planned</span></div>
+          <h3>Split recipeDb, then the payload boundary</h3>
+          <p style="font-size:13.5px;margin:6px 0 0">Data out of engine, then the executor, each behind a barrel that
+            leaves every call site untouched. Then stop shipping 501 recipes to the browser.</p>
+          <div class="gate">GATE · test:engine, identical count · then npm run build, first-load JS compared</div>
+        </div>
+      </article>
+
+      <article class="entry planned">
+        <div class="box">
+          <div class="ehead"><span class="date">AFTER</span><span class="pill plan">days 5–12 · planned</span></div>
+          <h3>Safety, logging, one app, the assistant that speaks first, release</h3>
+          <p style="font-size:13.5px;margin:6px 0 0">The crisis pre-scan is the one hard ordering constraint: nothing
+            public gets a live model before it lands.</p>
+        </div>
+      </article>
+
+    </div>
+  </section>
+
+  <section id="deferred">
+    <div class="eyebrow">Carried forward</div>
+    <h2>Open deferrals</h2>
+    <p class="lede">Every deferral names a destination and a reason. “Later” is not a destination.</p>
+    <div style="border:1px solid var(--line);border-radius:3px;background:var(--card);padding:4px 16px;margin-top:14px">
+      <div class="defer"><div><b>Re-run the K3 hard-case eval</b> — needs the owner's <span class="mono">nvapi-</span> key. It is the input to the pre-committed decision rule, and nothing else is blocked on it.</div><span class="to">next session</span></div>
+      <div class="defer"><div><b>The four-GPU inference experiment</b> — free, and it is what actually decides the local-inference question.</div><span class="to">at the desktop</span></div>
+      <div class="defer"><div><b><span class="mono">npm run log:day</span> scaffolder and a rendered page</b> — deliberately waiting. A scaffolder that pre-fills the wrong fields is worse than none, so the format should survive a week of real use.</div><span class="to">backlog</span></div>
+      <div class="defer"><div><b>Everything in the 12-day schedule</b> — starts at Day 1.</div><span class="to">day 1</span></div>
+    </div>
+  </section>
+
+  <section id="rules">
+    <div class="eyebrow">How an entry is written</div>
+    <h2>Six rules</h2>
+    <div class="rules">
+      <div class="rule"><div class="n">01</div><p><b>One file per day.</b> Never append to a shared file — two machines writing one file is a merge conflict, and a doc in this repo has already duplicated and diverged.</p></div>
+      <div class="rule"><div class="n">02</div><p><b>Write it the same day</b>, as part of the day's definition of done. A log written from memory a week later is fiction.</p></div>
+      <div class="rule"><div class="n">03</div><p><b>Outcomes, not activity.</b> “Explore's first-load JS fell 185&nbsp;kB → N” beats “worked on bundling”.</p></div>
+      <div class="rule"><div class="n">04</div><p><b>Record what did not work, and why.</b> It cannot be recovered from the code — a rejected approach leaves no trace there.</p></div>
+      <div class="rule"><div class="n">05</div><p><b>Every deferral names a destination and a reason.</b></p></div>
+      <div class="rule"><div class="n">06</div><p><b>Numbers get their source</b>, so the next session can re-measure the same way.</p></div>
+    </div>
+    <pre class="tmpl"># YYYY-MM-DD — &lt;the day's milestone&gt;
+
+**Milestone:** &lt;which one, from the V1 schedule&gt;
+**Solved:** &lt;none | partial — what's left | done&gt;
+
+## What moved
+- &lt;what it does now that it didn't before&gt;
+
+## What got in the way
+- &lt;the problem, and what it cost&gt;
+
+## Deferred
+- &lt;thing&gt; → &lt;tomorrow | day N | backlog&gt;, because &lt;reason&gt;
+
+## Gate
+`test:engine` &lt;n/0&gt; · `tsc` &lt;ok&gt; · `build` &lt;ok&gt; · pushed: &lt;sha&gt;</pre>
+  </section>
+
+  <footer>
+    Generated from <span class="mono">docs/worklog/</span> in the NutriFlow repo, which stays the source of truth.
+    A new entry is written the same day the work happens, and this board is republished with it.
+  </footer>
+</div>

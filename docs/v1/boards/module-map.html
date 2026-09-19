@@ -1,0 +1,382 @@
+<title>NutriFlow Module Map</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --cream: #f5f2e7; --card: #fbf9f2; --tint: #dfe6da; --tint-pale: #e9eee3;
+    --ink: #1c2419; --body: #38452f; --mut: #5c6656; --line: #d8d4c2;
+    --forest: #3d5233; --panel: #26331f; --mint: #2e7d52; --clay: #9e4a2f; --amber: #a97a33;
+    --shadow: 0 4px 18px rgba(28,36,25,.09);
+  }
+  :root:not([data-theme="light"]) { @media (prefers-color-scheme: dark) {
+    --cream: #12180f; --card: #1b2317; --tint: #232e1e; --tint-pale: #1e2719;
+    --ink: #eef2e8; --body: #cdd6c4; --mut: #94a08c; --line: #313d2a;
+    --forest: #9dbb8a; --panel: #0c1207; --mint: #74c495; --clay: #e08a66; --amber: #d9b061;
+    --shadow: 0 4px 18px rgba(0,0,0,.35);
+  }}
+  :root[data-theme="dark"] {
+    --cream: #12180f; --card: #1b2317; --tint: #232e1e; --tint-pale: #1e2719;
+    --ink: #eef2e8; --body: #cdd6c4; --mut: #94a08c; --line: #313d2a;
+    --forest: #9dbb8a; --panel: #0c1207; --mint: #74c495; --clay: #e08a66; --amber: #d9b061;
+    --shadow: 0 4px 18px rgba(0,0,0,.35);
+  }
+  body { background: var(--cream); color: var(--body);
+    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif; line-height: 1.5; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding-block: 28px 64px; padding-left: 20px; padding-right: 20px; }
+  h1, h2, h3 { font-family: Fraunces, "Iowan Old Style", Georgia, serif; color: var(--ink);
+    font-weight: 600; text-wrap: balance; margin: 0; }
+  h1 { font-size: clamp(30px, 6vw, 46px); line-height: 1.05; letter-spacing: -.01em; }
+  h2 { font-size: clamp(20px, 3.4vw, 26px); margin-bottom: 10px; }
+  h3 { font-size: 16px; }
+  p { margin: 0 0 10px; }
+  .eyebrow { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11px;
+    letter-spacing: .13em; text-transform: uppercase; color: var(--mut); }
+  .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+  .lede { font-size: 16px; max-width: 64ch; }
+  header.top { border-bottom: 2px solid var(--ink); padding-bottom: 18px; margin-bottom: 26px; }
+  .nav { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 18px; }
+  .nav a, .nav span { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .06em;
+    text-transform: uppercase; padding: 5px 11px; border: 1px solid var(--line);
+    border-radius: 999px; text-decoration: none; color: var(--mut); background: var(--card); }
+  .nav span { background: var(--forest); color: var(--cream); border-color: var(--forest); }
+  .stamp { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 14px;
+    font-family: "IBM Plex Mono", monospace; font-size: 11.5px; color: var(--mut); }
+  .stamp b { color: var(--body); font-weight: 500; }
+  .howto { background: var(--tint); border-left: 3px solid var(--forest);
+    padding: 14px 16px; margin: 22px 0 30px; border-radius: 2px; }
+  .howto p { margin: 0; font-size: 13.5px; }
+  .howto p + p { margin-top: 7px; }
+  section { margin-bottom: 42px; }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(146px, 1fr)); gap: 1px;
+    background: var(--line); border: 1px solid var(--line); }
+  .stat { background: var(--card); padding: 15px 16px; }
+  .stat .v { font-family: Fraunces, Georgia, serif; font-size: 34px; font-weight: 600; color: var(--ink); line-height: 1;
+    font-variant-numeric: tabular-nums; }
+  .stat .l { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .09em;
+    text-transform: uppercase; color: var(--mut); margin-top: 7px; }
+  .stat.warn .v { color: var(--clay); }
+  .stat.good .v { color: var(--mint); }
+
+  .layer { display: grid; grid-template-columns: 116px 1fr; border: 1px solid var(--line);
+    border-bottom: 0; background: var(--card); }
+  .layer:last-of-type { border-bottom: 1px solid var(--line); }
+  .layer .lab { background: var(--tint-pale); border-right: 1px solid var(--line); padding: 13px 12px; }
+  .layer .lab .id { font-family: "IBM Plex Mono", monospace; font-size: 12px; font-weight: 500; color: var(--forest); }
+  .layer .lab .nm { font-size: 12.5px; color: var(--body); margin-top: 3px; font-weight: 500; }
+  .layer .mods { padding: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; }
+  .mod { border: 1px solid var(--line); background: var(--cream); border-radius: 3px;
+    padding: 7px 10px; min-width: 132px; flex: 0 1 auto; }
+  .mod .n { font-family: "IBM Plex Mono", monospace; font-size: 12px; font-weight: 500; color: var(--ink); }
+  .mod .s { font-size: 10.5px; color: var(--mut); margin-top: 3px; font-variant-numeric: tabular-nums; }
+  .bar { height: 3px; background: var(--line); border-radius: 2px; margin-top: 5px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--forest); }
+  .mod.hot { border-color: var(--clay); }
+  .mod.hot .bar i { background: var(--clay); }
+  .mod.big { border-width: 2px; border-color: var(--ink); }
+  .flowline { display: flex; align-items: center; gap: 10px; margin: 0 0 12px;
+    font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--mut); }
+  .flowline .arrow { flex: 1; height: 1px; background: linear-gradient(90deg, var(--line), var(--forest)); }
+
+  .split { display: flex; height: 34px; border: 1px solid var(--line); border-radius: 3px; overflow: hidden; margin: 14px 0 8px; }
+  .split div { display: grid; place-items: center; font-family: "IBM Plex Mono", monospace;
+    font-size: 11px; font-weight: 500; color: #fff; }
+  .contract { border: 1px solid var(--line); background: var(--card); border-radius: 3px;
+    padding: 15px 17px; margin-bottom: 11px; }
+  .contract .promise { font-size: 13.5px; font-style: italic; color: var(--body);
+    border-left: 2px solid var(--forest); padding-left: 11px; margin: 8px 0 12px; max-width: 72ch; }
+  .rows { display: grid; gap: 7px; }
+  .row2 { display: grid; grid-template-columns: 96px 1fr; gap: 12px; font-size: 12.5px; align-items: start; }
+  .row2 .k { font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: .09em;
+    text-transform: uppercase; color: var(--mut); padding-top: 2px; }
+  .pub { color: var(--mint); } .priv { color: var(--mut); }
+  .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 3px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--mut); padding: 10px 13px; background: var(--tint-pale);
+    border-bottom: 1px solid var(--line); white-space: nowrap; }
+  td { padding: 10px 13px; border-bottom: 1px solid var(--line); vertical-align: top; background: var(--card); }
+  tr:last-child td { border-bottom: 0; }
+  .trap { background: var(--panel); color: #e3ecdd; padding: 20px 22px; border-radius: 3px; }
+  .trap h2 { color: #fff; }
+  .trap p { color: #cadbc2; font-size: 13.5px; max-width: 72ch; }
+  .trap .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 16px; }
+  .trap .bx { background: rgba(255,255,255,.07); border-radius: 3px; padding: 13px 15px; }
+  .trap .bx h3 { color: #fff; font-size: 14px; }
+  .trap .bx p { margin: 6px 0 0; font-size: 12.5px; color: #b9c9b0; }
+  .phase { display: grid; grid-template-columns: 30px 1fr; gap: 13px; margin-bottom: 15px; }
+  .phase .pn { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--forest);
+    background: var(--tint); width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-weight: 500; }
+  .phase p { font-size: 13.5px; margin: 4px 0 0; max-width: 70ch; }
+  footer { border-top: 1px solid var(--line); margin-top: 46px; padding-top: 18px; font-size: 12px; color: var(--mut); }
+  @media (max-width: 560px) { .layer { grid-template-columns: 1fr; }
+    .layer .lab { border-right: 0; border-bottom: 1px solid var(--line); display: flex; gap: 10px; align-items: baseline; }
+    .row2 { grid-template-columns: 1fr; gap: 3px; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="nav">
+      <a href="https://claude.ai/artifact/5jeC8s1S7QiHs9LLh4uGMV">V1 schedule</a>
+      <span>Module map</span>
+      <a href="https://claude.ai/artifact/3Qqpy8i7PKCvEfZXsgzfnh">Day log</a>
+    </div>
+    <div class="eyebrow">NutriFlow · planning board 2 of 3</div>
+    <h1>The module map</h1>
+    <p class="lede" style="margin-top:12px">What stays public to a module and what stays private to it — so a module's
+      backend can be rewritten tonight and nothing that depends on it breaks, as long as it keeps its promise.</p>
+    <div class="stamp">
+      <span>SOURCE <b>docs/v1/02-module-map.md</b></span>
+      <span>SYNCED <b>2026-09-19</b></span>
+      <span>COMMIT <b>173baf7</b></span>
+      <span>MEASURED, NOT ESTIMATED</span>
+    </div>
+  </header>
+
+  <div class="howto">
+    <p><b>Comment anywhere on this page.</b> Select a module, a layer, a rule — anything — and leave a comment.
+      Then tell me “evaluate my comments” and I will read every thread, change the map and the underlying
+      document, and republish this board.</p>
+    <p>To let me reply inside a thread, use <b>Send to Claude</b> on it. I can read every comment either way.</p>
+  </div>
+
+  <section id="numbers">
+    <div class="eyebrow">Where it stands today</div>
+    <h2>The measured surface</h2>
+    <p class="lede">Every number here comes from parsing every named import in <span class="mono">src/</span> and
+      <span class="mono">scripts/</span> and comparing it against what each module exports. There is no
+      <span class="mono">import * as</span> anywhere in the repo, which is the only reason these counts can be trusted.</p>
+    <div class="stats" style="margin-top:16px">
+      <div class="stat"><div class="v">27</div><div class="l">modules in src/lib</div></div>
+      <div class="stat"><div class="v">232</div><div class="l">exported names</div></div>
+      <div class="stat warn"><div class="v">68</div><div class="l">imported by nothing</div></div>
+      <div class="stat"><div class="v">35</div><div class="l">used only by the harness</div></div>
+      <div class="stat good"><div class="v">0</div><div class="l">import cycles</div></div>
+    </div>
+    <p style="margin-top:14px;font-size:13.5px"><b>The number to drive down is 68</b> — promises kept to nobody, each
+      one something a future refactor has to preserve or knowingly break. <b>The number to leave alone is 35</b>:
+      those are reached only by <span class="mono">scripts/</span>, and a test harness must be able to reach inside
+      a module to test inside it. That is why the gate exempts <span class="mono">scripts/</span> by name instead of
+      pretending the suite is an ordinary consumer.</p>
+  </section>
+
+  <section id="layers">
+    <div class="eyebrow">Who may depend on whom</div>
+    <h2>The layer model</h2>
+    <p class="lede">Dependencies point <b>down only</b>. Each chip shows how many of a module's exports anything
+      outside it actually imports.</p>
+    <div class="flowline" style="margin-top:18px"><span>DEPENDENCIES FLOW DOWN</span><span class="arrow"></span><span>▼</span></div>
+
+    <div class="layer" id="L6">
+      <div class="lab"><div class="id">L6</div><div class="nm">Presentation</div></div>
+      <div class="mods">
+        <div class="mod"><div class="n">feed</div><div class="s">9 / 9 public</div><div class="bar"><i style="width:100%"></i></div></div>
+        <div class="mod"><div class="n">recipes · imagery</div><div class="s">4 / 7 public</div><div class="bar"><i style="width:57%"></i></div></div>
+        <div class="mod"><div class="n">batchGrocery</div><div class="s">5 / 6 public</div><div class="bar"><i style="width:83%"></i></div></div>
+        <div class="mod"><div class="n">streak</div><div class="s">3 / 3 public</div><div class="bar"><i style="width:100%"></i></div></div>
+        <div class="mod"><div class="n">weekStats</div><div class="s">imports only a type</div><div class="bar"><i style="width:100%"></i></div></div>
+      </div>
+    </div>
+
+    <div class="layer" id="L5">
+      <div class="lab"><div class="id">L5</div><div class="nm">Adapters</div></div>
+      <div class="mods">
+        <div class="mod hot"><div class="n">ai</div><div class="s">7 / 13 public · 1 dead</div><div class="bar"><i style="width:54%"></i></div></div>
+        <div class="mod"><div class="n">import</div><div class="s">8 / 8 public</div><div class="bar"><i style="width:100%"></i></div></div>
+        <div class="mod"><div class="n">videoImport</div><div class="s">3 / 4 public</div><div class="bar"><i style="width:75%"></i></div></div>
+        <div class="mod"><div class="n">storage</div><div class="s">15 / 17 public</div><div class="bar"><i style="width:88%"></i></div></div>
+        <div class="mod"><div class="n">savedStore</div><div class="s">the account seam</div><div class="bar"><i style="width:100%"></i></div></div>
+      </div>
+    </div>
+
+    <div class="layer" id="L4">
+      <div class="lab"><div class="id">L4</div><div class="nm">Assistant</div></div>
+      <div class="mods">
+        <div class="mod hot"><div class="n">primitives</div><div class="s">7 / 29 public</div><div class="bar"><i style="width:24%"></i></div></div>
+        <div class="mod"><div class="n">agentTools</div><div class="s">12 / 15 public</div><div class="bar"><i style="width:80%"></i></div></div>
+        <div class="mod"><div class="n">agentLoop</div><div class="s">5 / 6 public</div><div class="bar"><i style="width:83%"></i></div></div>
+        <div class="mod"><div class="n">reply</div><div class="s">4 / 4 public</div><div class="bar"><i style="width:100%"></i></div></div>
+        <div class="mod"><div class="n">promptV2</div><div class="s">1 / 1 public</div><div class="bar"><i style="width:100%"></i></div></div>
+      </div>
+    </div>
+
+    <div class="layer" id="L3">
+      <div class="lab"><div class="id">L3</div><div class="nm">Plan engine</div></div>
+      <div class="mods">
+        <div class="mod big"><div class="n">recipeDb</div><div class="s">10,850 lines · 18 / 24 public</div><div class="bar"><i style="width:75%"></i></div></div>
+        <div class="mod"><div class="n">→ plan/select</div><div class="s">after the split</div><div class="bar"><i style="width:100%"></i></div></div>
+        <div class="mod"><div class="n">→ plan/rebalance</div><div class="s">after the split</div><div class="bar"><i style="width:100%"></i></div></div>
+        <div class="mod"><div class="n">→ plan/batch</div><div class="s">after the split</div><div class="bar"><i style="width:100%"></i></div></div>
+        <div class="mod"><div class="n">→ plan/execute</div><div class="s">after the split</div><div class="bar"><i style="width:100%"></i></div></div>
+      </div>
+    </div>
+
+    <div class="layer" id="L2">
+      <div class="lab"><div class="id">L2</div><div class="nm">Pure computation</div></div>
+      <div class="mods">
+        <div class="mod"><div class="n">nutrients</div><div class="s">8 / 11 public</div><div class="bar"><i style="width:73%"></i></div></div>
+        <div class="mod"><div class="n">targets</div><div class="s">8 / 13 public</div><div class="bar"><i style="width:62%"></i></div></div>
+        <div class="mod"><div class="n">exclusions</div><div class="s">4 / 6 public · I2 lives here</div><div class="bar"><i style="width:67%"></i></div></div>
+        <div class="mod"><div class="n">grocery</div><div class="s">4 / 4 public</div><div class="bar"><i style="width:100%"></i></div></div>
+      </div>
+    </div>
+
+    <div class="layer" id="L1">
+      <div class="lab"><div class="id">L1</div><div class="nm">Data</div></div>
+      <div class="mods">
+        <div class="mod"><div class="n">recipe seeds</div><div class="s">501 recipes · 7,685 lines</div><div class="bar"><i style="width:100%"></i></div></div>
+        <div class="mod"><div class="n">nutrientTable</div><div class="s">USDA · generated, never hand-edited</div><div class="bar"><i style="width:100%"></i></div></div>
+        <div class="mod"><div class="n">symptoms</div><div class="s">safety data</div><div class="bar"><i style="width:80%"></i></div></div>
+        <div class="mod"><div class="n">substitutions</div><div class="s">2 / 2 public</div><div class="bar"><i style="width:100%"></i></div></div>
+        <div class="mod"><div class="n">conditions</div><div class="s">1 / 3 public</div><div class="bar"><i style="width:33%"></i></div></div>
+      </div>
+    </div>
+
+    <div class="layer" id="L0">
+      <div class="lab"><div class="id">L0</div><div class="nm">Contracts</div></div>
+      <div class="mods">
+        <div class="mod big"><div class="n">types</div><div class="s">22 / 28 · everyone depends on it</div><div class="bar"><i style="width:79%"></i></div></div>
+      </div>
+    </div>
+
+    <p style="margin-top:16px;font-size:13.5px"><b>The rule that outranks the layers:</b> the model decides, the engine
+      computes. L4 may ask L3 for anything; it may never do arithmetic itself, and it is never the thing that claims
+      a change happened. Any refactor that puts a number in L4 is wrong however tidy the folders look.</p>
+    <p style="font-size:13.5px"><b>Tooling is deliberately exempt.</b> <span class="mono">scripts/</span> may reach
+      inside any module, because a suite that can only see the public surface can only test the public surface.</p>
+  </section>
+
+  <section id="recipedb">
+    <div class="eyebrow">The big one</div>
+    <h2>recipeDb.ts is three jobs sharing a file</h2>
+    <p class="lede">10,850 lines, 24 exports, 19 direct consumers — including UI pages, which is how the whole library
+      reaches the browser.</p>
+    <div class="split">
+      <div style="width:71%;background:var(--forest)">71% · the 501 recipe seeds</div>
+      <div style="width:11%;background:var(--amber)">11%</div>
+      <div style="width:18%;background:var(--clay)">18% · executor</div>
+    </div>
+    <p style="font-size:12.5px;color:var(--mut)">Lines 179–7863 are data · 7864–9010 selection, rebalancing and batch ·
+      9011–10850 the executor and its note-writers.</p>
+    <p style="font-size:13.5px;margin-top:12px">Split over <b>two days, data first</b>, each behind a barrel that
+      re-exports today's eighteen consumed names unchanged — so <b>no importer is touched on either day</b>. The gate
+      is that <span class="mono">test:engine</span> produces the same number of passes before and after: a split that
+      changes behaviour shows up as a count change, and one that loses an export fails <span class="mono">tsc</span>.</p>
+  </section>
+
+  <section id="contracts">
+    <div class="eyebrow">Name · promise · public · private</div>
+    <h2>The contracts that carry the most weight</h2>
+
+    <div class="contract" id="c-execute">
+      <h3>plan/execute</h3>
+      <p class="promise">“The only code allowed to change a plan, and to say that it changed.”</p>
+      <div class="rows">
+        <div class="row2"><span class="k">Public</span><span class="pub mono">applyOperations(profile, plan, operations, previous?)</span></div>
+        <div class="row2"><span class="k">Private</span><span class="priv">every per-tool handler, <span class="mono">reimposeLocks</span>, <span class="mono">guaranteeFridge</span>, <span class="mono">guaranteeBoost</span>, <span class="mono">findRecipeForSwap</span>, the note-writers, the undo snapshot</span></div>
+        <div class="row2"><span class="k">Invariants</span><span>Never mutates what it is handed. A refusal is reported, never faked. <span class="mono">replyOverride</span> on a crisis discards the model's words entirely. <b><span class="mono">planChanged</span> is a deep comparison of before and after</b> — never a guess from which tool ran.</span></div>
+      </div>
+    </div>
+
+    <div class="contract" id="c-primitives">
+      <h3>assistant/primitives — the biggest sealing win</h3>
+      <p class="promise">“The vocabulary a model may emit, and the executor that runs it.”</p>
+      <div class="rows">
+        <div class="row2"><span class="k">Public</span><span class="pub mono">PrimitiveOp · applyPrimitives · memoryContext · AssistantTurnV2Schema · expandConstrain · applyRemember</span></div>
+        <div class="row2"><span class="k">Seal</span><span class="priv"><b>22 names</b> — <span class="mono">ConstrainOp</span>, <span class="mono">SwapOp</span>, <span class="mono">LogOp</span> and the other 15 per-op interfaces, plus <span class="mono">verbToOperation</span> and <span class="mono">PrimitiveOpSchema</span>. None is imported anywhere. They are the shape of the implementation, published as API.</span></div>
+        <div class="row2"><span class="k">Invariant</span><span>Every write reaches the engine through <span class="mono">applyOperations</span>. This module adds no arithmetic of its own.</span></div>
+      </div>
+    </div>
+
+    <div class="contract" id="c-loop">
+      <h3>assistant/loop</h3>
+      <p class="promise">“Call the model, execute what it asked for, feed the result back, call again, stop.”</p>
+      <div class="rows">
+        <div class="row2"><span class="k">Public</span><span class="pub mono">runAgent · ModelFn · TranscriptEntry · AgentTurn · MAX_STEPS</span></div>
+        <div class="row2"><span class="k">Invariants</span><span><b>The model is injected as a <span class="mono">ModelFn</span></b> — the line that makes the loop testable with no model at all. <span class="mono">MAX_STEPS = 8</span> is a cap, not a target; hitting it sets <span class="mono">gaveUp</span> and the user is told. One undo snapshot per user turn, taken before the first write.</span></div>
+      </div>
+    </div>
+
+    <div class="contract" id="c-storage">
+      <h3>persistence/storage</h3>
+      <p class="promise">“The only place that knows a localStorage key name.”</p>
+      <div class="rows">
+        <div class="row2"><span class="k">Public</span><span class="pub">the load/save pairs, and <span class="mono">clearAll</span></span></div>
+        <div class="row2"><span class="k">Private</span><span class="priv"><span class="mono">KEYS</span>, and the JSON encoding</span></div>
+        <div class="row2"><span class="k">Invariant</span><span>One concept, one key, and <b>no other module may name one</b>. A second saved-recipes key was added once and the two lists drifted apart silently until an audit found it. The gate enforces this.</span></div>
+      </div>
+    </div>
+
+    <div class="contract" id="c-exclusions">
+      <h3>nutrition/exclusions</h3>
+      <p class="promise">“Allergen and diet matching, word-aware, in both directions.”</p>
+      <div class="rows">
+        <div class="row2"><span class="k">Public</span><span class="pub mono">haystackBlocked · parseExclusionTokens · dietTagConflicts · wordMatches</span></div>
+        <div class="row2"><span class="k">Invariant</span><span><b>I2 — an allergen never reaches a plate.</b> Matching is word-aware in <i>both</i> directions: <span class="mono">peanuts</span> must match <span class="mono">peanut butter</span>, and <span class="mono">egg</span> must not match <span class="mono">eggplant</span>. <b>Every matcher in this module gets the same fix</b> — the sibling-path miss has cost three separate incidents.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="trap">
+    <div class="trap">
+      <h2>The trap this refactor must not walk into</h2>
+      <p><b>A barrel is a bundler black hole.</b> If the plan barrel re-exports both <span class="mono">selectWeekFromDb</span>
+        and <span class="mono">RECIPES</span>, any client component importing one small helper may pull all 501 recipes
+        into the browser. That is not hypothetical — it is the Explore payload bug we already have.</p>
+      <div class="two">
+        <div class="bx">
+          <h3>plan <span style="font-weight:400">(server barrel)</span></h3>
+          <p>The engine, the seeds, the executor. Imported by API routes, server components and tooling.</p>
+        </div>
+        <div class="bx">
+          <h3>plan/cards <span style="font-weight:400">(client-safe)</span></h3>
+          <p>A <span class="mono">RecipeCard</span> projection — only the fields a card renders. The only one a client component may import.</p>
+        </div>
+      </div>
+      <p style="margin-top:16px"><span class="mono">weekStats.ts</span> already proves the pattern: it imports
+        <b>only a type</b>, which is why one route is 105&nbsp;kB while Explore is 187&nbsp;kB.</p>
+    </div>
+  </section>
+
+  <section id="gate">
+    <div class="eyebrow">Day 1</div>
+    <h2>Making it enforceable: check:boundaries</h2>
+    <p class="lede">An unenforced boundary is a comment. A homemade gate in the family of
+      <span class="mono">check:recipes</span> — no new dependency — asserting six things:</p>
+    <div class="tablewrap" style="margin-top:14px">
+      <table>
+        <thead><tr><th>#</th><th>Rule</th><th>Why it exists</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">1</td><td>No module imports above its layer</td><td>the layering is otherwise a comment</td></tr>
+          <tr><td class="mono">2</td><td>Only a module's barrel may be imported from outside it — no deep paths</td><td>this is what makes “private” real</td></tr>
+          <tr><td class="mono">3</td><td>Only <span class="mono">persistence/storage</span> may contain a localStorage key string</td><td>a second saved-recipes key already drifted once</td></tr>
+          <tr><td class="mono">4</td><td>No client component imports a server barrel</td><td>the 185&nbsp;kB Explore payload, made impossible</td></tr>
+          <tr><td class="mono">5</td><td>No import cycles</td><td>true today — this keeps it true</td></tr>
+          <tr><td class="mono">6</td><td>No emoji in <span class="mono">src/</span></td><td>a standing project rule with no enforcement today</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:12px;font-size:13px">Every failure prints the offending file, the import, and the rule in
+      plain English. A gate that says “violation in 3 files” teaches nobody anything.</p>
+  </section>
+
+  <section id="phases">
+    <div class="eyebrow">How we get there</div>
+    <h2>Three phases, in this order</h2>
+    <div class="phase"><div class="pn">1</div><div><h3>Seal, without moving anything</h3>
+      <p>An <span class="mono">index.ts</span> per module; move the unconsumed names off the public surface; delete
+        <span class="mono">runAssistant</span>, which has no caller anywhere. <b>No call site changes.</b>
+        Low risk, do it first.</p></div></div>
+    <div class="phase"><div class="pn">2</div><div><h3>Split recipeDb</h3>
+      <p>Two days, data first, each behind a barrel. The gate is an identical <span class="mono">test:engine</span> count.</p></div></div>
+    <div class="phase"><div class="pn">3</div><div><h3>Move the folders</h3>
+      <p>Mechanical, one commit, <span class="mono">tsc</span> as the gate. <b>Be honest about the value split:</b>
+        phases 1 and 2 deliver nearly all of it. Phase 3 is navigation, worth doing only because it is cheap — and
+        it must never share a commit with a behaviour change.</p></div></div>
+  </section>
+
+  <footer>
+    Generated from <span class="mono">docs/v1/02-module-map.md</span> in the NutriFlow repo, which stays the source of
+    truth. The map is updated in the same commit that moves a boundary — a map that lags the code is worse than none,
+    because it is believed.
+  </footer>
+</div>
