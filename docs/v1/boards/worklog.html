@@ -1,95 +1,111 @@
 <title>NutriFlow Day Log</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Sans:wght@400;450;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
   :root {
-    --cream: #f5f2e7; --card: #fbf9f2; --tint: #dfe6da; --tint-pale: #e9eee3;
-    --ink: #1c2419; --body: #38452f; --mut: #5c6656; --line: #d8d4c2;
-    --forest: #3d5233; --panel: #26331f; --mint: #2e7d52; --clay: #9e4a2f; --amber: #a97a33;
+    --page: #ffffff; --surface: #f7f8fa; --sunk: #fbfbfd;
+    --line: #e8eaee; --line-strong: #d3d7de;
+    --ink: #101114; --body: #474b54; --mut: #8a909c;
+    --accent: #3b3ce0; --accent-soft: #eeeefc; --accent-line: #c9c9f7;
+    --amber: #b45309; --amber-soft: #fdf3e4;
+    --rose: #be123c; --rose-soft: #fdeef2;
+    --teal: #0e7490; --teal-soft: #e4f2f6;
+    --sh-sm: 0 1px 2px rgba(16,17,20,.05);
+    --sh-md: 0 1px 2px rgba(16,17,20,.04), 0 10px 26px -12px rgba(16,17,20,.18);
+    color-scheme: light;
   }
-  :root:not([data-theme="light"]) { @media (prefers-color-scheme: dark) {
-    --cream: #12180f; --card: #1b2317; --tint: #232e1e; --tint-pale: #1e2719;
-    --ink: #eef2e8; --body: #cdd6c4; --mut: #94a08c; --line: #313d2a;
-    --forest: #9dbb8a; --panel: #0c1207; --mint: #74c495; --clay: #e08a66; --amber: #d9b061;
-  }}
-  :root[data-theme="dark"] {
-    --cream: #12180f; --card: #1b2317; --tint: #232e1e; --tint-pale: #1e2719;
-    --ink: #eef2e8; --body: #cdd6c4; --mut: #94a08c; --line: #313d2a;
-    --forest: #9dbb8a; --panel: #0c1207; --mint: #74c495; --clay: #e08a66; --amber: #d9b061;
-  }
-  body { background: var(--cream); color: var(--body);
-    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif; line-height: 1.5; }
-  .wrap { max-width: 1020px; margin: 0 auto; padding-block: 28px 64px; padding-left: 20px; padding-right: 20px; }
-  h1, h2, h3 { font-family: Fraunces, "Iowan Old Style", Georgia, serif; color: var(--ink);
-    font-weight: 600; text-wrap: balance; margin: 0; }
-  h1 { font-size: clamp(30px, 6vw, 46px); line-height: 1.05; letter-spacing: -.01em; }
-  h2 { font-size: clamp(20px, 3.4vw, 26px); margin-bottom: 10px; }
-  h3 { font-size: 17px; }
+  body { background: var(--page); color: var(--body);
+    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif; line-height: 1.55;
+    -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 980px; margin: 0 auto; padding-block: 34px 72px; padding-left: 22px; padding-right: 22px; }
+  h1, h2, h3, h4 { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; color: var(--ink);
+    text-wrap: balance; margin: 0; letter-spacing: -.015em; }
+  h1 { font-size: clamp(34px, 6.4vw, 54px); font-weight: 700; line-height: 1.02; letter-spacing: -.03em; }
+  h2 { font-size: clamp(21px, 3.4vw, 28px); font-weight: 600; margin-bottom: 10px; }
+  h3 { font-size: 18px; font-weight: 600; }
   p { margin: 0 0 10px; }
-  a { color: var(--forest); }
-  .eyebrow { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11px;
-    letter-spacing: .13em; text-transform: uppercase; color: var(--mut); }
+  a { color: var(--accent); }
   .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
-  .lede { font-size: 16px; max-width: 64ch; }
-  header.top { border-bottom: 2px solid var(--ink); padding-bottom: 18px; margin-bottom: 26px; }
-  .nav { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 18px; }
-  .nav a, .nav span { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .06em;
-    text-transform: uppercase; padding: 5px 11px; border: 1px solid var(--line);
-    border-radius: 999px; text-decoration: none; color: var(--mut); background: var(--card); }
-  .nav span { background: var(--forest); color: var(--cream); border-color: var(--forest); }
-  .stamp { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 14px;
-    font-family: "IBM Plex Mono", monospace; font-size: 11.5px; color: var(--mut); }
-  .stamp b { color: var(--body); font-weight: 500; }
-  .howto { background: var(--tint); border-left: 3px solid var(--forest);
-    padding: 14px 16px; margin: 22px 0 30px; border-radius: 2px; }
-  .howto p { margin: 0; font-size: 13.5px; }
-  .howto p + p { margin-top: 7px; }
-  section { margin-bottom: 42px; }
-  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(136px, 1fr)); gap: 1px;
-    background: var(--line); border: 1px solid var(--line); }
-  .stat { background: var(--card); padding: 15px 16px; }
-  .stat .v { font-family: Fraunces, Georgia, serif; font-size: 32px; font-weight: 600; color: var(--ink);
-    line-height: 1; font-variant-numeric: tabular-nums; }
-  .stat .l { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .09em;
-    text-transform: uppercase; color: var(--mut); margin-top: 7px; }
+  .eyebrow { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .15em;
+    text-transform: uppercase; color: var(--mut); }
+  .lede { font-size: 16.5px; max-width: 66ch; }
+  .nav { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 22px; }
+  .nav a, .nav span { font-size: 12px; font-weight: 500; padding: 6px 13px; border-radius: 999px;
+    text-decoration: none; border: 1px solid var(--line); color: var(--mut); background: var(--page); }
+  .nav a:hover { border-color: var(--line-strong); color: var(--ink); }
+  .nav span { background: var(--ink); color: #fff; border-color: var(--ink); }
+  header.top { margin-bottom: 30px; }
+  .stamp { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 18px; }
+  .stamp b { font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 500;
+    color: var(--body); background: var(--surface); border: 1px solid var(--line);
+    padding: 4px 10px; border-radius: 5px; }
+  .stamp b i { font-style: normal; color: var(--mut); }
+  .howto { display: flex; gap: 13px; background: var(--accent-soft); border: 1px solid var(--accent-line);
+    padding: 15px 17px; margin: 24px 0 38px; border-radius: 10px; }
+  .howto .mk { width: 7px; flex: none; border-radius: 4px; background: var(--accent); }
+  .howto p { margin: 0; font-size: 13.5px; color: #26276b; }
+  .howto p + p { margin-top: 6px; }
+  section { margin-bottom: 52px; }
+  .shead { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+  .shead .rule { flex: 1; height: 1px; background: var(--line); }
 
-  .tl { position: relative; padding-left: 26px; }
-  .tl::before { content: ""; position: absolute; left: 6px; top: 8px; bottom: 8px;
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(146px, 1fr)); gap: 12px; }
+  .stat { background: var(--page); border: 1px solid var(--line); border-radius: 10px;
+    padding: 17px 18px; box-shadow: var(--sh-sm); }
+  .stat .v { font-family: Archivo, sans-serif; font-size: 36px; font-weight: 700; color: var(--ink);
+    line-height: .95; letter-spacing: -.035em; font-variant-numeric: tabular-nums; }
+  .stat .l { font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--mut); margin-top: 9px; }
+
+  .tl { position: relative; padding-left: 30px; }
+  .tl::before { content: ""; position: absolute; left: 7px; top: 12px; bottom: 12px;
     width: 2px; background: var(--line); }
-  .entry { position: relative; margin-bottom: 18px; }
-  .entry::before { content: ""; position: absolute; left: -26px; top: 16px; width: 14px; height: 14px;
-    border-radius: 50%; background: var(--forest); border: 3px solid var(--cream); }
-  .entry.planned::before { background: var(--cream); border: 2px solid var(--line); }
-  .entry .box { border: 1px solid var(--line); background: var(--card); border-radius: 3px; padding: 16px 18px; }
-  .entry.planned .box { background: transparent; border-style: dashed; }
-  .ehead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin-bottom: 4px; }
-  .date { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--forest); font-weight: 500; }
-  .pill { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 3px; white-space: nowrap; }
-  .pill.done { background: color-mix(in srgb, var(--mint) 20%, transparent); color: var(--mint); }
-  .pill.part { background: color-mix(in srgb, var(--amber) 22%, transparent); color: var(--amber); }
-  .pill.none { background: color-mix(in srgb, var(--clay) 18%, transparent); color: var(--clay); }
-  .pill.plan { background: var(--tint-pale); color: var(--mut); }
-  .blocks { display: grid; gap: 12px; margin-top: 13px; }
-  .blk h4 { font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: .1em;
-    text-transform: uppercase; color: var(--mut); margin: 0 0 5px; font-weight: 500; }
-  .blk ul { margin: 0; padding-left: 17px; font-size: 13.5px; }
-  .blk li { margin-bottom: 5px; }
-  .blk li::marker { color: var(--line); }
-  .blk.found { background: var(--tint); border-radius: 3px; padding: 11px 13px; }
-  .blk.found h4 { color: var(--forest); }
+  .entry { position: relative; margin-bottom: 20px; }
+  .entry::before { content: ""; position: absolute; left: -30px; top: 20px; width: 16px; height: 16px;
+    border-radius: 50%; background: var(--accent); border: 4px solid var(--page);
+    box-shadow: 0 0 0 1px var(--accent-line); }
+  .entry.planned::before { background: var(--page); border: 2px solid var(--line-strong); box-shadow: none; }
+  .entry .box { border: 1px solid var(--line); background: var(--page); border-radius: 12px;
+    padding: 20px 22px; box-shadow: var(--sh-sm); }
+  .entry.planned .box { background: var(--sunk); border-style: dashed; box-shadow: none; }
+  .ehead { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .date { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--accent); font-weight: 500;
+    background: var(--accent-soft); padding: 3px 9px; border-radius: 5px; }
+  .pill { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 6px; white-space: nowrap; }
+  .pill.done { background: var(--accent-soft); color: var(--accent); }
+  .pill.part { background: var(--amber-soft); color: var(--amber); }
+  .pill.none { background: var(--rose-soft); color: var(--rose); }
+  .pill.plan { background: var(--surface); color: var(--mut); border: 1px solid var(--line); }
+  .sub { font-size: 13px; color: var(--mut); margin: 5px 0 0; }
+  .blocks { display: grid; gap: 14px; margin-top: 16px; }
+  .blk h4 { font-family: "IBM Plex Mono", monospace; font-size: 9.5px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--mut); margin: 0 0 7px; font-weight: 500; }
+  .blk ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
+  .blk li { margin-bottom: 6px; }
+  .blk li::marker { color: var(--line-strong); }
+  .blk.found { background: var(--accent-soft); border: 1px solid var(--accent-line);
+    border-radius: 10px; padding: 14px 16px; }
+  .blk.found h4 { color: var(--accent); }
+  .blk.found li::marker { color: var(--accent-line); }
   .gate { font-family: "IBM Plex Mono", monospace; font-size: 11.5px; color: var(--mut);
-    border-top: 1px dashed var(--line); padding-top: 9px; margin-top: 13px; }
-  .defer { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: baseline;
-    border-bottom: 1px solid var(--line); padding: 9px 0; font-size: 13.5px; }
+    border-top: 1px solid var(--line); padding-top: 11px; margin-top: 16px; line-height: 1.7; }
+
+  .defers { border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--sh-sm); overflow: hidden; }
+  .defer { display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: baseline;
+    border-bottom: 1px solid var(--line); padding: 14px 18px; font-size: 13.5px; background: var(--page); }
   .defer:last-child { border-bottom: 0; }
-  .defer .to { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--forest);
-    background: var(--tint); padding: 2px 8px; border-radius: 3px; white-space: nowrap; }
-  .rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 11px; margin-top: 14px; }
-  .rule { border: 1px solid var(--line); background: var(--card); border-radius: 3px; padding: 12px 14px; }
-  .rule .n { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; color: var(--forest); font-weight: 500; }
-  .rule p { font-size: 13px; margin: 5px 0 0; }
-  pre.tmpl { background: var(--panel); color: #dfe9d9; font-family: "IBM Plex Mono", monospace;
-    font-size: 12px; line-height: 1.7; padding: 17px 19px; border-radius: 3px; overflow-x: auto; margin: 14px 0 0; }
-  footer { border-top: 1px solid var(--line); margin-top: 46px; padding-top: 18px; font-size: 12px; color: var(--mut); }
+  .defer .to { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; color: var(--accent);
+    background: var(--accent-soft); padding: 4px 10px; border-radius: 6px; white-space: nowrap; }
+
+  .rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(238px, 1fr)); gap: 12px; margin-top: 16px; }
+  .rule { border: 1px solid var(--line); background: var(--page); border-radius: 10px;
+    padding: 15px 16px; box-shadow: var(--sh-sm); }
+  .rule .n { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; color: var(--accent);
+    background: var(--accent-soft); width: 26px; height: 26px; border-radius: 7px;
+    display: grid; place-items: center; font-weight: 500; }
+  .rule p { font-size: 13px; margin: 10px 0 0; }
+  pre.tmpl { background: var(--ink); color: #d7d9e4; font-family: "IBM Plex Mono", monospace;
+    font-size: 12px; line-height: 1.75; padding: 20px 22px; border-radius: 12px; overflow-x: auto; margin: 18px 0 0; }
+  footer { border-top: 1px solid var(--line); margin-top: 56px; padding-top: 20px; font-size: 12.5px; color: var(--mut); }
 </style>
 
 <div class="wrap">
@@ -100,21 +116,24 @@
       <span>Day log</span>
     </div>
     <div class="eyebrow">NutriFlow · planning board 3 of 3</div>
-    <h1>The day log</h1>
-    <p class="lede" style="margin-top:12px">One entry per work-day: which milestone was tackled, how much of it was
+    <h1 style="margin-top:10px">The day log</h1>
+    <p class="lede" style="margin-top:14px">One entry per work-day: which milestone was tackled, how much of it was
       solved, what got in the way, and what moved to another day. Solid dots are days that happened; hollow ones are
       the schedule ahead.</p>
     <div class="stamp">
-      <span>SOURCE <b>docs/worklog/</b></span>
-      <span>SYNCED <b>2026-09-19</b></span>
-      <span>COMMIT <b>173baf7</b></span>
+      <b><i>source</i> docs/worklog/</b>
+      <b><i>synced</i> 2026-09-19</b>
+      <b><i>commit</i> 01b9a51</b>
     </div>
   </header>
 
   <div class="howto">
-    <p><b>Comment anywhere on this page.</b> Select a day, a deferral, a line you disagree with, and leave a comment.
-      Then tell me “evaluate my comments” and I will read every thread, act on it, and republish this board.</p>
-    <p>To let me reply inside a thread, use <b>Send to Claude</b> on it. I can read every comment either way.</p>
+    <div class="mk"></div>
+    <div>
+      <p><b>Comment anywhere on this page.</b> Select a day, a deferral, a line you disagree with, and leave a
+        comment. Then tell me “evaluate my comments” and I will read every thread, act on it, and republish this board.</p>
+      <p>To let me reply inside a thread, use <b>Send to Claude</b> on it. I can read every comment either way.</p>
+    </div>
   </div>
 
   <section id="totals">
@@ -127,9 +146,9 @@
   </section>
 
   <section id="timeline">
-    <div class="eyebrow">What happened</div>
+    <div class="shead"><span class="eyebrow">What happened</span><span class="rule"></span></div>
     <h2>The record</h2>
-    <div class="tl" style="margin-top:18px">
+    <div class="tl" style="margin-top:20px">
 
       <article class="entry" id="d-2026-09-19">
         <div class="box">
@@ -138,8 +157,8 @@
             <span class="pill done">solved · done</span>
           </div>
           <h3>V1 planning: milestones, module map, the Kimi call, the daily history</h3>
-          <p style="font-size:13px;color:var(--mut);margin:4px 0 0">Milestone: the four deliverables of the planning
-            brief. No product code was meant to change, and none did.</p>
+          <p class="sub">Milestone: the four deliverables of the planning brief. No product code was meant to
+            change, and none did.</p>
           <div class="blocks">
             <div class="blk">
               <h4>What moved</h4>
@@ -176,7 +195,7 @@
               </ul>
             </div>
           </div>
-          <div class="gate">GATE · tsc clean · eval:hardcases exercised against a scripted provider · no src/lib change, so test:engine stands at 628/0 · pushed 6388cac, 1f1a5ca, d0fc57e, 87cdbc3, bba7202, 173baf7</div>
+          <div class="gate">GATE · tsc clean · eval:hardcases exercised against a scripted provider · no src/lib change, so test:engine stands at 628/0<br>PUSHED · 6388cac · 1f1a5ca · d0fc57e · 87cdbc3 · bba7202 · 173baf7 · 01b9a51</div>
         </div>
       </article>
 
@@ -184,7 +203,7 @@
         <div class="box">
           <div class="ehead"><span class="date">NEXT</span><span class="pill plan">day 1 · planned</span></div>
           <h3>A1 — freeze the contracts</h3>
-          <p style="font-size:13.5px;margin:6px 0 0">Build <span class="mono">npm run check:boundaries</span> so the
+          <p style="font-size:13.5px;margin:7px 0 0">Build <span class="mono">npm run check:boundaries</span> so the
             module map becomes enforced truth rather than a document. Parallel: this log gets its second entry.</p>
           <div class="gate">GATE · check:boundaries + tsc</div>
         </div>
@@ -194,7 +213,7 @@
         <div class="box">
           <div class="ehead"><span class="date">THEN</span><span class="pill plan">days 2–4 · planned</span></div>
           <h3>Split recipeDb, then the payload boundary</h3>
-          <p style="font-size:13.5px;margin:6px 0 0">Data out of engine, then the executor, each behind a barrel that
+          <p style="font-size:13.5px;margin:7px 0 0">Data out of engine, then the executor, each behind a barrel that
             leaves every call site untouched. Then stop shipping 501 recipes to the browser.</p>
           <div class="gate">GATE · test:engine, identical count · then npm run build, first-load JS compared</div>
         </div>
@@ -204,7 +223,7 @@
         <div class="box">
           <div class="ehead"><span class="date">AFTER</span><span class="pill plan">days 5–12 · planned</span></div>
           <h3>Safety, logging, one app, the assistant that speaks first, release</h3>
-          <p style="font-size:13.5px;margin:6px 0 0">The crisis pre-scan is the one hard ordering constraint: nothing
+          <p style="font-size:13.5px;margin:7px 0 0">The crisis pre-scan is the one hard ordering constraint: nothing
             public gets a live model before it lands.</p>
         </div>
       </article>
@@ -213,10 +232,10 @@
   </section>
 
   <section id="deferred">
-    <div class="eyebrow">Carried forward</div>
+    <div class="shead"><span class="eyebrow">Carried forward</span><span class="rule"></span></div>
     <h2>Open deferrals</h2>
     <p class="lede">Every deferral names a destination and a reason. “Later” is not a destination.</p>
-    <div style="border:1px solid var(--line);border-radius:3px;background:var(--card);padding:4px 16px;margin-top:14px">
+    <div class="defers" style="margin-top:16px">
       <div class="defer"><div><b>Re-run the K3 hard-case eval</b> — needs the owner's <span class="mono">nvapi-</span> key. It is the input to the pre-committed decision rule, and nothing else is blocked on it.</div><span class="to">next session</span></div>
       <div class="defer"><div><b>The four-GPU inference experiment</b> — free, and it is what actually decides the local-inference question.</div><span class="to">at the desktop</span></div>
       <div class="defer"><div><b><span class="mono">npm run log:day</span> scaffolder and a rendered page</b> — deliberately waiting. A scaffolder that pre-fills the wrong fields is worse than none, so the format should survive a week of real use.</div><span class="to">backlog</span></div>
@@ -225,7 +244,7 @@
   </section>
 
   <section id="rules">
-    <div class="eyebrow">How an entry is written</div>
+    <div class="shead"><span class="eyebrow">How an entry is written</span><span class="rule"></span></div>
     <h2>Six rules</h2>
     <div class="rules">
       <div class="rule"><div class="n">01</div><p><b>One file per day.</b> Never append to a shared file — two machines writing one file is a merge conflict, and a doc in this repo has already duplicated and diverged.</p></div>

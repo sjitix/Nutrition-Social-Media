@@ -49,13 +49,28 @@ a missing one — it is believed. So:
 
 ## Design notes, so a later edit does not drift
 
-- The palette and type are the product's own: the `.theme-sage` tokens from `src/app/globals.css`
-  (cream `#f5f2e7`, forest `#3d5233`, panel `#26331f`, sage `#dfe6da`) and **Fraunces**, the display
-  serif `/sage` already uses — loaded from Google Fonts, the one font host artifacts allow.
-  IBM Plex Sans and Mono carry data and identifiers, because these are engineering documents.
-- All three pages define the full light palette on `:root`, then redefine the tokens for dark under
-  both `@media (prefers-color-scheme: dark)` (guarded) and `[data-theme="dark"]`. A colour defined
-  only inside one of those blocks is the classic unreadable-artifact bug.
+**The boards are white and light, and are NOT the product's sage theme.** The first version used the
+`.theme-sage` tokens and was rejected — *"why is it green. make it visually appealing, a white, light
+layout"*. These are internal planning instruments, not a preview of the product, and they should not
+be re-skinned back into it.
+
+- **Palette:** white page `#ffffff`, surface `#f7f8fa`, hairline `#e8eaee`, ink `#101114`, body
+  `#474b54`, muted `#8a909c`. One accent — indigo `#3b3ce0` with `#eeeefc` behind it — spent on
+  rails, key numbers and status. Semantic colours are amber `#b45309` (open) and rose `#be123c`
+  (blocked); track colours add teal `#0e7490` and violet `#7c3aed`. **No green anywhere**, including
+  in status pills, where "done" is the indigo accent rather than the usual green.
+- **Type:** **Archivo** for headings (tight, confident, set at `-.03em`) and **IBM Plex Sans** for
+  body, with **IBM Plex Mono** for identifiers, counts and file paths — because these are
+  engineering documents and the mono carries the code. From Google Fonts, the one font host
+  artifacts allow.
+- **Committed to light on purpose.** The pages declare `color-scheme: light`, paint every colour
+  explicitly, and carry **no dark-theme blocks** — a board stays white even for a viewer whose
+  claude.ai is dark, because white is what was asked for. If that is ever revisited, the artifact
+  contract requires the full three-state pattern (bare `:root`, guarded
+  `@media (prefers-color-scheme: dark)`, and `[data-theme="dark"]`), not a partial one.
+- **Depth comes from hairlines and a two-step shadow**, not from fills: `0 1px 2px` at rest,
+  `0 10px 26px -12px` on a hovered card. Radii vary by role — 12px for cards, 10px for panels,
+  6–9px for chips, 999px for nav pills — rather than one radius everywhere.
 - Every commentable unit carries an `id` (`#D1` … `#D12`, `#L0` … `#L6`, `#c-execute`,
   `#d-2026-09-19`), so a comment anchors to something stable and a later edit can find it.
 - No emoji, per the standing project rule.

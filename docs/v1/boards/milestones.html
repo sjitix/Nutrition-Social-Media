@@ -1,118 +1,129 @@
 <title>NutriFlow V1 Schedule</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Sans:wght@400;450;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
+  /* Light by deliberate choice: the board is white in every viewer's theme, so every colour is
+     painted explicitly and nothing is inherited from the host ground. */
   :root {
-    --cream: #f5f2e7; --card: #fbf9f2; --tint: #dfe6da; --tint-pale: #e9eee3;
-    --ink: #1c2419; --body: #38452f; --mut: #5c6656; --line: #d8d4c2;
-    --forest: #3d5233; --panel: #26331f; --mint: #2e7d52; --clay: #9e4a2f; --amber: #a97a33;
-    --trackA: #3d5233; --trackB: #2e7d52; --trackC: #a97a33; --trackD: #6b5b8a;
-    --shadow: 0 4px 18px rgba(28,36,25,.09);
+    --page: #ffffff; --surface: #f7f8fa; --raise: #ffffff; --sunk: #fbfbfd;
+    --line: #e8eaee; --line-strong: #d3d7de;
+    --ink: #101114; --body: #474b54; --mut: #8a909c;
+    --accent: #3b3ce0; --accent-soft: #eeeefc; --accent-line: #c9c9f7;
+    --amber: #b45309; --amber-soft: #fdf3e4;
+    --rose: #be123c; --rose-soft: #fdeef2;
+    --teal: #0e7490; --plum: #7c3aed;
+    --t-a: #3b3ce0; --t-b: #0e7490; --t-c: #b45309; --t-d: #7c3aed;
+    --sh-sm: 0 1px 2px rgba(16,17,20,.05);
+    --sh-md: 0 1px 2px rgba(16,17,20,.04), 0 10px 26px -12px rgba(16,17,20,.18);
+    color-scheme: light;
   }
-  :root:not([data-theme="light"]) { @media (prefers-color-scheme: dark) {
-    --cream: #12180f; --card: #1b2317; --tint: #232e1e; --tint-pale: #1e2719;
-    --ink: #eef2e8; --body: #cdd6c4; --mut: #94a08c; --line: #313d2a;
-    --forest: #9dbb8a; --panel: #101509; --mint: #74c495; --clay: #e08a66; --amber: #d9b061;
-    --trackA: #9dbb8a; --trackB: #74c495; --trackC: #d9b061; --trackD: #b0a0d0;
-    --shadow: 0 4px 18px rgba(0,0,0,.35);
-  }}
-  :root[data-theme="dark"] {
-    --cream: #12180f; --card: #1b2317; --tint: #232e1e; --tint-pale: #1e2719;
-    --ink: #eef2e8; --body: #cdd6c4; --mut: #94a08c; --line: #313d2a;
-    --forest: #9dbb8a; --panel: #101509; --mint: #74c495; --clay: #e08a66; --amber: #d9b061;
-    --trackA: #9dbb8a; --trackB: #74c495; --trackC: #d9b061; --trackD: #b0a0d0;
-    --shadow: 0 4px 18px rgba(0,0,0,.35);
-  }
-  body { background: var(--cream); color: var(--body);
-    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif; line-height: 1.5; }
-  .wrap { max-width: 1120px; margin: 0 auto; padding-block: 28px 64px; padding-left: 20px; padding-right: 20px; }
-  h1, h2, h3 { font-family: Fraunces, "Iowan Old Style", Georgia, serif; color: var(--ink);
-    font-weight: 600; text-wrap: balance; margin: 0; }
-  h1 { font-size: clamp(30px, 6vw, 46px); line-height: 1.05; letter-spacing: -.01em; }
-  h2 { font-size: clamp(20px, 3.4vw, 26px); margin-bottom: 10px; }
-  h3 { font-size: 17px; }
+  body { background: var(--page); color: var(--body);
+    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif; line-height: 1.55;
+    -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding-block: 34px 72px; padding-left: 22px; padding-right: 22px; }
+  h1, h2, h3, h4 { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; color: var(--ink);
+    text-wrap: balance; margin: 0; letter-spacing: -.015em; }
+  h1 { font-size: clamp(34px, 6.4vw, 54px); font-weight: 700; line-height: 1.02; letter-spacing: -.03em; }
+  h2 { font-size: clamp(21px, 3.4vw, 28px); font-weight: 600; margin-bottom: 10px; }
+  h3 { font-size: 17.5px; font-weight: 600; }
   p { margin: 0 0 10px; }
-  a { color: var(--forest); }
-  .eyebrow { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11px;
-    letter-spacing: .13em; text-transform: uppercase; color: var(--mut); }
+  a { color: var(--accent); }
   .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
-  .lede { font-size: 16px; max-width: 64ch; color: var(--body); }
+  .eyebrow { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .15em;
+    text-transform: uppercase; color: var(--mut); }
+  .lede { font-size: 16.5px; max-width: 66ch; color: var(--body); }
 
-  header.top { border-bottom: 2px solid var(--ink); padding-bottom: 18px; margin-bottom: 26px; }
-  .nav { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 18px; }
-  .nav a, .nav span { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .06em;
-    text-transform: uppercase; padding: 5px 11px; border: 1px solid var(--line);
-    border-radius: 999px; text-decoration: none; color: var(--mut); background: var(--card); }
-  .nav span { background: var(--forest); color: var(--cream); border-color: var(--forest); }
-  .stamp { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 14px;
-    font-family: "IBM Plex Mono", monospace; font-size: 11.5px; color: var(--mut); }
-  .stamp b { color: var(--body); font-weight: 500; }
+  .nav { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 22px; }
+  .nav a, .nav span { font-size: 12px; font-weight: 500; padding: 6px 13px; border-radius: 999px;
+    text-decoration: none; border: 1px solid var(--line); color: var(--mut); background: var(--page); }
+  .nav a:hover { border-color: var(--line-strong); color: var(--ink); }
+  .nav span { background: var(--ink); color: #fff; border-color: var(--ink); }
 
-  .howto { background: var(--tint); border-left: 3px solid var(--forest);
-    padding: 14px 16px; margin: 22px 0 30px; border-radius: 2px; }
-  .howto p { margin: 0; font-size: 13.5px; color: var(--body); }
-  .howto p + p { margin-top: 7px; }
+  header.top { margin-bottom: 30px; }
+  .stamp { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 18px; }
+  .stamp b { font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 500;
+    color: var(--body); background: var(--surface); border: 1px solid var(--line);
+    padding: 4px 10px; border-radius: 5px; }
+  .stamp b i { font-style: normal; color: var(--mut); }
 
-  section { margin-bottom: 40px; }
-  .v1bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px;
-    background: var(--line); border: 1px solid var(--line); margin-top: 14px; }
-  .v1step { background: var(--card); padding: 13px 14px; }
-  .v1step .n { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--forest); font-weight: 500; }
-  .v1step p { margin: 5px 0 0; font-size: 13px; }
+  .howto { display: flex; gap: 13px; background: var(--accent-soft); border: 1px solid var(--accent-line);
+    padding: 15px 17px; margin: 24px 0 38px; border-radius: 10px; }
+  .howto .mk { width: 7px; flex: none; border-radius: 4px; background: var(--accent); }
+  .howto p { margin: 0; font-size: 13.5px; color: #26276b; }
+  .howto p + p { margin-top: 6px; }
 
-  .legend { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0 20px; }
-  .chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500;
-    padding: 4px 10px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); color: var(--body); }
-  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  section { margin-bottom: 52px; }
+  .shead { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+  .shead .rule { flex: 1; height: 1px; background: var(--line); }
 
-  .day { display: grid; grid-template-columns: 78px 1fr; gap: 0; border: 1px solid var(--line);
-    background: var(--card); margin-bottom: 12px; border-radius: 3px; overflow: hidden; }
-  .day .rail { background: var(--tint-pale); border-right: 1px solid var(--line); padding: 14px 10px;
-    display: flex; flex-direction: column; align-items: center; gap: 6px; }
-  .day .num { font-family: Fraunces, Georgia, serif; font-size: 30px; font-weight: 600; color: var(--ink); line-height: 1; }
-  .day .tk { font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: .08em;
-    padding: 2px 7px; border-radius: 3px; color: #fff; font-weight: 500; }
-  .day .bd { padding: 15px 17px; }
-  .day h3 { margin-bottom: 7px; }
-  .day .desc { font-size: 13.5px; margin-bottom: 11px; max-width: 70ch; }
-  .meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 9px 20px;
-    border-top: 1px dashed var(--line); padding-top: 10px; }
+  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(178px, 1fr)); gap: 12px; margin-top: 18px; }
+  .step { background: var(--page); border: 1px solid var(--line); border-radius: 10px; padding: 16px;
+    box-shadow: var(--sh-sm); }
+  .step .n { font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 500;
+    color: var(--accent); background: var(--accent-soft); width: 26px; height: 26px;
+    border-radius: 7px; display: grid; place-items: center; }
+  .step p { margin: 11px 0 0; font-size: 13.5px; }
+  .callout { margin-top: 18px; background: var(--sunk); border: 1px solid var(--line);
+    border-radius: 10px; padding: 15px 17px; font-size: 13.5px; }
+
+  .ribbon { display: flex; gap: 3px; margin: 18px 0 22px; }
+  .ribbon div { flex: 1; height: 6px; border-radius: 3px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; }
+  .chip { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 500;
+    padding: 5px 12px; border-radius: 999px; background: var(--page); border: 1px solid var(--line); color: var(--body); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+
+  .day { background: var(--page); border: 1px solid var(--line); border-radius: 12px;
+    box-shadow: var(--sh-sm); margin-bottom: 13px; overflow: hidden;
+    display: grid; grid-template-columns: 4px 84px 1fr; transition: box-shadow .16s, border-color .16s; }
+  .day:hover { box-shadow: var(--sh-md); border-color: var(--line-strong); }
+  .day .edge { background: var(--t-a); }
+  .day .rail { padding: 18px 0 18px 18px; }
+  .day .num { font-family: Archivo, sans-serif; font-size: 38px; font-weight: 700; color: var(--ink);
+    line-height: .9; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+  .day .tk { display: inline-block; margin-top: 9px; font-family: "IBM Plex Mono", monospace;
+    font-size: 10px; letter-spacing: .07em; padding: 3px 8px; border-radius: 5px; font-weight: 500; }
+  .day .bd { padding: 18px 20px 18px 14px; min-width: 0; }
+  .day .desc { font-size: 14px; margin: 7px 0 13px; max-width: 72ch; }
+  .par { display: flex; gap: 10px; align-items: flex-start; background: var(--surface);
+    border-radius: 8px; padding: 9px 12px; font-size: 13px; margin-bottom: 13px; }
+  .par b { color: var(--ink); font-weight: 600; white-space: nowrap; }
+  .meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 11px 22px;
+    border-top: 1px solid var(--line); padding-top: 12px; }
   .meta div { font-size: 12.5px; }
-  .meta .k { font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: .1em;
-    text-transform: uppercase; color: var(--mut); display: block; margin-bottom: 2px; }
-  .par { background: var(--tint); border-left: 2px solid var(--trackD); padding: 7px 11px;
-    font-size: 12.5px; margin-bottom: 11px; border-radius: 2px; }
+  .meta .k { font-family: "IBM Plex Mono", monospace; font-size: 9.5px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--mut); display: block; margin-bottom: 3px; }
 
-  .deps { background: var(--panel); color: #fff; padding: 20px 22px; border-radius: 3px; overflow-x: auto; }
-  .deps pre { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; line-height: 1.75;
-    margin: 0; color: #e3ecdd; white-space: pre; }
+  .deps { background: var(--ink); border-radius: 12px; padding: 24px 26px; overflow-x: auto; }
   .deps h2 { color: #fff; }
-  .deps .note { color: #b9c9b0; font-size: 13px; margin: 14px 0 0; max-width: 70ch; }
+  .deps pre { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; line-height: 1.8;
+    margin: 4px 0 0; color: #d7d9e4; white-space: pre; }
+  .deps .note { color: #a9adbd; font-size: 13.5px; margin: 18px 0 0; max-width: 72ch; }
+  .deps .note b { color: #fff; }
 
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 3px; }
-  th { text-align: left; font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: .1em;
-    text-transform: uppercase; color: var(--mut); padding: 10px 13px; background: var(--tint-pale);
+  .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--sh-sm); }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th { text-align: left; font-family: "IBM Plex Mono", monospace; font-size: 9.5px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--mut); padding: 12px 15px; background: var(--surface);
     border-bottom: 1px solid var(--line); white-space: nowrap; }
-  td { padding: 11px 13px; border-bottom: 1px solid var(--line); vertical-align: top; background: var(--card); }
+  td { padding: 13px 15px; border-bottom: 1px solid var(--line); vertical-align: top; }
   tr:last-child td { border-bottom: 0; }
-  .pill { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 3px; white-space: nowrap;
-    display: inline-block; }
-  .pill.open { background: color-mix(in srgb, var(--amber) 20%, transparent); color: var(--amber); }
-  .pill.done { background: color-mix(in srgb, var(--mint) 20%, transparent); color: var(--mint); }
-  .pill.block { background: color-mix(in srgb, var(--clay) 20%, transparent); color: var(--clay); }
+  .pill { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 6px; white-space: nowrap; display: inline-block; }
+  .pill.settled { background: var(--accent-soft); color: var(--accent); }
+  .pill.open { background: var(--amber-soft); color: var(--amber); }
+  .pill.block { background: var(--rose-soft); color: var(--rose); }
 
-  ol.judge { counter-reset: j; list-style: none; padding: 0; margin: 14px 0 0; }
-  ol.judge li { counter-increment: j; position: relative; padding-left: 38px; margin-bottom: 11px; font-size: 13.5px; }
-  ol.judge li::before { content: counter(j); position: absolute; left: 0; top: 0;
-    font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 500; color: var(--forest);
-    background: var(--tint); width: 24px; height: 24px; border-radius: 50%;
-    display: grid; place-items: center; }
-  footer { border-top: 1px solid var(--line); margin-top: 46px; padding-top: 18px;
-    font-size: 12px; color: var(--mut); }
-  @media (max-width: 560px) {
-    .day { grid-template-columns: 1fr; }
-    .day .rail { flex-direction: row; justify-content: flex-start; border-right: 0;
-      border-bottom: 1px solid var(--line); }
+  ol.judge { counter-reset: j; list-style: none; padding: 0; margin: 16px 0 0; }
+  ol.judge li { counter-increment: j; position: relative; padding-left: 42px; margin-bottom: 13px; font-size: 14px; }
+  ol.judge li::before { content: counter(j); position: absolute; left: 0; top: 1px;
+    font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 500; color: var(--accent);
+    background: var(--accent-soft); width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; }
+  footer { border-top: 1px solid var(--line); margin-top: 56px; padding-top: 20px; font-size: 12.5px; color: var(--mut); }
+  @media (max-width: 580px) {
+    .day { grid-template-columns: 4px 1fr; }
+    .day .rail { padding: 16px 0 0 16px; display: flex; align-items: baseline; gap: 12px; }
+    .day .num { font-size: 30px; }
+    .day .tk { margin-top: 0; }
+    .day .bd { padding: 12px 16px 16px; }
   }
 </style>
 
@@ -124,60 +135,72 @@
       <a href="https://claude.ai/artifact/3Qqpy8i7PKCvEfZXsgzfnh">Day log</a>
     </div>
     <div class="eyebrow">NutriFlow · planning board 1 of 3</div>
-    <h1>The road to Version&nbsp;1</h1>
-    <p class="lede" style="margin-top:12px">Twelve working days, four parallel tracks. One main milestone a day, one small
-      parallel item beside it, and a gate that has to be green before anything is pushed.</p>
+    <h1 style="margin-top:10px">The road to Version&nbsp;1</h1>
+    <p class="lede" style="margin-top:14px">Twelve working days, four parallel tracks. One main milestone a day,
+      one small parallel item beside it, and a gate that has to be green before anything is pushed.</p>
     <div class="stamp">
-      <span>SOURCE <b>docs/v1/01-dimensions-and-milestones.md</b></span>
-      <span>SYNCED <b>2026-09-19</b></span>
-      <span>COMMIT <b>173baf7</b></span>
+      <b><i>source</i> docs/v1/01-dimensions-and-milestones.md</b>
+      <b><i>synced</i> 2026-09-19</b>
+      <b><i>commit</i> 01b9a51</b>
     </div>
   </header>
 
   <div class="howto">
-    <p><b>Comment anywhere on this page.</b> Select any text — a day, a gate, a dependency — and leave a comment,
-      the way you would on a Google Doc. Then tell me “evaluate my comments” and I will read every thread, change
-      the plan and the underlying document to match, and republish this board.</p>
-    <p>To let me reply inside a thread, use <b>Send to Claude</b> on it. I can read every comment either way.</p>
+    <div class="mk"></div>
+    <div>
+      <p><b>Comment anywhere on this page.</b> Select any text — a day, a gate, a dependency — and leave a comment,
+        the way you would on a Google Doc. Then tell me “evaluate my comments” and I will read every thread, change
+        the plan and the underlying document to match, and republish this board.</p>
+      <p>To let me reply inside a thread, use <b>Send to Claude</b> on it. I can read every comment either way.</p>
+    </div>
   </div>
 
   <section id="what-v1-means">
-    <div class="eyebrow">The bar</div>
+    <div class="shead"><span class="eyebrow">The bar</span><span class="rule"></span></div>
     <h2>What V1 means</h2>
     <p class="lede">V1 is the product a stranger can use end to end on their own phone, that is honest about every
       number it shows, and that we can put in front of an audience without a caveat. The walk-through that must
       work with no explanation from us:</p>
-    <div class="v1bar">
-      <div class="v1step"><span class="n">01</span><p>Open it on a phone and understand what it is in five seconds.</p></div>
-      <div class="v1step"><span class="n">02</span><p>Onboard, get a real week — fresh or meal-prep — macros on target, constraints respected.</p></div>
-      <div class="v1step"><span class="n">03</span><p>Change it by talking to it, and watch the plan actually change, correctly.</p></div>
-      <div class="v1step"><span class="n">04</span><p>Shop from it: aisle-grouped list, check-offs that persist.</p></div>
-      <div class="v1step"><span class="n">05</span><p>Come back tomorrow and it is all still there.</p></div>
+    <div class="steps">
+      <div class="step"><div class="n">01</div><p>Open it on a phone and understand what it is in five seconds.</p></div>
+      <div class="step"><div class="n">02</div><p>Onboard, get a real week — fresh or meal-prep — macros on target, constraints respected.</p></div>
+      <div class="step"><div class="n">03</div><p>Change it by talking to it, and watch the plan actually change, correctly.</p></div>
+      <div class="step"><div class="n">04</div><p>Shop from it: aisle-grouped list, check-offs that persist.</p></div>
+      <div class="step"><div class="n">05</div><p>Come back tomorrow and it is all still there.</p></div>
     </div>
-    <p style="margin-top:14px;font-size:13.5px"><b>Out of V1, deliberately:</b> user uploads and creator tools (Phase 4),
-      the workout vertical (Phase 5), and any social feed beyond Explore. <b>The three things that would make it
-      not-V1:</b> a constraint violation, a number that lies, and a dead end on a phone.</p>
+    <div class="callout"><b>Out of V1, deliberately:</b> user uploads and creator tools (Phase 4), the workout
+      vertical (Phase 5), and any social feed beyond Explore. &nbsp;<b>The three things that would make it not-V1:</b>
+      a constraint violation, a number that lies, and a dead end on a phone.</div>
   </section>
 
   <section id="schedule">
-    <div class="eyebrow">Twelve days</div>
+    <div class="shead"><span class="eyebrow">Twelve days</span><span class="rule"></span></div>
     <h2>The schedule</h2>
+    <div class="ribbon">
+      <div style="background:var(--t-a)"></div><div style="background:var(--t-a)"></div>
+      <div style="background:var(--t-a)"></div><div style="background:var(--t-a)"></div>
+      <div style="background:var(--t-c)"></div><div style="background:var(--t-b)"></div>
+      <div style="background:var(--t-b)"></div><div style="background:var(--t-c)"></div>
+      <div style="background:var(--t-b)"></div><div style="background:var(--t-b)"></div>
+      <div style="background:var(--t-d)"></div><div style="background:var(--t-d)"></div>
+    </div>
     <div class="legend">
-      <span class="chip"><span class="dot" style="background:var(--trackA)"></span>A · Architecture</span>
-      <span class="chip"><span class="dot" style="background:var(--trackB)"></span>B · Product</span>
-      <span class="chip"><span class="dot" style="background:var(--trackC)"></span>C · Assistant</span>
-      <span class="chip"><span class="dot" style="background:var(--trackD)"></span>D · Trust &amp; release</span>
+      <span class="chip"><span class="dot" style="background:var(--t-a)"></span>A · Architecture</span>
+      <span class="chip"><span class="dot" style="background:var(--t-b)"></span>B · Product</span>
+      <span class="chip"><span class="dot" style="background:var(--t-c)"></span>C · Assistant</span>
+      <span class="chip"><span class="dot" style="background:var(--t-d)"></span>D · Trust &amp; release</span>
     </div>
 
     <article class="day" id="D1">
-      <div class="rail"><span class="num">1</span><span class="tk" style="background:var(--trackA)">A1</span></div>
+      <div class="edge" style="background:var(--t-a)"></div>
+      <div class="rail"><div class="num">1</div><span class="tk" style="background:var(--accent-soft);color:var(--t-a)">A1</span></div>
       <div class="bd">
         <h3>Freeze the contracts</h3>
         <p class="desc">Land the module map as enforced truth: build <span class="mono">npm run check:boundaries</span>,
           a homemade gate in the <span class="mono">check:recipes</span> family — no new dependency — asserting the
           layering, barrels-only imports, that only <span class="mono">storage.ts</span> names a storage key, that no
           client component imports the engine, no cycles, and no emoji.</p>
-        <div class="par"><b>Parallel · D1-p</b> — stand up the daily-history log and write day one into it.</div>
+        <div class="par"><b>Parallel · D1-p</b><span>Stand up the daily-history log and write day one into it.</span></div>
         <div class="meta">
           <div><span class="k">Usable when</span>The gate runs, names a violation in plain English, and passes clean.</div>
           <div><span class="k">Depends on</span>—</div>
@@ -187,7 +210,8 @@
     </article>
 
     <article class="day" id="D2">
-      <div class="rail"><span class="num">2</span><span class="tk" style="background:var(--trackA)">A2</span></div>
+      <div class="edge" style="background:var(--t-a)"></div>
+      <div class="rail"><div class="num">2</div><span class="tk" style="background:var(--accent-soft);color:var(--t-a)">A2</span></div>
       <div class="bd">
         <h3>Split recipeDb, part 1 — data out of engine</h3>
         <p class="desc">The 501 recipe seeds (≈7,685 lines, <b>71% of the file</b>) move to their own module;
@@ -202,12 +226,13 @@
     </article>
 
     <article class="day" id="D3">
-      <div class="rail"><span class="num">3</span><span class="tk" style="background:var(--trackA)">A3</span></div>
+      <div class="edge" style="background:var(--t-a)"></div>
+      <div class="rail"><div class="num">3</div><span class="tk" style="background:var(--accent-soft);color:var(--t-a)">A3</span></div>
       <div class="bd">
         <h3>Split part 2 — the executor</h3>
         <p class="desc"><span class="mono">applyOperations</span> becomes <span class="mono">plan/execute.ts</span>;
           batch selection becomes <span class="mono">plan/batch.ts</span>. Same barrel discipline.</p>
-        <div class="par"><b>Parallel · C1-a</b> — start the K3 re-run in the background; it marinates for ~50 minutes.</div>
+        <div class="par"><b>Parallel · C1-a</b><span>Start the K3 re-run in the background; it marinates for ~50 minutes.</span></div>
         <div class="meta">
           <div><span class="k">Usable when</span>Same suite result, and <span class="mono">recipeDb.ts</span> is under ~2k lines and one idea.</div>
           <div><span class="k">Depends on</span>D2</div>
@@ -217,12 +242,13 @@
     </article>
 
     <article class="day" id="D4">
-      <div class="rail"><span class="num">4</span><span class="tk" style="background:var(--trackA)">A4</span></div>
+      <div class="edge" style="background:var(--t-a)"></div>
+      <div class="rail"><div class="num">4</div><span class="tk" style="background:var(--accent-soft);color:var(--t-a)">A4</span></div>
       <div class="bd">
         <h3>The browser payload boundary</h3>
         <p class="desc">Introduce the card projection so Explore stops importing 501 full recipes. A server barrel
-          and a client-safe barrel, which is the second axis of the boundary — the one that costs money.</p>
-        <div class="par"><b>Parallel · C1-b</b> — record the Kimi decision from the scorecard.</div>
+          and a client-safe barrel — the second axis of the boundary, and the one that costs money.</p>
+        <div class="par"><b>Parallel · C1-b</b><span>Record the Kimi decision from the scorecard.</span></div>
         <div class="meta">
           <div><span class="k">Usable when</span>Explore's first-load JS drops measurably against the 185&nbsp;kB baseline, with the number recorded.</div>
           <div><span class="k">Depends on</span>D3</div>
@@ -232,13 +258,14 @@
     </article>
 
     <article class="day" id="D5">
-      <div class="rail"><span class="num">5</span><span class="tk" style="background:var(--trackC)">C2</span></div>
+      <div class="edge" style="background:var(--t-c)"></div>
+      <div class="rail"><div class="num">5</div><span class="tk" style="background:var(--amber-soft);color:var(--t-c)">C2</span></div>
       <div class="bd">
         <h3>Safety, and the three assistant bugs</h3>
         <p class="desc">The <b>crisis pre-scan</b> on the raw message, before the model sees it. Then: ban
           non-library dish names from replies, strip emoji, and fix the fuzzy swap-match that returned a shrimp
           salad for “burger”.</p>
-        <div class="par"><b>Parallel · B5</b> — per-batch locks, the last of the batch tail.</div>
+        <div class="par"><b>Parallel · B5</b><span>Per-batch locks, the last of the batch tail.</span></div>
         <div class="meta">
           <div><span class="k">Usable when</span>A crisis phrasing is caught even when the model would have answered it — proven by a test.</div>
           <div><span class="k">Depends on</span>C1-b (model chosen)</div>
@@ -248,7 +275,8 @@
     </article>
 
     <article class="day" id="D6">
-      <div class="rail"><span class="num">6</span><span class="tk" style="background:var(--trackB)">B1</span></div>
+      <div class="edge" style="background:var(--t-b)"></div>
+      <div class="rail"><div class="num">6</div><span class="tk" style="background:#e4f2f6;color:var(--t-b)">B1</span></div>
       <div class="bd">
         <h3>Meal logging, end to end</h3>
         <p class="desc">A UI write path for <span class="mono">log_meal</span>. Today stops inferring “eaten” from the
@@ -262,13 +290,14 @@
     </article>
 
     <article class="day" id="D7">
-      <div class="rail"><span class="num">7</span><span class="tk" style="background:var(--trackB)">B2</span></div>
+      <div class="edge" style="background:var(--t-b)"></div>
+      <div class="rail"><div class="num">7</div><span class="tk" style="background:#e4f2f6;color:var(--t-b)">B2</span></div>
       <div class="bd">
         <h3>One app</h3>
         <p class="desc">Execute the decision on <span class="mono">/plan</span> — 1,819 lines of a parallel product
           beside <span class="mono">/sage</span>. Retire it, freeze it, or keep it and justify it. Whatever it is,
           one app is the product.</p>
-        <div class="par"><b>Parallel · B6</b> — wire condition-aware generation on the ASK path, which is what VISION specifies.</div>
+        <div class="par"><b>Parallel · B6</b><span>Wire condition-aware generation on the ASK path, which is what VISION specifies.</span></div>
         <div class="meta">
           <div><span class="k">Usable when</span>Every nav path leads into one coherent app and nothing links to a dead screen.</div>
           <div><span class="k">Depends on</span>An owner decision — see below</div>
@@ -278,7 +307,8 @@
     </article>
 
     <article class="day" id="D8">
-      <div class="rail"><span class="num">8</span><span class="tk" style="background:var(--trackC)">C3</span></div>
+      <div class="edge" style="background:var(--t-c)"></div>
+      <div class="rail"><div class="num">8</div><span class="tk" style="background:var(--amber-soft);color:var(--t-c)">C3</span></div>
       <div class="bd">
         <h3>The assistant speaks first</h3>
         <p class="desc">VISION's RULE 3: a standing check produces a suggestion — “Thursday is 40&nbsp;g short, fix
@@ -293,12 +323,13 @@
     </article>
 
     <article class="day" id="D9">
-      <div class="rail"><span class="num">9</span><span class="tk" style="background:var(--trackB)">B4</span></div>
+      <div class="edge" style="background:var(--t-b)"></div>
+      <div class="rail"><div class="num">9</div><span class="tk" style="background:#e4f2f6;color:var(--t-b)">B4</span></div>
       <div class="bd">
         <h3>Imagery</h3>
         <p class="desc">Build <span class="mono">check:images</span> — bad map key, missing file, orphan file, two
           recipes sharing one photo, oversize — and generate a batch of dishes in the locked style.</p>
-        <div class="par"><b>Parallel · D2-a</b> — recapture the app screenshots, which still show the old design.</div>
+        <div class="par"><b>Parallel · D2-a</b><span>Recapture the app screenshots, which still show the old design.</span></div>
         <div class="meta">
           <div><span class="k">Usable when</span>The gate catches a deliberately broken mapping, and the count on Home is derived rather than asserted.</div>
           <div><span class="k">Depends on</span>—</div>
@@ -308,7 +339,8 @@
     </article>
 
     <article class="day" id="D10">
-      <div class="rail"><span class="num">10</span><span class="tk" style="background:var(--trackB)">B3</span></div>
+      <div class="edge" style="background:var(--t-b)"></div>
+      <div class="rail"><div class="num">10</div><span class="tk" style="background:#e4f2f6;color:var(--t-b)">B3</span></div>
       <div class="bd">
         <h3>Your data is yours</h3>
         <p class="desc">Profile and plan export + import as a file, so a device-local V1 is not a one-drive product.
@@ -323,7 +355,8 @@
     </article>
 
     <article class="day" id="D11">
-      <div class="rail"><span class="num">11</span><span class="tk" style="background:var(--trackD)">D2</span></div>
+      <div class="edge" style="background:var(--t-d)"></div>
+      <div class="rail"><div class="num">11</div><span class="tk" style="background:#f3edfe;color:var(--t-d)">D2</span></div>
       <div class="bd">
         <h3>The device pass</h3>
         <p class="desc">Real-phone verification — <b>sub-500px layouts are unverified</b>, because headless Chrome on
@@ -337,7 +370,8 @@
     </article>
 
     <article class="day" id="D12">
-      <div class="rail"><span class="num">12</span><span class="tk" style="background:var(--trackD)">D4</span></div>
+      <div class="edge" style="background:var(--t-d)"></div>
+      <div class="rail"><div class="num">12</div><span class="tk" style="background:#f3edfe;color:var(--t-d)">D4</span></div>
       <div class="bd">
         <h3>Release</h3>
         <p class="desc">All documents current, STATUS honest, OG/PWA/404 checked, every gate green, tag
@@ -350,8 +384,8 @@
       </div>
     </article>
 
-    <p style="font-size:13px;margin-top:16px"><b>Slack is deliberate.</b> Days 5, 7 and 9 carry the parallel items that
-      can move. If a main milestone overruns, the parallel item is what gets dropped — never the gate.</p>
+    <div class="callout"><b>Slack is deliberate.</b> Days 5, 7 and 9 carry the parallel items that can move. If a
+      main milestone overruns, the parallel item is what gets dropped — never the gate.</div>
   </section>
 
   <section id="dependencies">
@@ -374,17 +408,17 @@ everything ─► D4 release</pre>
   </section>
 
   <section id="decisions">
-    <div class="eyebrow">Only you can answer these</div>
+    <div class="shead"><span class="eyebrow">Only you can answer these</span><span class="rule"></span></div>
     <h2>Owner-gated decisions</h2>
     <p class="lede">Each is listed with the day it starts blocking, so none of them silently becomes the reason V1 slipped.</p>
-    <div class="tablewrap" style="margin-top:14px">
+    <div class="tablewrap" style="margin-top:16px">
       <table>
         <thead><tr><th>Decision</th><th>Needed by</th><th>Status</th><th>Default if unanswered</th></tr></thead>
         <tbody>
           <tr>
             <td><b>Which model is behind the assistant in public</b></td>
             <td class="mono">—</td>
-            <td><span class="pill done">settled</span></td>
+            <td><span class="pill settled">settled</span></td>
             <td><span class="mono">gpt-oss-20b</span> on NVIDIA, ~2.8&nbsp;s, free — the same model as the 84% baseline.</td>
           </tr>
           <tr>
@@ -417,7 +451,7 @@ everything ─► D4 release</pre>
   </section>
 
   <section id="judging">
-    <div class="eyebrow">Definition of done</div>
+    <div class="shead"><span class="eyebrow">Definition of done</span><span class="rule"></span></div>
     <h2>How a day is judged</h2>
     <ol class="judge">
       <li>The milestone's <b>usable-on-its-own bar</b> is met — not “the code is written”.</li>

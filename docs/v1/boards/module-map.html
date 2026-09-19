@@ -1,116 +1,132 @@
 <title>NutriFlow Module Map</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Sans:wght@400;450;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
   :root {
-    --cream: #f5f2e7; --card: #fbf9f2; --tint: #dfe6da; --tint-pale: #e9eee3;
-    --ink: #1c2419; --body: #38452f; --mut: #5c6656; --line: #d8d4c2;
-    --forest: #3d5233; --panel: #26331f; --mint: #2e7d52; --clay: #9e4a2f; --amber: #a97a33;
-    --shadow: 0 4px 18px rgba(28,36,25,.09);
+    --page: #ffffff; --surface: #f7f8fa; --sunk: #fbfbfd;
+    --line: #e8eaee; --line-strong: #d3d7de;
+    --ink: #101114; --body: #474b54; --mut: #8a909c;
+    --accent: #3b3ce0; --accent-soft: #eeeefc; --accent-line: #c9c9f7;
+    --amber: #b45309; --amber-soft: #fdf3e4;
+    --rose: #be123c; --rose-soft: #fdeef2;
+    --teal: #0e7490; --teal-soft: #e4f2f6; --plum: #7c3aed; --plum-soft: #f3edfe;
+    --sh-sm: 0 1px 2px rgba(16,17,20,.05);
+    --sh-md: 0 1px 2px rgba(16,17,20,.04), 0 10px 26px -12px rgba(16,17,20,.18);
+    color-scheme: light;
   }
-  :root:not([data-theme="light"]) { @media (prefers-color-scheme: dark) {
-    --cream: #12180f; --card: #1b2317; --tint: #232e1e; --tint-pale: #1e2719;
-    --ink: #eef2e8; --body: #cdd6c4; --mut: #94a08c; --line: #313d2a;
-    --forest: #9dbb8a; --panel: #0c1207; --mint: #74c495; --clay: #e08a66; --amber: #d9b061;
-    --shadow: 0 4px 18px rgba(0,0,0,.35);
-  }}
-  :root[data-theme="dark"] {
-    --cream: #12180f; --card: #1b2317; --tint: #232e1e; --tint-pale: #1e2719;
-    --ink: #eef2e8; --body: #cdd6c4; --mut: #94a08c; --line: #313d2a;
-    --forest: #9dbb8a; --panel: #0c1207; --mint: #74c495; --clay: #e08a66; --amber: #d9b061;
-    --shadow: 0 4px 18px rgba(0,0,0,.35);
-  }
-  body { background: var(--cream); color: var(--body);
-    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif; line-height: 1.5; }
-  .wrap { max-width: 1120px; margin: 0 auto; padding-block: 28px 64px; padding-left: 20px; padding-right: 20px; }
-  h1, h2, h3 { font-family: Fraunces, "Iowan Old Style", Georgia, serif; color: var(--ink);
-    font-weight: 600; text-wrap: balance; margin: 0; }
-  h1 { font-size: clamp(30px, 6vw, 46px); line-height: 1.05; letter-spacing: -.01em; }
-  h2 { font-size: clamp(20px, 3.4vw, 26px); margin-bottom: 10px; }
-  h3 { font-size: 16px; }
+  body { background: var(--page); color: var(--body);
+    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif; line-height: 1.55;
+    -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding-block: 34px 72px; padding-left: 22px; padding-right: 22px; }
+  h1, h2, h3, h4 { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; color: var(--ink);
+    text-wrap: balance; margin: 0; letter-spacing: -.015em; }
+  h1 { font-size: clamp(34px, 6.4vw, 54px); font-weight: 700; line-height: 1.02; letter-spacing: -.03em; }
+  h2 { font-size: clamp(21px, 3.4vw, 28px); font-weight: 600; margin-bottom: 10px; }
+  h3 { font-size: 17px; font-weight: 600; }
   p { margin: 0 0 10px; }
-  .eyebrow { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11px;
-    letter-spacing: .13em; text-transform: uppercase; color: var(--mut); }
+  a { color: var(--accent); }
   .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
-  .lede { font-size: 16px; max-width: 64ch; }
-  header.top { border-bottom: 2px solid var(--ink); padding-bottom: 18px; margin-bottom: 26px; }
-  .nav { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 18px; }
-  .nav a, .nav span { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .06em;
-    text-transform: uppercase; padding: 5px 11px; border: 1px solid var(--line);
-    border-radius: 999px; text-decoration: none; color: var(--mut); background: var(--card); }
-  .nav span { background: var(--forest); color: var(--cream); border-color: var(--forest); }
-  .stamp { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 14px;
-    font-family: "IBM Plex Mono", monospace; font-size: 11.5px; color: var(--mut); }
-  .stamp b { color: var(--body); font-weight: 500; }
-  .howto { background: var(--tint); border-left: 3px solid var(--forest);
-    padding: 14px 16px; margin: 22px 0 30px; border-radius: 2px; }
-  .howto p { margin: 0; font-size: 13.5px; }
-  .howto p + p { margin-top: 7px; }
-  section { margin-bottom: 42px; }
+  .eyebrow { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .15em;
+    text-transform: uppercase; color: var(--mut); }
+  .lede { font-size: 16.5px; max-width: 66ch; }
+  .nav { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 22px; }
+  .nav a, .nav span { font-size: 12px; font-weight: 500; padding: 6px 13px; border-radius: 999px;
+    text-decoration: none; border: 1px solid var(--line); color: var(--mut); background: var(--page); }
+  .nav a:hover { border-color: var(--line-strong); color: var(--ink); }
+  .nav span { background: var(--ink); color: #fff; border-color: var(--ink); }
+  header.top { margin-bottom: 30px; }
+  .stamp { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 18px; }
+  .stamp b { font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 500;
+    color: var(--body); background: var(--surface); border: 1px solid var(--line);
+    padding: 4px 10px; border-radius: 5px; }
+  .stamp b i { font-style: normal; color: var(--mut); }
+  .howto { display: flex; gap: 13px; background: var(--accent-soft); border: 1px solid var(--accent-line);
+    padding: 15px 17px; margin: 24px 0 38px; border-radius: 10px; }
+  .howto .mk { width: 7px; flex: none; border-radius: 4px; background: var(--accent); }
+  .howto p { margin: 0; font-size: 13.5px; color: #26276b; }
+  .howto p + p { margin-top: 6px; }
+  section { margin-bottom: 52px; }
+  .shead { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+  .shead .rule { flex: 1; height: 1px; background: var(--line); }
 
-  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(146px, 1fr)); gap: 1px;
-    background: var(--line); border: 1px solid var(--line); }
-  .stat { background: var(--card); padding: 15px 16px; }
-  .stat .v { font-family: Fraunces, Georgia, serif; font-size: 34px; font-weight: 600; color: var(--ink); line-height: 1;
-    font-variant-numeric: tabular-nums; }
-  .stat .l { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .09em;
-    text-transform: uppercase; color: var(--mut); margin-top: 7px; }
-  .stat.warn .v { color: var(--clay); }
-  .stat.good .v { color: var(--mint); }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(152px, 1fr)); gap: 12px; margin-top: 18px; }
+  .stat { background: var(--page); border: 1px solid var(--line); border-radius: 10px;
+    padding: 17px 18px; box-shadow: var(--sh-sm); }
+  .stat .v { font-family: Archivo, sans-serif; font-size: 38px; font-weight: 700; color: var(--ink);
+    line-height: .95; letter-spacing: -.035em; font-variant-numeric: tabular-nums; }
+  .stat .l { font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--mut); margin-top: 9px; }
+  .stat.warn { border-color: #f3d6c4; background: #fffaf5; }
+  .stat.warn .v { color: var(--amber); }
+  .stat.good { border-color: var(--accent-line); background: var(--accent-soft); }
+  .stat.good .v { color: var(--accent); }
+  .callout { margin-top: 18px; background: var(--sunk); border: 1px solid var(--line);
+    border-radius: 10px; padding: 15px 17px; font-size: 13.5px; }
 
-  .layer { display: grid; grid-template-columns: 116px 1fr; border: 1px solid var(--line);
-    border-bottom: 0; background: var(--card); }
-  .layer:last-of-type { border-bottom: 1px solid var(--line); }
-  .layer .lab { background: var(--tint-pale); border-right: 1px solid var(--line); padding: 13px 12px; }
-  .layer .lab .id { font-family: "IBM Plex Mono", monospace; font-size: 12px; font-weight: 500; color: var(--forest); }
-  .layer .lab .nm { font-size: 12.5px; color: var(--body); margin-top: 3px; font-weight: 500; }
-  .layer .mods { padding: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; }
-  .mod { border: 1px solid var(--line); background: var(--cream); border-radius: 3px;
-    padding: 7px 10px; min-width: 132px; flex: 0 1 auto; }
+  .flowline { display: flex; align-items: center; gap: 12px; margin: 20px 0 14px;
+    font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--mut); }
+  .flowline .arrow { flex: 1; height: 1px;
+    background: linear-gradient(90deg, var(--line), var(--accent)); }
+  .stack { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; box-shadow: var(--sh-sm); }
+  .layer { display: grid; grid-template-columns: 128px 1fr; border-bottom: 1px solid var(--line); background: var(--page); }
+  .layer:last-child { border-bottom: 0; }
+  .layer .lab { background: var(--surface); border-right: 1px solid var(--line); padding: 15px 14px; }
+  .layer .lab .id { font-family: "IBM Plex Mono", monospace; font-size: 12px; font-weight: 500; color: var(--accent); }
+  .layer .lab .nm { font-size: 13px; color: var(--ink); margin-top: 3px; font-weight: 600; }
+  .layer .mods { padding: 13px; display: flex; flex-wrap: wrap; gap: 9px; align-items: flex-start; }
+  .mod { border: 1px solid var(--line); background: var(--page); border-radius: 9px;
+    padding: 9px 12px; min-width: 146px; flex: 0 1 auto; box-shadow: var(--sh-sm); }
   .mod .n { font-family: "IBM Plex Mono", monospace; font-size: 12px; font-weight: 500; color: var(--ink); }
-  .mod .s { font-size: 10.5px; color: var(--mut); margin-top: 3px; font-variant-numeric: tabular-nums; }
-  .bar { height: 3px; background: var(--line); border-radius: 2px; margin-top: 5px; overflow: hidden; }
-  .bar i { display: block; height: 100%; background: var(--forest); }
-  .mod.hot { border-color: var(--clay); }
-  .mod.hot .bar i { background: var(--clay); }
-  .mod.big { border-width: 2px; border-color: var(--ink); }
-  .flowline { display: flex; align-items: center; gap: 10px; margin: 0 0 12px;
-    font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--mut); }
-  .flowline .arrow { flex: 1; height: 1px; background: linear-gradient(90deg, var(--line), var(--forest)); }
+  .mod .s { font-size: 10.5px; color: var(--mut); margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .bar { height: 4px; background: #eef0f3; border-radius: 3px; margin-top: 7px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+  .mod.hot { border-color: #f3d6c4; background: #fffaf5; }
+  .mod.hot .bar i { background: var(--amber); }
+  .mod.big { border-color: var(--ink); }
 
-  .split { display: flex; height: 34px; border: 1px solid var(--line); border-radius: 3px; overflow: hidden; margin: 14px 0 8px; }
+  .split { display: flex; height: 44px; border-radius: 9px; overflow: hidden; margin: 18px 0 9px; box-shadow: var(--sh-sm); }
   .split div { display: grid; place-items: center; font-family: "IBM Plex Mono", monospace;
-    font-size: 11px; font-weight: 500; color: #fff; }
-  .contract { border: 1px solid var(--line); background: var(--card); border-radius: 3px;
-    padding: 15px 17px; margin-bottom: 11px; }
-  .contract .promise { font-size: 13.5px; font-style: italic; color: var(--body);
-    border-left: 2px solid var(--forest); padding-left: 11px; margin: 8px 0 12px; max-width: 72ch; }
-  .rows { display: grid; gap: 7px; }
-  .row2 { display: grid; grid-template-columns: 96px 1fr; gap: 12px; font-size: 12.5px; align-items: start; }
-  .row2 .k { font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: .09em;
-    text-transform: uppercase; color: var(--mut); padding-top: 2px; }
-  .pub { color: var(--mint); } .priv { color: var(--mut); }
-  .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 3px; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th { text-align: left; font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: .1em;
-    text-transform: uppercase; color: var(--mut); padding: 10px 13px; background: var(--tint-pale);
+    font-size: 11px; font-weight: 500; color: #fff; padding: 0 4px; text-align: center; }
+
+  .contract { border: 1px solid var(--line); background: var(--page); border-radius: 12px;
+    padding: 18px 20px; margin-bottom: 12px; box-shadow: var(--sh-sm); }
+  .contract .promise { font-size: 14.5px; color: var(--ink); font-weight: 450;
+    border-left: 3px solid var(--accent); padding-left: 13px; margin: 9px 0 14px; max-width: 74ch; }
+  .rows { display: grid; gap: 9px; }
+  .row2 { display: grid; grid-template-columns: 92px 1fr; gap: 14px; font-size: 13px; align-items: start; }
+  .row2 .k { font-family: "IBM Plex Mono", monospace; font-size: 9.5px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--mut); padding-top: 3px; }
+  .pub { color: var(--accent); } .priv { color: var(--mut); }
+
+  .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--sh-sm); }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th { text-align: left; font-family: "IBM Plex Mono", monospace; font-size: 9.5px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--mut); padding: 12px 15px; background: var(--surface);
     border-bottom: 1px solid var(--line); white-space: nowrap; }
-  td { padding: 10px 13px; border-bottom: 1px solid var(--line); vertical-align: top; background: var(--card); }
+  td { padding: 12px 15px; border-bottom: 1px solid var(--line); vertical-align: top; }
   tr:last-child td { border-bottom: 0; }
-  .trap { background: var(--panel); color: #e3ecdd; padding: 20px 22px; border-radius: 3px; }
+
+  .trap { background: var(--ink); border-radius: 12px; padding: 24px 26px; }
   .trap h2 { color: #fff; }
-  .trap p { color: #cadbc2; font-size: 13.5px; max-width: 72ch; }
-  .trap .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 16px; }
-  .trap .bx { background: rgba(255,255,255,.07); border-radius: 3px; padding: 13px 15px; }
-  .trap .bx h3 { color: #fff; font-size: 14px; }
-  .trap .bx p { margin: 6px 0 0; font-size: 12.5px; color: #b9c9b0; }
-  .phase { display: grid; grid-template-columns: 30px 1fr; gap: 13px; margin-bottom: 15px; }
-  .phase .pn { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--forest);
-    background: var(--tint); width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-weight: 500; }
-  .phase p { font-size: 13.5px; margin: 4px 0 0; max-width: 70ch; }
-  footer { border-top: 1px solid var(--line); margin-top: 46px; padding-top: 18px; font-size: 12px; color: var(--mut); }
-  @media (max-width: 560px) { .layer { grid-template-columns: 1fr; }
+  .trap p { color: #b3b7c4; font-size: 14px; max-width: 74ch; }
+  .trap p b { color: #fff; }
+  .trap .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 13px; margin-top: 18px; }
+  .trap .bx { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1);
+    border-radius: 10px; padding: 15px 17px; }
+  .trap .bx h3 { color: #fff; font-size: 14.5px; }
+  .trap .bx p { margin: 7px 0 0; font-size: 13px; color: #a9adbd; }
+
+  .phase { display: grid; grid-template-columns: 32px 1fr; gap: 15px; margin-bottom: 17px; }
+  .phase .pn { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--accent);
+    background: var(--accent-soft); width: 32px; height: 32px; border-radius: 9px;
+    display: grid; place-items: center; font-weight: 500; }
+  .phase p { font-size: 13.5px; margin: 5px 0 0; max-width: 72ch; }
+  footer { border-top: 1px solid var(--line); margin-top: 56px; padding-top: 20px; font-size: 12.5px; color: var(--mut); }
+  @media (max-width: 580px) {
+    .layer { grid-template-columns: 1fr; }
     .layer .lab { border-right: 0; border-bottom: 1px solid var(--line); display: flex; gap: 10px; align-items: baseline; }
-    .row2 { grid-template-columns: 1fr; gap: 3px; } }
+    .row2 { grid-template-columns: 1fr; gap: 3px; }
+  }
 </style>
 
 <div class="wrap">
@@ -121,150 +137,150 @@
       <a href="https://claude.ai/artifact/3Qqpy8i7PKCvEfZXsgzfnh">Day log</a>
     </div>
     <div class="eyebrow">NutriFlow · planning board 2 of 3</div>
-    <h1>The module map</h1>
-    <p class="lede" style="margin-top:12px">What stays public to a module and what stays private to it — so a module's
-      backend can be rewritten tonight and nothing that depends on it breaks, as long as it keeps its promise.</p>
+    <h1 style="margin-top:10px">The module map</h1>
+    <p class="lede" style="margin-top:14px">What stays public to a module and what stays private to it — so a
+      module's backend can be rewritten tonight and nothing that depends on it breaks, as long as it keeps
+      its promise.</p>
     <div class="stamp">
-      <span>SOURCE <b>docs/v1/02-module-map.md</b></span>
-      <span>SYNCED <b>2026-09-19</b></span>
-      <span>COMMIT <b>173baf7</b></span>
-      <span>MEASURED, NOT ESTIMATED</span>
+      <b><i>source</i> docs/v1/02-module-map.md</b>
+      <b><i>synced</i> 2026-09-19</b>
+      <b><i>commit</i> 01b9a51</b>
+      <b><i>method</i> measured, not estimated</b>
     </div>
   </header>
 
   <div class="howto">
-    <p><b>Comment anywhere on this page.</b> Select a module, a layer, a rule — anything — and leave a comment.
-      Then tell me “evaluate my comments” and I will read every thread, change the map and the underlying
-      document, and republish this board.</p>
-    <p>To let me reply inside a thread, use <b>Send to Claude</b> on it. I can read every comment either way.</p>
+    <div class="mk"></div>
+    <div>
+      <p><b>Comment anywhere on this page.</b> Select a module, a layer, a rule — anything — and leave a comment.
+        Then tell me “evaluate my comments” and I will read every thread, change the map and the underlying
+        document, and republish this board.</p>
+      <p>To let me reply inside a thread, use <b>Send to Claude</b> on it. I can read every comment either way.</p>
+    </div>
   </div>
 
   <section id="numbers">
-    <div class="eyebrow">Where it stands today</div>
+    <div class="shead"><span class="eyebrow">Where it stands today</span><span class="rule"></span></div>
     <h2>The measured surface</h2>
     <p class="lede">Every number here comes from parsing every named import in <span class="mono">src/</span> and
       <span class="mono">scripts/</span> and comparing it against what each module exports. There is no
       <span class="mono">import * as</span> anywhere in the repo, which is the only reason these counts can be trusted.</p>
-    <div class="stats" style="margin-top:16px">
+    <div class="stats">
       <div class="stat"><div class="v">27</div><div class="l">modules in src/lib</div></div>
       <div class="stat"><div class="v">232</div><div class="l">exported names</div></div>
       <div class="stat warn"><div class="v">68</div><div class="l">imported by nothing</div></div>
       <div class="stat"><div class="v">35</div><div class="l">used only by the harness</div></div>
       <div class="stat good"><div class="v">0</div><div class="l">import cycles</div></div>
     </div>
-    <p style="margin-top:14px;font-size:13.5px"><b>The number to drive down is 68</b> — promises kept to nobody, each
-      one something a future refactor has to preserve or knowingly break. <b>The number to leave alone is 35</b>:
-      those are reached only by <span class="mono">scripts/</span>, and a test harness must be able to reach inside
-      a module to test inside it. That is why the gate exempts <span class="mono">scripts/</span> by name instead of
-      pretending the suite is an ordinary consumer.</p>
+    <div class="callout"><b>The number to drive down is 68</b> — promises kept to nobody, each one something a
+      future refactor has to preserve or knowingly break. <b>The number to leave alone is 35</b>: those are reached
+      only by <span class="mono">scripts/</span>, and a test harness must be able to reach inside a module to test
+      inside it. That is why the gate exempts <span class="mono">scripts/</span> by name instead of pretending the
+      suite is an ordinary consumer.</div>
   </section>
 
   <section id="layers">
-    <div class="eyebrow">Who may depend on whom</div>
+    <div class="shead"><span class="eyebrow">Who may depend on whom</span><span class="rule"></span></div>
     <h2>The layer model</h2>
     <p class="lede">Dependencies point <b>down only</b>. Each chip shows how many of a module's exports anything
       outside it actually imports.</p>
-    <div class="flowline" style="margin-top:18px"><span>DEPENDENCIES FLOW DOWN</span><span class="arrow"></span><span>▼</span></div>
+    <div class="flowline"><span>Dependencies flow down</span><span class="arrow"></span><span>▼</span></div>
 
-    <div class="layer" id="L6">
-      <div class="lab"><div class="id">L6</div><div class="nm">Presentation</div></div>
-      <div class="mods">
-        <div class="mod"><div class="n">feed</div><div class="s">9 / 9 public</div><div class="bar"><i style="width:100%"></i></div></div>
-        <div class="mod"><div class="n">recipes · imagery</div><div class="s">4 / 7 public</div><div class="bar"><i style="width:57%"></i></div></div>
-        <div class="mod"><div class="n">batchGrocery</div><div class="s">5 / 6 public</div><div class="bar"><i style="width:83%"></i></div></div>
-        <div class="mod"><div class="n">streak</div><div class="s">3 / 3 public</div><div class="bar"><i style="width:100%"></i></div></div>
-        <div class="mod"><div class="n">weekStats</div><div class="s">imports only a type</div><div class="bar"><i style="width:100%"></i></div></div>
+    <div class="stack">
+      <div class="layer" id="L6">
+        <div class="lab"><div class="id">L6</div><div class="nm">Presentation</div></div>
+        <div class="mods">
+          <div class="mod"><div class="n">feed</div><div class="s">9 / 9 public</div><div class="bar"><i style="width:100%"></i></div></div>
+          <div class="mod"><div class="n">recipes · imagery</div><div class="s">4 / 7 public</div><div class="bar"><i style="width:57%"></i></div></div>
+          <div class="mod"><div class="n">batchGrocery</div><div class="s">5 / 6 public</div><div class="bar"><i style="width:83%"></i></div></div>
+          <div class="mod"><div class="n">streak</div><div class="s">3 / 3 public</div><div class="bar"><i style="width:100%"></i></div></div>
+          <div class="mod"><div class="n">weekStats</div><div class="s">imports only a type</div><div class="bar"><i style="width:100%"></i></div></div>
+        </div>
+      </div>
+      <div class="layer" id="L5">
+        <div class="lab"><div class="id">L5</div><div class="nm">Adapters</div></div>
+        <div class="mods">
+          <div class="mod hot"><div class="n">ai</div><div class="s">7 / 13 public · 1 dead</div><div class="bar"><i style="width:54%"></i></div></div>
+          <div class="mod"><div class="n">import</div><div class="s">8 / 8 public</div><div class="bar"><i style="width:100%"></i></div></div>
+          <div class="mod"><div class="n">videoImport</div><div class="s">3 / 4 public</div><div class="bar"><i style="width:75%"></i></div></div>
+          <div class="mod"><div class="n">storage</div><div class="s">15 / 17 public</div><div class="bar"><i style="width:88%"></i></div></div>
+          <div class="mod"><div class="n">savedStore</div><div class="s">the account seam</div><div class="bar"><i style="width:100%"></i></div></div>
+        </div>
+      </div>
+      <div class="layer" id="L4">
+        <div class="lab"><div class="id">L4</div><div class="nm">Assistant</div></div>
+        <div class="mods">
+          <div class="mod hot"><div class="n">primitives</div><div class="s">7 / 29 public</div><div class="bar"><i style="width:24%"></i></div></div>
+          <div class="mod"><div class="n">agentTools</div><div class="s">12 / 15 public</div><div class="bar"><i style="width:80%"></i></div></div>
+          <div class="mod"><div class="n">agentLoop</div><div class="s">5 / 6 public</div><div class="bar"><i style="width:83%"></i></div></div>
+          <div class="mod"><div class="n">reply</div><div class="s">4 / 4 public</div><div class="bar"><i style="width:100%"></i></div></div>
+          <div class="mod"><div class="n">promptV2</div><div class="s">1 / 1 public</div><div class="bar"><i style="width:100%"></i></div></div>
+        </div>
+      </div>
+      <div class="layer" id="L3">
+        <div class="lab"><div class="id">L3</div><div class="nm">Plan engine</div></div>
+        <div class="mods">
+          <div class="mod big"><div class="n">recipeDb</div><div class="s">10,850 lines · 18 / 24 public</div><div class="bar"><i style="width:75%"></i></div></div>
+          <div class="mod"><div class="n">→ plan/select</div><div class="s">after the split</div><div class="bar"><i style="width:100%"></i></div></div>
+          <div class="mod"><div class="n">→ plan/rebalance</div><div class="s">after the split</div><div class="bar"><i style="width:100%"></i></div></div>
+          <div class="mod"><div class="n">→ plan/batch</div><div class="s">after the split</div><div class="bar"><i style="width:100%"></i></div></div>
+          <div class="mod"><div class="n">→ plan/execute</div><div class="s">after the split</div><div class="bar"><i style="width:100%"></i></div></div>
+        </div>
+      </div>
+      <div class="layer" id="L2">
+        <div class="lab"><div class="id">L2</div><div class="nm">Pure computation</div></div>
+        <div class="mods">
+          <div class="mod"><div class="n">nutrients</div><div class="s">8 / 11 public</div><div class="bar"><i style="width:73%"></i></div></div>
+          <div class="mod"><div class="n">targets</div><div class="s">8 / 13 public</div><div class="bar"><i style="width:62%"></i></div></div>
+          <div class="mod"><div class="n">exclusions</div><div class="s">4 / 6 · I2 lives here</div><div class="bar"><i style="width:67%"></i></div></div>
+          <div class="mod"><div class="n">grocery</div><div class="s">4 / 4 public</div><div class="bar"><i style="width:100%"></i></div></div>
+        </div>
+      </div>
+      <div class="layer" id="L1">
+        <div class="lab"><div class="id">L1</div><div class="nm">Data</div></div>
+        <div class="mods">
+          <div class="mod"><div class="n">recipe seeds</div><div class="s">501 recipes · 7,685 lines</div><div class="bar"><i style="width:100%"></i></div></div>
+          <div class="mod"><div class="n">nutrientTable</div><div class="s">USDA · generated, never edited</div><div class="bar"><i style="width:100%"></i></div></div>
+          <div class="mod"><div class="n">symptoms</div><div class="s">safety data</div><div class="bar"><i style="width:80%"></i></div></div>
+          <div class="mod"><div class="n">substitutions</div><div class="s">2 / 2 public</div><div class="bar"><i style="width:100%"></i></div></div>
+          <div class="mod"><div class="n">conditions</div><div class="s">1 / 3 public</div><div class="bar"><i style="width:33%"></i></div></div>
+        </div>
+      </div>
+      <div class="layer" id="L0">
+        <div class="lab"><div class="id">L0</div><div class="nm">Contracts</div></div>
+        <div class="mods">
+          <div class="mod big"><div class="n">types</div><div class="s">22 / 28 · everyone depends on it</div><div class="bar"><i style="width:79%"></i></div></div>
+        </div>
       </div>
     </div>
 
-    <div class="layer" id="L5">
-      <div class="lab"><div class="id">L5</div><div class="nm">Adapters</div></div>
-      <div class="mods">
-        <div class="mod hot"><div class="n">ai</div><div class="s">7 / 13 public · 1 dead</div><div class="bar"><i style="width:54%"></i></div></div>
-        <div class="mod"><div class="n">import</div><div class="s">8 / 8 public</div><div class="bar"><i style="width:100%"></i></div></div>
-        <div class="mod"><div class="n">videoImport</div><div class="s">3 / 4 public</div><div class="bar"><i style="width:75%"></i></div></div>
-        <div class="mod"><div class="n">storage</div><div class="s">15 / 17 public</div><div class="bar"><i style="width:88%"></i></div></div>
-        <div class="mod"><div class="n">savedStore</div><div class="s">the account seam</div><div class="bar"><i style="width:100%"></i></div></div>
-      </div>
-    </div>
-
-    <div class="layer" id="L4">
-      <div class="lab"><div class="id">L4</div><div class="nm">Assistant</div></div>
-      <div class="mods">
-        <div class="mod hot"><div class="n">primitives</div><div class="s">7 / 29 public</div><div class="bar"><i style="width:24%"></i></div></div>
-        <div class="mod"><div class="n">agentTools</div><div class="s">12 / 15 public</div><div class="bar"><i style="width:80%"></i></div></div>
-        <div class="mod"><div class="n">agentLoop</div><div class="s">5 / 6 public</div><div class="bar"><i style="width:83%"></i></div></div>
-        <div class="mod"><div class="n">reply</div><div class="s">4 / 4 public</div><div class="bar"><i style="width:100%"></i></div></div>
-        <div class="mod"><div class="n">promptV2</div><div class="s">1 / 1 public</div><div class="bar"><i style="width:100%"></i></div></div>
-      </div>
-    </div>
-
-    <div class="layer" id="L3">
-      <div class="lab"><div class="id">L3</div><div class="nm">Plan engine</div></div>
-      <div class="mods">
-        <div class="mod big"><div class="n">recipeDb</div><div class="s">10,850 lines · 18 / 24 public</div><div class="bar"><i style="width:75%"></i></div></div>
-        <div class="mod"><div class="n">→ plan/select</div><div class="s">after the split</div><div class="bar"><i style="width:100%"></i></div></div>
-        <div class="mod"><div class="n">→ plan/rebalance</div><div class="s">after the split</div><div class="bar"><i style="width:100%"></i></div></div>
-        <div class="mod"><div class="n">→ plan/batch</div><div class="s">after the split</div><div class="bar"><i style="width:100%"></i></div></div>
-        <div class="mod"><div class="n">→ plan/execute</div><div class="s">after the split</div><div class="bar"><i style="width:100%"></i></div></div>
-      </div>
-    </div>
-
-    <div class="layer" id="L2">
-      <div class="lab"><div class="id">L2</div><div class="nm">Pure computation</div></div>
-      <div class="mods">
-        <div class="mod"><div class="n">nutrients</div><div class="s">8 / 11 public</div><div class="bar"><i style="width:73%"></i></div></div>
-        <div class="mod"><div class="n">targets</div><div class="s">8 / 13 public</div><div class="bar"><i style="width:62%"></i></div></div>
-        <div class="mod"><div class="n">exclusions</div><div class="s">4 / 6 public · I2 lives here</div><div class="bar"><i style="width:67%"></i></div></div>
-        <div class="mod"><div class="n">grocery</div><div class="s">4 / 4 public</div><div class="bar"><i style="width:100%"></i></div></div>
-      </div>
-    </div>
-
-    <div class="layer" id="L1">
-      <div class="lab"><div class="id">L1</div><div class="nm">Data</div></div>
-      <div class="mods">
-        <div class="mod"><div class="n">recipe seeds</div><div class="s">501 recipes · 7,685 lines</div><div class="bar"><i style="width:100%"></i></div></div>
-        <div class="mod"><div class="n">nutrientTable</div><div class="s">USDA · generated, never hand-edited</div><div class="bar"><i style="width:100%"></i></div></div>
-        <div class="mod"><div class="n">symptoms</div><div class="s">safety data</div><div class="bar"><i style="width:80%"></i></div></div>
-        <div class="mod"><div class="n">substitutions</div><div class="s">2 / 2 public</div><div class="bar"><i style="width:100%"></i></div></div>
-        <div class="mod"><div class="n">conditions</div><div class="s">1 / 3 public</div><div class="bar"><i style="width:33%"></i></div></div>
-      </div>
-    </div>
-
-    <div class="layer" id="L0">
-      <div class="lab"><div class="id">L0</div><div class="nm">Contracts</div></div>
-      <div class="mods">
-        <div class="mod big"><div class="n">types</div><div class="s">22 / 28 · everyone depends on it</div><div class="bar"><i style="width:79%"></i></div></div>
-      </div>
-    </div>
-
-    <p style="margin-top:16px;font-size:13.5px"><b>The rule that outranks the layers:</b> the model decides, the engine
-      computes. L4 may ask L3 for anything; it may never do arithmetic itself, and it is never the thing that claims
-      a change happened. Any refactor that puts a number in L4 is wrong however tidy the folders look.</p>
-    <p style="font-size:13.5px"><b>Tooling is deliberately exempt.</b> <span class="mono">scripts/</span> may reach
-      inside any module, because a suite that can only see the public surface can only test the public surface.</p>
+    <div class="callout"><b>The rule that outranks the layers:</b> the model decides, the engine computes. L4 may ask
+      L3 for anything; it may never do arithmetic itself, and it is never the thing that claims a change happened.
+      Any refactor that puts a number in L4 is wrong however tidy the folders look.<br><br>
+      <b>Tooling is deliberately exempt.</b> <span class="mono">scripts/</span> may reach inside any module, because
+      a suite that can only see the public surface can only test the public surface.</div>
   </section>
 
   <section id="recipedb">
-    <div class="eyebrow">The big one</div>
+    <div class="shead"><span class="eyebrow">The big one</span><span class="rule"></span></div>
     <h2>recipeDb.ts is three jobs sharing a file</h2>
-    <p class="lede">10,850 lines, 24 exports, 19 direct consumers — including UI pages, which is how the whole library
-      reaches the browser.</p>
+    <p class="lede">10,850 lines, 24 exports, 19 direct consumers — including UI pages, which is how the whole
+      library reaches the browser.</p>
     <div class="split">
-      <div style="width:71%;background:var(--forest)">71% · the 501 recipe seeds</div>
-      <div style="width:11%;background:var(--amber)">11%</div>
-      <div style="width:18%;background:var(--clay)">18% · executor</div>
+      <div style="width:71%;background:var(--accent)">71% · the 501 recipe seeds</div>
+      <div style="width:11%;background:var(--teal)">11%</div>
+      <div style="width:18%;background:var(--amber)">18% · executor</div>
     </div>
-    <p style="font-size:12.5px;color:var(--mut)">Lines 179–7863 are data · 7864–9010 selection, rebalancing and batch ·
-      9011–10850 the executor and its note-writers.</p>
-    <p style="font-size:13.5px;margin-top:12px">Split over <b>two days, data first</b>, each behind a barrel that
-      re-exports today's eighteen consumed names unchanged — so <b>no importer is touched on either day</b>. The gate
-      is that <span class="mono">test:engine</span> produces the same number of passes before and after: a split that
-      changes behaviour shows up as a count change, and one that loses an export fails <span class="mono">tsc</span>.</p>
+    <p style="font-size:12.5px;color:var(--mut)">Lines 179–7863 are data · 7864–9010 selection, rebalancing and
+      batch · 9011–10850 the executor and its note-writers.</p>
+    <div class="callout">Split over <b>two days, data first</b>, each behind a barrel that re-exports today's
+      eighteen consumed names unchanged — so <b>no importer is touched on either day</b>. The gate is that
+      <span class="mono">test:engine</span> produces the same number of passes before and after: a split that
+      changes behaviour shows up as a count change, and one that loses an export fails <span class="mono">tsc</span>.</div>
   </section>
 
   <section id="contracts">
-    <div class="eyebrow">Name · promise · public · private</div>
+    <div class="shead"><span class="eyebrow">Name · promise · public · private</span><span class="rule"></span></div>
     <h2>The contracts that carry the most weight</h2>
 
     <div class="contract" id="c-execute">
@@ -319,30 +335,31 @@
   <section id="trap">
     <div class="trap">
       <h2>The trap this refactor must not walk into</h2>
-      <p><b>A barrel is a bundler black hole.</b> If the plan barrel re-exports both <span class="mono">selectWeekFromDb</span>
-        and <span class="mono">RECIPES</span>, any client component importing one small helper may pull all 501 recipes
-        into the browser. That is not hypothetical — it is the Explore payload bug we already have.</p>
+      <p style="margin-top:8px"><b>A barrel is a bundler black hole.</b> If the plan barrel re-exports both
+        <span class="mono">selectWeekFromDb</span> and <span class="mono">RECIPES</span>, any client component
+        importing one small helper may pull all 501 recipes into the browser. That is not hypothetical — it is
+        the Explore payload bug we already have.</p>
       <div class="two">
         <div class="bx">
-          <h3>plan <span style="font-weight:400">(server barrel)</span></h3>
+          <h3>plan <span style="font-weight:400;color:#8a8fa0">(server barrel)</span></h3>
           <p>The engine, the seeds, the executor. Imported by API routes, server components and tooling.</p>
         </div>
         <div class="bx">
-          <h3>plan/cards <span style="font-weight:400">(client-safe)</span></h3>
+          <h3>plan/cards <span style="font-weight:400;color:#8a8fa0">(client-safe)</span></h3>
           <p>A <span class="mono">RecipeCard</span> projection — only the fields a card renders. The only one a client component may import.</p>
         </div>
       </div>
-      <p style="margin-top:16px"><span class="mono">weekStats.ts</span> already proves the pattern: it imports
+      <p style="margin-top:18px"><span class="mono">weekStats.ts</span> already proves the pattern: it imports
         <b>only a type</b>, which is why one route is 105&nbsp;kB while Explore is 187&nbsp;kB.</p>
     </div>
   </section>
 
   <section id="gate">
-    <div class="eyebrow">Day 1</div>
+    <div class="shead"><span class="eyebrow">Day 1</span><span class="rule"></span></div>
     <h2>Making it enforceable: check:boundaries</h2>
     <p class="lede">An unenforced boundary is a comment. A homemade gate in the family of
       <span class="mono">check:recipes</span> — no new dependency — asserting six things:</p>
-    <div class="tablewrap" style="margin-top:14px">
+    <div class="tablewrap" style="margin-top:16px">
       <table>
         <thead><tr><th>#</th><th>Rule</th><th>Why it exists</th></tr></thead>
         <tbody>
@@ -355,12 +372,12 @@
         </tbody>
       </table>
     </div>
-    <p style="margin-top:12px;font-size:13px">Every failure prints the offending file, the import, and the rule in
+    <p style="margin-top:14px;font-size:13.5px">Every failure prints the offending file, the import, and the rule in
       plain English. A gate that says “violation in 3 files” teaches nobody anything.</p>
   </section>
 
   <section id="phases">
-    <div class="eyebrow">How we get there</div>
+    <div class="shead"><span class="eyebrow">How we get there</span><span class="rule"></span></div>
     <h2>Three phases, in this order</h2>
     <div class="phase"><div class="pn">1</div><div><h3>Seal, without moving anything</h3>
       <p>An <span class="mono">index.ts</span> per module; move the unconsumed names off the public surface; delete
