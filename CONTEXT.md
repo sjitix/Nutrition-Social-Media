@@ -29,8 +29,8 @@ need the params").**
 
 **Machine state:** `.env.local` = `LOCAL_AI_MODEL=openai/gpt-oss-20b` (revert to this after the Kimi test).
 No dev server / tunnel running. `.next` is a PRODUCTION build — delete it or rebuild before `npm run dev`.
-The only non-Kimi loose ends are optional batch polish (live cross-screen re-render; per-batch locks) —
-see the block below; skip unless asked.
+The only non-Kimi loose end is per-batch locks (a benign no-op — batch is deterministic); the live
+cross-screen re-render is now done (`11f1085`). See the block below; skip unless asked.
 
 ### >>> 2026-09-18: batch / meal-prep mode is COMPLETE (M1–M6) <<<
 
@@ -54,11 +54,11 @@ Verified by the engine suite (~34 batch tests) + a live `/api/plan` smoke. All t
 
 **Batch tail — now mostly cleared:** DONE beyond M6 — **whole-batch swaps** (`f50345e`: swapping one
 meal replaces its whole batch, cook-once preserved) and **Today parity** (`30500de`: Today shows the
-reader's real weekday, batch or fresh, not just the demo Monday). REMAINING (all minor/optional): a
-**live cross-screen re-render** (mode/cadence switches currently `window.location.reload()` — works,
-just a flash; a Mode context would remove it but touches every /sage client screen); per-batch **locks**
-are a benign near-no-op (batch is deterministic, so regenerating already yields the same week — a lock
-only bites once you switch to fresh). Note: every-3-days efficiency is modest (cook ~15 vs 21) — **weekly
+reader's real weekday, batch or fresh, not just the demo Monday). **Live cross-screen re-render** DONE
+(`11f1085`: switches fire a `PLAN_CHANGED_EVENT`, screens re-read in place, no reload — tsc+build green
+but NOT headlessly click-tested, so eyeball a Fresh↔Prep flip when convenient). REMAINING: only per-batch
+**locks**, a benign near-no-op (batch is deterministic, so regenerating already yields the same week — a
+lock only bites once you switch to fresh). Note: every-3-days efficiency is modest (cook ~15 vs 21) — **weekly
 cadence is the bigger saving** (cook 9 for 21 meals); a money-saved figure was deliberately skipped
 (would double-count the existing bulk-pack cost model).
 
