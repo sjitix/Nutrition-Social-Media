@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { Aisle } from "@/lib/grocery";
 import { loadGroceriesChecked, saveGroceriesChecked } from "@/lib/storage";
-import { loadMyWeek, groceriesFromWeek, type GroceryRow } from "../myPlan";
+import { loadMyWeek, groceriesFromWeek, PLAN_CHANGED_EVENT, type GroceryRow } from "../myPlan";
 import { bulkGroceriesFromWeek, batchEfficiency, type SessionGroceries, type BatchEfficiency } from "@/lib/batchGrocery";
 
 // A batch tick is keyed by session so the same staple in two cook sessions ticks independently.
@@ -33,25 +33,32 @@ export function GroceriesClient({ demoGroups }: { demoGroups: Groups }) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    const mine = loadMyWeek();
-    if (mine && mine.week.planMode === "batch") {
-      // Meal-prep: a per-cooking-session BULK list, not a per-slot count.
-      const sessions = bulkGroceriesFromWeek(mine.week);
-      setBatch({ sessions, eff: batchEfficiency(mine.week) });
-      setPersonalized(true);
-      const names = new Set(sessions.flatMap((s) => s.aisles.flatMap((a) => a.items.map((it) => bkey(s.session.id, it.name)))));
+    // Load on mount, and re-read in place on a mode/cadence switch (PLAN_CHANGED_EVENT) — no reload.
+    const refresh = () => {
+      const mine = loadMyWeek();
+      if (mine && mine.week.planMode === "batch") {
+        // Meal-prep: a per-cooking-session BULK list, not a per-slot count.
+        const sessions = bulkGroceriesFromWeek(mine.week);
+        setBatch({ sessions, eff: batchEfficiency(mine.week) });
+        setPersonalized(true);
+        const names = new Set(sessions.flatMap((s) => s.aisles.flatMap((a) => a.items.map((it) => bkey(s.session.id, it.name)))));
+        setTicked(new Set(loadGroceriesChecked().filter((n) => names.has(n))));
+        setLoaded(true);
+        return;
+      }
+      setBatch(null); // switching batch -> fresh: drop the batch view
+      const g = mine ? groceriesFromWeek(mine.week) : demoGroups;
+      if (mine) {
+        setGroups(g);
+        setPersonalized(true);
+      }
+      const names = new Set(g.flatMap((x) => x.items.map((i) => i.name)));
       setTicked(new Set(loadGroceriesChecked().filter((n) => names.has(n))));
       setLoaded(true);
-      return;
-    }
-    const g = mine ? groceriesFromWeek(mine.week) : demoGroups;
-    if (mine) {
-      setGroups(g);
-      setPersonalized(true);
-    }
-    const names = new Set(g.flatMap((x) => x.items.map((i) => i.name)));
-    setTicked(new Set(loadGroceriesChecked().filter((n) => names.has(n))));
-    setLoaded(true);
+    };
+    refresh();
+    window.addEventListener(PLAN_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(PLAN_CHANGED_EVENT, refresh);
     // Runs once; demoGroups is stable within a page view.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

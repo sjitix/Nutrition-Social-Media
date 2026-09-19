@@ -50,9 +50,19 @@ export async function generateMyWeek(profile: UserProfile): Promise<MyWeek> {
 }
 
 /**
+ * Fired on `window` after a mode/cadence switch has updated storage, so every mounted /sage screen can
+ * re-read its week IN PLACE instead of the page reloading. Same-tab only (the `storage` event is for
+ * OTHER tabs; here the switch and the read happen in this one).
+ */
+export const PLAN_CHANGED_EVENT = "nutriflow:planchanged";
+function notifyPlanChanged(): void {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(PLAN_CHANGED_EVENT));
+}
+
+/**
  * Flip the planning mode (fresh <-> meal-prep) and return the week to show. Persists the choice on
  * the profile; each mode's week lives under its own key, so if the target mode was already built we
- * reuse it (lossless), otherwise we build it. The caller reloads so every mounted screen re-reads it.
+ * reuse it (lossless), otherwise we build it. Fires PLAN_CHANGED_EVENT so mounted screens re-read.
  */
 export async function switchPlanMode(mode: "fresh" | "batch"): Promise<MyWeek | null> {
   const profile = loadProfile();
@@ -60,19 +70,22 @@ export async function switchPlanMode(mode: "fresh" | "batch"): Promise<MyWeek | 
   const next: UserProfile = { ...profile, planMode: mode };
   saveProfile(next);
   const cached = mode === "batch" ? loadBatchPlan() : loadPlan();
-  if (cached && Array.isArray(cached.days) && cached.days.length) {
-    return { week: cached, stats: summariseWeek(cached), profile: next };
-  }
-  return generateMyWeek(next);
+  const result = cached && Array.isArray(cached.days) && cached.days.length
+    ? { week: cached, stats: summariseWeek(cached), profile: next }
+    : await generateMyWeek(next);
+  notifyPlanChanged();
+  return result;
 }
 
-/** Change the meal-prep cooking cadence (weekly vs every 3 days) and rebuild the batch week. */
+/** Change the meal-prep cooking cadence (weekly vs every 3 days), rebuild, and notify mounted screens. */
 export async function switchBatchCadence(cadence: "weekly" | "every3days"): Promise<MyWeek | null> {
   const profile = loadProfile();
   if (!profile || profile.planMode !== "batch") return null;
   const next: UserProfile = { ...profile, batchCadence: cadence };
   saveProfile(next);
-  return generateMyWeek(next);
+  const result = await generateMyWeek(next);
+  notifyPlanChanged();
+  return result;
 }
 
 export interface GroceryRow {

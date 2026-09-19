@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useState } from "react";
-import { loadMyWeek } from "../myPlan";
+import { loadMyWeek, PLAN_CHANGED_EVENT } from "../myPlan";
 import { imageForMeal, cutoutForMeal } from "@/lib/recipes";
 import type { Meal } from "@/lib/types";
 
@@ -64,20 +64,26 @@ export function TodayClient({
   const [hour, setHour] = useState(0);
   const [pinned, setPinned] = useState(false);
   useEffect(() => {
-    // Swap the shared demo for THIS person's real day (fresh or meal-prep), if they have a saved week.
-    const mine = loadMyWeek();
-    if (!mine) return;
-    const todayIdx = (new Date().getDay() + 6) % 7; // week days are Monday-first; getDay() is Sunday=0
-    const d = mine.week.days[todayIdx];
-    if (!d) return;
-    const toDayMeal = (m: Meal): DayMeal => ({
-      name: m.name, type: m.type, description: m.description,
-      calories: m.calories, protein: m.proteinGrams, fibre: m.fiberGrams ?? 0,
-      minutes: m.timeMinutes, image: imageForMeal(m.name), cutout: cutoutForMeal(m.name),
-    });
-    setDay(d.day);
-    setMeals(d.meals.map(toDayMeal));
-    setTargets({ calories: mine.profile.targetCalories, protein: mine.profile.proteinGrams, fibre: mine.profile.fiberGrams ?? 30 });
+    // Swap the shared demo for THIS person's real day on mount, and re-read on a mode/cadence switch
+    // (PLAN_CHANGED_EVENT) — no page reload.
+    const refresh = () => {
+      const mine = loadMyWeek();
+      if (!mine) { setDay(initialDay); setMeals(initialMeals); setTargets(initialTargets); return; }
+      const todayIdx = (new Date().getDay() + 6) % 7; // week days are Monday-first; getDay() is Sunday=0
+      const d = mine.week.days[todayIdx];
+      if (!d) return;
+      const toDayMeal = (m: Meal): DayMeal => ({
+        name: m.name, type: m.type, description: m.description,
+        calories: m.calories, protein: m.proteinGrams, fibre: m.fiberGrams ?? 0,
+        minutes: m.timeMinutes, image: imageForMeal(m.name), cutout: cutoutForMeal(m.name),
+      });
+      setDay(d.day);
+      setMeals(d.meals.map(toDayMeal));
+      setTargets({ calories: mine.profile.targetCalories, protein: mine.profile.proteinGrams, fibre: mine.profile.fiberGrams ?? 30 });
+    };
+    refresh();
+    window.addEventListener(PLAN_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(PLAN_CHANGED_EVENT, refresh);
   }, []);
   useEffect(() => {
     const at = Number(new URLSearchParams(window.location.search).get("at"));

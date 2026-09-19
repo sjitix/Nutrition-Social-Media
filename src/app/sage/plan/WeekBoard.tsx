@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { gradientForMeal, imageForMeal } from "@/lib/recipes";
 import { RefreshIcon } from "@/components/icons";
 import { SLOTS } from "../demo";
-import { loadMyWeek, generateMyWeek } from "../myPlan";
+import { loadMyWeek, generateMyWeek, PLAN_CHANGED_EVENT } from "../myPlan";
 import type { WeekStats } from "../weekStats";
 import type { UserProfile, WeekPlan } from "@/lib/types";
 
@@ -52,20 +52,27 @@ export default function WeekBoard({ demo }: { demo: { stats: WeekStats; targets:
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    const mine = loadMyWeek();
-    if (mine) {
-      setView({
-        stats: mine.stats,
-        targets: {
-          targetCalories: mine.profile.targetCalories,
-          proteinGrams: mine.profile.proteinGrams,
-          mealsPerDay: mine.profile.mealsPerDay,
-        },
-        personalized: true,
-        profile: mine.profile,
-        batch: batchInfo(mine.week, mine.profile),
-      });
-    }
+    // Load this device's week on mount, and re-read in place whenever the mode/cadence toggle fires
+    // PLAN_CHANGED_EVENT — no page reload.
+    const refresh = () => {
+      const mine = loadMyWeek();
+      if (mine) {
+        setView({
+          stats: mine.stats,
+          targets: {
+            targetCalories: mine.profile.targetCalories,
+            proteinGrams: mine.profile.proteinGrams,
+            mealsPerDay: mine.profile.mealsPerDay,
+          },
+          personalized: true,
+          profile: mine.profile,
+          batch: batchInfo(mine.week, mine.profile),
+        });
+      }
+    };
+    refresh();
+    window.addEventListener(PLAN_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(PLAN_CHANGED_EVENT, refresh);
   }, []);
 
   async function regenerate() {

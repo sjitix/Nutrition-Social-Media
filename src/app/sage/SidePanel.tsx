@@ -59,10 +59,11 @@ export function SidePanel() {
     }
     setBusy(true);
     try {
-      await switchPlanMode(next);
-      window.location.reload();
-    } catch {
+      await switchPlanMode(next); // fires PLAN_CHANGED_EVENT -> mounted /sage screens re-read in place
+      setMode(next);
       setBusy(false);
+    } catch {
+      window.location.reload(); // fall back to a reload if the in-place switch failed
     }
   };
   const chooseCadence = async (c: "weekly" | "every3days") => {
@@ -70,9 +71,10 @@ export function SidePanel() {
     setBusy(true);
     try {
       await switchBatchCadence(c);
-      window.location.reload();
-    } catch {
+      setCadence(c);
       setBusy(false);
+    } catch {
+      window.location.reload();
     }
   };
 
