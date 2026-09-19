@@ -126,7 +126,7 @@ blocking, so none of them silently becomes the reason V1 slipped.
 
 | # | Decision | Needed by | Default if unanswered |
 |---|---|---|---|
-| 1 | **Which model is behind the assistant in public** (see doc 03) | **D4** | Fast free hosted model for the live site; local gpt-oss-20b for dev |
+| 1 | ~~Which model is behind the assistant in public~~ — **SETTLED 2026-09-19** (`63b6313`): `openai/gpt-oss-20b` on NVIDIA NIM, ~2.8 s, free, and the same model as the 84% baseline. See doc 03 §7 | — | *decided* |
 | 2 | **One app or two** — is `/plan` retired, frozen, or kept? | **D7** | Freeze `/plan` (leave it reachable, stop maintaining it), ship `/sage` as the product |
 | 3 | **Accounts** — Supabase project URL + anon key | **D10** | Device-local V1 + export/import; accounts land the day the keys do |
 | 4 | **Condition-aware generation** — ask or auto-apply | **D7** | ASK (what VISION says) |

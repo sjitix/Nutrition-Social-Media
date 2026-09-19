@@ -149,10 +149,19 @@ injected `ModelFn` was built to make possible.
 
 **Three lanes, and only one of them costs anything.**
 
-1. **The live app (V1 beta): a fast hosted model, not K3.** The requirement is p95 well under ~5 s
-   per call so a 3-step loop stays under ~15 s. The same NVIDIA NIM key already in hand serves fast
-   free models; Claude Haiku 4.5 is the paid option if free latency disappoints. **Turn on prompt
-   caching before measuring cost.**
+1. **The live app (V1 beta): a fast hosted model, not K3 — and this is now SETTLED and free.**
+   The owner measured it while this document was being written (`63b6313`):
+   **`openai/gpt-oss-20b` on the same NVIDIA NIM key returns in ~2.8 s**, clean output, free, no
+   card. That is the best possible outcome, for a reason worth stating plainly: **it is the same
+   model as the 84% baseline**, so the public beta runs known-good quality, at $0, with no local
+   GPU, inside any serverless timeout. At ~2.8 s a call, a 3-step loop is ~8 s a message — usable.
+   Claude Haiku 4.5 (§4) stays as the paid upgrade if quality, not speed, turns out to be the
+   limit; **turn on prompt caching before measuring its cost.**
+
+   > **A trap recorded with the measurement, worth repeating because it inverts the obvious:** the
+   > models *named* for speed — `glm-5.3-flash`, `nemotron-3.5-lightning-30b-a3b`,
+   > `deepseek-v4-flash` — **all timed out at 60 s** on that free tier. The name says nothing about
+   > latency on a free queue. Probe before trusting it.
 2. **Offline evaluation: free K3, exactly as it is.** ~4 minutes a reply is fine for a 45-case batch
    run and free. It is a batch service; use it as one.
 3. **Hardware: buy nothing yet.** Run the 4-GPU experiment first (§3). Revisit only if local
@@ -174,6 +183,6 @@ in the model's own words.
    brief. It now leaves a scorecard behind.
 2. **Are the other 2070s available to install?** That is the free experiment and it gates everything
    about local.
-3. **Is a paid hosted model acceptable for the public beta**, at roughly the numbers in §4? VISION
-   already resolved this in principle — "$0 is a floor the product must always run at, not a ceiling
-   it may never exceed" — so this is a budget question, not an architecture one.
+3. ~~Is a paid hosted model acceptable for the public beta?~~ **No longer blocking** — the beta runs
+   free on gpt-oss-20b via NVIDIA at ~2.8 s (§7). The paid question only returns if the K3 re-run
+   shows a quality gap big enough to be worth money, which is exactly what §5's rule decides.
