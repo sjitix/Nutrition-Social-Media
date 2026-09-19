@@ -40,6 +40,11 @@ function envLocal(): Record<string, string> {
 const env = envLocal();
 const BASE_URL = process.env.BASE_URL ?? env.LOCAL_AI_URL ?? "http://localhost:1234/v1";
 const MODEL = process.env.MODEL ?? env.LOCAL_AI_MODEL ?? "nutriflow-assistant";
+// A keyed hosted route (NVIDIA NIM, OpenRouter, Moonshot) needs a bearer token; a bare LM Studio does
+// not. Only sent when present, so the local path is byte-for-byte unchanged. Reasoning models emit more
+// tokens before the JSON, so the cap is higher for hosted runs and overridable.
+const API_KEY = process.env.LOCAL_AI_API_KEY ?? env.LOCAL_AI_API_KEY ?? "";
+const MAX_TOKENS = Number(process.env.MAX_TOKENS ?? (API_KEY ? 2000 : 900));
 
 interface HardCase {
   id: string;
@@ -59,30 +64,52 @@ const PROFILE: UserProfile = {
 const PLAN = rebalanceWeek(selectWeekFromDb(PROFILE), PROFILE);
 const SYSTEM = assistantV2SystemPrompt(PROFILE, PLAN);
 
-// Constrain the model to the v2 envelope exactly as the app does for local models.
-const RESPONSE_FORMAT = {
+// Constrain the model to the v2 envelope exactly as the app does for local models. Hosted keyed routes
+// don't all accept strict json_schema — some take only {type:"json_object"}, some neither — so ask()
+// walks a fallback ladder and remembers the first format that works. The system prompt already asks for
+// one bare JSON object and the parser below extracts it from prose, so even the no-format call grades.
+const SCHEMA_FORMAT = {
   type: "json_schema",
   json_schema: { name: "assistant_turn_v2", strict: true, schema: z.toJSONSchema(AssistantTurnV2Schema) },
 };
+const OBJECT_FORMAT = { type: "json_object" };
+type Fmt = typeof SCHEMA_FORMAT | typeof OBJECT_FORMAT | null;
 
 /** A connection/no-model error means "nothing to grade yet" — detected so we can exit 0, not crash. */
 function isNoModel(msg: string): boolean {
   return /fetch failed|ECONNREFUSED|ENOTFOUND|no models? loaded|model_not_found|connect|failed to fetch|\b404\b|\b503\b/i.test(msg);
 }
 
+async function post(turns: HardCase["turns"], fmt: Fmt): Promise<Response> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (API_KEY) headers.Authorization = `Bearer ${API_KEY}`;
+  const body: Record<string, unknown> = {
+    model: MODEL, temperature: 0, max_tokens: MAX_TOKENS,
+    messages: [{ role: "system", content: SYSTEM }, ...turns.map((t) => ({ role: t.role, content: t.text }))],
+  };
+  if (fmt) body.response_format = fmt;
+  return fetch(`${BASE_URL}/chat/completions`, { method: "POST", headers, body: JSON.stringify(body) });
+}
+
+let workingFmt: Fmt | undefined; // undefined = not yet probed; then pinned to the first format that worked
+
 async function ask(turns: HardCase["turns"]): Promise<string> {
-  const res = await fetch(`${BASE_URL}/chat/completions`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: MODEL, temperature: 0, max_tokens: 900,
-      messages: [{ role: "system", content: SYSTEM }, ...turns.map((t) => ({ role: t.role, content: t.text }))],
-      response_format: RESPONSE_FORMAT,
-    }),
-  });
-  if (!res.ok) throw new Error(`${res.status} ${(await res.text()).slice(0, 120)}`);
-  const j = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-  return j.choices?.[0]?.message?.content ?? "";
+  const ladder: Fmt[] = workingFmt === undefined ? [SCHEMA_FORMAT, OBJECT_FORMAT, null] : [workingFmt];
+  let lastErr = "";
+  for (const fmt of ladder) {
+    const res = await post(turns, fmt);
+    if (res.ok) {
+      workingFmt = fmt;
+      const j = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+      return j.choices?.[0]?.message?.content ?? "";
+    }
+    lastErr = `${res.status} ${(await res.text()).slice(0, 160)}`;
+    // Only step down the ladder on a format-related 400; any other error is real — surface it.
+    if (!(res.status === 400 && /response_format|json_schema|schema|guided|structured/i.test(lastErr))) {
+      throw new Error(lastErr);
+    }
+  }
+  throw new Error(lastErr || "request failed");
 }
 
 const stat = { n: 0, schemaOk: 0, actedRight: 0, changed: 0 };
