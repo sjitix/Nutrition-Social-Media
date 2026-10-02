@@ -563,10 +563,54 @@ everything ─► D4 release</pre>
       whole claim is that its numbers are real, a confidently stale price is the same class of failure as a
       hallucinated macro.
       <br><br>
-      <b>And one thing is deliberately not assumed:</b> whether Lidl or any discounter exposes product and price data
-      in a usable, permitted way is <b>unverified</b>. The route that needs nobody's permission — hand-pricing the
-      ~200 staples this library actually uses, each with a date — would work on day one, and any API later is an
-      upgrade to the same shape.
+    </div>
+
+    <div class="shead" style="margin-top:34px"><span class="eyebrow">Researched 2026-10-02</span><span class="rule"></span></div>
+    <h3 style="font-size:19px;margin-bottom:8px">Does Lidl actually have the data? No — but something better does</h3>
+    <p class="lede" style="font-size:15px"><b>Lidl has no official public API.</b> Every “Lidl API” on sale is a
+      third-party scraper, which is itself the tell. The useful finding is that <b>products and prices are two
+      different problems with two different answers</b>.</p>
+
+    <div class="tablewrap" style="margin-top:16px">
+      <table>
+        <thead><tr><th>What we need</th><th>Source</th><th>State, measured</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><b>Products</b><br><span style="color:var(--mut);font-size:12px">barcode, name, brand, nutrition</span></td>
+            <td><b>Open Food Facts</b><br><span style="color:var(--mut);font-size:12px">ODbL, free, real API</span></td>
+            <td><span class="pill settled">well covered</span> Lidl's own-brands are there — Milbona <b>3,922</b> products, Italiamo <b>1,022</b>, Combino <b>562</b>. Barcode-keyed, which is exactly what an ingredient→product mapping needs.</td>
+          </tr>
+          <tr>
+            <td><b>Prices</b></td>
+            <td><b>Open Prices</b><br><span style="color:var(--mut);font-size:12px">Open Food Facts' sister project</span></td>
+            <td><span class="pill open">thin and clumpy</span> <b>578 Lidl stores</b> in the database, but a 12-store sample gave a <b>median of 4 prices per store</b> (the mean of 59 is skewed by two enthusiast-covered shops). Growing — ML price extraction from shelf photos is funded.</td>
+          </tr>
+          <tr>
+            <td><b>Prices, commercial</b></td>
+            <td>third-party scrapers</td>
+            <td><b>$0.90–$2.99 per 1,000 products</b>, some free tiers, 10+ EU countries. Cheap, fragile, and legally the nuanced one.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout" style="margin-top:18px">
+      <b>The legal shape matters more than the legality.</b> With no official API, the commercial options are
+      scraping by another name. EU law gives a database maker a right against extraction of a substantial part, and
+      Germany's Federal Court of Justice reiterated protection against systematic scraping in a 2025 flight-price
+      case. The consistent reading: <b>a few hundred targeted lookups are low risk; mirroring a whole catalogue is
+      not.</b> So “pull the Lidl catalogue nightly” is the shape to avoid, and “look up the 200 things this library
+      actually uses” is the defensible one — which happens to be all we need.
+    </div>
+
+    <div class="callout" style="margin-top:14px;border-color:var(--accent-line);background:var(--accent-soft)">
+      <b>So the plan gets better, not worse.</b> Map ingredients to products on <b>Open Food Facts</b> (free, open,
+      already covers Lidl) — which needs only the identity from day 5. <b>Hand-price the ~200 staples</b>, each with
+      a visible “priced on” date, so it works on day one and is honest about its own staleness. Then <b>let the
+      shopping trip improve it</b>: the grocery list already has check-offs, and “tick it off, snap the price tag”
+      feeds a real price back into both our data and the open commons. That is the same move this project already
+      made with photography — <b>contributions are the upgrade, not the threat</b> — and it turns the weakest data
+      dependency into the one asset that gets better with use.
     </div>
   </section>
 

@@ -191,11 +191,26 @@ price is the same class of failure as a hallucinated macro. The honest form is a
 the library exceeds 3, so the `budget: high` setting behaves identically to `medium` — a user
 control that encodes nothing. Real prices make that control mean something.
 
-**Not committed, and deliberately so:** the data source. Whether Lidl or any discounter exposes
-product and price data in a usable and permitted way is **unverified**, and a plan that assumes it
-would be a plan built on a guess. The fallback that needs no one's permission — hand-pricing the
-~200 staples this library actually uses, with a date on each — is the one to design for, because it
-works on day one and any API later is an upgrade to the same shape.
+**The data source, researched 2026-10-02 (full working in `docs/v1/01-…md` §8).** **Lidl has no
+official public API** — every "Lidl API" on sale is a third-party scraper. But the research split the
+problem in a way that makes the direction *more* achievable, not less:
+
+- **Products are a solved problem.** Open Food Facts carries Lidl's own-brands under an open licence
+  with stable barcodes — Milbona 3,922 products, Italiamo 1,022, Combino 562. An ingredient→product
+  mapping can be built on it for free, and it needs nothing but the ingredient identity.
+- **Prices are the hard half, and no source is both free and complete.** Open Prices (Open Food
+  Facts' sister project) has 578 Lidl stores but a median of ~4 prices each — real, growing, and far
+  too thin to price a shopping list from today.
+- **So prices start by hand** — the ~200 staples this library actually uses, each carrying a
+  "priced on" date — **and then the user's shopping trip improves them.** The grocery list already
+  has check-offs; "tick it off, snap the price tag" contributes a real price back. That is the same
+  move this project already made with photography: **user contributions are the upgrade, not the
+  threat.** It turns the weakest data dependency into the one asset that gets better with use.
+
+**And the legal shape is part of the design, not an afterthought:** the EU database right plus a
+2025 German Federal Court of Justice ruling make *systematic* catalogue scraping the risky pattern,
+while targeted lookups of a couple of hundred items are the defensible one. The architecture above
+only ever needs the latter, which is a reason to prefer it beyond cost.
 
 ## Conversational assistant — architecture & roadmap (decided direction)
 

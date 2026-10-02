@@ -249,13 +249,49 @@ What it buys is real: `approxCost` stops being a 1–3 guess, the grocery list b
 a true total, and the bulk-buy saving in meal-prep mode becomes a measured figure instead of a
 model. This is a genuinely good direction.
 
-What it costs is also real: it touches the grocery list, the cost model and the profile, and it
-needs a **data source that has not been established**. Whether Lidl or any discounter exposes
-product and price data in a usable and permitted way is an open question — **I have not verified it
-and will not assume it.** Candidate routes, in descending order of how likely they are to hold up:
-an official API or open-data feed if one exists; a third-party grocery-price API; a **manual seed of
-the ~200 staples this library actually uses**, priced once and refreshed occasionally (unglamorous,
-and it would work on day one); and scraping, last, because it breaks and may breach terms.
+What it costs is also real: it touches the grocery list, the cost model and the profile.
+
+#### The data source — now researched (2026-10-02), not assumed
+
+**Lidl has no official public API.** Confirmed across the vendor landscape: every "Lidl API" on
+offer is a third-party scraper service, which is itself the tell.
+
+The useful finding is that **product data and price data are two different problems with two
+different answers**:
+
+| | source | state, measured |
+|---|---|---|
+| **Products** — barcode, name, brand, nutrition | **Open Food Facts** (ODbL, free, real API) | **Well covered.** Lidl's own-brands are there: Milbona **3,922** products, Italiamo **1,022**, Combino **562**. Barcodes are stable ids — exactly what an ingredient→product mapping needs. |
+| **Prices** | **Open Prices** (Open Food Facts' sister project, free API, proof-photo required) | **Thin and clumpy.** 320k prices globally across 125 countries; **578 Lidl stores** in the database, but a 12-store sample gave a **median of 4 prices per store** (mean 59, skewed by two enthusiast-covered stores). Growing — NLnet is funding ML price extraction from shelf photos. |
+| **Prices, commercial** | third-party scrapers (Apify, Axesso, ShoppingScraper, Piloterr) | Live and cheap — **$0.90–$2.99 per 1,000 products**, some with free tiers across 10+ EU countries. Fragile, and see the legal note. |
+
+*Method, so it can be re-checked: counts come from the Open Food Facts v2 search API
+(`brands_tags=<brand>`) and the Open Prices v1 API (`/stats`, `/locations`, `/prices?location_id=`).
+Note that the only working location filter is `location_id` — `location_osm_name` and
+`location_osm_brand` are silently ignored and return the unfiltered total, which is how a 320,327
+"Lidl prices" figure could be reported by accident.*
+
+**The legal shape matters more than the legality.** With no official API, commercial options are
+scraping by another name. EU law gives a database maker a *sui generis* right against extraction of
+a substantial part, Germany's Federal Court of Justice reiterated protection against systematic
+scraping in a 2025 flight-price case, and the consistent reading is that **a few hundred targeted
+lookups are low risk while mirroring an entire catalogue is not.** So "pull the whole Lidl
+catalogue nightly" is the shape to avoid; "look up the 200 things this library actually uses" is the
+defensible one — which happens to be all we need.
+
+**Revised recommendation, which the research strengthens rather than changes:**
+
+1. **Map ingredients to products on Open Food Facts.** Free, open licence, already covers Lidl's
+   own-brands, and barcode-keyed — so it needs the ingredient identity from **D5** and nothing else.
+2. **Hand-price the ~200 staples**, each with a visible "priced on" date. Works on day one, needs
+   nobody's permission, and is honest about its own staleness.
+3. **Then make the user's shopping trip contribute.** The grocery list already has check-offs;
+   "tick it off, snap the price tag" feeds a real price into both our data and the Open Prices
+   commons. This is the same pattern VISION already applies to photography — *user uploads are the
+   upgrade, not the threat* — and it turns the weakest data dependency into an asset that improves
+   with use rather than decaying.
+4. **A paid scraper stays a later optimisation**, taken only if 1–3 prove insufficient, and scoped
+   to targeted lookups rather than a catalogue mirror.
 
 **Recommendation.** V1 ships **(b)**, the identity, and not **(c)**. The product layer becomes the
 first post-V1 feature, with a research spike on the data source as its opening task. The reason is
