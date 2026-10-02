@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { applyOperations } from "@/lib/recipeDb";
+import { applyOperations, previewOperations } from "@/lib/recipeDb";
 import { describeOperations } from "@/lib/reply";
 import type { Operation, PlanSnapshot, UserProfile, WeekPlan } from "@/lib/types";
 
@@ -31,6 +31,37 @@ const ALLOWED: ReadonlySet<Operation["tool"]> = new Set([
   "weekly_report",
   // Read-only: fluid target from body weight. Shown on Home when we know the weight.
   "hydration",
+
+  // ---------------------------------------------------------------------------------------------
+  // Added for the direct-manipulation layer (docs/v1/05-direct-manipulation.md, decision E2).
+  //
+  // The test for admission here has always been the one stated above: does the tool need a MODEL to
+  // interpret a sentence? These six do when the input is prose — "make lunch lighter" has to be
+  // resolved into a dish, a slot and a direction. They do NOT when a control supplies those
+  // parameters directly: a dish chosen from a list of six is not an interpretation of anything, it
+  // is the user pointing at the thing they want. The UI hands over exactly what the model would
+  // otherwise have had to guess, so the guess — and the only reason to spend a model call — is gone.
+  //
+  // Each one is still fully guarded by the engine: a swap to a dish that breaks a diet or carries an
+  // allergen is refused there, not here, and the refusal comes back as a note the UI must show.
+  // ---------------------------------------------------------------------------------------------
+
+  // The user picked the dish from a list the engine itself produced. `dish` is an exact name.
+  "swap_meal",
+  // A "regenerate this day" button. Any per-day diet/cuisine/cook-time cap comes from a control,
+  // not from reading a sentence.
+  "regenerate_day",
+  // "I ate something else" — the dish comes from a search over the library, or the user typed the
+  // calories themselves. The engine re-solves the REST of that day.
+  "log_meal",
+  // "I'm out for dinner on Friday" as a slot the user tapped. The engine reserves the calories and
+  // lightens the rest of the day, and says when it estimated.
+  "eating_out",
+  // "I've run out of greek yogurt", with the ingredient picked from the recipe's own list. Read-only:
+  // it returns safe swaps and the macro cost, and changes nothing.
+  "substitute_ingredient",
+  // Read-only: why this dish is in this slot. A button on the meal sheet.
+  "explain_meal",
 ]);
 
 interface OperationRequest {
@@ -38,6 +69,16 @@ interface OperationRequest {
   plan: WeekPlan;
   operation: Operation;
   previous?: PlanSnapshot;
+  /**
+   * Simulate instead of committing: the engine runs the operation against a clone and reports what
+   * it WOULD do — new day totals, the deltas, which dishes move, and anything it would refuse or
+   * relax. Nothing is persisted and the caller's plan is untouched.
+   *
+   * This is what lets a control show the consequence of a change before the user accepts it, which
+   * is the whole of "tell me how my day changed and let me choose". The UI then commits the SAME
+   * operation with `preview` absent.
+   */
+  preview?: boolean;
 }
 
 export async function POST(request: Request) {
@@ -54,6 +95,13 @@ export async function POST(request: Request) {
   if (!ALLOWED.has(body.operation.tool)) {
     // Anything that needs interpretation belongs to the assistant, not here.
     return NextResponse.json({ error: `"${body.operation.tool}" isn't a direct action.` }, { status: 400 });
+  }
+
+  // Simulate and return. Deliberately before the executor call: a preview must have no path that
+  // can commit, rather than a flag checked on the way out.
+  if (body.preview) {
+    const sim = previewOperations(body.profile, body.plan, [body.operation]);
+    return NextResponse.json({ preview: true, ...sim });
   }
 
   const { plan, profile, notes, planChanged, profileChanged, undone } = applyOperations(

@@ -89,6 +89,86 @@ async function main() {
   const unpinned = await post("/api/operation", { profile: pinned.json.profile, plan, operation: { tool: "unlock_meal", day: day0, mealType: type0 } });
   check("operation: unlock_meal removes the pin", (unpinned.json?.profile?.lockedMeals ?? []).length === 0);
 
+  // ---- the direct-manipulation layer (docs/v1/05-direct-manipulation.md) ----
+  // Each of these became allowed because a CONTROL supplies the parameters a model would otherwise
+  // have had to guess. The tests assert they are reachable and that the engine still guards them.
+  {
+    const swapTo = plan.days?.[1]?.meals?.[0]?.name;
+    const swapped = await post("/api/operation", {
+      profile: PROFILE, plan, operation: { tool: "swap_meal", day: day0, mealType: type0, dish: swapTo },
+    });
+    check("direct: swap_meal is allowed (200)", swapped.status === 200, `status ${swapped.status}`);
+    check("direct: swap_meal says what it did", (swapped.json?.reply ?? "").length > 0);
+
+    const regen = await post("/api/operation", { profile: PROFILE, plan, operation: { tool: "regenerate_day", day: day0 } });
+    check("direct: regenerate_day is allowed (200)", regen.status === 200, `status ${regen.status}`);
+
+    const logged = await post("/api/operation", {
+      profile: PROFILE, plan, operation: { tool: "log_meal", day: day0, mealType: type0, dish: "a burger", loggedCalories: 900 },
+    });
+    check("direct: log_meal is allowed (200)", logged.status === 200, `status ${logged.status}`);
+    check("direct: log_meal re-solves the rest of the day", logged.json?.planChanged === true);
+
+    const out = await post("/api/operation", {
+      profile: PROFILE, plan, operation: { tool: "eating_out", day: day0, mealType: "dinner" },
+    });
+    check("direct: eating_out is allowed (200)", out.status === 200, `status ${out.status}`);
+
+    const sub = await post("/api/operation", {
+      profile: PROFILE, plan, operation: { tool: "substitute_ingredient", ingredient: "greek yogurt" },
+    });
+    check("direct: substitute_ingredient is allowed (200)", sub.status === 200, `status ${sub.status}`);
+    check("direct: substitute_ingredient changes NOTHING (read-only)", sub.json?.planChanged === false,
+      `planChanged ${sub.json?.planChanged}`);
+
+    const why = await post("/api/operation", {
+      profile: PROFILE, plan, operation: { tool: "explain_meal", day: day0, mealType: type0 },
+    });
+    check("direct: explain_meal is allowed and read-only", why.status === 200 && why.json?.planChanged === false);
+
+    // The engine, not the route, is what keeps a button safe: a vegan asking for a meaty dish must
+    // be refused even though the UI "supplied the parameters".
+    const meaty = plan.days.flatMap((d) => d.meals).find((m) => /chicken|beef|salmon|pork|turkey/i.test(m.name));
+    if (meaty) {
+      const vegan = await post("/api/operation", {
+        profile: { ...PROFILE, diet: "vegan" }, plan,
+        operation: { tool: "swap_meal", day: day0, mealType: type0, dish: meaty.name },
+      });
+      const vday = vegan.json?.plan?.days?.find((d) => d.day === day0);
+      const landed = (vday?.meals ?? []).some((m) => m.name === meaty.name);
+      check("direct: a swap that breaks the diet is refused by the ENGINE, not the route",
+        vegan.status === 200 && !landed, `landed=${landed}`);
+      check("direct: ...and it says why rather than failing silently", (vegan.json?.reply ?? "").length > 0);
+    }
+  }
+
+  // ---- preview: the confirm-before-commit contract ----
+  {
+    const op = { tool: "regenerate_day", day: day0 };
+    const pv = await post("/api/operation", { profile: PROFILE, plan, operation: op, preview: true });
+    check("preview: returns a simulation (200)", pv.status === 200, `status ${pv.status}`);
+    check("preview: is flagged as a preview", pv.json?.preview === true);
+    check("preview: reports per-day totals and deltas", Array.isArray(pv.json?.days) && pv.json.days.length === 7
+      && typeof pv.json.days[0]?.deltaKcal === "number");
+    check("preview: carries the day's calorie target so the UI does no maths",
+      typeof pv.json?.days?.[0]?.targetKcal === "number");
+    check("preview: lists the dish moves it would make", Array.isArray(pv.json?.moves));
+    // The whole point: a preview must have no path that commits.
+    check("preview: returns NO plan (nothing to persist by accident)", pv.json?.plan === undefined);
+
+    // And it must not mutate the plan it was handed — asserted by re-running the same preview and
+    // getting the same answer, which cannot hold if the first call had changed the input.
+    const pv2 = await post("/api/operation", { profile: PROFILE, plan, operation: op, preview: true });
+    check("preview: does not mutate the caller's plan (seeded + cloned, so it repeats)",
+      JSON.stringify(pv.json?.days) === JSON.stringify(pv2.json?.days));
+
+    const denied3 = await post("/api/operation", {
+      profile: PROFILE, plan, operation: { tool: "regenerate_week" }, preview: true,
+    });
+    check("preview: still honours the allowlist (regenerate_week rejected)", denied3.status === 400,
+      `status ${denied3.status}`);
+  }
+
   // ---- scale_portions ----
   const scaled = await post("/api/operation", { profile: PROFILE, plan, operation: { tool: "scale_portions", day: day0, portionChange: "bigger" } });
   const before = plan.days[0].meals.reduce((s, m) => s + m.calories, 0);

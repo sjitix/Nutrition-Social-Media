@@ -10848,3 +10848,87 @@ export function applyOperations(
     undone,
   };
 }
+
+/** Seeded so a preview is reproducible: the selector picks at random among near-tied recipes, and a
+ *  preview that disagreed with itself on two consecutive renders would be worse than no preview. */
+const PREVIEW_SEED = 0x9e3d;
+
+/**
+ * Run operations against a COPY and report what they would do, committing nothing.
+ *
+ * This is what makes a confirm-before-commit interface honest: a button can show the consequence of
+ * a change — the new day totals, the deltas, which dishes move, and anything the engine would refuse
+ * or relax — before the user accepts it. The UI then commits the SAME operations through
+ * `applyOperations`.
+ *
+ * Two things it is careful about:
+ *  - It `structuredClone`s both profile and plan first, so a preview can never leak into the real
+ *    week. The caller's objects are untouched even if an operation mutates deeply.
+ *  - It reuses `dayTotals`, the engine's own arithmetic, rather than recomputing totals beside it.
+ *    (`agentTools.whatIf` still carries its own copy of that helper for the model-facing read
+ *    surface; collapsing the two onto this one belongs to the plan/execute split — see
+ *    docs/v1/02-module-map.md.)
+ *
+ * A preview is a PREDICTION, not a promise: it is seeded, the commit is not, so a caller must show
+ * the committed figures from `applyOperations` rather than keeping the previewed ones on screen.
+ */
+export function previewOperations(
+  profile: UserProfile,
+  plan: WeekPlan,
+  operations: Operation[],
+): {
+  /** The engine's own account, including what it would refuse or relax. */
+  notes: string[];
+  wouldChangePlan: boolean;
+  wouldChangeProfile: boolean;
+  days: {
+    day: DayPlan["day"];
+    kcal: number;
+    protein: number;
+    deltaKcal: number;
+    deltaProtein: number;
+    /** The day's calorie target, so the UI can say "this takes you 180 over" without doing maths. */
+    targetKcal: number;
+  }[];
+  /** Only the slots whose dish actually changes, so the UI can list the moves it is about to make. */
+  moves: { day: DayPlan["day"]; slot: Meal["type"]; from: string; to: string }[];
+} {
+  const p = structuredClone(profile);
+  const base = structuredClone(plan);
+  const before = base.days.map((d) => ({ day: d.day, ...dayTotals(d) }));
+
+  const res = withSeed(PREVIEW_SEED, () => applyOperations(p, base, operations));
+
+  const target = dayTargetMacros(p).cal;
+  const days = res.plan.days.map((d, i) => {
+    const t = dayTotals(d);
+    return {
+      day: d.day,
+      kcal: t.kcal,
+      protein: t.protein,
+      deltaKcal: t.kcal - (before[i]?.kcal ?? 0),
+      deltaProtein: t.protein - (before[i]?.protein ?? 0),
+      targetKcal: Math.round(target),
+    };
+  });
+
+  const moves: { day: DayPlan["day"]; slot: Meal["type"]; from: string; to: string }[] = [];
+  res.plan.days.forEach((d, i) => {
+    d.meals.forEach((m, j) => {
+      // Compare slot-for-slot against the pre-change plan. `plan` is the caller's original; `base`
+      // was handed to the executor and may have been mutated, so it is not a safe "before".
+      const from = plan.days[i]?.meals[j];
+      if (from && from.name !== m.name) {
+        moves.push({ day: d.day, slot: m.type, from: from.name, to: m.name });
+      }
+    });
+  });
+
+  return {
+    notes: res.notes,
+    wouldChangePlan: res.planChanged,
+    wouldChangeProfile: res.profileChanged,
+    days,
+    moves,
+  };
+}

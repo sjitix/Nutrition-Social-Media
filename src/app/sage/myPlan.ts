@@ -55,7 +55,9 @@ export async function generateMyWeek(profile: UserProfile): Promise<MyWeek> {
  * OTHER tabs; here the switch and the read happen in this one).
  */
 export const PLAN_CHANGED_EVENT = "nutriflow:planchanged";
-function notifyPlanChanged(): void {
+/** Exported because every direct action (actions.ts) ends the same way: storage is updated, then the
+ *  mounted screens are told to re-read. One dispatcher, so a new control cannot forget to notify. */
+export function notifyPlanChanged(): void {
   if (typeof window !== "undefined") window.dispatchEvent(new Event(PLAN_CHANGED_EVENT));
 }
 
