@@ -9,7 +9,93 @@ Everything described here is committed and pushed to `main`. Nothing is only on 
 
 ## Where it left off
 
-### >>> READ THIS FIRST — 2026-10-02 (evening): TRACK E IS BEING BUILT. The app is becoming operable by hand. <<<
+### >>> READ THIS FIRST — 2026-10-03 (shutdown): TRACK E IS DONE. Tomorrow starts with the test debt. <<<
+
+**State:** `main` clean, **everything pushed** (`f370aa7`), `git log origin/main..HEAD` empty.
+`npm run test:engine` **628/0** · `test:api` **50/0** (33 new) · `tsc` clean · `npm run build`
+succeeds.
+
+#### 1. START HERE TOMORROW — the one thing that is owed
+
+**Three pure functions are covered only through HTTP and belong in `npm run test:engine`:**
+
+| function | where | why it needs engine tests |
+|---|---|---|
+| `previewOperations` | `src/lib/recipeDb.ts` | the confirm-before-commit contract — it must never mutate its input, and it is seeded so it must repeat |
+| `swapCandidates` | `src/lib/recipeDb.ts` | the safety claim: it must never offer a dish the executor would refuse (diet, allergen, same-day repeat) |
+| `parseCommand` | `src/app/sage/commands.ts` | pure string → operation. Verified this session only by a throwaway bundle check — **which is how both of its bugs surfaced**, so the check earned a permanent home |
+
+`parseCommand` lives under `src/app/`, so decide deliberately where its test goes rather than
+bending the engine suite's scope by accident.
+
+**Then: Day 1 of the main schedule** — `npm run check:boundaries` (`docs/v1/01-…md`).
+
+#### 2. TRACK E IS COMPLETE — what the app can now do with NO model
+
+Plan and full build log with every finding: **`docs/v1/05-direct-manipulation.md`** (§9 is the log).
+
+- **Tap any meal** → swap (six options, each showing the delta it would cause), resize (clamp
+  disclosed), pin, rate, "why is this here?", "no ⟨ingredient⟩", the full recipe.
+- **Name a protein figure** → both routes offered: resize what's there when the engine's 1.8×
+  ceiling allows, else the dishes that do reach it.
+- **Drag a meal between days** (or `M` on the keyboard, or two taps on touch) → previews both days,
+  then Apply / Apply + rebalance / Cancel.
+- **"I ate something else"** → re-solves the rest of the day. Measured: a burger for Monday lunch
+  moved dinner 715 → 670 kcal, landing the day at 2002 against a 2000 target.
+- **`Ctrl K`** → typed commands through a **pure parser, no model**; `u` undoes; undo toast
+  everywhere; **Fix my week** rebalances every short day.
+- Routes: **`/api/operation`** gained `preview: true` and six more allowed tools (the admission test
+  is "would a model have to *interpret* this?" — a dish picked from a list is not an interpretation);
+  **`/api/candidates`** is new and read-only.
+
+#### 3. COMMIT WITH `npm run ship` FROM NOW ON
+
+```bash
+node scripts/ship.mjs --message-file msg.txt -- <paths...>     # --no-gate for docs-only, --dry-run to look
+```
+
+**Why:** `git add` parks work in `.git/index`, which is **shared state for the whole working
+directory**. Staging and then waiting out a 25-minute engine suite let a commit made elsewhere absorb
+a day's work — it landed under an unrelated message (`f613e14`), and force-pushing to fix attribution
+would break the other machine's clone. Nothing was lost (verified file by file on the remote), but
+the reasoning for that commit is not in the history. **WORKPLAN lesson 47.** `ship` removes the
+window, stops when the remote has touched a file you are about to commit, aborts a conflicted rebase
+rather than resolving blindly, verifies the commit holds exactly the named paths, and confirms the
+push. Documented in `CLAUDE.md`.
+
+#### 4. MACHINE STATE AT SHUTDOWN
+
+- **Dev server: DOWN.** `.next` holds a **PRODUCTION** build — **delete `.next` or rebuild before
+  `npm run dev`**, or every page serves blank with `Cannot find module './611.js'`.
+- **LM Studio: UP**, serving 14 models including `openai/gpt-oss-20b` (what `.env.local` selects),
+  `meta/llama-3.3-70b`, `qwen/qwen3-30b-a3b-2507` and the v4–v11 fine-tunes. `.env.local` is
+  `AI_PROVIDER=local`, `LOCAL_AI_MODEL=openai/gpt-oss-20b`.
+- **So the assistant can actually be exercised tomorrow**, which it could not be today. The three
+  `assistant offline` API tests expect 503 and got 502 *because the model was down* — **re-run
+  `npm run test:api` with LM Studio up before concluding anything about them.** Neither assistant
+  route was touched by Track E (diff-verified; the clean checkout crashed identically).
+
+#### 5. MEASUREMENTS TAKEN TODAY — use these, not the older figures
+
+- **A4 now has a real target.** The recipe library IS in a client chunk: `Shakshuka`,
+  `Miso-Glazed Cod`, `fdcId` and `approxCost` all grep out of `.next/static/chunks/*.js`. Baseline
+  first-load JS: **`/sage/plan` 216 kB, `/sage/explore` 212 kB**, 102 kB shared. Those four greps are
+  the test for when A4 is done.
+- **Track E cost +9 kB** in total (225 kB vs the 216 kB baseline, measured by building the
+  pre-Track-E commit in a worktree).
+- **The 109 kB figure further down this file is from August and had rotted** — it nearly had a 116 kB
+  regression pinned on an innocent change. A documented number is evidence of the past.
+
+#### 6. OWNER-GATED, UNCHANGED
+
+The K3 scorecard now exists in `data/eval-runs/` (added in `f613e14`) — note it carries
+**`trustworthy: false` with 8 infra failures**, which `docs/v1/03-kimi-decision.md` §5's
+pre-committed rule treats as **void**; the owner's commit says the verdict is robust anyway, and
+**Kimi is being handled in a different conversation**, so it was not re-litigated here. Also still
+open: the four-GPU experiment, and decisions 2–6 in `docs/v1/01-…md` §5 (one app or two, accounts,
+condition-aware ask-vs-auto, `week-designs.html`, the library target number and retailer-in-V1).
+
+### >>> 2026-10-02 (evening): TRACK E WAS BEING BUILT <<<
 
 **What changed today:** the owner asked for the app to work like a nutritionist through **controls, not
 a chatbot** — tap a meal and change it, name a protein figure, drag meals between days, log what you

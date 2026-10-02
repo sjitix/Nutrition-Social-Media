@@ -170,8 +170,8 @@
       the schedule ahead.</p>
     <div class="stamp">
       <b><i>source</i> docs/worklog/</b>
-      <b><i>synced</i> 2026-10-02</b>
-      <b><i>commit</i> e070648</b>
+      <b><i>synced</i> 2026-10-03</b>
+      <b><i>commit</i> f370aa7</b>
     </div>
   </header>
 
@@ -189,8 +189,8 @@
 
   <section id="totals">
     <div class="stats">
-      <div class="stat"><div class="v">2</div><div class="l">days logged</div></div>
-      <div class="stat"><div class="v">2</div><div class="l">milestones done</div></div>
+      <div class="stat"><div class="v">3</div><div class="l">days logged</div></div>
+      <div class="stat"><div class="v">3</div><div class="l">milestones done</div></div>
       <div class="stat"><div class="v">13</div><div class="l">days to V1</div></div>
       <div class="stat"><div class="v">4</div><div class="l">open deferrals</div></div>
     </div>
@@ -202,6 +202,46 @@
     <p class="lede">Only days that actually happened, each with its date, appended at the end of every work-day.
       Nothing planned appears here — the schedule ahead is in its own collapsed block below.</p>
     <div class="tl" style="margin-top:20px">
+
+      <article class="entry" id="d-2026-10-03">
+        <div class="box">
+          <div class="ehead">
+            <span class="date">2026-10-03</span>
+            <span class="pill done">solved &middot; done</span>
+          </div>
+          <h3>Track E — the app became operable by hand</h3>
+          <p class="sub">All eight blocks of the direct-manipulation day. Tapping a meal changes it, and
+            no model is involved in any of it.</p>
+          <div class="blocks">
+            <div class="blk">
+              <h4>What moved</h4>
+              <ul>
+                <li><b>Tap any meal</b> &rarr; swap (six options, each showing the delta it would cause), resize, pin, rate, &ldquo;why is this here?&rdquo;, &ldquo;no &lang;ingredient&rang;&rdquo;.</li>
+                <li><b>Name a protein figure</b> &rarr; both routes: resize what&rsquo;s there if the 1.8&times; ceiling allows, else the dishes that reach it.</li>
+                <li><b>Drag between days</b> (or <span class="mono">M</span> on the keyboard) &rarr; previews both days before committing.</li>
+                <li><b>&ldquo;I ate something else&rdquo;</b> &rarr; re-solves the rest of the day. A burger for Monday lunch moved dinner 715 &rarr; 670 kcal, landing the day at 2002 against a 2000 target.</li>
+                <li><b><span class="mono">Ctrl K</span></b> &rarr; typed commands through a pure parser. Plus Fix my week, and undo on everything.</li>
+              </ul>
+            </div>
+            <div class="blk found">
+              <h4>Four mistakes, and what each cost</h4>
+              <ul>
+                <li><b>I nearly reported a 116 kB regression I had not caused.</b> The 109 kB in CONTEXT was from August and had rotted; the real baseline was already 216 kB. Track E cost <b>+9 kB</b>. The finding underneath: the recipe library really does ship to the browser &mdash; that is milestone A4, now with four greppable markers as its test.</li>
+                <li><b>A &ldquo;better fit&rdquo; badge died to its own measurement:</b> 0 of 12, because the engine already picked the best fit. The UI explains that instead.</li>
+                <li><b>A red test was the test&rsquo;s fault</b> &mdash; it scanned a whole <span class="mono">diet:&quot;none&quot;</span> day and blamed a swap for a chicken dinner that predated it.</li>
+                <li><b>A day&rsquo;s work landed under someone else&rsquo;s commit message</b>, because files sat staged across a 25-minute gate. Nothing lost, verified file by file. Hence <span class="mono">npm run ship</span>.</li>
+              </ul>
+            </div>
+            <div class="blk">
+              <h4>Owed first tomorrow</h4>
+              <ul>
+                <li>Unit tests for <span class="mono">previewOperations</span>, <span class="mono">swapCandidates</span> and <span class="mono">parseCommand</span> &mdash; three pure functions covered only through HTTP.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="gate">GATE &middot; test:engine 628/0 &middot; test:api 50/0 with 33 new &middot; tsc clean &middot; npm run build succeeds<br>PUSHED &middot; 55b4e50 &middot; 2e3294b &middot; ee025b0 &middot; 9ddca92 &middot; f613e14 &middot; 1c7ff91 &middot; 428f79c &middot; f370aa7</div>
+        </div>
+      </article>
 
       <article class="entry" id="d-2026-10-02">
         <div class="box">

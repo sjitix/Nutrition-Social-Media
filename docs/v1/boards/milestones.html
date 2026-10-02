@@ -166,8 +166,8 @@
       one small parallel item beside it, and a gate that has to be green before anything is pushed.</p>
     <div class="stamp">
       <b><i>source</i> docs/v1/01-dimensions-and-milestones.md</b>
-      <b><i>synced</i> 2026-10-02</b>
-      <b><i>commit</i> e070648</b>
+      <b><i>synced</i> 2026-10-03</b>
+      <b><i>commit</i> f370aa7</b>
     </div>
   </header>
 
@@ -182,6 +182,29 @@
         inside a thread, use <b>Send to Claude</b> on it &mdash; I can read every comment either way.</p>
     </div>
   </div>
+
+  <section id="tracke">
+    <div class="shead"><span class="eyebrow">Shipped 2026-10-03</span><span class="rule"></span></div>
+    <h2>Track E is done — the app is operable by hand</h2>
+    <p class="lede">Eight blocks, no model anywhere. Tap a meal to swap it (each option shows the delta
+      it would cause), resize or pin or rate it, name a protein figure and get both routes to it, drag
+      meals between days with both days previewed, say you ate something else and watch the rest of the
+      day re-solve, or press <span class="mono">Ctrl K</span> and type. Everything undoes.</p>
+    <div class="callout" style="margin-top:16px">
+      <b>The measurement that is the whole claim:</b> logging a burger for Monday lunch moved dinner
+      715 &rarr; 670 kcal and landed the day at <b>2002 kcal against a 2000 target</b> &mdash; a tracker
+      would have told you that you were 700 over. Full plan and build log, including the four mistakes
+      and what each cost: <span class="mono">docs/v1/05-direct-manipulation.md</span>.
+    </div>
+    <div class="callout" style="margin-top:14px;border-color:var(--accent-line);background:var(--accent-soft)">
+      <b>A4 now has a measured target.</b> The recipe library really is in a client chunk &mdash;
+      <span class="mono">Shakshuka</span>, <span class="mono">Miso-Glazed Cod</span>,
+      <span class="mono">fdcId</span> and <span class="mono">approxCost</span> all grep out of
+      <span class="mono">.next/static/chunks/*.js</span>. Baseline first-load JS:
+      <b>/sage/plan 216 kB, /sage/explore 212 kB</b> against 102 kB shared. Those four greps are the
+      test for when A4 is finished. (Track E itself cost <b>+9 kB</b>.)
+    </div>
+  </section>
 
   <section id="what-v1-means">
     <div class="shead"><span class="eyebrow">The bar</span><span class="rule"></span></div>
