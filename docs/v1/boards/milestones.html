@@ -162,12 +162,12 @@
     </div>
     <div class="eyebrow">NutriFlow · planning board 1 of 3</div>
     <h1 style="margin-top:10px">The road to Version&nbsp;1</h1>
-    <p class="lede" style="margin-top:14px">Twelve working days, four parallel tracks. One main milestone a day,
+    <p class="lede" style="margin-top:14px">Thirteen working days, four parallel tracks. One main milestone a day,
       one small parallel item beside it, and a gate that has to be green before anything is pushed.</p>
     <div class="stamp">
       <b><i>source</i> docs/v1/01-dimensions-and-milestones.md</b>
-      <b><i>synced</i> 2026-09-19</b>
-      <b><i>commit</i> 01b9a51</b>
+      <b><i>synced</i> 2026-10-02</b>
+      <b><i>commit</i> e070648</b>
     </div>
   </header>
 
@@ -207,10 +207,11 @@
     <div class="ribbon">
       <div style="background:var(--t-a)"></div><div style="background:var(--t-a)"></div>
       <div style="background:var(--t-a)"></div><div style="background:var(--t-a)"></div>
-      <div style="background:var(--t-c)"></div><div style="background:var(--t-b)"></div>
-      <div style="background:var(--t-b)"></div><div style="background:var(--t-c)"></div>
+      <div style="background:var(--t-a)"></div><div style="background:var(--t-c)"></div>
       <div style="background:var(--t-b)"></div><div style="background:var(--t-b)"></div>
-      <div style="background:var(--t-d)"></div><div style="background:var(--t-d)"></div>
+      <div style="background:var(--t-c)"></div><div style="background:var(--t-b)"></div>
+      <div style="background:var(--t-b)"></div><div style="background:var(--t-d)"></div>
+      <div style="background:var(--t-d)"></div>
     </div>
     <div class="legend">
       <span class="chip"><span class="dot" style="background:var(--t-a)"></span>A · Architecture</span>
@@ -286,8 +287,30 @@
     </article>
 
     <article class="day" id="D5">
+      <div class="edge" style="background:var(--t-a)"></div>
+      <div class="rail"><div class="num">5</div><span class="tk" style="background:var(--accent-soft);color:var(--t-a)">A5</span></div>
+      <div class="bd">
+        <h3>Ingredients become a first-class entity</h3>
+        <p class="desc">The <b>182 curated ingredients</b> are keyed by <i>name</i>, and every recipe references one
+          as <b>free text</b> with no id. Give each a stable id, have recipes carry it, and add
+          <span class="mono">check:ingredients</span> asserting every recipe reference resolves to a real
+          FDC-backed entry. The nutrition maths does not change — this is identity, not arithmetic.</p>
+        <div class="par"><b>Parallel · B7</b><span>A curation helper that <i>proposes</i> USDA matches for a new
+          ingredient, for a human to confirm. It never auto-accepts: <span class="mono">salmon fillet →
+          Salmonberries</span> is why.</span></div>
+        <div class="meta">
+          <div><span class="k">Usable when</span>Every recipe resolves to ids with zero unmatched, and adding an ingredient takes minutes rather than an afternoon.</div>
+          <div><span class="k">Depends on</span>D3</div>
+          <div><span class="k">Gate</span><span class="mono">check:ingredients</span> + <span class="mono">test:engine</span> unchanged</div>
+        </div>
+        <p style="font-size:12.5px;color:var(--mut);margin:11px 0 0">Added 2026-09-19 from your comment on this
+          board. The reasoning, the library target and the retailer question are in the section below.</p>
+      </div>
+    </article>
+
+    <article class="day" id="D6">
       <div class="edge" style="background:var(--t-c)"></div>
-      <div class="rail"><div class="num">5</div><span class="tk" style="background:var(--amber-soft);color:var(--t-c)">C2</span></div>
+      <div class="rail"><div class="num">6</div><span class="tk" style="background:var(--amber-soft);color:var(--t-c)">C2</span></div>
       <div class="bd">
         <h3>Safety, and the three assistant bugs</h3>
         <p class="desc">The <b>crisis pre-scan</b> on the raw message, before the model sees it. Then: ban
@@ -302,9 +325,9 @@
       </div>
     </article>
 
-    <article class="day" id="D6">
+    <article class="day" id="D7">
       <div class="edge" style="background:var(--t-b)"></div>
-      <div class="rail"><div class="num">6</div><span class="tk" style="background:#e4f2f6;color:var(--t-b)">B1</span></div>
+      <div class="rail"><div class="num">7</div><span class="tk" style="background:#e4f2f6;color:var(--t-b)">B1</span></div>
       <div class="bd">
         <h3>Meal logging, end to end</h3>
         <p class="desc">A UI write path for <span class="mono">log_meal</span>. Today stops inferring “eaten” from the
@@ -317,9 +340,9 @@
       </div>
     </article>
 
-    <article class="day" id="D7">
+    <article class="day" id="D8">
       <div class="edge" style="background:var(--t-b)"></div>
-      <div class="rail"><div class="num">7</div><span class="tk" style="background:#e4f2f6;color:var(--t-b)">B2</span></div>
+      <div class="rail"><div class="num">8</div><span class="tk" style="background:#e4f2f6;color:var(--t-b)">B2</span></div>
       <div class="bd">
         <h3>One app</h3>
         <p class="desc">Execute the decision on <span class="mono">/plan</span> — 1,819 lines of a parallel product
@@ -334,9 +357,9 @@
       </div>
     </article>
 
-    <article class="day" id="D8">
+    <article class="day" id="D9">
       <div class="edge" style="background:var(--t-c)"></div>
-      <div class="rail"><div class="num">8</div><span class="tk" style="background:var(--amber-soft);color:var(--t-c)">C3</span></div>
+      <div class="rail"><div class="num">9</div><span class="tk" style="background:var(--amber-soft);color:var(--t-c)">C3</span></div>
       <div class="bd">
         <h3>The assistant speaks first</h3>
         <p class="desc">VISION's RULE 3: a standing check produces a suggestion — “Thursday is 40&nbsp;g short, fix
@@ -350,9 +373,9 @@
       </div>
     </article>
 
-    <article class="day" id="D9">
+    <article class="day" id="D10">
       <div class="edge" style="background:var(--t-b)"></div>
-      <div class="rail"><div class="num">9</div><span class="tk" style="background:#e4f2f6;color:var(--t-b)">B4</span></div>
+      <div class="rail"><div class="num">10</div><span class="tk" style="background:#e4f2f6;color:var(--t-b)">B4</span></div>
       <div class="bd">
         <h3>Imagery</h3>
         <p class="desc">Build <span class="mono">check:images</span> — bad map key, missing file, orphan file, two
@@ -366,9 +389,9 @@
       </div>
     </article>
 
-    <article class="day" id="D10">
+    <article class="day" id="D11">
       <div class="edge" style="background:var(--t-b)"></div>
-      <div class="rail"><div class="num">10</div><span class="tk" style="background:#e4f2f6;color:var(--t-b)">B3</span></div>
+      <div class="rail"><div class="num">11</div><span class="tk" style="background:#e4f2f6;color:var(--t-b)">B3</span></div>
       <div class="bd">
         <h3>Your data is yours</h3>
         <p class="desc">Profile and plan export + import as a file, so a device-local V1 is not a one-drive product.
@@ -382,9 +405,9 @@
       </div>
     </article>
 
-    <article class="day" id="D11">
+    <article class="day" id="D12">
       <div class="edge" style="background:var(--t-d)"></div>
-      <div class="rail"><div class="num">11</div><span class="tk" style="background:#f3edfe;color:var(--t-d)">D2</span></div>
+      <div class="rail"><div class="num">12</div><span class="tk" style="background:#f3edfe;color:var(--t-d)">D2</span></div>
       <div class="bd">
         <h3>The device pass</h3>
         <p class="desc">Real-phone verification — <b>sub-500px layouts are unverified</b>, because headless Chrome on
@@ -397,9 +420,9 @@
       </div>
     </article>
 
-    <article class="day" id="D12">
+    <article class="day" id="D13">
       <div class="edge" style="background:var(--t-d)"></div>
-      <div class="rail"><div class="num">12</div><span class="tk" style="background:#f3edfe;color:var(--t-d)">D4</span></div>
+      <div class="rail"><div class="num">13</div><span class="tk" style="background:#f3edfe;color:var(--t-d)">D4</span></div>
       <div class="bd">
         <h3>Release</h3>
         <p class="desc">All documents current, STATUS honest, OG/PWA/404 checked, every gate green, tag
@@ -451,30 +474,99 @@ everything ─► D4 release</pre>
           </tr>
           <tr>
             <td><b>One app or two</b> — is <span class="mono">/plan</span> retired, frozen, or kept?</td>
-            <td class="mono">D7</td>
+            <td class="mono">D8</td>
             <td><span class="pill open">open</span></td>
             <td>Freeze <span class="mono">/plan</span>: leave it reachable, stop maintaining it, ship <span class="mono">/sage</span>.</td>
           </tr>
           <tr>
             <td><b>Accounts</b> — the Supabase project URL + anon key</td>
-            <td class="mono">D10</td>
+            <td class="mono">D11</td>
             <td><span class="pill open">open</span></td>
             <td>Device-local V1 plus export/import; accounts land the day the keys do.</td>
           </tr>
           <tr>
             <td><b>Condition-aware generation</b> — ask, or auto-apply?</td>
-            <td class="mono">D7</td>
+            <td class="mono">D8</td>
             <td><span class="pill open">open</span></td>
             <td>ASK, which is what VISION already says.</td>
           </tr>
           <tr>
             <td><b><span class="mono">public/week-designs.html</span></b> — document it or delete it?</td>
-            <td class="mono">D12</td>
+            <td class="mono">D13</td>
             <td><span class="pill block">3rd handoff</span></td>
             <td>Delete. It serves invented dish data from a product whose whole claim is that its numbers are real.</td>
           </tr>
+          <tr>
+            <td><b>Retailer products inside V1, or straight after?</b> And what the library target number is</td>
+            <td class="mono">D5</td>
+            <td><span class="pill open">open</span></td>
+            <td>Ingredient <i>identity</i> in V1; the Lidl-style product layer first thing after it. Target 400 ingredients / 900 recipes.</td>
+          </tr>
         </tbody>
       </table>
+    </div>
+  </section>
+
+  <section id="library">
+    <div class="shead"><span class="eyebrow">Your comment, worked through</span><span class="rule"></span></div>
+    <h2>Expanding the library, and real-world products</h2>
+    <p class="lede">You asked to expand the database a lot, and to think about an ingredients database wired to
+      real retailer products. Checked against the code first, because the facts change the answer.</p>
+
+    <div class="stats" style="grid-template-columns:repeat(auto-fit,minmax(152px,1fr));display:grid;gap:12px;margin-top:18px">
+      <div class="step"><div class="n" style="width:auto;padding:0 8px">501</div><p><b>recipes</b> in the library today</p></div>
+      <div class="step"><div class="n" style="width:auto;padding:0 8px">182</div><p><b>curated ingredients</b> holding all of them up</p></div>
+      <div class="step"><div class="n" style="width:auto;padding:0 8px">0</div><p><b>ingredient ids</b> — recipes point at free text</p></div>
+      <div class="step"><div class="n" style="width:auto;padding:0 8px">0</div><p><b>prices or products</b> of any kind</p></div>
+    </div>
+
+    <div class="callout" style="margin-top:20px">
+      <b>The constraint is ingredients, not recipes.</b> A new recipe may only use an ingredient already curated to a
+      real USDA <span class="mono">fdcId</span>, because auto-matching is banned — it produced
+      <span class="mono">salmon fillet → Salmonberries</span>, and shipping that means fabricated nutrition presented
+      as real data. So "expand a lot" is a slow half (curate ingredients, hand-verified) and a fast half (write
+      recipes over them). <b>D5's parallel item exists to speed up the slow half</b> without ever auto-accepting a
+      match.
+    </div>
+
+    <div class="tablewrap" style="margin-top:18px">
+      <table>
+        <thead><tr><th>The three things in your comment</th><th>Where it lands</th><th>Why</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><b>Expand the library</b></td>
+            <td><span class="pill open">needs a number</span></td>
+            <td>Proposed <b>182 → 400 ingredients, 501 → 900 recipes</b>, judged by the export's Gaps sheet — any diet/slot cell under seven forces a week to repeat a dish. "A lot" with no number has no gate.</td>
+          </tr>
+          <tr>
+            <td><b>An ingredients database</b></td>
+            <td><span class="pill settled">V1 · day 5</span></td>
+            <td>The layer exists; what it lacks is <b>identity</b>. Nothing can hang off a string — not a price, not a product, not an allergen flag. Cheap now, a migration of 900 recipes later.</td>
+          </tr>
+          <tr>
+            <td><b>Wired to Lidl-style products</b></td>
+            <td><span class="pill open">straight after V1</span></td>
+            <td>Additive once ids exist, a rewrite without them. It also needs a data source <b>nobody has established yet</b> — see below.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout" style="margin-top:18px">
+      <b>What the product layer would actually buy, and what it costs.</b> It makes
+      <span class="mono">approxCost</span> real — today it is a 1–3 integer that never exceeds 3, so the
+      <span class="mono">budget: high</span> setting behaves identically to <span class="mono">medium</span>; it makes
+      the grocery list shoppable with a true total; and it turns meal-prep's bulk-buy saving into a measured figure
+      instead of a model. The cost: products map many-to-one onto ingredients, carry pack sizes (the gap between
+      "buy 500 g" and "the recipe wants 80 g" is where the saving comes from), carry <b>prices that go stale</b>, and
+      are per-store and per-country. A price must therefore show <b>when it was last seen</b> — in a product whose
+      whole claim is that its numbers are real, a confidently stale price is the same class of failure as a
+      hallucinated macro.
+      <br><br>
+      <b>And one thing is deliberately not assumed:</b> whether Lidl or any discounter exposes product and price data
+      in a usable, permitted way is <b>unverified</b>. The route that needs nobody's permission — hand-pricing the
+      ~200 staples this library actually uses, each with a date — would work on day one, and any API later is an
+      upgrade to the same shape.
     </div>
   </section>
 

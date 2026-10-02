@@ -170,8 +170,8 @@
       the schedule ahead.</p>
     <div class="stamp">
       <b><i>source</i> docs/worklog/</b>
-      <b><i>synced</i> 2026-09-19</b>
-      <b><i>commit</i> 01b9a51</b>
+      <b><i>synced</i> 2026-10-02</b>
+      <b><i>commit</i> e070648</b>
     </div>
   </header>
 
@@ -189,9 +189,9 @@
 
   <section id="totals">
     <div class="stats">
-      <div class="stat"><div class="v">1</div><div class="l">days logged</div></div>
-      <div class="stat"><div class="v">1</div><div class="l">milestones done</div></div>
-      <div class="stat"><div class="v">12</div><div class="l">days to V1</div></div>
+      <div class="stat"><div class="v">2</div><div class="l">days logged</div></div>
+      <div class="stat"><div class="v">2</div><div class="l">milestones done</div></div>
+      <div class="stat"><div class="v">13</div><div class="l">days to V1</div></div>
       <div class="stat"><div class="v">4</div><div class="l">open deferrals</div></div>
     </div>
   </section>
@@ -202,6 +202,56 @@
     <p class="lede">Only days that actually happened, each with its date, appended at the end of every work-day.
       Nothing planned appears here — the schedule ahead is in its own collapsed block below.</p>
     <div class="tl" style="margin-top:20px">
+
+      <article class="entry" id="d-2026-10-02">
+        <div class="box">
+          <div class="ehead">
+            <span class="date">2026-10-02</span>
+            <span class="pill done">solved · done</span>
+          </div>
+          <h3>The library expansion question, and context that survives a session gap</h3>
+          <p class="sub">No scheduled milestone — a planning change driven by your comment on the schedule board,
+            plus the context-file work. Day 1 is still the next build.</p>
+          <div class="blocks">
+            <div class="blk">
+              <h4>What moved</h4>
+              <ul>
+                <li><b>The schedule grew from 12 days to 13.</b> Ingredient identity is now day 5, after the
+                  <span class="mono">recipeDb</span> split and before the library grows.</li>
+                <li>§8 of the plan works your comment through end to end, and the schedule board now answers it on
+                  the page rather than only in a thread.</li>
+                <li>VISION carries the directional half: an ingredient becomes an entity with an identity, and the
+                  plan should eventually know what things cost in a real shop.</li>
+                <li><span class="mono">CONTEXT.md</span> now leads with the three board URLs and the comment loop,
+                  so a new session cannot miss the mechanism that steers the plan.</li>
+              </ul>
+            </div>
+            <div class="blk found">
+              <h4>What I found that changed the answer</h4>
+              <ul>
+                <li><b>501 recipes stand on only 182 curated ingredients</b> — the ceiling is the ingredient table,
+                  not the recipe count.</li>
+                <li><b>A recipe references an ingredient as free text</b>, with no id, so nothing can hang off an
+                  ingredient today — not a price, not a product, not an allergen flag.</li>
+                <li><b>No price or product layer exists</b>, and <span class="mono">approxCost</span> never exceeds
+                  3 — so <span class="mono">budget: high</span> behaves identically to <span class="mono">medium</span>.
+                  A control that encodes nothing.</li>
+              </ul>
+            </div>
+            <div class="blk">
+              <h4>What got in the way</h4>
+              <ul>
+                <li>Renumbering a schedule in two places is where an off-by-one hides. Done descending so numbers
+                  could not collide mid-rename, and verified by printing every id afterwards rather than trusting
+                  the replace.</li>
+                <li>A dangling cross-reference nearly shipped — the dimensions table pointed at “§8” before §8
+                  existed. Caught by grepping the doc's own headers against its references.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="gate">GATE · docs and board HTML only, no src/ change, so test:engine stands at 628/0<br>PUSHED · 0c1775d · e070648</div>
+        </div>
+      </article>
 
       <article class="entry" id="d-2026-09-19">
         <div class="box">
@@ -258,7 +308,7 @@
   <section id="upcoming-sec">
     <div class="shead"><span class="eyebrow">Not history yet</span><span class="rule"></span></div>
     <details class="upcoming" id="upcoming">
-      <summary>Upcoming — the schedule ahead<span class="c">12 days · collapsed</span></summary>
+      <summary>Upcoming — the schedule ahead<span class="c">13 days · collapsed</span></summary>
       <div class="up-body">
         <div class="up-row">
           <div class="w">Day 1</div>
@@ -274,12 +324,12 @@
           <div>
             <h4>Split recipeDb, then the payload boundary</h4>
             <p>Data out of engine, then the executor, each behind a barrel that leaves every call site untouched.
-              Then stop shipping 501 recipes to the browser.</p>
+              Then stop shipping 501 recipes to the browser. <b>Day 5</b> gives ingredients a stable identity, which is what lets a price or a retailer product hang off one at all.</p>
             <div class="gate" style="margin-top:9px;padding-top:9px">GATE · test:engine, identical count · then npm run build, first-load JS compared</div>
           </div>
         </div>
         <div class="up-row">
-          <div class="w">Days 5–12</div>
+          <div class="w">Days 6–13</div>
           <div>
             <h4>Safety, logging, one app, the assistant that speaks first, release</h4>
             <p>The crisis pre-scan is the one hard ordering constraint: nothing public gets a live model before
