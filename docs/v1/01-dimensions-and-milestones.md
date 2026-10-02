@@ -7,7 +7,9 @@ matters.*
 
 **Read with:** `02-module-map.md` (the contracts these milestones are built on),
 `03-kimi-decision.md` (which model the assistant days assume), `04-daily-history.md` (where each
-day's result gets recorded).
+day's result gets recorded), and **`05-direct-manipulation.md`** — Track E, the 8-hour day that turns
+the engine's 19 tested operations into controls you press. That is the product thesis and it needs no
+model at all.
 
 ---
 
@@ -91,6 +93,7 @@ The tracks run **in parallel**; the ordering *within* a track is a dependency, n
 | **B — Product** | the gaps a user would hit | Logging before anything that reasons about history; the one-app decision before polish, so polish is spent once. |
 | **C — Assistant** | model choice + behaviour | The **crisis pre-scan gates a public live model** — it is the one hard ordering constraint in the whole plan. Proactive suggestions come after logging, because "you're short on protein" is better evidence than "your plan is". |
 | **D — Trust & release** | the record, the device, the ship | The daily history starts on day 1 or it never starts. Device verification comes late, after layout stops moving. |
+| **E — Direct manipulation** | the app as something you operate with your hands: tap a meal and change it, drag it to another day, log what you actually ate, and watch the plan re-solve | **This is the product thesis, and it needs no model.** 19 engine operations, `whatIf` previews and a no-model route already exist and are tested — the only missing layer is the controls. Full plan: **`05-direct-manipulation.md`** (one 8-hour day). It also **shrinks C3**: "Thursday is 40 g short → Fix" is a one-tap chip here, so what is left for the assistant is only the genuinely conversational part. |
 
 **The relationship rule between tracks:** A changes *where code lives* and must not change what it
 does (gate: `test:engine` identical before and after). B and C change *what it does* and must not
