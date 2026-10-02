@@ -164,6 +164,39 @@ What the prediction got right and wrong, worth keeping:
   garam masala or coconut milk) stay shallow until that work is done. That is the next real
   constraint on variety, and it was not foreseen here.
 
+## Ingredients become a first-class thing, and then real products (owner direction, 2026-09-19)
+
+The owner's direction, given as a comment on the V1 schedule board: **expand the library a lot, and
+work out whether ingredients can be wired to real-world retailer products — Lidl's, for example.**
+Both are in scope as *directions*; what lands in V1 is worked out in
+`docs/v1/01-dimensions-and-milestones.md` §8. The part that changes what the product IS, and so
+belongs here:
+
+**An ingredient stops being a string and becomes an entity with an identity.** Today a recipe says
+`{ name: "brown rice", quantity: "80 g" }` and the name is matched against the 182-entry USDA table
+at derive time. That is enough to compute nutrition and nothing else: **nothing can hang off a
+string** — not a price, not a retailer product, not an allergen flag, not a substitution rule.
+Giving each ingredient a stable id (V1, day 5) is therefore not tidying; it is the precondition for
+every one of those, and it is cheap now and a migration later.
+
+**The long-term direction: the plan should know what things actually cost in a real shop.** A
+product layer maps many retailer products onto one ingredient, carries pack sizes (the gap between
+"buy 500 g" and "the recipe needs 80 g" is where meal-prep's saving actually comes from), and
+carries prices that **go stale and must say when they were last seen**. That last point is a quality
+bar, not a detail: in a product whose entire claim is that its numbers are real, a confidently wrong
+price is the same class of failure as a hallucinated macro. The honest form is a visible "priced on
+<date>" and a refresh path — never a stale number presented as current.
+
+**It also replaces something that is currently fake.** `approxCost` is a 1–3 integer and nothing in
+the library exceeds 3, so the `budget: high` setting behaves identically to `medium` — a user
+control that encodes nothing. Real prices make that control mean something.
+
+**Not committed, and deliberately so:** the data source. Whether Lidl or any discounter exposes
+product and price data in a usable and permitted way is **unverified**, and a plan that assumes it
+would be a plan built on a guess. The fallback that needs no one's permission — hand-pricing the
+~200 staples this library actually uses, with a date on each — is the one to design for, because it
+works on day one and any API later is an upgrade to the same shape.
+
 ## Conversational assistant — architecture & roadmap (decided direction)
 
 **Vision:** a real LLM you talk to that changes the plan and settings the way Claude

@@ -9,7 +9,51 @@ Everything described here is committed and pushed to `main`. Nothing is only on 
 
 ## Where it left off
 
-### >>> READ THIS FIRST — 2026-09-19 (evening): THE V1 PLAN EXISTS. NEXT = EXECUTE DAY 1. <<<
+### >>> READ THIS FIRST — 2026-10-02: THE PLAN IS STEERED BY THREE LIVE BOARDS YOU COMMENT ON. NEXT = DAY 1. <<<
+
+**State:** `main` clean and fully pushed. No `src/lib` change since the plan work began, so
+`npm run test:engine` stands at **628/0**. The V1 plan lives in **`docs/v1/`** and is now **13 days**,
+not 12.
+
+**The thing to understand before anything else: there are three published boards, and commenting on
+them is how the owner now directs the work.**
+
+| board | mirrors | URL |
+|---|---|---|
+| V1 schedule | `docs/v1/01-dimensions-and-milestones.md` | https://claude.ai/artifact/5jeC8s1S7QiHs9LLh4uGMV |
+| Module map | `docs/v1/02-module-map.md` | https://claude.ai/artifact/BRu96iPYni7HgzHzjwFMGR |
+| Day log | `docs/worklog/*.md` | https://claude.ai/artifact/3Qqpy8i7PKCvEfZXsgzfnh |
+
+The owner selects any text (or clicks any block) on a board and comments there; the comment carries
+its own anchor, so it says *which* element it is about without a describing prompt. On **"evaluate my
+comments"**: read every thread with `ArtifactComments`, change **both the board and the document
+behind it**, republish **to the URL above** (publishing without it makes a duplicate and strands the
+comments), commit, push, then resolve the thread. Full mechanics, including the `comments` capability
+the pages declare and the rules that come with it: **`docs/v1/boards/README.md`** — read it before
+touching a board.
+
+**Two comments have already been acted on, and both changed the plan:**
+1. *Day log* — the timeline is **history only** now (dated days that actually happened); the schedule
+   ahead sits beside it in a collapsed block. A log that mixes the two is a record of intentions.
+2. *V1 schedule* — **expand the library a lot; think about an ingredients database and wiring it to
+   real retailer products (Lidl)**. Worked up as `01-…md` **§8** and recorded in VISION. The facts
+   that reframed it: 501 recipes stand on only **182 curated ingredients**, a recipe references one
+   as **free text with no id**, and **no price/product layer exists** (`approxCost` is 1–3 and never
+   exceeds 3, so `budget: high` == `medium`). Outcome: **ingredient identity is now day 5** (the
+   schedule grew 12 → 13 days), the retailer layer is recommended for immediately **after** V1, and
+   whether Lidl exposes usable data is recorded as **unverified, not assumed**.
+
+**NEXT SESSION STARTS AT DAY 1:** build **`npm run check:boundaries`** so the module map becomes
+enforced truth (layering, barrels-only imports, only `storage.ts` names a storage key, no client
+component imports the engine, no cycles, no emoji). Then D2/D3 split `recipeDb.ts` behind a barrel
+with an identical `test:engine` count as the gate.
+
+**Still waiting on the owner:** the K3 eval re-run (their `nvapi-` key — the decision rule is
+pre-committed in `03-kimi-decision.md` §5, and the scorecard now persists to `data/eval-runs/`); the
+four-GPU inference experiment; and decisions 2–6 in `01-…md` §5, which include the library target
+number and whether the retailer link sits inside V1.
+
+### >>> 2026-09-19 (evening): THE V1 PLAN EXISTS <<<
 
 **The planning conversation briefed in `docs/v1-modularization-kickoff.md` is DONE.** All four
 deliverables are written, committed and pushed, and they live in **`docs/v1/`**:
