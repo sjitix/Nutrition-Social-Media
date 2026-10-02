@@ -9,7 +9,46 @@ Everything described here is committed and pushed to `main`. Nothing is only on 
 
 ## Where it left off
 
-### >>> READ THIS FIRST — 2026-10-02: THE PLAN IS STEERED BY THREE LIVE BOARDS YOU COMMENT ON. NEXT = DAY 1. <<<
+### >>> READ THIS FIRST — 2026-10-02 (evening): TRACK E IS BEING BUILT. The app is becoming operable by hand. <<<
+
+**What changed today:** the owner asked for the app to work like a nutritionist through **controls, not
+a chatbot** — tap a meal and change it, name a protein figure, drag meals between days, log what you
+actually ate. That is now **Track E**, planned in `docs/v1/05-direct-manipulation.md` with an
+8-hour block plan and a build log at the bottom (§9) recording each block as it lands.
+
+**The finding that made it cheap:** almost none of it was new work. The engine already executes **19
+operations** covering every request, `whatIf` already simulates a change without committing, and
+`/api/operation` already existed as a **no-model route for button presses** — its own header argues
+the thesis: *a button press already carries its intent, so routing it through an LLM is slower, costs
+a model call, and can be wrong.*
+
+**Shipped so far (H1–H4):**
+- `previewOperations` in the engine + `preview: true` on `/api/operation` — confirm-before-commit,
+  checked before the executor so a preview has no path that can commit (`55b4e50`).
+- The allowlist widened by six tools. The admission test was always "does this need a MODEL to
+  interpret a sentence" — and **a dish picked from a list is not an interpretation**.
+- `src/app/sage/actions.ts` — the one path every control takes. Three rules at the top: the browser
+  never imports the engine, the engine's numbers win, the engine's notes get shown.
+- **The Meal Sheet** (`2e3294b`) — every meal on the Week board is a button: portion, pin, rate,
+  "why is this here?", the recipe, "no ⟨ingredient⟩".
+- **Swap with the trade shown** — `swapCandidates` + `/api/candidates`: six alternatives, each with
+  the delta it causes. The pool is the engine's own `batchCandidates`, so **a candidate the executor
+  would refuse is never offered** (proven: 0 peanut dishes to a peanut allergy).
+- **The macro dial** — name a protein number, get both ways to reach it (resize what's there if
+  `SCALE_HI` allows, else dishes that do reach it).
+- **`ReconcileSheet`** — previews any operation, shows the days it moves and the engine's notes, then
+  Apply / Apply + rebalance / Cancel. **Day controls** (Balance · New day) and **Fix my week** use it.
+
+**NEXT: H5 (drag and drop between days), then H6 (the deviation flow — "I ate something else", which
+re-solves the rest of the day and is the MyFitnessPal answer), H7 (command palette + keyboard), H8
+(gates, docs, the production build).** The drop order if time runs short is in §4 of the plan.
+
+**Machine state:** a `npm run dev` server is UP on :3000 (started this session). `.next` holds a DEV
+build now — the production build is deliberately deferred to H8 because it cannot run while dev
+holds `.next`. LM Studio is DOWN, which is why three pre-existing `assistant offline` API tests
+expect 503 and get 502; that is unrelated to Track E (verified by diff) and still open.
+
+### >>> 2026-10-02: THE PLAN IS STEERED BY THREE LIVE BOARDS YOU COMMENT ON <<<
 
 **State:** `main` clean and fully pushed. No `src/lib` change since the plan work began, so
 `npm run test:engine` stands at **628/0**. The V1 plan lives in **`docs/v1/`** and is now **13 days**,

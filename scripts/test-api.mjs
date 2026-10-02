@@ -135,11 +135,79 @@ async function main() {
         operation: { tool: "swap_meal", day: day0, mealType: type0, dish: meaty.name },
       });
       const vday = vegan.json?.plan?.days?.find((d) => d.day === day0);
-      const landed = (vday?.meals ?? []).some((m) => m.name === meaty.name);
+      // Check the TARGET SLOT, not the whole day. The plan under test was built for diet:"none", so
+      // the day legitimately contains meat already — an earlier version of this assertion scanned
+      // every slot, found a chicken dinner that was there before the swap, and reported a diet
+      // violation the engine had actually refused (it said so: "I didn't have X — I used Y").
+      const landed = (vday?.meals ?? []).some((m) => m.type === type0 && m.name === meaty.name);
       check("direct: a swap that breaks the diet is refused by the ENGINE, not the route",
-        vegan.status === 200 && !landed, `landed=${landed}`);
+        vegan.status === 200 && !landed, `landed=${landed} in slot ${type0}`);
       check("direct: ...and it says why rather than failing silently", (vegan.json?.reply ?? "").length > 0);
     }
+  }
+
+  // ---- the deviation flow: logging what you really ate must re-solve the REST of the day ----
+  {
+    const d0 = plan.days[0];
+    const before = d0.meals.reduce((s, m) => s + m.calories, 0);
+    const logged = await post("/api/operation", {
+      profile: PROFILE, plan,
+      operation: { tool: "log_meal", day: day0, mealType: "lunch", dish: "a burger and chips", loggedCalories: 900 },
+    });
+    const after = (logged.json?.plan?.days ?? []).find((d) => d.day === day0);
+    const total = (after?.meals ?? []).reduce((s, m) => s + m.calories, 0);
+    check("deviation: logging a big lunch keeps the DAY near target, not just records it",
+      Math.abs(total - PROFILE.targetCalories) <= PROFILE.targetCalories * 0.12,
+      `${before} -> ${total} vs target ${PROFILE.targetCalories}`);
+    check("deviation: the reply states the resulting day, so the user isn't left to add it up",
+      /\d/.test(logged.json?.reply ?? "") && (logged.json?.reply ?? "").length > 20, logged.json?.reply);
+
+    // When the free text matches a real recipe, the LIBRARY's macros win over the typed calories —
+    // it carries protein/carbs/fat too, where the user gave only kcal. The engine must SAY so,
+    // because silently replacing someone's number would be the dishonest version of being right.
+    const usedLibrary = /\(\d+ kcal\)/.test(logged.json?.reply ?? "");
+    check("deviation: a library match discloses the calories it actually used", usedLibrary,
+      logged.json?.reply);
+
+    // No calories and no match: reserve a typical meal and admit the estimate rather than guess.
+    const vague = await post("/api/operation", {
+      profile: PROFILE, plan, operation: { tool: "eating_out", day: day0, mealType: "dinner" },
+    });
+    check("deviation: eating out with no figure says it estimated",
+      /estimat|typical|assum/i.test(vague.json?.reply ?? ""), vague.json?.reply);
+  }
+
+  // ---- /api/candidates: a swap list must never offer what the executor would refuse ----
+  {
+    const cands = await post("/api/candidates", { profile: PROFILE, plan, day: day0, mealType: type0, limit: 6 });
+    check("candidates: returns a list (200)", cands.status === 200, `status ${cands.status}`);
+    check("candidates: names the dish currently in the slot", typeof cands.json?.current?.name === "string");
+    check("candidates: states what the slot aims at", typeof cands.json?.slotTarget?.calories === "number");
+    check("candidates: every row carries the delta it would cause",
+      (cands.json?.rows ?? []).every((r) => typeof r.deltaKcal === "number" && typeof r.deltaProtein === "number"));
+    check("candidates: says whether each is a better fit than what is there",
+      (cands.json?.rows ?? []).every((r) => typeof r.closerToTarget === "boolean"));
+    check("candidates: never offers a dish already on that day (invariant I4)",
+      (cands.json?.rows ?? []).every((r) => !plan.days.find((d) => d.day === day0).meals.some((m) => m.name === r.name)));
+    check("candidates: respects the cook-time limit", (cands.json?.rows ?? []).every((r) => r.minutes <= PROFILE.maxCookTime + 15));
+
+    // The safety claim: offering a dish and then refusing it is worse than not offering it.
+    const allergic = await post("/api/candidates", {
+      profile: { ...PROFILE, allergies: "peanuts" }, plan, day: day0, mealType: type0, limit: 12,
+    });
+    check("candidates: offers NO peanut dish to a peanut allergy",
+      (allergic.json?.rows ?? []).every((r) => !/peanut/i.test(r.name)),
+      (allergic.json?.rows ?? []).filter((r) => /peanut/i.test(r.name)).map((r) => r.name).join(", "));
+
+    const vegan = await post("/api/candidates", {
+      profile: { ...PROFILE, diet: "vegan" }, plan, day: day0, mealType: type0, limit: 12,
+    });
+    check("candidates: offers no obvious meat/fish to a vegan",
+      (vegan.json?.rows ?? []).every((r) => !/chicken|beef|salmon|pork|turkey|cod|prawn|tuna/i.test(r.name)),
+      (vegan.json?.rows ?? []).map((r) => r.name).join(", "));
+
+    const bad = await post("/api/candidates", { profile: PROFILE, plan, mealType: type0 });
+    check("candidates: missing day -> 400, not a crash", bad.status === 400, `status ${bad.status}`);
   }
 
   // ---- preview: the confirm-before-commit contract ----

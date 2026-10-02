@@ -101,6 +101,63 @@ async function post(body: unknown): Promise<Record<string, unknown>> {
   return data;
 }
 
+/** One alternative for a slot, with the change it would make to the day. */
+export interface Candidate {
+  name: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fibre: number;
+  minutes: number;
+  deltaKcal: number;
+  deltaProtein: number;
+  keepsDays: number;
+  freezesWell: boolean;
+  elsewhereThisWeek: boolean;
+  closerToTarget: boolean;
+}
+
+export interface CandidateList {
+  current: { name: string; calories: number; protein: number } | null;
+  slotTarget: { calories: number; protein: number };
+  /** Set when a protein floor was asked for: whether resizing what's there could reach it alone. */
+  resizeReaches: { possible: boolean; atFactor: number; protein: number; calories: number } | null;
+  rows: Candidate[];
+}
+
+/**
+ * What else could go in this slot. Read-only, and the deltas are the ENGINE's arithmetic — the
+ * browser never works out what a swap would cost.
+ */
+export async function slotCandidates(
+  day: DayPlan["day"],
+  mealType: Meal["type"],
+  limit = 6,
+  /** "At least this much protein in this meal." A floor, not a target. */
+  minProtein?: number,
+): Promise<CandidateList> {
+  const { profile, plan } = currentState();
+  let res: Response;
+  try {
+    res = await fetch("/api/candidates", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ profile, plan, day, mealType, limit, minProtein }),
+    });
+  } catch {
+    throw new ActionError("Couldn't reach the planner — is the app still running?");
+  }
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) throw new ActionError(String(data.error ?? "Couldn't find alternatives."));
+  return {
+    current: (data.current ?? null) as CandidateList["current"],
+    slotTarget: (data.slotTarget ?? { calories: 0, protein: 0 }) as CandidateList["slotTarget"],
+    resizeReaches: (data.resizeReaches ?? null) as CandidateList["resizeReaches"],
+    rows: (data.rows ?? []) as Candidate[],
+  };
+}
+
 /**
  * Show what an operation WOULD do. Commits nothing, and the caller's plan is untouched.
  *
@@ -108,9 +165,14 @@ async function post(body: unknown): Promise<Record<string, unknown>> {
  * near-tied recipes, so a commit can land on a different dish of equal fit. Label previewed numbers
  * as a preview and re-read the committed ones from `runOperation`.
  */
-export async function previewOperation(operation: Operation): Promise<PreviewResult> {
+export async function previewOperation(operation: Operation | Operation[]): Promise<PreviewResult> {
   const { profile, plan } = currentState();
-  const data = await post({ profile, plan, operation, preview: true });
+  const data = await post({
+    profile,
+    plan,
+    ...(Array.isArray(operation) ? { operations: operation } : { operation }),
+    preview: true,
+  });
   return {
     notes: Array.isArray(data.notes) ? (data.notes as string[]) : [],
     wouldChangePlan: Boolean(data.wouldChangePlan),
@@ -123,9 +185,17 @@ export async function previewOperation(operation: Operation): Promise<PreviewRes
  * Run an operation for real: persist the result under the key for the current mode, take the undo
  * snapshot, and tell every mounted screen to re-read so Week, Today and Groceries move together.
  */
-export async function runOperation(operation: Operation, label?: string): Promise<ActionResult> {
+export async function runOperation(
+  operation: Operation | Operation[],
+  label?: string,
+): Promise<ActionResult> {
   const { profile, plan } = currentState();
-  const data = await post({ profile, plan, operation, previous: snapshot });
+  const data = await post({
+    profile,
+    plan,
+    ...(Array.isArray(operation) ? { operations: operation } : { operation }),
+    previous: snapshot,
+  });
 
   const week = data.plan as WeekPlan;
   const nextProfile = (data.profile as UserProfile) ?? profile;
@@ -134,7 +204,8 @@ export async function runOperation(operation: Operation, label?: string): Promis
   // The route hands back the snapshot to keep (or undefined once an undo has spent it), so undo
   // bookkeeping stays in one place — the engine's — rather than being re-derived here.
   snapshot = (data.previous as PlanSnapshot | undefined) ?? undefined;
-  if (operation.tool === "undo") lastLabel = null;
+  const isUndo = !Array.isArray(operation) && operation.tool === "undo";
+  if (isUndo) lastLabel = null;
   else if (planChanged) lastLabel = label ?? null;
 
   if (nextProfile.planMode === "batch") saveBatchPlan(week);
@@ -214,22 +285,75 @@ export const actions = {
   weeklyReport: () => runOperation({ tool: "weekly_report" }),
 };
 
+/**
+ * "Fix my week" — rebalance every day that is off its targets, in one press.
+ *
+ * Built from `rebalance_day` rather than a new engine tool, because the engine already holds a day
+ * on target and a week is seven days. It only touches days that are actually off, so a week that is
+ * already fine costs nothing and reports that honestly instead of claiming work it did not do.
+ *
+ * ONE LIMITATION, DISCLOSED RATHER THAN HIDDEN: the engine's undo is one level deep, so after fixing
+ * several days only the LAST one can be undone. The caller is told how many were touched so it can
+ * say so, instead of offering an Undo that quietly reverses a seventh of the change.
+ */
+export async function fixMyWeek(
+  /** Protein grams per day the week is aiming at — from the profile, never computed here. */
+  proteinTarget: number,
+): Promise<{ fixed: string[]; alreadyFine: number; notes: string[]; result: ActionResult | null }> {
+  const { plan } = currentState();
+
+  // Which days need it, measured from the plan the engine returned. A day is "off" when its protein
+  // is short of target; calories are what the rebalancer moves to fix that.
+  const off = plan.days.filter(
+    (d) => d.meals.reduce((s, m) => s + m.proteinGrams, 0) < proteinTarget,
+  );
+
+  if (off.length === 0) {
+    return { fixed: [], alreadyFine: plan.days.length, notes: [], result: null };
+  }
+
+  const fixed: string[] = [];
+  const notes: string[] = [];
+  let last: ActionResult | null = null;
+  for (const d of off) {
+    // Sequential on purpose: each rebalance must see the week the previous one produced.
+    last = await runOperation({ tool: "rebalance_day", day: d.day }, `Rebalanced ${d.day}`);
+    if (last.planChanged) fixed.push(d.day);
+    notes.push(...last.notes);
+  }
+  return { fixed, alreadyFine: plan.days.length - off.length, notes, result: last };
+}
+
 /* ------------------------------------------------------------------------------------------------
  * Previews of the same actions, for the reconcile sheet.
  * ---------------------------------------------------------------------------------------------- */
+
+/**
+ * Move a dish to another slot or day — the drag-and-drop operation.
+ *
+ * It is a PAIR of swaps, built from the two dish names captured before either is applied, so the
+ * order they execute in cannot matter. Sent as one call, which makes it one undo: the user performed
+ * one gesture, so pressing Undo once must put both plates back.
+ */
+export function movePair(
+  from: { day: DayPlan["day"]; mealType: Meal["type"]; dish: string },
+  to: { day: DayPlan["day"]; mealType: Meal["type"]; dish: string },
+): Operation[] {
+  return [
+    { tool: "swap_meal", day: to.day, mealType: to.mealType, dish: from.dish },
+    { tool: "swap_meal", day: from.day, mealType: from.mealType, dish: to.dish },
+  ];
+}
 
 export const previews = {
   swapMeal: (day: DayPlan["day"], mealType: Meal["type"], dish: string) =>
     previewOperation({ tool: "swap_meal", day, mealType, dish }),
 
-  /** Moving a meal is a swap on each end, so a move's preview is the pair taken together. */
+  /** A move previews as the pair taken together, which is also how it commits. */
   move: (
     from: { day: DayPlan["day"]; mealType: Meal["type"]; dish: string },
     to: { day: DayPlan["day"]; mealType: Meal["type"]; dish: string },
-  ) => Promise.all([
-    previewOperation({ tool: "swap_meal", day: to.day, mealType: to.mealType, dish: from.dish }),
-    previewOperation({ tool: "swap_meal", day: from.day, mealType: from.mealType, dish: to.dish }),
-  ]),
+  ) => previewOperation(movePair(from, to)),
 
   setDayProtein: (day: DayPlan["day"], grams: number) =>
     previewOperation({ tool: "rebalance_day", day, targetProtein: grams }),

@@ -293,3 +293,115 @@ Accounts and sync (owner-gated), the price layer (needs the ingredient identity 
 needing a model, the workout vertical, and **`/plan`**. Also not touching `recipeDb.ts`'s internals:
 this track adds no engine behaviour, which is exactly why it is safe to do in a day — and it means
 `npm run test:engine` should come back with **the same 628** at the end.
+
+---
+
+## 9. Build log
+
+Appended as the blocks land, so the plan and the code do not drift apart.
+
+### H1 — the spine · DONE (`55b4e50`)
+
+`previewOperations` in the engine (clone, seeded, returns deltas + moves + the engine's notes);
+`preview: true` on `/api/operation`, checked **before** the executor call so a preview has no path
+that can commit; the allowlist widened by six tools, each with a comment saying why a control makes
+it interpretation-free; and `actions.ts`, the single path every control takes.
+
+**Gate:** `test:engine` 628/0 (unchanged, as this track promised), `tsc` clean, 19 new API tests.
+
+### H2 — the Meal Sheet · DONE (`2e3294b`)
+
+Every meal on the Week board is a button. One panel: portion (clamp disclosed), pin, rate, "why is
+this here?", the full recipe, and a chip per ingredient for "no greek yogurt".
+
+Two decisions: the dialog mechanics were **extracted** to `Sheet.tsx` rather than copied from
+`RecipeModal` (a second copy is how a third starts), and the sheet's `profile` prop was made
+**nullable** rather than taking a fabricated fallback — `tsc` rejected a stand-in profile, and the
+right answer was to stop inventing one, not to widen the type.
+
+### H3 — swap, with the trade shown · DONE
+
+`swapCandidates` in the engine and `/api/candidates`. Six alternatives per slot, each with the delta
+it would cause, its cook time, how many days it keeps and whether it freezes. **The pool is
+`batchCandidates`**, the engine's own filter — so the diet, the allergen and dislike exclusions, the
+cook-time and budget limits and the rated-1 bans all apply, and a candidate the executor would
+refuse is never offered. Same-day dishes are excluded outright (invariant I4).
+
+> **A measurement that changed the design.** I added a "better fit" badge for candidates closer to
+> the slot's macro target, and then measured it: **0 of 12** on a typical slot. Obvious in hindsight —
+> the engine already *chose* the best-fitting dish during generation, so by construction almost
+> nothing beats it. A badge that never appears reads as "all of these are worse", so the UI now
+> explains the situation instead: *what's there is already the closest fit, so these are alternatives
+> by preference, and the day gets rebalanced around whichever you pick.* The flag stays in the API
+> because it is true information; what changed is the sentence built on it.
+
+### H4 — the macro dial and the reconcile sheet · DONE
+
+- **The dial**: name a protein figure and get *both* ways to reach it, which is what the brief asked
+  for. `resizeReaches` answers "can the dish already here get there?" using `SCALE_HI`, the engine's
+  own 1.8× ceiling — so when resizing can do it, that is offered first, because the person keeps the
+  meal they were going to cook. When it cannot, the panel says what the cap is and lists dishes that
+  do reach the number.
+- **`ReconcileSheet`**: previews any operation, shows only the days it actually moves, the dish moves,
+  and the engine's notes **before** committing, then offers *Apply* / *Apply + rebalance the day* /
+  *Cancel*. The rebalance is a **separate operation**, not a hidden part of the first, so it is
+  undoable on its own.
+- **Day controls** on each column (Balance · New day) route through it.
+- **Fix my week** (a `[free]` item, pulled forward): one press, every day short of target rebalanced,
+  built from `rebalance_day` rather than a new engine tool. It touches only days that are actually
+  off, and **discloses that undo reaches one day back** rather than offering an Undo that quietly
+  reverses a seventh of the change.
+
+### Lessons from the build
+
+1. **A failing test is the test's fault first.** A vegan-swap assertion went red and looked like a
+   diet violation. The engine had refused correctly and said so — *"I didn't have X — I used Y"* —
+   and my assertion was scanning the **whole day** for the dish name on a plan built for
+   `diet: "none"`, so it found a chicken dinner that was there before the swap. It now checks the
+   target slot. (WORKPLAN lesson 2, met in the wild.)
+2. **Lesson 36 applies to `git stash`, not just `rm`.** Checking whether a failure pre-existed, I
+   stashed the test file and chained the `pop` after a long test run; the run was backgrounded on
+   timeout and the pop never executed, so 19 tests briefly vanished. Cleanup must be its own
+   invocation — including when the "cleanup" is restoring your own work.
+3. **`tsc` caught a real bug, not a type complaint:** `onClick={loadSwaps}` passed a React
+   MouseEvent straight into a `minProtein` parameter. A handler that takes an argument must be
+   wrapped, and the compiler is the only thing that would have noticed.
+
+### H5 — drag and drop · DONE
+
+A move is **a pair of swaps built from names captured before either applies**, so execution order
+cannot matter, sent as ONE call — which makes it one undo, because the user made one gesture.
+`/api/operation` now accepts an `operations` list (every tool in it checked against the allowlist, so
+one permitted tool cannot smuggle in a forbidden one), and the drop opens the reconcile sheet.
+
+**Keyboard parity is real, not promised:** `M` picks a plate up and the next press puts it down, the
+held plate is announced in the `aria-label` of every slot ("Put X here, in Tuesday lunch"), and a
+banner offers "put it back". Touch gets the same two-tap path, because HTML5 drag events do not fire
+on a phone.
+
+### H6 — the deviation flow · DONE
+
+"I ate something else" takes free text plus optional calories, "I'm eating out" reserves a typical
+meal, and both go through the preview before committing. Measured end to end:
+
+```
+BEFORE  Monday: 1999 kcal (target 2000)
+  lunch   Chicken Shawarma Bowl   721 kcal
+  dinner  Turkey & Bean Chilli    715 kcal
+
+logged "a burger and chips", 900 kcal
+
+AFTER   Monday: 2002 kcal
+  lunch   Cheeseburger & Fries    769 kcal
+  dinner  Turkey & Bean Chilli    670 kcal
+```
+
+> **The engine did something better than asked, and it matters.** The free text matched a real library
+> dish, so it used **Cheeseburger & Fries' own macros (769 kcal) rather than the 900 that was typed** —
+> correct, because a library match carries protein, carbs, fat and micros where the user supplied only
+> calories. The important part is that it **says so** ("Logged Cheeseburger & Fries (769 kcal)…"),
+> which the reconcile sheet shows before anything commits. Silently replacing someone's own number
+> would be the dishonest version of being right, so there is now a test asserting the disclosure.
+
+**This is the MyFitnessPal answer, in one line of output:** *"I re-solved the rest of Monday: it now
+lands at 2002 kcal and 146 g protein."* A tracker would have told you that you were 700 over.

@@ -9,7 +9,9 @@ import { SLOTS } from "../demo";
 import { loadMyWeek, generateMyWeek, PLAN_CHANGED_EVENT } from "../myPlan";
 import type { WeekStats } from "../weekStats";
 import { MealSheet } from "../MealSheet";
-import type { DayPlan, Meal, UserProfile, WeekPlan } from "@/lib/types";
+import { ReconcileSheet } from "../ReconcileSheet";
+import { fixMyWeek, movePair, ActionError } from "../actions";
+import type { DayPlan, Meal, Operation, UserProfile, WeekPlan } from "@/lib/types";
 
 interface Targets {
   targetCalories: number;
@@ -53,6 +55,12 @@ export default function WeekBoard({ demo }: { demo: { stats: WeekStats; targets:
   const [err, setErr] = useState<string | null>(null);
   // Which plate the sheet is open on. A single piece of state, because only one can be open.
   const [open, setOpen] = useState<{ day: DayPlan["day"]; meal: Meal } | null>(null);
+  // A pending day-level change, held until the preview has been read and accepted.
+  const [pending, setPending] = useState<{ title: string; op: Operation | Operation[]; day?: DayPlan["day"] } | null>(null);
+  /** The plate being dragged, or the one picked up by keyboard. One at a time. */
+  const [held, setHeld] = useState<{ day: DayPlan["day"]; mealType: Meal["type"]; dish: string } | null>(null);
+  const [fixing, setFixing] = useState(false);
+  const [fixNote, setFixNote] = useState<string | null>(null);
 
   useEffect(() => {
     // Load this device's week on mount, and re-read in place whenever the mode/cadence toggle fires
@@ -77,6 +85,42 @@ export default function WeekBoard({ demo }: { demo: { stats: WeekStats; targets:
     window.addEventListener(PLAN_CHANGED_EVENT, refresh);
     return () => window.removeEventListener(PLAN_CHANGED_EVENT, refresh);
   }, []);
+
+  /** Put the held plate into this slot. Two swaps, one undo, previewed before anything commits. */
+  function dropOnto(target: { day: DayPlan["day"]; mealType: Meal["type"]; dish: string }) {
+    if (!held) return;
+    const same = held.day === target.day && held.mealType === target.mealType;
+    setHeld(null);
+    if (same) return;
+    setPending({
+      title: `Move ${held.dish} to ${target.day} ${target.mealType}`,
+      op: movePair(held, target),
+      // Both days are affected, so no single day is the obvious one to offer a rebalance for; the
+      // preview shows each day's new totals and the day controls can balance either.
+      day: undefined,
+    });
+  }
+
+  /** One press, every off-target day rebalanced. Reports what it actually did. */
+  async function fixWeek() {
+    setFixing(true);
+    setFixNote(null);
+    setErr(null);
+    try {
+      const r = await fixMyWeek(targets.proteinGrams);
+      if (r.alreadyFine === 7) setFixNote("Every day is already on target — nothing to fix.");
+      else if (r.fixed.length === 0) setFixNote("Those days are as close as the engine can get them.");
+      else
+        setFixNote(
+          `Rebalanced ${r.fixed.join(", ")}.` +
+            (r.fixed.length > 1 ? " Undo reverses the last day only — the engine keeps one step." : ""),
+        );
+    } catch (e) {
+      setErr(e instanceof ActionError ? e.message : "Couldn't rebalance just now.");
+    } finally {
+      setFixing(false);
+    }
+  }
 
   async function regenerate() {
     if (!view.profile) return;
@@ -128,6 +172,17 @@ export default function WeekBoard({ demo }: { demo: { stats: WeekStats; targets:
               Build my own plan
             </Link>
           )}
+          {personalized && (
+            <button
+              type="button"
+              onClick={fixWeek}
+              disabled={fixing}
+              title="Rebalance every day that is short of your targets"
+              className="rounded-full bg-tint px-5 py-2.5 text-[12.5px] font-semibold transition hover:bg-line disabled:opacity-60"
+            >
+              {fixing ? "Fixing…" : "Fix my week"}
+            </button>
+          )}
           <Link
             href="/sage/assistant"
             className="rounded-full bg-vio px-5 py-2.5 text-[12.5px] font-semibold text-white transition hover:bg-vio-deep"
@@ -149,6 +204,23 @@ export default function WeekBoard({ demo }: { demo: { stats: WeekStats; targets:
       )}
       {err && (
         <p className="mt-3 rounded-[10px] bg-red-50 px-4 py-3 text-[12.5px] text-red-700">{err}</p>
+      )}
+      {held && (
+        <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[10px] bg-vio px-4 py-3 text-[12.5px] text-white">
+          <span>
+            Holding <b className="font-semibold">{held.dish}</b> — pick the slot to swap it with.
+          </span>
+          <button
+            type="button"
+            onClick={() => setHeld(null)}
+            className="rounded-full bg-white/15 px-3 py-1 text-[11.5px] font-semibold transition hover:bg-white/25"
+          >
+            Put it back
+          </button>
+        </p>
+      )}
+      {fixNote && (
+        <p className="mt-3 rounded-[10px] bg-tint px-4 py-3 text-[12.5px] leading-relaxed">{fixNote}</p>
       )}
 
       {view.batch && (
@@ -239,6 +311,38 @@ export default function WeekBoard({ demo }: { demo: { stats: WeekStats; targets:
                     }}
                   />
                 </div>
+                {personalized && (
+                  <div className="mt-2 flex gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPending({
+                          title: `Rebalance ${d.day}`,
+                          op: { tool: "rebalance_day", day: d.day as DayPlan["day"] },
+                          day: d.day as DayPlan["day"],
+                        })
+                      }
+                      title="Rescale this day's portions to hit your targets"
+                      className="rounded-full border border-line bg-cream px-2.5 py-1 text-[10px] font-semibold transition hover:border-vio"
+                    >
+                      Balance
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPending({
+                          title: `Regenerate ${d.day}`,
+                          op: { tool: "regenerate_day", day: d.day as DayPlan["day"] },
+                          day: d.day as DayPlan["day"],
+                        })
+                      }
+                      title="Pick new dishes for this day"
+                      className="rounded-full border border-line bg-cream px-2.5 py-1 text-[10px] font-semibold transition hover:border-vio"
+                    >
+                      New day
+                    </button>
+                  </div>
+                )}
               </div>
 
               {d.meals.map((m, i) => {
@@ -249,9 +353,46 @@ export default function WeekBoard({ demo }: { demo: { stats: WeekStats; targets:
                   <button
                     key={i}
                     type="button"
-                    onClick={() => setOpen({ day: d.day as DayPlan["day"], meal: m })}
-                    aria-label={`${d.day} ${SLOTS[i]}: ${m.name} — change it`}
-                    className="group rounded-[10px] bg-tint p-4 text-left transition hover:bg-line focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-vio"
+                    draggable={personalized}
+                    onDragStart={() =>
+                      setHeld({ day: d.day as DayPlan["day"], mealType: m.type, dish: m.name })
+                    }
+                    onDragEnd={() => setHeld(null)}
+                    onDragOver={(e) => {
+                      // Without preventDefault the browser refuses the drop entirely.
+                      if (held) e.preventDefault();
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      dropOnto({ day: d.day as DayPlan["day"], mealType: m.type, dish: m.name });
+                    }}
+                    onClick={() => {
+                      // Keyboard and touch path: first press picks a plate up, second puts it down.
+                      // Everything drag does is reachable without a mouse.
+                      if (held) dropOnto({ day: d.day as DayPlan["day"], mealType: m.type, dish: m.name });
+                      else setOpen({ day: d.day as DayPlan["day"], meal: m });
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key.toLowerCase() !== "m") return;
+                      e.preventDefault();
+                      setHeld(
+                        held && held.day === d.day && held.mealType === m.type
+                          ? null
+                          : { day: d.day as DayPlan["day"], mealType: m.type, dish: m.name },
+                      );
+                    }}
+                    aria-label={
+                      held
+                        ? `Put ${held.dish} here, in ${d.day} ${SLOTS[i]}`
+                        : `${d.day} ${SLOTS[i]}: ${m.name} — change it, or press M to move it`
+                    }
+                    className={`group rounded-[10px] p-4 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-vio ${
+                      held && held.day === d.day && held.mealType === m.type
+                        ? "bg-vio text-white"
+                        : held
+                          ? "bg-tint ring-2 ring-dashed ring-vio/40 hover:bg-line"
+                          : "bg-tint hover:bg-line"
+                    }`}
                   >
                     <span className="flex items-center justify-between gap-2">
                       <span className="text-[8.5px] font-bold uppercase tracking-[0.16em] text-mut">
@@ -290,12 +431,29 @@ export default function WeekBoard({ demo }: { demo: { stats: WeekStats; targets:
         })}
       </div>
 
+      {pending && (
+        <ReconcileSheet
+          title={pending.title}
+          operation={pending.op}
+          day={pending.day}
+          onClose={() => setPending(null)}
+          /* actions.ts persisted and fired PLAN_CHANGED_EVENT, so `refresh` has already re-read the
+             week. Nothing further to do here. */
+          onApplied={() => setPending(null)}
+        />
+      )}
+
       {open && (
         <MealSheet
           day={open.day}
           meal={open.meal}
           profile={view.profile}
           personalized={personalized}
+          /* One modal at a time: the meal sheet closes and the preview opens in its place. */
+          onReconcile={(title, op) => {
+            setOpen(null);
+            setPending({ title, op, day: open.day });
+          }}
           onClose={() => setOpen(null)}
           /* actions.ts already saved and fired PLAN_CHANGED_EVENT, so `refresh` has re-read the
              week from storage. Keep the sheet open on the meal's new state rather than closing it:

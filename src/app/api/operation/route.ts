@@ -67,7 +67,13 @@ const ALLOWED: ReadonlySet<Operation["tool"]> = new Set([
 interface OperationRequest {
   profile: UserProfile;
   plan: WeekPlan;
-  operation: Operation;
+  operation?: Operation;
+  /**
+   * Several operations applied as ONE change, for a move: dragging Monday's lunch onto Tuesday's is
+   * two swaps that must stand or fall together. `applyOperations` already takes a list and the undo
+   * snapshot is per call, so a pair is one undo rather than two — which is what the user did.
+   */
+  operations?: Operation[];
   previous?: PlanSnapshot;
   /**
    * Simulate instead of committing: the engine runs the operation against a clone and reports what
@@ -89,25 +95,33 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
 
-  if (!body?.profile || !body?.plan || !body?.operation?.tool) {
+  const ops: Operation[] = Array.isArray(body?.operations)
+    ? body.operations
+    : body?.operation
+      ? [body.operation]
+      : [];
+
+  if (!body?.profile || !body?.plan || ops.length === 0 || ops.some((o) => !o?.tool)) {
     return NextResponse.json({ error: "Missing fields." }, { status: 400 });
   }
-  if (!ALLOWED.has(body.operation.tool)) {
+  // Every operation in the list is checked: one allowed tool must not smuggle in a disallowed one.
+  const offender = ops.find((o) => !ALLOWED.has(o.tool));
+  if (offender) {
     // Anything that needs interpretation belongs to the assistant, not here.
-    return NextResponse.json({ error: `"${body.operation.tool}" isn't a direct action.` }, { status: 400 });
+    return NextResponse.json({ error: `"${offender.tool}" isn't a direct action.` }, { status: 400 });
   }
 
   // Simulate and return. Deliberately before the executor call: a preview must have no path that
   // can commit, rather than a flag checked on the way out.
   if (body.preview) {
-    const sim = previewOperations(body.profile, body.plan, [body.operation]);
+    const sim = previewOperations(body.profile, body.plan, ops);
     return NextResponse.json({ preview: true, ...sim });
   }
 
   const { plan, profile, notes, planChanged, profileChanged, undone } = applyOperations(
     body.profile,
     body.plan,
-    [body.operation],
+    ops,
     body.previous,
   );
 
@@ -116,7 +130,7 @@ export async function POST(request: Request) {
   const previous: PlanSnapshot | undefined = undone
     ? undefined
     : planChanged || profileChanged
-      ? { plan: body.plan, profile: body.profile, label: describeOperations([body.operation]) }
+      ? { plan: body.plan, profile: body.profile, label: describeOperations(ops) }
       : body.previous;
 
   return NextResponse.json({
