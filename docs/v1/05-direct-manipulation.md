@@ -431,3 +431,29 @@ Also shipped: `Ctrl/⌘ K` and `/` open the palette, `u` undoes, `M` picks a pla
 fire while focus is in a text field, and `u` does nothing when there is nothing to undo, because a
 key that silently does nothing teaches nothing. **The undo toast** reads the engine's own undo state
 rather than assuming a change happened.
+
+### H8 — gates, and a measurement that corrected me · DONE
+
+**Gates:** `test:engine` **628/0** (unchanged), `tsc` clean, `test:api` **50/0** with 33 new tests,
+`npm run build` **succeeds**.
+
+> **I nearly reported a regression I had not caused.** The build showed `/sage/plan` at **225 kB**
+> first-load JS, against the **109 kB** recorded in `CONTEXT.md` — a 116 kB jump, apparently mine. I
+> found that `commands.ts` imported `DAYS`/`MEAL_TYPES` as *values* from `types.ts`, which carries
+> zod, split them into a zod-free `src/lib/slots.ts`, rebuilt… and the number **did not move**.
+>
+> So I built the **pre-Track-E commit in a worktree and measured it**: `/sage/plan` was already
+> **216 kB**, and **zod was already in the client bundle**. The 109 kB in CONTEXT is a stale figure
+> from August, before batch mode. **The entire direct-manipulation layer costs +9 kB** — the meal
+> sheet, the swap list with deltas, the macro dial, the reconcile sheet, drag-and-drop, the command
+> palette and the undo toast, together.
+>
+> Three things worth keeping from that detour. **A documented number is evidence of the past, not of
+> the present** — CONTEXT's figure was true when written and had quietly rotted, which is the exact
+> failure mode the doc rules keep warning about. **A fix that does not move the number was not the
+> fix**; `slots.ts` is still correct layering and still prevents a client from reaching zod through
+> two constant arrays, but it is a guard, not a repair, and saying otherwise would have been a
+> fabricated win. And **the real finding was sitting underneath**: the recipe library genuinely is in
+> a client chunk — `Shakshuka`, `Miso-Glazed Cod`, `fdcId` and `approxCost` all grep out of
+> `.next/static/chunks/*.js`. That is milestone **A4**, which now carries those four markers as its
+> test and 216/212 kB as the baseline to beat.

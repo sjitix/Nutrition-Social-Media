@@ -1,4 +1,4 @@
-import { DAYS, MEAL_TYPES } from "@/lib/types";
+import { DAYS, MEAL_TYPES } from "@/lib/slots";
 import type { DayPlan, Meal, Operation } from "@/lib/types";
 
 /**

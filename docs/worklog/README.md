@@ -59,3 +59,4 @@ The survey of existing tools that led here, and why a hosted one was not chosen,
 |---|---|---|
 | [2026-09-19](2026-09-19.md) | V1 planning: milestones, module map, Kimi call, daily history — plus the three boards | done |
 | [2026-10-02](2026-10-02.md) | Library expansion + ingredient identity (day 5 added); context files brought current | done |
+| [2026-10-03](2026-10-03.md) | Track E — the direct-manipulation layer, H1–H8: tap a meal and change it, no model anywhere | done |

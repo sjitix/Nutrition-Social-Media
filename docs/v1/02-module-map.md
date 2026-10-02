@@ -185,7 +185,11 @@ arithmetic."* Public: `groupByAisle`, `aisleFor`, `AISLE_ORDER`, `Aisle`; `curre
 **`plan/select`** — *"Given a profile, choose the week's dishes so every hard rule holds and the
 macros land as close to target as the library allows."*
 - **Public:** `selectWeekFromDb(profile, opts?)`, `selectBatchWeek`, `buildWeek`,
-  `selectConditionAwareWeek`, `withSeed`, `RECIPES`, `recipeToMeal`, `recipeMicros`.
+  `selectConditionAwareWeek`, `withSeed`, `RECIPES`, `recipeToMeal`, `recipeMicros`; and, added by
+  Track E, **`swapCandidates(profile, plan, day, slot, limit?, minProtein?)`** — the dishes that
+  could take a slot, each with the delta it would cause. It reuses the private `batchCandidates`
+  pool, so the diet, allergen, dislike, cook-time and budget rules and the rated-1 bans all apply:
+  **a candidate the executor would refuse must never be offered.**
 - **Private:** `chooseRecipe`, `pickMealsForDay`, `candidatesForSlot`, `batchCandidates`,
   `pickKForSlot`, `scaleRecipeToTarget`, `localSplit`, `budgetCap`, `passesDiet`,
   `blockedByExclusions`, `mulberry32`, `ratingMap`, `selectDay`, `findRecipe`, `SelectionReport`.
@@ -203,7 +207,11 @@ realistic bounds."*
 
 **`plan/execute`** — *"The only code allowed to change a plan and to say that it changed."*
 - **Public:** `applyOperations(profile, plan, operations, previous?)` →
-  `{ plan, profile, notes, planChanged, profileChanged, replyOverride? }`.
+  `{ plan, profile, notes, planChanged, profileChanged, replyOverride? }`; and, added by Track E,
+  **`previewOperations(profile, plan, operations)`** — the same executor against a `structuredClone`,
+  returning per-day deltas, the dish moves and the engine's notes, **committing nothing**. Seeded, so
+  a preview does not disagree with itself between renders; a preview is therefore a prediction and
+  the committed figures must be re-read.
 - **Private:** every per-tool handler, `reimposeLocks`, `guaranteeFridge`, `guaranteeBoost`,
   `findRecipeForSwap`, `achievementNote`, `symptomNote`, `substituteNote`, `explainMealNote`,
   `eatingOut`, `upgradeForNutrient`, and the undo snapshot.
@@ -283,6 +291,32 @@ to `storage.ts` rather than owning a key**; it must keep working with no account
 `sortFeed`, `FeedItem`, `FeedFilter`, `FeedSort`, `HIGH_PROTEIN_G`, `FEED_RECIPES`. Invariant:
 search matches at **word starts** (`oat` must not hit `goat`); vegan satisfies a vegetarian filter.
 **`FEED_RECIPES` is the payload problem — see §6.**
+
+**`presentation/actions`** (`src/app/sage/actions.ts`) — *"The one path every direct control takes:
+run an operation, or preview it first."* **Added by Track E, 2026-10-02.**
+- **Public:** `runOperation`, `previewOperation`, `slotCandidates`, `undoLast`, `canUndo`,
+  `lastChangeLabel`, `movePair`, `fixMyWeek`, the `actions` and `previews` namespaces, `ActionError`.
+- **Private:** the undo snapshot (a module variable, **deliberately not a storage key** — only
+  `persistence/storage` may name one), and the fetch plumbing.
+- **Invariants, and they are the whole reason this module exists:** the browser **never imports the
+  engine** (501 recipes); **the engine's numbers win** — a control may render optimistically but the
+  figures shown afterwards came from the response; and **the engine's notes are surfaced, not
+  summarised**, because a silent refusal is the worst thing this layer can produce.
+- **Dependents:** `/sage` client components only.
+
+**`presentation/commands`** (`src/app/sage/commands.ts`) — *"Turn a typed line into an engine
+operation, deterministically."*
+- **Public:** `parseCommand`, `COMMAND_EXAMPLES`, `ParsedCommand`.
+- **Private:** the day aliases, the filler-word set, `FOOD_FLOOR`.
+- **Invariants:** pure function of a string, **no model** — "regenerate tuesday" is unambiguous, so
+  anything that might answer *Wednesday* is a downgrade; it **refuses rather than approximating**
+  when nothing parses; and a calorie figure is the largest number at or above 50, because taking the
+  first one recorded a two-calorie breakfast from "log 2 eggs on toast 320".
+
+**The `/sage` panels** — `Sheet.tsx` is the dialog shell (Escape, scroll-lock, focus trap, focus
+return) that `MealSheet`, `ReconcileSheet` and the palette sit in. `explore/RecipeModal.tsx` predates
+it and still carries its own copy of those mechanics; **folding it onto `Sheet` is owed** and is a
+presentation-layer tidy-up, not engine work.
 
 **`presentation/imagery`** (`recipes.ts`) — *"Exactly which photograph belongs to which dish."*
 Public: `imageForMeal`, `cutoutForMeal`, `gradientForMeal`, `PHOTOGRAPHED_RECIPES`. Invariant: an

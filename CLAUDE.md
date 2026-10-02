@@ -189,7 +189,24 @@ disabled) — good for showing the UI without any AI.
   executor. The demo profile pins one photographed dish so the photography-led screens have a
   photograph on them without any component special-casing a recipe.
 - `src/app/onboarding/page.tsx`, `src/app/recipes/page.tsx`.
-- `src/app/api/` — five routes: `plan`, `assistant`, `assistant-v2`, `import`, `operation`.
+- `src/app/api/` — **six** routes: `plan`, `assistant`, `assistant-v2`, `import`, `operation`,
+  `candidates`. **`operation` is the NO-MODEL route the direct-manipulation layer runs on** — a
+  button press already carries its intent, so routing it through an LLM would be slower, cost a call
+  and risk misreading a precise request. It takes one `operation` or an `operations` list (a move is
+  a pair of swaps, hence one undo), and **`preview: true` simulates against a clone and commits
+  nothing**. Its allowlist is the contract: a tool belongs there only when a CONTROL supplies the
+  parameters a model would otherwise guess. `candidates` is read-only and returns the dishes that
+  could take a slot, each with the delta it would cause, drawn from the engine's own safe pool — so
+  **a candidate the executor would refuse is never offered**.
+- **`src/app/sage/actions.ts` is the one path every direct control takes** (`runOperation`,
+  `previewOperation`, `slotCandidates`, `undoLast`, `fixMyWeek`). Three rules live at its top and are
+  load-bearing: the browser never imports the engine, the engine's numbers win, and the engine's
+  notes are shown rather than summarised. `commands.ts` is the command palette's **pure, model-free**
+  parser; `Sheet.tsx` is the dialog shell `MealSheet` / `ReconcileSheet` sit in. Full plan and build
+  log: `docs/v1/05-direct-manipulation.md`.
+- **`src/lib/slots.ts` holds `DAYS` and `MEAL_TYPES`, zod-free, and `types.ts` re-exports them.** A
+  client component that needs those two arrays must import THIS, not `types.ts`, which carries zod
+  and every schema. A module is as heavy as its heaviest import.
 - `src/components/icons.tsx` — SVG line icons (no emoji). `ThemeSwitch.tsx` — violet/sage toggle
   for the original layout; it returns `null` on `/sage`, which pins its own theme.
 - `src/app/globals.css` — **fourteen** colour tokens every utility reads from, the `.theme-sage`

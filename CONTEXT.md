@@ -39,14 +39,25 @@ a model call, and can be wrong.*
 - **`ReconcileSheet`** — previews any operation, shows the days it moves and the engine's notes, then
   Apply / Apply + rebalance / Cancel. **Day controls** (Balance · New day) and **Fix my week** use it.
 
-**NEXT: H5 (drag and drop between days), then H6 (the deviation flow — "I ate something else", which
-re-solves the rest of the day and is the MyFitnessPal answer), H7 (command palette + keyboard), H8
-(gates, docs, the production build).** The drop order if time runs short is in §4 of the plan.
+**TRACK E IS COMPLETE — H1 through H8 all shipped.** Tapping a meal changes it; swapping shows the
+delta each option would cause; a protein figure is reached by resizing or re-selecting, whichever the
+engine can do; a change is previewed before it commits; meals drag between days (or move by keyboard
+with `M`); "I ate something else" re-solves the rest of the day; `Ctrl K` takes typed commands with
+no model; and everything undoes. Full build log, with the findings: `docs/v1/05-direct-manipulation.md` §9.
 
-**Machine state:** a `npm run dev` server is UP on :3000 (started this session). `.next` holds a DEV
-build now — the production build is deliberately deferred to H8 because it cannot run while dev
-holds `.next`. LM Studio is DOWN, which is why three pre-existing `assistant offline` API tests
-expect 503 and get 502; that is unrelated to Track E (verified by diff) and still open.
+**THE DEBT THAT IS OWED FIRST:** `previewOperations`, `swapCandidates` and `parseCommand` are pure
+functions covered only through HTTP (and the parser by a session-only check). They belong in
+`test:engine`. Everything else is in `docs/worklog/2026-10-03.md` under Deferred.
+
+**NEXT after that: Day 1 of the main schedule** — `npm run check:boundaries`. And **A4 now has a
+measured target**: the recipe library really is in a client chunk (`Shakshuka`, `Miso-Glazed Cod`,
+`fdcId`, `approxCost` all grep out of `.next/static/chunks/*.js`), with 216/212 kB as the baseline.
+
+**Machine state:** the dev server is **DOWN** (stopped for the production build). `.next` holds a
+**PRODUCTION** build — delete it or rebuild before `npm run dev`, or the dev server serves blank
+pages. LM Studio is DOWN, which is why the pre-existing `assistant offline` API tests fail and the
+suite ends in a fetch crash; unrelated to Track E (verified by diff, and the clean checkout crashes
+identically) and still open.
 
 ### >>> 2026-10-02: THE PLAN IS STEERED BY THREE LIVE BOARDS YOU COMMENT ON <<<
 
@@ -1321,6 +1332,12 @@ presses are then 13–20 ms. Keep `npm run dev` for editing.
 
 Removing the week list from the sidebar shrank every route's RSC payload, since the sidebar is in
 all of them: Home 118 kB → 105 kB, Week 123 kB → 109 kB, Today 30 kB → 17 kB.
+
+> **⚠️ THOSE FIGURES ARE FROM AUGUST 2026 AND HAVE ROTTED.** Measured again 2026-10-03 on a
+> production build: **`/sage/plan` 216 kB** first-load JS (before Track E; 225 kB after), **Explore
+> 212 kB**, against 102 kB shared. Batch mode and everything since landed in between. The 109 kB
+> above nearly had a 116 kB regression pinned on an innocent change — a documented number is
+> evidence of the past, not of the present, so re-measure before citing one.
 
 **One real payload cost is still open and is worth a decision.** `ExploreClient` imports
 `FEED_RECIPES`, so the whole 501-recipe library — every ingredient and every step — is bundled into
