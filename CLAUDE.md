@@ -310,6 +310,26 @@ LM Studio: load model, push GPU offload to max, context >= 8192, Start Server on
   `src/lib` changed, `tsc` + `npm run build` otherwise, and never push a failing gate — fix it or
   revert. `git log origin/main..HEAD` should read empty at the end of every step; if it does not,
   something was left undelivered.
+
+  **Use `npm run ship` rather than `git add` + `git commit`:**
+
+  ```bash
+  node scripts/ship.mjs --message-file msg.txt -- src/lib/foo.ts docs/bar.md
+  ```
+
+  It fetches, **stops** if the remote has touched a file you are about to commit (naming the overlap,
+  because that is where a careless merge loses someone's work), rebases otherwise and **aborts the
+  rebase on conflict** rather than resolving blindly, runs the right gate, commits **only** the named
+  paths atomically, **verifies the commit holds exactly those paths** and refuses to push if a file
+  was swept in or dropped, then confirms the push landed. `--no-gate` for docs-only; `--dry-run` to
+  look first.
+
+  **Why it exists, and the rule even without it:** `git add` leaves work in `.git/index`, which is
+  **shared state for the whole working directory**. Staging and then waiting out a 25-minute engine
+  suite let a commit made elsewhere absorb a day's work — it landed on `origin/main` under an
+  unrelated message, and force-pushing to fix attribution would have broken the other machine's
+  clone (WORKPLAN lesson 47). So: **run the gate first, then stage and commit as one adjacent step.**
+  Never leave work staged across a wait.
 - **Keep the four documents current. This is not optional, and it is not a chore to do if there is
   time left.** The owner works across many separate conversations and none of them can see the
   others. These files are the only thing carrying state between sessions. A stale one is worse than

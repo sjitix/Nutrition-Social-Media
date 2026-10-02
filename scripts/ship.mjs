@@ -73,16 +73,20 @@ function git(args, opts = {}) {
 /**
  * Run a command with its output passed straight through.
  *
- * `shell: true` is used ONLY for npm/npx, which on Windows are .cmd shims that execFile cannot
- * launch directly. It is never used for git, because git is the command that receives PATHS FROM THE
- * COMMAND LINE: with a shell, those arguments are concatenated rather than escaped, so a path
- * containing shell metacharacters would be interpreted instead of treated as a filename. The npm
- * invocations pass only fixed string literals, so nothing user-supplied ever reaches a shell.
+ * GIT NEVER GOES THROUGH A SHELL. This script hands PATHS FROM THE COMMAND LINE to git, and a shell
+ * concatenates arguments rather than escaping them, so a path containing shell metacharacters would
+ * be interpreted instead of treated as a filename.
+ *
+ * npm and npx DO need one on Windows, and not by choice: they are .cmd shims, and since the 2024
+ * CVE fix Node refuses to spawn a .cmd without a shell at all — `execFileSync("npx.cmd", ...)` fails
+ * with EINVAL (measured here, not assumed). Their arguments in this file are fixed string literals,
+ * so nothing user-supplied ever reaches a shell; Node's DEP0190 warning is about the general case
+ * and does not describe these two call sites.
  */
 function run(cmd, args) {
   console.log(`  $ ${cmd} ${args.join(" ")}`);
-  const needsShell = process.platform === "win32" && (cmd === "npm" || cmd === "npx");
-  execFileSync(cmd, args, { stdio: "inherit", shell: needsShell });
+  const viaShell = process.platform === "win32" && (cmd === "npm" || cmd === "npx");
+  execFileSync(cmd, args, { stdio: "inherit", shell: viaShell });
 }
 
 if (!paths.length) die("no paths given. Usage: ship.mjs --message-file m.txt -- <paths...>");
