@@ -70,9 +70,19 @@ function git(args, opts = {}) {
   return execFileSync("git", args, { encoding: "utf8", ...opts }).trim();
 }
 
+/**
+ * Run a command with its output passed straight through.
+ *
+ * `shell: true` is used ONLY for npm/npx, which on Windows are .cmd shims that execFile cannot
+ * launch directly. It is never used for git, because git is the command that receives PATHS FROM THE
+ * COMMAND LINE: with a shell, those arguments are concatenated rather than escaped, so a path
+ * containing shell metacharacters would be interpreted instead of treated as a filename. The npm
+ * invocations pass only fixed string literals, so nothing user-supplied ever reaches a shell.
+ */
 function run(cmd, args) {
   console.log(`  $ ${cmd} ${args.join(" ")}`);
-  execFileSync(cmd, args, { stdio: "inherit", shell: process.platform === "win32" });
+  const needsShell = process.platform === "win32" && (cmd === "npm" || cmd === "npx");
+  execFileSync(cmd, args, { stdio: "inherit", shell: needsShell });
 }
 
 if (!paths.length) die("no paths given. Usage: ship.mjs --message-file m.txt -- <paths...>");
