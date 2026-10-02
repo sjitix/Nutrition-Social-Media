@@ -405,3 +405,29 @@ AFTER   Monday: 2002 kcal
 
 **This is the MyFitnessPal answer, in one line of output:** *"I re-solved the rest of Monday: it now
 lands at 2002 kcal and 146 g protein."* A tracker would have told you that you were 700 over.
+
+### H7 — speed: the command palette, keyboard, undo · DONE
+
+**`commands.ts` is a pure parser with no model in it**, and that is the point rather than a saving:
+"regenerate tuesday" is not ambiguous, so sending it somewhere that might answer *Wednesday* would
+be a downgrade dressed as intelligence. It resolves a verb, a day (`today`, `tomorrow`,
+`yesterday`, `mon`, `tues`…), a slot and a number from anywhere in the line, **shows the reading
+before running it**, and **refuses rather than approximates** when nothing parses — pointing at the
+assistant, which is what exists for sentences.
+
+Two real bugs found by testing it against sentences people would actually type:
+
+| input | first attempt | fixed |
+|---|---|---|
+| `log 2 eggs on toast 320` | **2 kcal**, dish `"eggs toast 320"` | 320 kcal, dish `"eggs toast"` |
+| `ate a kebab for dinner yesterday` | dish `"kebab yesterday"` | dish `"kebab"`, on Friday |
+
+The first is the instructive one: taking the *first* number recorded a two-calorie breakfast. A
+calorie figure is now the largest value at or above a floor of 50, because a meal is not 2 kcal and
+a quantity is rarely in the hundreds. The second taught that `yesterday` is a **common** case for
+logging, not an edge one, so it resolves to a day instead of landing in the dish's name.
+
+Also shipped: `Ctrl/⌘ K` and `/` open the palette, `u` undoes, `M` picks a plate up — none of which
+fire while focus is in a text field, and `u` does nothing when there is nothing to undo, because a
+key that silently does nothing teaches nothing. **The undo toast** reads the engine's own undo state
+rather than assuming a change happened.

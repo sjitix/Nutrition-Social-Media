@@ -10,7 +10,8 @@ import { loadMyWeek, generateMyWeek, PLAN_CHANGED_EVENT } from "../myPlan";
 import type { WeekStats } from "../weekStats";
 import { MealSheet } from "../MealSheet";
 import { ReconcileSheet } from "../ReconcileSheet";
-import { fixMyWeek, movePair, ActionError } from "../actions";
+import { fixMyWeek, movePair, undoLast, canUndo, lastChangeLabel, ActionError } from "../actions";
+import { CommandPalette } from "../CommandPalette";
 import type { DayPlan, Meal, Operation, UserProfile, WeekPlan } from "@/lib/types";
 
 interface Targets {
@@ -61,6 +62,9 @@ export default function WeekBoard({ demo }: { demo: { stats: WeekStats; targets:
   const [held, setHeld] = useState<{ day: DayPlan["day"]; mealType: Meal["type"]; dish: string } | null>(null);
   const [fixing, setFixing] = useState(false);
   const [fixNote, setFixNote] = useState<string | null>(null);
+  const [palette, setPalette] = useState(false);
+  /** The undo offer. Direct manipulation without undo is a dare, not a feature. */
+  const [undoable, setUndoable] = useState<string | null>(null);
 
   useEffect(() => {
     // Load this device's week on mount, and re-read in place whenever the mode/cadence toggle fires
@@ -83,7 +87,37 @@ export default function WeekBoard({ demo }: { demo: { stats: WeekStats; targets:
     };
     refresh();
     window.addEventListener(PLAN_CHANGED_EVENT, refresh);
-    return () => window.removeEventListener(PLAN_CHANGED_EVENT, refresh);
+
+    // After any change, offer to reverse it — reading the engine's own undo state rather than
+    // assuming a change happened.
+    const offerUndo = () => setUndoable(canUndo() ? lastChangeLabel() : null);
+    window.addEventListener(PLAN_CHANGED_EVENT, offerUndo);
+
+    function onKey(e: KeyboardEvent) {
+      // Never hijack a key the user is typing into a field, or a browser shortcut.
+      const el = e.target as HTMLElement | null;
+      if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
+      if ((e.key === "k" || e.key === "K") && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        setPalette(true);
+        return;
+      }
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === "/") {
+        e.preventDefault();
+        setPalette(true);
+      } else if (e.key === "u") {
+        // Only when there is something to undo; a key that silently does nothing teaches nothing.
+        if (canUndo()) void undoLast().then(() => setUndoable(null));
+      }
+    }
+    window.addEventListener("keydown", onKey);
+
+    return () => {
+      window.removeEventListener(PLAN_CHANGED_EVENT, refresh);
+      window.removeEventListener(PLAN_CHANGED_EVENT, offerUndo);
+      window.removeEventListener("keydown", onKey);
+    };
   }, []);
 
   /** Put the held plate into this slot. Two swaps, one undo, previewed before anything commits. */
@@ -171,6 +205,19 @@ export default function WeekBoard({ demo }: { demo: { stats: WeekStats; targets:
             >
               Build my own plan
             </Link>
+          )}
+          {personalized && (
+            <button
+              type="button"
+              onClick={() => setPalette(true)}
+              title="Type a change (Ctrl K)"
+              className="rounded-full border border-line bg-cream px-4 py-2.5 text-[12.5px] font-semibold transition hover:border-vio"
+            >
+              Type a change
+              <kbd className="ml-2 rounded border border-line bg-bgsoft px-1.5 py-0.5 text-[9.5px] font-sans text-mut">
+                Ctrl K
+              </kbd>
+            </button>
           )}
           {personalized && (
             <button
@@ -430,6 +477,41 @@ export default function WeekBoard({ demo }: { demo: { stats: WeekStats; targets:
           );
         })}
       </div>
+
+      {palette && (
+        <CommandPalette
+          onClose={() => setPalette(false)}
+          onPick={(cmd) => {
+            setPalette(false);
+            // A reading that moves the plan gets previewed; one that doesn't (pin, undo) just runs.
+            if (cmd.preview) setPending({ title: cmd.label, op: cmd.operation, day: cmd.day });
+            else void import("../actions").then((m) => m.runOperation(cmd.operation, cmd.label));
+          }}
+        />
+      )}
+
+      {undoable && (
+        <div className="fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-full bg-panel px-4 py-2.5 text-white shadow-2xl">
+          <span className="text-[12.5px]">{undoable}</span>
+          <button
+            type="button"
+            onClick={() => void undoLast().then(() => setUndoable(null))}
+            className="rounded-full bg-white/15 px-3 py-1 text-[11.5px] font-semibold transition hover:bg-white/25"
+          >
+            Undo
+          </button>
+          <button
+            type="button"
+            onClick={() => setUndoable(null)}
+            aria-label="Dismiss"
+            className="text-white/60 transition hover:text-white"
+          >
+            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+              <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+      )}
 
       {pending && (
         <ReconcileSheet
