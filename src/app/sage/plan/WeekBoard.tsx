@@ -8,7 +8,8 @@ import { RefreshIcon } from "@/components/icons";
 import { SLOTS } from "../demo";
 import { loadMyWeek, generateMyWeek, PLAN_CHANGED_EVENT } from "../myPlan";
 import type { WeekStats } from "../weekStats";
-import type { UserProfile, WeekPlan } from "@/lib/types";
+import { MealSheet } from "../MealSheet";
+import type { DayPlan, Meal, UserProfile, WeekPlan } from "@/lib/types";
 
 interface Targets {
   targetCalories: number;
@@ -50,6 +51,8 @@ export default function WeekBoard({ demo }: { demo: { stats: WeekStats; targets:
   const [view, setView] = useState<View>({ ...demo, personalized: false, profile: null, batch: null });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Which plate the sheet is open on. A single piece of state, because only one can be open.
+  const [open, setOpen] = useState<{ day: DayPlan["day"]; meal: Meal } | null>(null);
 
   useEffect(() => {
     // Load this device's week on mount, and re-read in place whenever the mode/cadence toggle fires
@@ -238,20 +241,38 @@ export default function WeekBoard({ demo }: { demo: { stats: WeekStats; targets:
                 </div>
               </div>
 
-              {d.meals.map((m, i) => (
-                <article key={i} className="rounded-[10px] bg-tint p-4">
-                  <span className="text-[8.5px] font-bold uppercase tracking-[0.16em] text-mut">
-                    {SLOTS[i]}
-                  </span>
-                  <p className="mt-1.5 text-[13px] font-semibold leading-[1.25] tracking-[-0.01em]">
-                    {m.name}
-                  </p>
-                  <p className="mt-2.5 border-t border-plum/12 pt-2 text-[10.5px] tabular-nums text-mut">
-                    <b className="font-bold text-plum">{m.calories}</b> kcal ·{" "}
-                    <b className="font-bold text-plum">{m.proteinGrams}</b> g · {m.timeMinutes} min
-                  </p>
-                </article>
-              ))}
+              {d.meals.map((m, i) => {
+                const pinned = (view.profile?.lockedMeals ?? []).some(
+                  (l) => l.day === d.day && l.mealType === m.type,
+                );
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setOpen({ day: d.day as DayPlan["day"], meal: m })}
+                    aria-label={`${d.day} ${SLOTS[i]}: ${m.name} — change it`}
+                    className="group rounded-[10px] bg-tint p-4 text-left transition hover:bg-line focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-vio"
+                  >
+                    <span className="flex items-center justify-between gap-2">
+                      <span className="text-[8.5px] font-bold uppercase tracking-[0.16em] text-mut">
+                        {SLOTS[i]}
+                      </span>
+                      {pinned && (
+                        <span className="text-[8.5px] font-bold uppercase tracking-[0.14em] text-vio" title="Pinned — every rebuild keeps it">
+                          Pinned
+                        </span>
+                      )}
+                    </span>
+                    <span className="mt-1.5 block text-[13px] font-semibold leading-[1.25] tracking-[-0.01em]">
+                      {m.name}
+                    </span>
+                    <span className="mt-2.5 block border-t border-plum/12 pt-2 text-[10.5px] tabular-nums text-mut">
+                      <b className="font-bold text-plum">{m.calories}</b> kcal ·{" "}
+                      <b className="font-bold text-plum">{m.proteinGrams}</b> g · {m.timeMinutes} min
+                    </span>
+                  </button>
+                );
+              })}
 
               {d.day === lowest.day && targets.proteinGrams - d.protein > 0 && (
                 <div className="rounded-[10px] bg-panel p-4 text-white">
@@ -268,6 +289,24 @@ export default function WeekBoard({ demo }: { demo: { stats: WeekStats; targets:
           );
         })}
       </div>
+
+      {open && (
+        <MealSheet
+          day={open.day}
+          meal={open.meal}
+          profile={view.profile}
+          personalized={personalized}
+          onClose={() => setOpen(null)}
+          /* actions.ts already saved and fired PLAN_CHANGED_EVENT, so `refresh` has re-read the
+             week from storage. Keep the sheet open on the meal's new state rather than closing it:
+             a user resizing a portion usually wants to resize it again. */
+          onApplied={(r) => {
+            const d = r.week.days.find((x) => x.day === open.day);
+            const next = d?.meals.find((m) => m.type === open.meal.type);
+            if (next) setOpen({ day: open.day, meal: next });
+          }}
+        />
+      )}
     </div>
   );
 }
