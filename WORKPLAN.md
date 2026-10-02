@@ -1232,6 +1232,19 @@ Each of these was discovered by doing the work, and each earned its place.
     and check for `import * as` first, since a namespace import makes the whole count a lie — there
     were none, which is the only reason the numbers can be trusted.
 
+47. **Never leave files STAGED across a long wait — the index is shared state.** `git add` was run and
+    then `npm run test:engine` was waited on for ~25 minutes before committing, which is the correct
+    order for the GATE and the wrong order for the INDEX. A commit made from the same working
+    directory during that window swept the staged files into itself, so a day's work landed on
+    `origin/main` under an unrelated commit message ("data: K3 re-run scorecard"). Nothing was lost —
+    both sets of changes were intact and the content was verified file by file on the remote — but the
+    reasoning written for that commit is not in the history, and a force-push to fix attribution would
+    break the other machine's clone, which is not worth it.
+    **The rule: run the gate first, then `git add` and `git commit` as one adjacent pair.** Staging is
+    not a safe place to park work. Related: the owner's standing warning to beware of commit
+    conflicts, and lesson 36 — a step that must happen gets its own invocation, close to the thing it
+    belongs to.
+
 ---
 
 ## 4. Training track (runs in parallel, never blocked by the above)
