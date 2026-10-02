@@ -46,6 +46,21 @@ const message = flag("--message");
 const skipGate = hasFlag("--no-gate");
 const dryRun = hasFlag("--dry-run");
 
+/**
+ * The path out of a `git status --porcelain` line.
+ *
+ * Do NOT use a fixed `slice(3)`: the status field is two columns but the separator and quoting vary
+ * (` M file`, `M  file`, `?? file`, `R  old -> new`, and a quoted path when it contains spaces). A
+ * fixed offset silently shaves a character off the filename, which made the commit verifier report a
+ * file as unexpected when it had in fact been named - a safety check crying wolf is worse than none,
+ * because the next person learns to ignore it.
+ */
+function porcelainPath(line) {
+  const rest = line.replace(/^.{1,2}\s+/, "");
+  const renamed = rest.split(" -> ");
+  return (renamed.length > 1 ? renamed[renamed.length - 1] : rest).replace(/^"|"$/g, "");
+}
+
 function die(msg) {
   console.error(`\nship: ${msg}\n`);
   process.exit(1);
@@ -115,7 +130,7 @@ if (!dirty.length) die(`nothing to commit in: ${paths.join(", ")}`);
 console.log("ship: will commit\n" + dirty.map((l) => `  ${l}`).join("\n"));
 
 // ---- 3. the gate -------------------------------------------------------------------------------
-const touchesEngine = dirty.some((l) => l.slice(3).includes("src/lib/"));
+const touchesEngine = dirty.some((l) => porcelainPath(l).includes("src/lib/"));
 if (skipGate) {
   console.log("ship: --no-gate given; skipping the gate (docs-only changes).");
 } else {
@@ -144,7 +159,7 @@ console.log("\nship: committing (atomic, --only)…");
 // `git add --intent-to-add` registers the path without putting its content in the index, which
 // keeps the window that caused all this as small as possible - and it happens immediately before
 // the commit, not before a 25-minute gate.
-const untracked = dirty.filter((l) => l.startsWith("??")).map((l) => l.slice(3).replace(/^"|"$/g, ""));
+const untracked = dirty.filter((l) => l.startsWith("??")).map(porcelainPath);
 if (untracked.length) {
   console.log(`ship: registering ${untracked.length} new file(s) with --intent-to-add`);
   git(["add", "--intent-to-add", "--", ...untracked]);
@@ -159,7 +174,7 @@ try {
 
 // ---- 5. verify the commit holds exactly what was intended --------------------------------------
 const committed = git(["show", "--pretty=format:", "--name-only", "HEAD"]).split("\n").filter(Boolean);
-const intended = new Set(dirty.map((l) => l.slice(3).replace(/^"|"$/g, "")));
+const intended = new Set(dirty.map(porcelainPath));
 const extra = committed.filter((f) => !intended.has(f) && !paths.some((p) => f.startsWith(`${p}/`)));
 const missing = [...intended].filter((f) => !committed.includes(f));
 
