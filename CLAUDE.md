@@ -128,11 +128,17 @@ disabled) — good for showing the UI without any AI.
   `onStoreChange` listeners; that is the whole seam sync hangs off, and why its load/save API never
   had to change. Owned by the accounts lane (`docs/parallel/`).
 - `src/lib/account/` — **accounts: local-first, the account is a mirror.** `portable.ts` (the export
-  file: build, validate, apply), `merge.ts` (the pure sync rules), `sync.ts` (`syncNow` + the
-  debounced mirror, both ends injected), `supabase.ts` (raw REST to Supabase auth + the `user_state`
-  table — **no SDK**), `client.ts` (browser glue: session, the one running sync, status). With no
-  `NEXT_PUBLIC_SUPABASE_*` keys every entry point is a no-op. Server side: `supabase/` (the SQL, RLS,
-  setup steps, an RLS test plan). Tested by `node scripts/test-account.mjs` with no network at all.
+  file), `validate.ts` (ONE zod-free check per store, for files AND rows pulled from the account),
+  `merge.ts` (the pure sync rules — key-order-blind, because Postgres jsonb reorders keys), `sync.ts`
+  (`syncNow` + the debounced mirror, both ends injected), `supabase.ts` (raw REST to Supabase — **no
+  SDK**; sign-in is **PKCE**, never tokens from a URL), `client.ts` (browser glue: the session, the one
+  running sync pinned to its account, the account-switch guard, status). With no
+  `NEXT_PUBLIC_SUPABASE_*` keys every entry point is a no-op. Server side: `supabase/` — two migrations
+  (the table + RLS; `upsert_state`, which only moves a store forward in time), the setup steps
+  including custom SMTP, and the RLS test plan. Tested by `node scripts/test-account.mjs` with no
+  network, and `node scripts/mutate-account.mjs` proves each guard's test can fail (lessons 52–55).
+  **The SQL itself is executed** by `node scripts/test-account-sql.mjs`: real Postgres (PGlite, in
+  WebAssembly) with Supabase's default grants stubbed in, so no project is needed (lesson 56).
 - `src/lib/savedStore.ts` — a three-method async interface (`list`/`add`/`remove`) over saved
   recipes, delegating to `storage.ts`. **Async on purpose even though localStorage is not**: a
   synchronous interface would have to change shape the moment a network sat behind it, and every
@@ -277,7 +283,9 @@ npm run check:boundaries # the module map enforced: layers, client payload, stor
                          # (~1 s; ship.mjs runs it on any src/ change; `-- --self-test` proves it fails)
 npm run check:data      # gates the training data
 npm run test:api        # HTTP route integration tests
-node scripts/test-account.mjs  # accounts: export file, sync rules + engine, REST client — no network
+node scripts/test-account.mjs  # accounts: export file, sync, REST client, client.ts end to end vs a fake Supabase — no network
+node scripts/mutate-account.mjs  # accounts: removes each guard in turn and proves a test goes red
+node scripts/test-account-sql.mjs [--mutate]  # accounts: the migrations + RLS plan in real Postgres (PGlite; installs once to the OS temp dir)
 npm run export:recipes  # library -> NutriFlow-recipes.xls, incl. a coverage/gaps report
 npm run build:nutrients # regenerate the USDA table (needs --emit to write)
 ```

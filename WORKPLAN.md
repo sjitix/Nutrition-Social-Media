@@ -1304,6 +1304,57 @@ Each of these was discovered by doing the work, and each earned its place.
     gets made: writing "decided" into VISION for a call the owner had not made was the second half of
     the same mistake.
 
+52. **A fake that skips the real backend's normalisation hides exactly the bugs it was meant to
+    find.** The accounts suite passed 94 checks against a fake server that stored values verbatim.
+    Postgres `jsonb` does not keep object key order, so against the real thing every sync would have
+    seen untouched stores as changed, "pulled" them, taken a backup each time (evicting the real
+    backups) and told the person the account had newer data. An adversarial reviewer found it from the
+    Postgres docs, not from a test. Fixes: compare key-order-blind (`canonical` in merge.ts), and make
+    every fake reproduce what the backend actually does to data — key order, the characters it
+    refuses, writes it skips. A fake is a claim about the real system; check the claim.
+
+53. **A test written for a guard must create the exact condition only that guard stops — mutation-check
+    it.** After fixing the review's findings, each new guard was removed in turn and the suite run.
+    Three of eight stayed green: the "paused mirror" test cut the whole network, so no push could
+    happen with or without the pause; the "session pin" test fired the cross-tab event, which stopped
+    sync before the pin was ever needed; the "delete everything" test never raced an in-flight pull.
+    Each was rewritten to isolate its guard (a pull that fails while pushes work; a session swap with
+    the event missed; a delete during a slow pull), and all eight now turn the suite red. The tool is
+    `node scripts/mutate-account.mjs`: break one line, run, restore, report — cheap, and the only proof.
+
+54. **In a sync system, an undo or restore is a write — and a write of "nothing" is a deletion.**
+    "Put it back" restored a backup by writing every store, and a store the backup didn't hold became
+    `null` stamped now; merge rule 2 made that the newest write, and sync deleted those stores from the
+    account and every other device. The safe shape: restore only what the copy holds, and *forget*
+    (value, write time, sync marker) the rest locally so the next sync brings the account's copy back.
+    The same review found the sibling: re-saving an unchanged value stamped it newest and overwrote
+    other devices' edits — so a save that changes nothing is now a no-op. Related: only data the account
+    has NEVER seen needs a backup before a pull replaces it, which `synced` markers now track.
+
+55. **Never accept session tokens from a URL a page merely landed on — that is login CSRF.** The first
+    sign-in used the implicit flow: whatever `#access_token=` arrived was saved, so anyone could send a
+    link that signed a browser into THEIR account, after which its profile (health notes included)
+    uploaded there. PKCE fixes it at the root: the browser keeps a verifier when it asks for a link and
+    only a code exchanged with that verifier completes. The same review added the account-switch guard
+    (a browser remembers whose data it holds and never pushes it into someone else's account) and pins
+    each sync to its account, so a sign-in in another tab cannot redirect it. The cost is one rule the
+    UI states: open the link in the browser that asked for it.
+
+56. **Execute schema code before calling it tested — against the platform's defaults, not a clean
+    database.** The account SQL had been reviewed by five lenses and tested through a fake, and had
+    never run. In PGlite (real Postgres compiled to WebAssembly) it passed the whole RLS plan first
+    time. It passed because the stub was a clean Postgres, where a new table is granted to nobody, so
+    "anon gets nothing" could not fail. Given Supabase's real defaults (every new `public` table is
+    granted ALL to `anon` and `authenticated`), the check found that the migration had never taken
+    TRUNCATE back from signed-in users. TRUNCATE ignores RLS: run as one user, it emptied the table for
+    every account. The REST API has no TRUNCATE, so this was unreachable from a browser; it is closed in
+    0001 anyway. Two more facts cost time. First, a policy test whose WHERE reads a column also runs
+    the SELECT policy, and that hides the row on its own. So "B updates A's row → 0 rows" passed with
+    the UPDATE policy deleted (measured, and the README's own test plan had the same flaw). Test UPDATE
+    and DELETE with no WHERE, inside a transaction that is rolled back. Second, PGlite's `query` runs
+    one statement, so a migration file needs `exec`. `node scripts/test-account-sql.mjs --mutate`
+    removes fifteen guards in turn and catches all fifteen.
+
 ---
 
 ## 4. Training track (runs in parallel, never blocked by the above)

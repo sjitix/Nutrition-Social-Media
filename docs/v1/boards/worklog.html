@@ -190,8 +190,8 @@
   <section id="totals">
     <div class="stats">
       <div class="stat"><div class="v">3</div><div class="l">days logged</div></div>
-      <div class="stat"><div class="v">6</div><div class="l">milestones done</div></div>
-      <div class="stat"><div class="v">13</div><div class="l">days to V1</div></div>
+      <div class="stat"><div class="v">7</div><div class="l">milestones done</div></div>
+      <div class="stat"><div class="v">12</div><div class="l">days to V1</div></div>
       <div class="stat"><div class="v">5</div><div class="l">open deferrals</div></div>
     </div>
   </section>
@@ -202,6 +202,40 @@
     <p class="lede">Only days that actually happened, each with its date, appended at the end of every work-day.
       Nothing planned appears here — the schedule ahead is in its own collapsed block below.</p>
     <div class="tl" style="margin-top:20px">
+
+      <article class="entry" id="d-2026-10-03-late">
+        <div class="box">
+          <div class="ehead">
+            <span class="date">2026-10-03 &middot; late night</span>
+            <span class="pill done">solved &middot; done</span>
+          </div>
+          <h3>Day 4 done &mdash; the app's pages stop downloading the whole recipe library</h3>
+          <p class="sub">How much JavaScript each page makes your phone download before it works, measured from real builds.</p>
+          <div class="blocks">
+            <div class="blk">
+              <h4>What moved</h4>
+              <ul>
+                <li><b>Week: 226 &rarr; 129 kB.</b> Four words &mdash; the slot names &mdash; were imported from a file that
+                  builds the whole week with the engine, so the entire library came along.</li>
+                <li><b>Explore: 212 &rarr; 114 kB.</b> The recipe cards are now built on the server and handed to the page.</li>
+                <li><b>Groceries: 123 &rarr; 113 kB.</b> &ldquo;How many grams is a cup of rice&rdquo; was stored beside 180
+                  ingredients of USDA data, so it downloaded all of it.</li>
+              </ul>
+            </div>
+            <div class="blk found">
+              <h4>Measured, not believed</h4>
+              <ul>
+                <li>The planned test was wrong: two dish names would never disappear, because they are photographed dishes
+                  and belong on the page. Replaced with markers that only the library carries.</li>
+                <li>Explore's saving over the wire is smaller than the headline (about 26&nbsp;kB): its recipes now travel inside
+                  the page. Said plainly rather than rounded up.</li>
+                <li>I doubted my own Day 1 finding about Groceries. Measured it &mdash; it was real.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="gate">GATE &middot; measured per route from production builds &middot; check:boundaries 9 &rarr; 6 debts &middot; test:engine as the ship gate</div>
+        </div>
+      </article>
 
       <article class="entry" id="d-2026-10-03-night">
         <div class="box">

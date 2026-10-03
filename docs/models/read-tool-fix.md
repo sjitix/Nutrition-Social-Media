@@ -69,10 +69,33 @@ choices; questions → `answer`/`explain`; facts stated earlier bind later actio
 
 **Gate:** the full engine suite against `models-exp` (bundled to a private path, not the shared `node_modules/.cache`): **660 passed, 0 failed**; `tsc` clean. The diff is commit `af89fb7` on `models-exp`. Re-run after rebasing onto v1's Day-2 refactor.
 
-## Round 3 — refined prompt + 24-scenario coverage
+## Final round — the final prompt, both rulers, sequential (no rate-limit contamination)
 
-*(in progress: the refined HOW TO DECIDE — act on a direction, carry allergies forward, no emoji — on
-the 24-scenario loop eval, before vs after, and the 45 cases with both gradings.)*
+**Single turn, Nemotron-3-Ultra-550B, 45 hard cases, 0 infra on both arms**
+(`2026-10-03T11-06-51-…` before, `2026-10-03T11-21-37-…` after):
+
+| | before (main) | after (`models-exp` 62c4617) |
+|---|---|---|
+| actedRightV2 | 84% (38/45) | **96% (43/45)** |
+| actedRight (v1 ruler) | 73% — range **73–82%** across today's runs | **87%** — range **84–87%** |
+| do | 21/27 | **25/27** |
+| decline | 5/6 | **6/6** |
+| clarify (v2) · refuse | 7/7 · 5/5 | 7/7 · 5/5 |
+
+The ranges do not overlap, so this is beyond the ~9-point run-to-run spread
+(`eval-variance.md`). The gain is in DO: questions now get `answer`/`explain`, the remembered lactose
+intolerance reaches the pasta, the egg substitution is given. **Both remaining misses are under-acts —
+and `log-and-adapt` is the date gap** (it still asks "which day is today?").
+
+**Loop level, local Qwen3-30B, 26 scenarios** (`…T10-52-40-loop-qwen…` before, `…T11-21-02-loop-qwen…`
+after): read-before-write **0/2 → 2/2**, give-ups **1 → 0**, worst message **796 s → 216 s**, pass
+13/26 → 13/26. The mechanics land on a weaker model too; judgement does not improve at 30B.
+
+**Safety finding (raised with v1, now its C2 work):** on main's prompt the 30B model DID route a
+crisis message through `symptom` — with its own paraphrase, so no crisis phrase matched and the engine
+answered "I don't have a nutritional angle on that". The guard depended on a model quoting verbatim.
+The prompt now says "VERBATIM — copy, never paraphrase" (`d033c3a`), and v1 is adding a pre-scan of
+the raw message in both routes so no model can miss it.
 
 ## Known issues found on the way (not in this diff)
 

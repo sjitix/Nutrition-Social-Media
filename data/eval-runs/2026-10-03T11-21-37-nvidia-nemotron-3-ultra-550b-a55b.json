@@ -1,0 +1,497 @@
+{
+  "ranAt": "2026-10-03T11:21:37.896Z",
+  "model": "nvidia/nemotron-3-ultra-550b-a55b",
+  "endpoint": "https://integrate.api.nvidia.com/v1",
+  "keyed": true,
+  "settings": {
+    "concurrency": 1,
+    "maxRetries": 10,
+    "reqTimeoutMs": 600000,
+    "maxTokens": 2000
+  },
+  "cases": 45,
+  "summary": {
+    "schemaOk": 45,
+    "actedRight": 39,
+    "actedRightV2": 43,
+    "grading": "actedRight = v1 (hold = zero ops); actedRightV2 = v2 (hold = nothing plan-shaping moved). Added 2026-10-03.",
+    "changedState": 23,
+    "infraFailures": 0,
+    "trustworthy": true
+  },
+  "byBucket": {
+    "do": {
+      "n": 27,
+      "right": 25,
+      "rightV2": 25
+    },
+    "clarify": {
+      "n": 7,
+      "right": 3,
+      "rightV2": 7
+    },
+    "refuse": {
+      "n": 5,
+      "right": 5,
+      "rightV2": 5
+    },
+    "decline": {
+      "n": 6,
+      "right": 6,
+      "rightV2": 6
+    }
+  },
+  "results": [
+    {
+      "id": "compound-1",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Done — your week is now vegetarian, mushroom-free, and set to a lower budget. Let me know if you'd like any other tweaks."
+    },
+    {
+      "id": "range-1",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Done — Monday through Wednesday are now vegetarian. The rest of the week stays as it was."
+    },
+    {
+      "id": "weekend-1",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Done — I've scaled back Saturday and Sunday meals so they're lighter for your lower-activity weekends."
+    },
+    {
+      "id": "everyday-1",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Done — pancakes for breakfast every day. Your other meals will adjust to keep your daily targets on track."
+    },
+    {
+      "id": "everyday-correction",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Got it — pancakes for breakfast every day this week."
+    },
+    {
+      "id": "ambiguous-1",
+      "bucket": "clarify",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "Sure — what would you like me to change? For example: different meals, a diet style (vegetarian, etc.), cheaper ingredients, quicker cook times, more/less protein, or something else?"
+    },
+    {
+      "id": "contradiction-1",
+      "bucket": "refuse",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "Those two clash — a vegan week means no animal products at all, including chicken. Want a fully vegan week, or a non-vegan week with chicken on Friday?"
+    },
+    {
+      "id": "impossible-1",
+      "bucket": "refuse",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "Those three goals clash — 300 g protein a day on a vegan diet at $20/week isn't feasible. 300 g protein is very high (the current plan is ~156 g), and vegan protein sources dense enough to hit that number (seitan, isolate powders, large amounts of tofu/tempeh) cost far more than $2.85 a day. I can't create a plan that meets all three. Which would you rather adjust? 1) A high-protein vegan week at "
+    },
+    {
+      "id": "reference-scope",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Got it — only Tuesday stays Italian, the rest of the week goes back to your usual mix."
+    },
+    {
+      "id": "health-period",
+      "bucket": "clarify",
+      "schemaOk": true,
+      "actedRight": false,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "I'm sorry you're feeling drained — that's really tough. I've noted it so the system can factor it in. Want me to lean the next few days toward iron-rich meals to help?"
+    },
+    {
+      "id": "deficiency-constrained",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Got it — I've switched your week to vegetarian and boosted iron-rich plant foods like lentils, beans, tofu, leafy greens, and fortified grains. Your doctor's note is saved so future plans keep iron in mind."
+    },
+    {
+      "id": "memory-apply",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Got it — lactose intolerance noted for the whole week. I'll make sure Tuesday dinner is a creamy pasta without dairy."
+    },
+    {
+      "id": "rambling-multi",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "I hear you — stressful weeks with late nights are the worst. I've noted the stress, dropped mushrooms from the plan, and capped dinner cook times at 20 minutes so they're quick to throw together. On the vegetarian front: you said you *think* you went vegetarian recently. Want me to make the whole week vegetarian, or keep it as-is for now?"
+    },
+    {
+      "id": "slang-typo",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Got it — targeting 200 g protein across the week. Let me rebuild the plan around that."
+    },
+    {
+      "id": "eating-problem",
+      "bucket": "clarify",
+      "schemaOk": true,
+      "actedRight": false,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "I'm really sorry you're going through that — it takes courage to say it out loud. You're not alone, and feeling awful afterward is a very common response, not a personal failure. I've noted what you shared so it's on record for any future adjustments. If it would help, we could look at making your evening meal a bit more satisfying or adding a planned snack so you're not showing up to the night ra"
+    },
+    {
+      "id": "per-slot-protein",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "Done — I've raised the protein target for every breakfast to 55 g. The engine will swap in higher‑protein morning dishes and rebalance the rest of each day so lunch and dinner stay where they are."
+    },
+    {
+      "id": "skip-meal",
+      "bucket": "decline",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "I can't remove breakfast entirely yet — plans run on 3 or 4 meals a day. Want a light, quick breakfast instead, or should I shift those calories into lunch and dinner?"
+    },
+    {
+      "id": "household-servings",
+      "bucket": "decline",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "I can't scale the plan for two people directly — the app builds plans for one person at a time. The nearest thing I can do is increase the portion sizes across the board (more calories, more protein, etc.) so each meal yields roughly double. Would you like me to raise the daily targets to about 4000 kcal and 300 g protein, or would you prefer to just make individual meals larger as needed?"
+    },
+    {
+      "id": "log-and-adapt",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": false,
+      "actedRightV2": false,
+      "changed": false,
+      "infra": false,
+      "reply": "Got it — I'll log that burger and fries for you. Which day is today in your plan (Monday through Sunday)?"
+    },
+    {
+      "id": "capabilities",
+      "bucket": "clarify",
+      "schemaOk": true,
+      "actedRight": false,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "I'm your personal nutritionist assistant. Here's what I can do for you:"
+    },
+    {
+      "id": "budget-cuisine",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Done — I've set the week to a budget-friendly Mexican plan."
+    },
+    {
+      "id": "macro-pair",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Done — I've set your daily target to 1800 calories with 160g protein for the week. The plan will re-solve to hit those numbers."
+    },
+    {
+      "id": "quick-week",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Done — I've capped every meal this week at 15 minutes max. The plan will re-solve with quick options only."
+    },
+    {
+      "id": "single-slot-swap",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Done — Tuesday's dinner is now a salmon bowl, and the rest of the day stays as it was."
+    },
+    {
+      "id": "four-meals",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Done — your week now has 4 meals a day, including an afternoon snack each day."
+    },
+    {
+      "id": "eating-out-future",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Done — I've reserved your Friday dinner slot so the plan leaves room for your reservation."
+    },
+    {
+      "id": "pin-keep",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Done — Sunday dinner (Garlic Shrimp & Tomato Orzo) is now pinned and won't be changed by any future adjustments."
+    },
+    {
+      "id": "rate-recur",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": false,
+      "actedRightV2": false,
+      "changed": false,
+      "infra": false,
+      "reply": "Love that you enjoyed it! Which days would you like the Peanut Butter Banana Shake Bowl — every morning, a few specific days, or something else?"
+    },
+    {
+      "id": "substitute-advice",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "Tuesday's breakfast is Berry Protein Waffles — waffles usually rely on eggs for structure and lift. Let me check what swaps work well there."
+    },
+    {
+      "id": "hydration-profile",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "I'll calculate a personalized hydration target for you based on your weight and activity level."
+    },
+    {
+      "id": "explain-slot",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "I don't see oatmeal on Monday — your Monday breakfast is a Peanut Butter Banana Shake Bowl. Are you looking at a different day, or did you see oatmeal somewhere else?"
+    },
+    {
+      "id": "general-qa",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "Both have a place in your plan — quinoa shows up in several lunches (Monday, Tuesday, Thursday) and white rice appears in stir-fries and fried rice dishes. Quinoa is a complete protein with more fiber, magnesium, and a lower glycemic index. White rice digests faster, which can be useful around training or when you want a lighter stomach. If you're aiming for more micronutrients and steady energy, "
+    },
+    {
+      "id": "vague-weightloss",
+      "bucket": "clarify",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "I'd be glad to help. The plan right now averages about 2000 kcal a day. For weight loss we'd typically create a deficit — but the right number depends on you. Do you have a calorie target in mind, or would you prefer I just make the meals more filling (more protein, fiber, volume) within the current calories?"
+    },
+    {
+      "id": "bare-more",
+      "bucket": "clarify",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "More of what — calories, protein, an extra snack, bigger portions, more variety? Let me know and I'll adjust."
+    },
+    {
+      "id": "fasting-window",
+      "bucket": "decline",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "I can't remove breakfast entirely — plans run on 3 or 4 meals a day. The closest I can do is give you a very light, quick breakfast (like a protein shake or yogurt) that you could have at noon, then keep lunch and dinner in your eating window. Or I could shift those breakfast calories into a larger lunch and dinner while keeping three meals. Which would you prefer?"
+    },
+    {
+      "id": "monthly-plan",
+      "bucket": "decline",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "I can only plan one week at a time — the app doesn't support monthly plans yet. I can give you a solid week right now, and if you like the rhythm we can repeat or tweak it for the following weeks. Want me to adjust this current week first, or shall I lock it in and you can come back each week for the next one?"
+    },
+    {
+      "id": "vegan-b12",
+      "bucket": "decline",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "I can't fix low B12 with food alone while keeping you fully vegan — vitamin B12 isn't found in unfortified plant foods. Vegans need fortified foods (like nutritional yeast, plant milks, or cereals) or a supplement to meet B12 needs. The app can try to include fortified vegan items, but it can't guarantee the target from whole foods. Want me to add fortified vegan options to the plan, or would you "
+    },
+    {
+      "id": "external-sync",
+      "bucket": "decline",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "I can't sync directly to an Apple Watch — that integration isn't available yet. The closest thing I can do is give you a clean weekly summary you can reference from your phone, or you can open the app on your watch if it's installed and view the plan there manually. Want me to lay out the week in a simple list so it's easy to glance at?"
+    },
+    {
+      "id": "keto-highcarb",
+      "bucket": "refuse",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "Keto and daily pasta/rice clash — keto keeps carbs very low (usually under 50g), while a single serving of pasta or rice can blow past that on its own. You can’t do both at the same time. Want a true keto week (very low carb, higher fat), or a non-keto week that includes pasta and rice daily?"
+    },
+    {
+      "id": "vegan-eggs",
+      "bucket": "refuse",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "Those two clash — a vegan plan excludes eggs entirely. Want a fully vegan week (no eggs, no animal products), or a non-vegan week that keeps eggs every morning?"
+    },
+    {
+      "id": "impossible-cal-protein",
+      "bucket": "refuse",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "That target isn't realistic or safe — 250 g of protein alone would use 1,000 kcal, leaving only 200 kcal for all carbs and fat. The engine can't build a plan like that. Your current plan runs ~2,000 kcal with ~156 g protein. If you want more protein, I can push it higher within a sensible calorie range (e.g., 180–200 g on ~2,000 kcal), or we can lower calories moderately while keeping protein adeq"
+    },
+    {
+      "id": "cycle-sync-offer",
+      "bucket": "clarify",
+      "schemaOk": true,
+      "actedRight": false,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Thanks for letting me know. I've noted that your period starts in a couple of days. Want me to lean the next few days toward iron-rich meals to help with energy?"
+    },
+    {
+      "id": "allergy-later-applied",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Done — I've added an afternoon snack slot to every day and kept peanuts out of the whole week."
+    },
+    {
+      "id": "clarify-then-do",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Done — I've switched the whole week to a vegan plan. All meals will now be plant-based."
+    },
+    {
+      "id": "correction-replace",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Switched to Mediterranean — olive oil, fish, legumes, whole grains, plenty of veg."
+    }
+  ],
+  "variant": "models-exp 62c4617 (after) — final round, sequential, concurrency 1"
+}

@@ -48,8 +48,14 @@ create policy "update own state" on public.user_state for update to authenticate
 create policy "delete own state" on public.user_state for delete to authenticated
   using (user_id = auth.uid());
 
--- Anonymous visitors get nothing at all — not even an empty select.
-revoke all on public.user_state from anon;
+-- A fresh Supabase project grants EVERY privilege on a new public table to both API roles, so take
+-- all of it back and give signed-in users exactly the four verbs the policies above govern. Anonymous
+-- visitors get nothing at all — not even an empty select. TRUNCATE in particular must never stay with
+-- a user: row-level security does not apply to it, so one signed-in user could empty every account at
+-- once (run in real Postgres by scripts/test-account-sql.mjs, which is how this was found). The REST
+-- API has no TRUNCATE, so it was never reachable from a browser; it is closed anyway, because what a
+-- user may do belongs in the schema, not in which doors the API happens to have.
+revoke all on public.user_state from anon, authenticated;
 grant select, insert, update, delete on public.user_state to authenticated;
 
 -- Delete my account: the signed-in user removes their own auth record, and `on delete cascade`

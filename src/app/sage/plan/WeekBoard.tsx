@@ -5,7 +5,9 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { gradientForMeal, imageForMeal } from "@/lib/recipes";
 import { RefreshIcon } from "@/components/icons";
-import { SLOTS } from "../demo";
+// From the client-safe slots module, NOT ../demo: demo.ts builds the fixture week with the engine,
+// and importing even four words from it shipped the whole recipe library on this route (A4).
+import { SLOT_LABELS as SLOTS } from "@/lib/slots";
 import { loadMyWeek, generateMyWeek, PLAN_CHANGED_EVENT } from "../myPlan";
 import type { WeekStats } from "../weekStats";
 import { MealSheet } from "../MealSheet";
