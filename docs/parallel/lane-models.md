@@ -7,33 +7,26 @@ Protocol: [`README.md`](README.md). Worktree: `../NutriFlow-models/`, branch `mo
 
 ## Now doing
 
-**2026-10-03 (afternoon) — the big-model search, and the read-tool fix ready for v1 to land.**
+**2026-10-03 (late afternoon) — the read-tool fix is ON MAIN (`3392461`); the date line is approved and
+queued behind v1's D5; now making the 550B faster and finding a big free host.**
 
-Owner's mandate: find **the largest model that is free, fast enough, and can do everything the
-assistant needs**. Owner, 2026-10-03: "work with the bigger models first, like the 550B". So the
-**Nemotron-3-Ultra-550B gets the NVIDIA tier first**, one run at a time (the free tier's rate limit
-voids parallel runs). gpt-oss-20b runs only on the local GPU, as the regression check v1 asked for.
+Owner's direction (twice today): big models first; find the biggest free model with an optimal response
+time; no more effort on 20–30B. Memory: `big-hosted-model-first`.
 
-Branches: **`models`** (worktree `../NutriFlow-models`) ships my own paths onto main; **`models-exp`**
-(worktree `../NutriFlow-models-exp`) holds the prompt/schema change in v1-owned files, reviewed by v1;
-**`models-exp-date`** adds "today is Monday (2026-10-05)" to the prompt (not yet measured, offered after).
-
-Where it stands (details and every number: `docs/models/survey.md`, Round 4):
-1. **Read-tool fix**: `models-exp` `543bcb2`, 3 files vs main (`primitives.ts`, `promptV2.ts`, `ai.ts`).
-   550B hard cases 84 -> 96% (v2). gpt-oss-20b 80–84 -> 91–96%. Engine gate 680/0 on `7298a28`; the
-   gate on `543bcb2` is running. "Ready to land" goes to v1 once `543bcb2` is measured.
-2. **The single-turn ruler no longer separates a 20B from a 550B.** New instrument:
-   `scripts/models/convo-eval.mts` (14 two-turn conversations). It runs on the 550B next, then
-   gpt-oss-20b locally.
-3. **Three engine bugs found by grading what the engine did, not what the model sent**: slot-scoped
-   constrain is a silent no-op (and the reply claims success), a remembered allergy is not enforced,
-   and a day-scoped constrain drops `exclude`. Reported; v1 is fixing all three. The prompt stopped
-   teaching the slot form.
-4. Proposal for v1's ruler: `scripts/models/regrade-hardcases.mjs` (v3 = DO counts only if the engine
-   changed something).
-5. Big models reachable for free today: the 550B (best; 17–22 s median per message), GLM-5.3 (25–90 s
-   per call), Kimi K3 (slow queue). Everything else big is 404, times out, or is keyless-OVH blocked.
-   The fast big options (Groq/OVH gpt-oss-120b, Gemini Flash) need a free key: `docs/models/OWNER-TODO.md`.
+1. **Landed:** the read-tool fix and prompt work (`3392461`, applied by v1 from `models-exp` 543bcb2).
+   v1's engine fixes for the three bugs this lane found (`98747f6`).
+2. **Approved, landing after v1's D5 commit:** `models-exp-date` 3c30e90, "Today is Monday (…)" in the
+   prompt. 550B logs "today" 3/3 with it, 0/4 without. Gate 750/0. v1 follows up with the browser's local
+   date instead of UTC.
+3. **The conversation eval decides model size.** 550B 12/14 (corrected), 20B 6/14 with either prompt.
+4. **Free-provider search (25 agents, verified):** no free tier gives big + fast + volume at once.
+   Report: `docs/models/free-providers-2026-10.md`. The owner's to-do is rewritten and ranked: Vercel AI
+   Gateway's $0 Ling 3.1 Flash (560B) first. GitHub Models is retired; an OVH key is not free by itself.
+5. **Speed, in progress:** the 550B's time is writing, not reading. Hidden reasoning means ~5× the tokens,
+   on a host that writes at 4–62 tok/s. Running now on the 550B: conversation and loop evals with reasoning
+   on vs off, then off plus "fast finish" (skip the loop's last call when the engine's notes are the reply).
+   Both are eval-side only: a proxy injection and a ModelFn wrapper. Any app change would be v1's, after
+   D5a moves `ai.ts` / `promptV2.ts` / `agentLoop.ts` into folders.
 
 ## Files I'm editing right now
 
@@ -69,12 +62,12 @@ Where it stands (details and every number: `docs/models/survey.md`, Round 4):
 
 ## Asks of the other lanes
 
-- **v1: land the read-tool fix** (`models-exp`, 3 files). The "ready to land" message, with ranges,
-  follows once `543bcb2` is measured. Agreed by v1 in principle.
-- **v1: the three engine fixes** (remembered allergy enforced, slot-scoped constrain says "nothing
-  changed", day scope passes `exclude`/`use`). Accepted by v1 2026-10-03, in progress. I merge the shas
-  into `models-exp` when they land.
-- **v1, optional: the v3 ruler** (`scripts/models/regrade-hardcases.mjs`), for v1 to decide.
+- **v1: land `models-exp-date` 3c30e90** after your D5 commit (agreed 2026-10-03, before D5a).
+- **v1, when the numbers are in:** reasoning off for hosts that accept it (one request field in the
+  adapter), and an early stop in `runAgent` when the engine's notes are the reply. Proposals with
+  numbers, not branches.
+- **v1, optional: the v3 ruler** (`scripts/models/regrade-hardcases.mjs`). v1 called it the right ruler;
+  I still owe the proposal with a per-case flag.
 
 ## Shipped
 
@@ -88,4 +81,9 @@ Where it stands (details and every number: `docs/models/survey.md`, Round 4):
 | `b197cec` | the read-tool fix lifts the 550B 84% -> 96%, beyond the noise |
 | `e600722` | crisis-phrasing test set for v1's C2 pre-scan |
 | `fe21518` · `3a248db` | v8 and gpt-oss-20b old-vs-new prompt; `convo-eval.mts` |
-| (this) | Round 4 in the survey; the v3 regrade proposal; eval rows record operation arguments |
+| `3a5d0dc` | Round 4 in the survey; the v3 regrade proposal; eval rows record operation arguments |
+| `cf0aff1` · `3ae2b07` | the conversation eval separates sizes (550B 11/14 → 12/14 corrected, 20B 6/14); decisions on record; CONTEXT block |
+| `26ef88a` · `6e6f38f` · `48b1cd4` · `f61d653` | speed: latency anatomy (writing, not reading, is the cost), proxy `INJECT`, fast-finish, pacing never counted as latency |
+| `d383143` | the date line measured: "today" logged 3/3 with it, 0/4 without |
+| `271d03c` | the verified free-provider search; OWNER-TODO rewritten and ranked |
+| (this) | lane file brought up to date |
