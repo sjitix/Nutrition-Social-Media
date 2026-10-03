@@ -52,6 +52,14 @@ export const s256 = (verifier: string) => createHash("sha256").update(verifier).
 /** An in-memory Supabase: GoTrue's PKCE sign-in and refresh, PostgREST with RLS, upsert_state, jsonb key order. */
 export class FakeSupabase {
   users = new Map<string, { id: string; email: string }>();
+  /**
+   * Accounts removed by delete_my_account(). Their ACCESS tokens still work until they expire, as on
+   * the real platform (a JWT is stateless): reads come back empty and writes break the foreign key.
+   */
+  deleted = new Set<string>();
+  /** Which sign-in session each token belongs to, so /logout can end exactly one (scope=local). */
+  private sessionOf = new Map<string, number>();
+  private sessions = 0;
   rows = new Map<string, Map<string, { value: unknown; updated_at: string }>>();
   access = new Map<string, string>();
   refresh = new Map<string, string>();
@@ -104,16 +112,20 @@ export class FakeSupabase {
     this.access.clear();
   }
   user(email: string) {
-    const id = `uid-${email.split("@")[0]}`;
+    let id = `uid-${email.split("@")[0]}`;
+    // GoTrue gives a NEW id to someone who signs up again after deleting their account.
+    while (this.deleted.has(id)) id = `${id}-new`;
     if (!this.users.has(id)) this.users.set(id, { id, email });
     return this.users.get(id)!;
   }
-  private issue(id: string) {
+  private issue(id: string, session = ++this.sessions) {
     const u = this.users.get(id)!;
     const access = fakeJwt({ sub: id, email: u.email, n: ++this.n });
     const refresh = `rt-${this.n}`;
     this.access.set(access, id);
     this.refresh.set(refresh, id);
+    this.sessionOf.set(access, session);
+    this.sessionOf.set(refresh, session);
     const expiresIn = this.nextExpiresIn;
     this.nextExpiresIn = 3600;
     // GoTrue always sends both: the lifetime, and `expires_at` on the SERVER's clock.
@@ -161,7 +173,7 @@ export class FakeSupabase {
       const id = this.refresh.get(body?.refresh_token);
       if (!id || this.refuseRefresh || !this.users.has(id)) return reply(400, { error: "invalid_grant", error_description: "Invalid Refresh Token" });
       this.refresh.delete(body.refresh_token); // rotation: an old refresh token works once
-      const renewed = this.issue(id);
+      const renewed = this.issue(id, this.sessionOf.get(body.refresh_token)); // the same session, renewed
       if (this.refreshAnswerDelayMs) {
         const wait = this.refreshAnswerDelayMs;
         this.refreshAnswerDelayMs = 0;
@@ -169,22 +181,42 @@ export class FakeSupabase {
       }
       return reply(200, renewed);
     }
-    const uid = this.access.get((headers.Authorization ?? "").replace(/^Bearer /, ""));
+    const token = (headers.Authorization ?? "").replace(/^Bearer /, "");
+    const uid = this.access.get(token);
     if (url.pathname === "/auth/v1/logout") {
       if (!uid) return reply(403, { error_code: "bad_jwt" });
       this.logouts++;
+      // GoTrue ends THIS session (scope=local): its refresh tokens stop working at once. The access
+      // token stays valid at PostgREST until it expires, as every JWT does.
+      const sid = this.sessionOf.get(token);
+      for (const t of [...this.refresh.keys()]) if (this.sessionOf.get(t) === sid) this.refresh.delete(t);
       return reply(204);
     }
-    if (!uid || !this.users.has(uid)) return reply(401, { code: "PGRST303", message: "JWT expired" });
+    if (!uid) return reply(401, { code: "PGRST303", message: "JWT expired" });
+    const gone = this.deleted.has(uid);
 
     if (url.pathname === "/rest/v1/rpc/delete_my_account" && method === "POST") {
       this.users.delete(uid);
       this.rows.delete(uid);
+      this.deleted.add(uid);
+      // Its sessions go with it (auth.sessions and refresh_tokens cascade); its access tokens do not.
+      for (const [t, id] of [...this.refresh]) if (id === uid) this.refresh.delete(t);
       return reply(204);
     }
     if (url.pathname === "/rest/v1/rpc/upsert_state" && method === "POST") {
       if (this.pushDelayMs) await new Promise((r) => setTimeout(r, this.pushDelayMs));
       const incoming = (body?.rows ?? []) as { key: string; value: unknown; updated_at: string }[];
+      // A deleted account: every row is an INSERT for a user auth.users no longer has, so the foreign
+      // key refuses it (Postgres 23503, which PostgREST sends as 409). Measured in real Postgres by
+      // scripts/test-account-sql.mjs.
+      if (gone && incoming.length) {
+        return reply(409, {
+          code: "23503",
+          details: `Key (user_id)=(${uid}) is not present in table "users".`,
+          hint: null,
+          message: 'insert or update on table "user_state" violates foreign key constraint "user_state_user_id_fkey"',
+        });
+      }
       // One SQL statement: refused whole.
       if (this.refuseKey && incoming.some((r) => r.key === this.refuseKey)) return reply(400, { code: "22P05", message: "unsupported Unicode escape sequence" });
       if (incoming.some((r) => JSON.stringify(r.value).length > 1_000_000)) return reply(400, { code: "23514", message: "user_state_value_size" });
@@ -200,7 +232,7 @@ export class FakeSupabase {
     if (url.pathname === "/rest/v1/user_state") {
       const filterUser = (url.searchParams.get("user_id") ?? "").replace(/^eq\./, "");
       // RLS: only your own rows exist, whatever the filter says.
-      const mine = filterUser && filterUser !== uid ? new Map() : this.table(uid);
+      const mine = (filterUser && filterUser !== uid) || gone ? new Map() : this.table(uid);
       if (method === "GET") {
         if (this.failPulls > 0) {
           this.failPulls--;

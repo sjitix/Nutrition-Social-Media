@@ -60,7 +60,7 @@ Supabase row per user under RLS.
   - "Put it back" lost the restored copy.
   Now every write is stamped later than what it replaces (`nextStamp`, the logical-clock rule), so raw
   clocks decide only true conflicts, where the backup applies.
-- **A second adversarial review, of the hardening itself, found more. All four batches are fixed
+- **A second adversarial review, of the hardening itself, found more. All five batches are fixed
   (lessons 58, 59 and 63):**
   - "Delete my account" in a stale tab deleted the OTHER account another tab had signed in;
   - a failed first sync left the browser unowned, so the next person's sign-in uploaded the previous
@@ -75,14 +75,22 @@ Supabase row per user under RLS.
     the owner, so that person's next sign-in here would upload the new person's data. **THE WRITE
     FENCE** in `storage.ts` now refuses every write from such a tab. Also: answers that land after a
     stop change nothing; a crafted file or row can no longer crash Week, the meal sheet or Today;
-    both account surfaces work by keyboard and screen reader; the privacy note says what is logged.
-  Batch 4's own adversarial review ran out of usage before it reported; it is re-run against `main`.
-- **Gate for this lane:** `node scripts/test-account.mjs` runs two suites: **315 checks** in one tab,
+    both account surfaces work by keyboard and screen reader; the privacy note says what is logged
+    (shipped as `c9208df`);
+  - **batch 5:** a device whose account was deleted on another device said "couldn't store your
+    week" for up to an hour, then "your sign-in expired". Its token stays valid until it expires, so
+    its write breaks the foreign key (Postgres 23503, proven in PGlite); it now says the account was
+    deleted, and stops. And only the newest sign-in link works (GoTrue keeps one per person), which
+    the "expired" sentence now says instead of sending people to ask for yet another link.
+  Batch 4's own adversarial review ran out of usage before it reported; a leaner re-run covers
+  batches 4 and 5.
+- **Gate for this lane:** `node scripts/test-account.mjs` runs two suites: **320 checks** in one tab,
   including the real `client.ts` end to end against an in-memory Supabase (RLS, PKCE, conditional
-  writes, jsonb order, skewed clocks, token expiry), and **25 checks across tabs** of one browser
-  (stale tabs, the write fence, a tab that hears late) · `node scripts/test-account-sql.mjs --mutate`
-  — **37 checks in real Postgres, 15/15 broken guards caught** · `node scripts/mutate-account.mjs` —
-  **60/60** (`--only "text"` re-checks one guard in seconds).
+  writes, jsonb order, skewed clocks, token expiry, a deleted account), and **25 checks across tabs**
+  of one browser (stale tabs, the write fence, a tab that hears late) ·
+  `node scripts/test-account-sql.mjs --mutate` — **39 checks in real Postgres, 16/16 broken guards
+  caught** · `node scripts/mutate-account.mjs` — **63/63** (`--only "text"` re-checks one guard in
+  seconds).
 - **Owner, to switch accounts on:** `supabase/README.md` — create a project, run **both** migrations,
   set the Site URL to the account page, turn off "Confirm email" and "Write audit logs to the
   database", **configure custom SMTP** (without it only your own organisation receives sign-in

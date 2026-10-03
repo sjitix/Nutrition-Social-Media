@@ -69,7 +69,7 @@ async function runChecks(PGlite, migrations, { quiet = false } = {}) {
     try {
       return { ok: true, res: await db.query(sql, params) };
     } catch (e) {
-      return { ok: false, err: String(e?.message ?? e) };
+      return { ok: false, err: String(e?.message ?? e), code: e?.code };
     }
   };
   // A migration file is many statements; the extended protocol (db.query) takes exactly one.
@@ -255,6 +255,17 @@ async function runChecks(PGlite, migrations, { quiet = false } = {}) {
   check("RLS 10: A's auth user is gone and B's remains", users.ok && users.res.rows.length === 1 && users.res.rows[0].id === B, JSON.stringify(users.res?.rows ?? users.err));
   check("RLS 10: every one of A's rows went with it (cascade), and B's are untouched", rows.ok && rows.res.rows.length >= 2 && rows.res.rows.every((x) => x.user_id === B), JSON.stringify(rows.res?.rows ?? rows.err));
 
+  // A deleted account's token still works at PostgREST until it expires (a JWT is stateless). What it
+  // then gets is the client's contract (supabase.ts `pushFailure`): reads come back empty, and a write
+  // breaks the foreign key to auth.users with SQLSTATE 23503, which PostgREST sends as 409 and the
+  // client reads as "this account was deleted" (review 2, platform-4).
+  await as("authenticated", A);
+  r = await attempt("select key from public.user_state");
+  check("deleted account: its still-valid token reads an empty account", r.ok && r.res.rows.length === 0, JSON.stringify(r.res?.rows ?? r.err));
+  r = await upsert([{ key: "plan", value: { late: true }, updated_at: "2050-01-01T00:00:00Z" }]);
+  check("deleted account: …and a write fails with 23503, which the client reads as 'this account was deleted'",
+    !r.ok && r.code === "23503", JSON.stringify({ code: r.code ?? null, err: r.err ?? "the write succeeded" }));
+
   await as("anon", null);
   r = await attempt("select public.delete_my_account()");
   check("delete: anon cannot call delete_my_account", !r.ok && /permission denied/i.test(r.err), r.err ?? "the call succeeded");
@@ -279,6 +290,7 @@ const MUTATIONS = [
   ["any store name accepted", "0001", "check (key in (", "check (key is not null or key in ("],
   ["no size limit", "0001", "pg_column_size(value) < 1000000", "true"],
   ["no cascade from the auth user", "0001", "references auth.users (id) on delete cascade", "references auth.users (id)"],
+  ["no foreign key to the auth user (a deleted account's late writes land as orphans)", "0001", "references auth.users (id) on delete cascade", ""],
   ["delete_my_account deletes everyone", "0001", "delete from auth.users where id = auth.uid();", "delete from auth.users;"],
   ["anon may delete accounts", "0001", "revoke all on function public.delete_my_account() from public, anon;", ""],
   ["stale writes win (the conditional upsert)", "0002", "where s.updated_at < excluded.updated_at", "where true"],

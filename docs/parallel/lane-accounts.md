@@ -7,23 +7,22 @@
 
 ## Now doing
 
-**2026-10-03, evening: the second review's last batch (4) is shipping; batch 5 is built beside it.**
-Keys are still pending, so everything runs against fakes that behave like GoTrue and PostgREST, and
+**2026-10-03, night: review 2 is fully fixed (batches 1–5); its follow-up review is running.** Keys
+are still pending, so everything runs against fakes that behave like GoTrue and PostgREST, and
 against real Postgres (PGlite). The history of the day is in `docs/worklog/2026-10-03-accounts.md`.
 
 - **Shipped today:** the first review's fixes (`8190c2b`), the SQL executed (`a42a97e`), byte-counted
-  store sizes (`5c6c80c`), clock skew (`b4492e3`), and review 2's batches 1–3 (`d219a1f`, `e4b927f`).
-- **Batch 4 (shipping):** THE WRITE FENCE (see the heads-up below; it changes what a save from a stale
-  tab does), late answers after a stop change nothing, a renewal cannot revive a signed-out session,
-  the sync's sentence survives its reload, `validate.ts` checks every optional field the screens read,
-  accessibility on both account surfaces, and the audit-log step in `supabase/README.md`.
-- **Batch 4's adversarial review ran out of usage before it reported.** It is re-run against `main`;
-  whatever it confirms is fixed next.
-- **Batch 5 (built and mutation-checked, ships after 4):** an account deleted on another device. That
-  device's token stays valid at PostgREST until it expires, so its next push breaks the foreign key
-  (Postgres 23503, proven in PGlite), which it reported as "couldn't store your week" for up to an
-  hour, then "your sign-in expired". It now says the account was deleted and stops. The fake also ends
-  a session on `/logout` as GoTrue does, and gives a re-signup a new id.
+  store sizes (`5c6c80c`), clock skew (`b4492e3`), and review 2's batches 1–4 (`d219a1f`, `e4b927f`,
+  `c9208df`). Batch 4 is THE WRITE FENCE (see the heads-up below; it changes what a save from a stale
+  tab does), plus late answers, validation, accessibility and the audit-log setup step.
+- **Batch 5 (shipping):** an account deleted on another device. That device's token stays valid at
+  PostgREST until it expires, so its next push breaks the foreign key (Postgres 23503, proven in
+  PGlite), which it reported as "couldn't store your week" for up to an hour, then "your sign-in
+  expired". It now says the account was deleted and stops. The fake ends a session on `/logout` as
+  GoTrue does and gives a re-signup a new id. And only the newest sign-in link works (GoTrue keeps one
+  per person): the "expired" sentence now says so, and batch 3's note claiming otherwise is corrected.
+- **The review of batches 4–5** (the first attempt ran out of usage before it reported) is re-running,
+  leaner. Whatever it confirms is fixed next.
 - **Then:** wait on the owner's Supabase project for a live run.
 
 ## Files I'm editing right now
@@ -34,8 +33,8 @@ against real Postgres (PGlite). The history of the day is in `docs/worklog/2026-
   `scripts/test-account.*`, `scripts/test-account-tabs.mts`, `scripts/account-tab.mts`,
   `scripts/account-fakes.ts`, `scripts/test-account-sql.mjs`, `scripts/mutate-account.mjs`,
   `supabase/**` — all mine; nothing of yours.
-- **Except for D5a's move:** once batch 4's sha is in "Shipped" below, `storage.ts` and `savedStore.ts`
-  are yours to move to `persistence/`, and I won't touch either until you post the move's sha.
+- **Except for D5a's move: `storage.ts` and `savedStore.ts` are yours to move to `persistence/` now**
+  (batch 4 is `c9208df`, and batch 5 touches neither). I won't edit either until you post the move's sha.
 
 ## Heads-up for the other lanes
 
@@ -181,4 +180,5 @@ whose claims were each checked against the code (and corrected twice by the revi
 | `b4492e3` | clock skew: every write stamped later than what it replaces (`nextStamp`). A 2-h-slow phone lost post-sync edits silently; a day-fast device locked stores; merged stores never settled; "Put it back" lost its copy. All reproduced first — 252/0, 14/14 mutations, engine 680/0, lesson 57 |
 | `d219a1f` | review 2, batch 1: destructive actions pinned to the shown account (a stale tab deleted the OTHER account); owner at sync start and kept after delete (cross-account upload); put back the oldest copy; honest import preview; rule 6 (keep the account copy a push replaces) — 269/0, 24/24 mutations (the commit message says 25: one was counted twice), engine 752/0, lesson 58 |
 | `e4b927f` | review 2, batches 2–3: stale tabs (`watchOtherTabs` + a real two-tab suite); a 401 renews instead of signing out; device-clock token expiry; the 5-minute first link; "Try again" after a transient failure; verifier reuse; one shared fake (`account-fakes.ts`); setup guide for today's Supabase — 286 + 10 checks, 38/38 mutations, engine 879/0, lesson 59 |
-| *(next)* | review 2, batch 4: THE WRITE FENCE (a stale tab writes nothing into the new generation: stores, bookkeeping, owner, copies); late answers after a stop change nothing; a renewal can't revive a signed-out session; the sync's sentence survives its reload; `validate.ts` covers every optional field the screens read; accessibility on both account surfaces; `savedStore` tested; the audit-log setup step — 315 + 25 checks, 60/60 mutations, lesson 63 |
+| `c9208df` | review 2, batch 4: THE WRITE FENCE (a stale tab writes nothing into the new generation: stores, bookkeeping, owner, copies); late answers after a stop change nothing; a renewal can't revive a signed-out session; the sync's sentence survives its reload; `validate.ts` covers every optional field the screens read; accessibility on both account surfaces; `savedStore` tested; the audit-log setup step — 315 + 25 checks, 60/60 mutations, engine 927/0, lesson 63 |
+| *(next)* | batch 5: an account deleted on another device is reported as deleted (409 + Postgres 23503 → `gone`), proven in PGlite; the fake answers a deleted account, `/logout` and a re-signup as GoTrue and PostgREST do; the "expired link" sentence says only the newest link works (GoTrue keeps one per person), and batch 3's claim otherwise is corrected — 320 + 25 checks, 63/63 mutations, SQL 39/0 with 16/16 |

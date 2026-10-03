@@ -64,8 +64,12 @@ type Fetch = typeof fetch;
  *                 same request will fail the same way forever, so it must not block everything else.
  *  - `superseded` — this browser is now signed in as SOMEONE ELSE (another tab signed in). Whatever was
  *                 running for the previous account must stop at once and must not touch the new one.
+ *  - `gone`     — the ACCOUNT no longer exists: it was deleted (on another device, say) while this
+ *                 device still held a working token. PostgREST honours that token until it expires (a
+ *                 JWT is stateless), so reads come back empty and every write breaks user_state's
+ *                 foreign key to auth.users (Postgres 23503, sent as 409). Nothing here can reach it.
  */
-export type AccountErrorKind = "network" | "server" | "auth" | "rejected" | "superseded";
+export type AccountErrorKind = "network" | "server" | "auth" | "rejected" | "superseded" | "gone";
 
 export class AccountError extends Error {
   constructor(message: string, readonly kind: AccountErrorKind = "rejected") {
@@ -161,10 +165,17 @@ export type RedirectResult =
  * Fixed sentences for the failures a link can report. The error text in a URL is attacker-controlled
  * (anyone can make a link to this page with any `error_description`), so it is NEVER shown; only a
  * known `error_code` chooses which of OUR sentences to show.
+ *
+ * "Only the newest link works" is GoTrue's own rule (mail.go, sendMagicLink): it keeps ONE sign-in link
+ * per person and retires the earlier one whenever it sends a new one. The sentence used to say only
+ * "ask for a new one", which sent someone who had asked twice to ask a third time while a working link
+ * already sat in their inbox.
  */
+const LINK_EXPIRED =
+  "That sign-in link no longer works: it expired, was already used, or a newer link replaced it (only the newest link we sent works). Open the newest one, or ask for a new link.";
 const LINK_ERRORS: Record<string, string> = {
-  otp_expired: "That sign-in link has expired or was already used. Ask for a new one.",
-  access_denied: "That sign-in link has expired or was already used. Ask for a new one.",
+  otp_expired: LINK_EXPIRED,
+  access_denied: LINK_EXPIRED,
   flow_state_expired: "That sign-in link took too long to open: a first link works for five minutes after you ask for it. Ask for a new one, and open it straight away.",
   flow_state_not_found: "That sign-in link was opened in a different browser from the one that asked for it. Ask for a new one here.",
 };
@@ -376,7 +387,7 @@ export function supabaseRemote(cfg: AccountConfig, session: SessionSource, f: Fe
         headers: { ...authed(cfg, s), "Content-Type": "application/json" },
         body,
       }]);
-      if (!res.ok) throw new AccountError(await errorText(res, "Couldn't save to your account."), kindOf(res.status));
+      if (!res.ok) throw await pushFailure(res);
       const skipped = (await res.json().catch(() => [])) as unknown;
       const sent = new Set(rows.map((r) => r.name));
       return {
@@ -428,6 +439,21 @@ async function call(f: Fetch, url: string, init: RequestInit): Promise<Response>
   } catch {
     throw new AccountError("Couldn't reach your account — you may be offline. Your data is safe on this device.", "network");
   }
+}
+
+/**
+ * Why a write failed. One case is read from the body, not the status: a 409 carrying Postgres's
+ * foreign-key violation (23503) means this account's row in auth.users is gone, so the account was
+ * deleted. Read as an ordinary refusal, it made a device whose account was deleted elsewhere say for
+ * up to an hour that it "couldn't store" the week and the profile, then that the sign-in had expired
+ * (review 2, platform-4). The server half is proven in real Postgres by scripts/test-account-sql.mjs.
+ */
+async function pushFailure(res: Response): Promise<AccountError> {
+  const fallback = "Couldn't save to your account.";
+  const d = (await res.json().catch(() => null)) as { code?: string; msg?: string; message?: string; error_description?: string } | null;
+  if (res.status === 409 && d?.code === "23503") return new AccountError("This account no longer exists.", "gone");
+  const m = d?.msg ?? d?.error_description ?? d?.message;
+  return new AccountError(m ? `${fallback} (${m})` : fallback, kindOf(res.status));
 }
 
 async function errorText(res: Response, fallback: string): Promise<string> {

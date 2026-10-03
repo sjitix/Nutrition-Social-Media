@@ -857,6 +857,8 @@ await (async () => {
     spoof.kind === "error" && !spoof.message.includes("suspended") && !spoof.message.includes("evil"));
   const expired = readRedirect("?error=access_denied&error_code=otp_expired&error_description=x", "");
   check("redirect: a known error code picks the matching fixed sentence", expired.kind === "error" && expired.message.includes("expired"));
+  check("redirect: …and an expired link says only the newest link works (GoTrue retires the earlier one), not just 'ask again'",
+    expired.kind === "error" && expired.message.includes("only the newest link"), expired.kind === "error" ? expired.message : "");
   check("redirect: errors mirrored into the fragment are read too", readRedirect("", "#error=access_denied&error_code=otp_expired").kind === "error");
   check("redirect: an ordinary URL is nothing", readRedirect("?tab=2", "#section").kind === "none");
   check("hasAuthParams: spots code, error and token params, ignores the rest",
@@ -1212,11 +1214,18 @@ await (async () => {
   fakeWindow.localStorage = laptop;
   await signIn("ana@example.com");
   await startSync();
+  const anasRefresh = currentSession()!.refreshToken;
   await signOut();
   check("sign-out: the session is gone", currentSession() === null && accountStatus().state === "signed-out");
   check("sign-out: the device KEEPS its week (the account is a mirror)", storage.loadPlan() !== null);
   check("sign-out: no listeners are left behind", fakeDocument.count("visibilitychange") === 0 && fakeWindow.count("online") === 0);
-  check("sign-out: the server ended this browser's session", sb.logouts > 0);
+  // Not "/logout was called": that the session is really over. GoTrue refuses its refresh token from
+  // then on (the fake now ends the session as GoTrue does; it used to count the calls and nothing more).
+  const renewAfter = await sb.fetch("https://fake.supabase.co/auth/v1/token?grant_type=refresh_token", {
+    method: "POST", headers: { apikey: "ANON" }, body: JSON.stringify({ refresh_token: anasRefresh }),
+  });
+  check("sign-out: the server ended this browser's session (its refresh token no longer works)",
+    renewAfter.status === 400, `renewal answered ${renewAfter.status}`);
 
   // ---- Bob signs in on the SAME browser: Ana's data must not go into Bob's account ----
   const anaPlan = storage.loadPlan()?.weekSummary;
@@ -1278,6 +1287,46 @@ await (async () => {
   check("delete account: the next person to sign in here does NOT get the deleted account's data uploaded into theirs",
     summary(sb.table("uid-dee").get("plan")?.value) !== "week BOB-COPY", summary(sb.table("uid-dee").get("plan")?.value));
   check("delete account: …it is set aside here as a copy instead", storage.loadBackups().some((b) => summary(b.data.plan) === "week BOB-COPY"));
+  await signOut();
+
+  // ---- the account is deleted on ANOTHER device (review 2, platform-4) ----
+  // PostgREST keeps honouring this device's token until it expires (a JWT is stateless), so its next
+  // pull reads an empty account and its push breaks the foreign key to auth.users (23503, sent as 409).
+  // That read as an ordinary refusal: "couldn't store your week… everything else is synced" for up to
+  // an hour, then "your sign-in expired". Neither says what happened.
+  const deleteFromPhone = async (email: string) => {
+    const phone = sb.sessionFor(email); // the same account, signed in on a phone, which deletes it
+    await sb.fetch("https://fake.supabase.co/rest/v1/rpc/delete_my_account", {
+      method: "POST", headers: { apikey: "ANON", Authorization: `Bearer ${phone.access_token}` },
+    });
+  };
+  fakeWindow.localStorage = new MemoryStorage();
+  storage.savePlan(week("ELLA"));
+  await signIn("ella@example.com");
+  await startSync();
+  await deleteFromPhone("ella@example.com");
+  storage.savePlan(week("ELLA-AFTER")); // an edit here once the account is gone: the live mirror sends it
+  await leaveAndReturn();
+  check("deleted elsewhere: the live mirror's next push stops sync and says the account was deleted",
+    accountStatus().state === "signed-out" && (accountStatus().message ?? "").includes("was deleted"), json(accountStatus()));
+  check("deleted elsewhere: …the sign-in is forgotten, the week stays here, still marked as that account's",
+    currentSession() === null && summary(storage.loadPlan()) === "week ELLA-AFTER" && storage.loadSyncOwner() === "uid-ella",
+    json({ session: currentSession()?.userId ?? null, plan: summary(storage.loadPlan()), owner: storage.loadSyncOwner() }));
+
+  // The same through a FULL sync: a page opened after the deletion, with the token still good.
+  fakeWindow.localStorage = new MemoryStorage();
+  storage.savePlan(week("FINN"));
+  await signIn("finn@example.com");
+  await deleteFromPhone("finn@example.com");
+  await startSync(); // the account reads empty, and the push of this device's week is refused
+  check("deleted elsewhere: a full sync says so too, rather than 'couldn't store' or 'expired'",
+    accountStatus().state === "signed-out" && (accountStatus().message ?? "").includes("was deleted") && currentSession() === null,
+    json(accountStatus()));
+  await signIn("finn@example.com"); // the same person signs up again: a NEW account (GoTrue's new id)
+  await startSync();
+  check("deleted elsewhere: signing up again gets a new account, with the old data set aside rather than uploaded",
+    !sb.table(currentSession()!.userId).has("plan") && storage.loadBackups().some((b) => summary(b.data.plan) === "week FINN"),
+    json({ id: currentSession()?.userId, plan: summary(sb.table(currentSession()!.userId).get("plan")?.value), copies: storage.loadBackups().length }));
   await signOut();
 
   // ---- a first sync that FAILS: nothing is sent until a full sync succeeds, then it is retried ----

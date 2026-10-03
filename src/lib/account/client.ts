@@ -171,10 +171,11 @@ const REUSE_VERIFIER_MS = 60 * 60 * 1000;
  * here (see `supabase.ts` — that is what makes a link made by someone else worthless).
  *
  * The address is checked BEFORE anything is stored, and a repeat request for the same address reuses
- * the verifier, so every link issued to this person completes here, whichever arrives first. Before,
- * each request replaced the verifier, even a request with a typo or one the server then refused for
- * being too soon. The valid link already in the inbox then failed as "opened in a different browser",
- * though it was opened in this one (review 2).
+ * the verifier. Before, each request replaced the verifier, even a request with a typo or one the server
+ * then refused for being too soon (GoTrue allows one link a minute per person). The valid link already
+ * in the inbox then failed as "opened in a different browser", though it was opened in this one
+ * (review 2). A request the server ACCEPTS is different: GoTrue keeps one link per person, so it retires
+ * the earlier link, and only the newest one works (the link-error sentence in supabase.ts says so).
  */
 export async function sendSignInLink(email: string): Promise<void> {
   const cfg = accountConfig();
@@ -623,6 +624,20 @@ function handleFailure(e: unknown, email: string, userId: string): void {
     setStatus({
       state: "signed-out",
       message: "Your sign-in expired, so syncing has stopped. Everything is still on this device — sign in again to carry on.",
+    });
+    return;
+  }
+  if (e instanceof AccountError && e.kind === "gone") {
+    // The account was deleted while this device still held a working token: on another device, say.
+    // Nothing here can reach it any more, so stop and forget the sign-in (only if it is still that
+    // account's: another tab may have signed someone else in meanwhile). The data stays here, still
+    // marked as the deleted account's, so whoever signs in next has it set aside rather than uploaded,
+    // exactly as on the device that deleted it.
+    stopRunning();
+    if (currentSession()?.userId === userId) saveSessionRaw(null);
+    setStatus({
+      state: "signed-out",
+      message: "This account was deleted, perhaps on another device, so this device has stopped syncing and signed out. Everything is still here. If anyone signs in here again, you with a new account included, it is set aside as a copy rather than added to that account.",
     });
     return;
   }

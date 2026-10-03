@@ -84,6 +84,10 @@ Two functions:
   them by cascade. The sign-in audit log is not part of the account and is not deleted with it: with
   step 3's "Write audit logs to the database" off, it ages out of Supabase's log storage at the plan's
   retention; left on, its copy in the database stays until someone deletes it by hand.
+  Another device still signed in to the deleted account finds out at its next write: its token is
+  valid until it expires (a JWT is stateless), so reads come back empty and the write breaks
+  `user_state`'s foreign key (Postgres 23503, a 409 from the REST API), which the app reads as "this
+  account was deleted". It stops syncing and says so. Row 11 below checks it on the live project.
 
 **Grants.** A new Supabase project grants every privilege on a new `public` table to both API roles.
 0001 takes all of it back: signed-in users then hold exactly `select`, `insert`, `update` and `delete`,
@@ -130,6 +134,7 @@ editor, impersonate two users (or sign in as two accounts in two browsers) and c
 | 8 | user A | the same call again with `"updated_at":"2020-01-01T00:00:00Z"` | `{saved}` (skipped: older than the stored row) |
 | 9 | anon | `select upsert_state('[]')` | permission denied |
 | 10 | user A | `select delete_my_account()` | A's auth user and every A row gone; B untouched |
+| 11 | user A again (the same claims, after row 10) | `select upsert_state('[{"key":"plan","value":{},"updated_at":"2050-01-01T00:00:00Z"}]')` | **error 23503** (foreign key): what tells another device its account was deleted |
 
 Impersonation in the SQL editor:
 

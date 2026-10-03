@@ -377,6 +377,25 @@ const MUTATIONS = [
     from: '  return signedIn ? { ...localSavedStore, kind: "account" } : localSavedStore;',
     to: "  return localSavedStore;",
   },
+  // ---- batch 5: an account deleted on another device; the server really ending a session ----
+  {
+    name: "a write refused because the account was deleted elsewhere reads as 'couldn't store'",
+    file: "src/lib/account/supabase.ts",
+    from: '  if (res.status === 409 && d?.code === "23503") return new AccountError("This account no longer exists.", "gone");\n',
+    to: "",
+  },
+  {
+    name: "an account deleted elsewhere leaves this device signed in, saying it couldn't sync",
+    file: "src/lib/account/client.ts",
+    from: '  if (e instanceof AccountError && e.kind === "gone") {',
+    to: "  if (false) {",
+  },
+  {
+    name: "sign-out never ends the session on the server",
+    file: "src/lib/account/client.ts",
+    from: "    ended = s ? await signOutRemote(cfg, s) : false;",
+    to: "    ended = false;",
+  },
 ];
 
 // node scripts/mutate-account.mjs [root] [--only "text|other text"]: --only runs the mutations whose
