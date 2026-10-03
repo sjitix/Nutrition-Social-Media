@@ -2,7 +2,7 @@
  * Resolve the curated ingredient map against USDA SR Legacy, then VALIDATE it.
  *
  *   npm run build:nutrients          # report only
- *   npm run build:nutrients -- --emit  # also write src/lib/nutrientTable.generated.ts
+ *   npm run build:nutrients -- --emit  # also write src/lib/data/nutrientTable.generated.ts (+ nutrition/unitGrams, data/ingredients)
  *
  * The accuracy gate: every recipe already carries hand-authored macros. Recomputing
  * those macros from the mapped ingredients + gram conversions must land close to them.
@@ -261,8 +261,8 @@ if (process.argv.includes("--emit")) {
     `// filledFrom: values this food's own entry lacks, taken from another SR Legacy entry for the SAME food.\n` +
     `// gaps: nutrients USDA does not report for it — read as 0, and documented in scripts/ingredient-map.json.\n` +
     `export const NUTRIENT_TABLE: Record<string, { fdcId: number; desc: string; per100g: Per100g; filledFrom?: { fdcId: number; keys: string[] }; gaps?: string[] }> = ${JSON.stringify(table, null, 2)};\n`;
-  writeFileSync(join(ROOT, "src", "lib", "nutrientTable.generated.ts"), out, "utf8");
-  console.log(`\nwrote src/lib/nutrientTable.generated.ts (${Object.keys(table).length} ingredients)`);
+  writeFileSync(join(ROOT, "src", "lib", "data", "nutrientTable.generated.ts"), out, "utf8");
+  console.log(`\nwrote src/lib/data/nutrientTable.generated.ts (${Object.keys(table).length} ingredients)`);
   // The unit weights go in a file of their OWN (V1 A4, 2026-10-03). They used to be emitted into the
   // nutrient table's file, and a module is as heavy as everything in it: the meal-prep grocery list
   // needs only "how many grams is a cup of rice" in the browser, and shipped the whole 45 kB USDA
@@ -278,8 +278,8 @@ if (process.argv.includes("--emit")) {
       null,
       2,
     )};\n`;
-  writeFileSync(join(ROOT, "src", "lib", "unitGrams.generated.ts"), units, "utf8");
-  console.log(`wrote src/lib/unitGrams.generated.ts`);
+  writeFileSync(join(ROOT, "src", "lib", "nutrition", "unitGrams.generated.ts"), units, "utf8");
+  console.log(`wrote src/lib/nutrition/unitGrams.generated.ts`);
 
   // Ingredient IDENTITY (V1 D5, docs/v1/06-ingredient-identity.md): every curated ingredient's
   // permanent slug, as a typed union, so a recipe that names an ingredient that does not exist fails

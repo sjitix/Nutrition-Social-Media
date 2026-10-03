@@ -72,13 +72,13 @@ gate's job is to keep it true, not to fix it.
 
 | Layer | What lives there | May import | Must never import |
 |---|---|---|---|
-| **L0 · Contracts** | `types.ts` — the zod schemas and TS types every layer speaks | zod only | anything in this repo |
-| **L1 · Data** | `nutrientTable.generated.ts`, the 501 recipe seeds, `substitutions.ts`, `symptoms.ts`, the conditions table | L0 | anything computing over it |
-| **L2 · Pure computation** | `nutrients.ts`, `targets.ts`, `exclusions.ts`, `grocery.ts`, `streak.ts` | L0–L1 | the plan engine, the assistant, any I/O |
+| **L0 · Contracts** | `core/` — `types.ts` (the zod schemas and TS types every layer speaks), `slots.ts` | zod only | anything in this repo |
+| **L1 · Data** | `data/` — the 501 recipe seeds, ingredient identity, `nutrientTable.generated.ts`, `substitutions.ts`, `symptoms.ts`, `conditions.ts` (+ `nutrition/unitGrams.generated.ts`, kept client-safe) | L0 | anything computing over it |
+| **L2 · Pure computation** | `nutrition/` — `units.ts`, `nutrients.ts`, `targets.ts`, `exclusions.ts`, `safety.ts`, `grocery.ts` (+ `presentation/streak.ts`, local-day arithmetic) | L0–L1 | the plan engine, the assistant, any I/O |
 | **L3 · Plan engine** | selection, rebalancing, batch, the executor | L0–L2 | the assistant, providers, UI, `storage` |
-| **L4 · Assistant** | `primitives.ts`, `agentTools.ts`, `agentLoop.ts`, `reply.ts`, `promptV2.ts` | L0–L3 | providers (the model arrives **injected**), UI, `storage` |
-| **L5 · Adapters** | `ai.ts`, `import.ts`, `videoImport.ts`, `storage.ts`, `savedStore.ts` | L0–L4 | the UI |
-| **L6 · Presentation** | `feed.ts`, `recipes.ts` (images), `batchGrocery.ts`, `weekStats.ts`, and everything in `src/app` | L0–L5 **via barrels only** | — |
+| **L4 · Assistant** | `assistant/` — `primitives.ts`, `agentTools.ts`, `agentLoop.ts`, `reply.ts`, `promptV2.ts` | L0–L3 | providers (the model arrives **injected**), UI, `storage` |
+| **L5 · Adapters** | `providers/` — `ai.ts`, `import.ts`, `videoImport.ts`; and (the accounts lane's, not yet moved) `storage.ts`, `savedStore.ts`, `account/` | L0–L4 | the UI |
+| **L6 · Presentation** | `presentation/` — `feed.ts`, `feedFilter.ts`, `recipes.ts` (images), `batchGrocery.ts`; `weekStats.ts`, and everything in `src/app` | L0–L5 **via barrels only** | — |
 | **T · Tooling** | `scripts/*` | anything, including internals | — it is the harness, and it is *supposed* to reach inside |
 
 **The one rule that outranks the layers,** and the reason the whole thing exists: **the model
@@ -673,6 +673,19 @@ src/providers/     ai, import, video-import
 src/persistence/   storage, saved-store
 src/presentation/  feed, imagery, batch-grocery, streak, week-stats
 ```
+
+**D5a part 1 DONE 2026-10-03 — the folders exist.** 26 files moved: `core/` (types, slots),
+`data/` (+ the USDA table, symptoms, substitutions, conditions), `nutrition/` (units + its unit table,
+nutrients, targets, exclusions, safety, grocery), `assistant/` (primitives, agentTools, agentLoop,
+reply, promptV2), `providers/` (ai, import, videoImport), `presentation/` (feed, feedFilter, recipes,
+batchGrocery, streak). Every src/lib import now points at the real path; **every old path is a one-line
+`export *`**, so `src/app`, `scripts/` and the other lanes' branches import exactly as before. The
+models lane agreed first; the accounts lane's `storage.ts`, `savedStore.ts` and `account/` stay put
+until they answer (asked in lane-v1.md). Gates: `tsc`, `check:boundaries` (same 6 debts,
+`providers/` now server-only as a folder), a 139-hash fingerprint of every module's export surface
+and the engine's behaviour (identical), and a production build (route sizes within 1 kB of HEAD's).
+**Not yet:** the `index.ts` barrels and rule 2 enforcing (part 3, with the client-safe split §6
+requires), the three debts scheduled here (part 2), and removing the shims (when every lane has moved).
 
 **The value split, and why Phase 3 is done anyway:** Phases 1 and 2 deliver most of the
 *enforcement* — sealed contracts and a file you can hold in your head. This section used to say

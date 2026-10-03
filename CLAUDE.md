@@ -78,6 +78,15 @@ disabled) — good for showing the UI without any AI.
 
 ## Architecture — key files
 
+**Since V1 D5a (2026-10-03) the library lives in folders under `src/lib/`**: `core/` (types, slots),
+`data/` (seeds, ingredient identity, the USDA table, symptoms, substitutions, conditions), `nutrition/`
+(units, nutrients, targets, exclusions, safety, grocery), `plan/` (the engine), `assistant/` (primitives,
+agentTools, agentLoop, reply, promptV2), `providers/` (ai, import, videoImport) and `presentation/` (feed,
+feedFilter, recipes, batchGrocery, streak). **The old flat paths are one-line re-exports**, so
+`@/lib/exclusions` still works; new code inside `src/lib` imports the real path. The accounts lane's
+`storage.ts`, `savedStore.ts` and `account/` have not moved. A path below written flat (`src/lib/x.ts`) means
+the module, wherever its folder is; `docs/v1/02-module-map.md` §2 is the exact map.
+
 **The engine (pure TypeScript, no network, no model — this is where correctness lives)**
 
 - **`src/lib/plan/` — the engine, the heart of the app** (split out of `recipeDb.ts` in V1 A3):

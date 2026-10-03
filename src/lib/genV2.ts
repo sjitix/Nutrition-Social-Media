@@ -20,7 +20,7 @@
  *
  * EXPAND controls how many surface forms each base yields — raise it to grow the set further.
  */
-import type { UserProfile, UserFact } from "./types";
+import type { UserProfile, UserFact } from "./core/types";
 import type { TrainingExample } from "./dataValidate";
 
 type Diet = UserProfile["diet"];

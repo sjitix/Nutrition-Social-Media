@@ -40,22 +40,30 @@ const LAYER_NAMES = ["L0 contracts", "L1 data", "L2 pure computation", "L3 plan 
 
 /** Every file under src/lib, placed. Anything outside src/lib is L6 (it is the app). */
 const LIB_LAYERS = {
-  "types.ts": 0, "slots.ts": 0,
-  "nutrientTable.generated.ts": 1, "substitutions.ts": 1, "symptoms.ts": 1, "conditions.ts": 1,
-  "data/": 1, // the recipe seeds and their vocabulary (A2, 2026-10-03); imports nothing
-  "unitGrams.generated.ts": 1, // grams per unit, generated apart from the USDA table (A4)
-  "units.ts": 2, // gramsFor, needing only the unit weights — client-safe (A4)
-  "safety.ts": 2, // redFlag: crisis / urgent detection on the user's raw words (C2, 2026-10-03)
-  "feedFilter.ts": 6, // the feed's card type + pure filter/sort, client-safe (A4)
-  "nutrients.ts": 2, "targets.ts": 2, "exclusions.ts": 2, "grocery.ts": 2, "streak.ts": 2,
-  "recipeDb.ts": 3, // since A3 a one-line barrel over plan/
-  "plan/": 3, // the engine, split out of recipeDb.ts (A3, 2026-10-03); index.ts is its public surface
-  "primitives.ts": 4, "agentTools.ts": 4, "agentLoop.ts": 4, "reply.ts": 4, "promptV2.ts": 4,
-  "ai.ts": 5, "import.ts": 5, "videoImport.ts": 5, "storage.ts": 5, "savedStore.ts": 5, "account/": 5,
+  // The folders (V1 D5a, 2026-10-03). A folder's layer covers every file in it unless a file is
+  // placed on its own below.
+  "core/": 0, // types, slots: the shared vocabulary
+  "data/": 1, // seeds, ingredient identity, the USDA table, symptoms, substitutions, conditions
+  "nutrition/": 2, // units, nutrients, targets, exclusions, safety, grocery: the maths
+  "nutrition/unitGrams.generated.ts": 1, // grams per unit — data, kept beside units.ts so it stays client-safe (A4)
+  "plan/": 3, // the engine (A3); index.ts is its public surface
+  "assistant/": 4, // primitives, the read surface, the loop, reply, the prompt
+  "providers/": 5, // the model provider, URL import, video import
+  "presentation/": 6, // feed + feedFilter, recipes (imagery), batchGrocery, streak
+  "presentation/streak.ts": 2, // local-day arithmetic every layer may use (requestDay is called by a route)
+  "recipeDb.ts": 3, // since A3 a barrel over plan/
+  "storage.ts": 5, "savedStore.ts": 5, "account/": 5, // the accounts lane's; persistence/ when they agree
   // The fine-tune data pipeline and the API's demo-mode plan: tooling and an adapter that happen to
   // live in src/lib. Placed at L5 so they may use the assistant layer they generate data for.
   "genV2.ts": 5, "dataValidate.ts": 5, "demo.ts": 5,
-  "feed.ts": 6, "recipes.ts": 6, "batchGrocery.ts": 6,
+  // The re-exports left at the old paths by D5a, each at its target's layer. They go once every lane
+  // has moved to the new paths.
+  "types.ts": 0, "slots.ts": 0,
+  "nutrientTable.generated.ts": 1, "substitutions.ts": 1, "symptoms.ts": 1, "conditions.ts": 1, "unitGrams.generated.ts": 1,
+  "units.ts": 2, "safety.ts": 2, "nutrients.ts": 2, "targets.ts": 2, "exclusions.ts": 2, "grocery.ts": 2, "streak.ts": 2,
+  "primitives.ts": 4, "agentTools.ts": 4, "agentLoop.ts": 4, "reply.ts": 4, "promptV2.ts": 4,
+  "ai.ts": 5, "import.ts": 5, "videoImport.ts": 5,
+  "feed.ts": 6, "feedFilter.ts": 6, "recipes.ts": 6, "batchGrocery.ts": 6,
 };
 
 /**
@@ -64,14 +72,17 @@ const LIB_LAYERS = {
  * component imports ships to every visitor's browser.
  */
 const SERVER_ONLY = new Set([
-  "src/lib/recipeDb.ts", "src/lib/nutrientTable.generated.ts",
-  "src/lib/primitives.ts", "src/lib/agentTools.ts", "src/lib/agentLoop.ts", "src/lib/promptV2.ts",
-  "src/lib/ai.ts", "src/lib/import.ts", "src/lib/videoImport.ts",
-  "src/lib/genV2.ts", "src/lib/dataValidate.ts", "src/lib/demo.ts",
+  "src/lib/recipeDb.ts", "src/lib/genV2.ts", "src/lib/dataValidate.ts", "src/lib/demo.ts",
+  "src/lib/assistant/primitives.ts", "src/lib/assistant/agentTools.ts", "src/lib/assistant/agentLoop.ts",
+  "src/lib/assistant/promptV2.ts",
+  // the old paths (D5a re-exports), so a client import of one is caught at the first step
+  "src/lib/nutrientTable.generated.ts", "src/lib/primitives.ts", "src/lib/agentTools.ts", "src/lib/agentLoop.ts",
+  "src/lib/promptV2.ts", "src/lib/ai.ts", "src/lib/import.ts", "src/lib/videoImport.ts",
 ]);
 // Whole folders that are server-only: the engine (A3 split it out of recipeDb.ts — a client reaching
-// "@/lib/plan" would ship it exactly as "@/lib/recipeDb" does) and the 7.7k-line raw seeds.
-const SERVER_ONLY_DIRS = ["src/lib/plan/", "src/lib/data/"];
+// "@/lib/plan" would ship it exactly as "@/lib/recipeDb" does), data/ (the 7.7k-line raw seeds and the
+// USDA table), and providers/ (a model, a network fetch, the SSRF guard).
+const SERVER_ONLY_DIRS = ["src/lib/plan/", "src/lib/data/", "src/lib/providers/"];
 const isServerOnly = (f) => SERVER_ONLY.has(f) || SERVER_ONLY_DIRS.some((d) => f.startsWith(d));
 
 const STORAGE_OWNER = "src/lib/storage.ts";
@@ -94,11 +105,11 @@ const KNOWN_DEBT = {
   "client-server:src/app/plan/page.tsx->src/lib/import.ts":
     "B2 (D8) / A6 (D5a): the legacy /plan page imports importedToMeal, a pure converter that lives inside the network adapter with the SSRF guard. Move the converter out, or retire /plan.",
   // rule 1 — layering (milestone A6 moves these pieces to the layer they belong in)
-  "layer:src/lib/agentTools.ts->src/lib/feed.ts":
+  "layer:src/lib/assistant/agentTools.ts->src/lib/presentation/feed.ts":
     "A6 (D5a): the assistant's find_recipes uses the Explore feed's filter and sort. Searching the library is engine work: the query moves down to the plan layer, and feed.ts keeps only the card projection.",
-  "layer:src/lib/conditions.ts->src/lib/nutrients.ts":
+  "layer:src/lib/data/conditions.ts->src/lib/nutrition/nutrients.ts":
     "A6 (D5a): the micronutrient vocabulary (MICRO_KEYS, MICRO_LABEL, MicroKey) is a contract every layer speaks, not maths. It moves down to L0, and these data tables stop depending on the maths layer.",
-  "layer:src/lib/symptoms.ts->src/lib/nutrients.ts":
+  "layer:src/lib/data/symptoms.ts->src/lib/nutrition/nutrients.ts":
     "A6 (D5a): the same move as conditions.ts — only the MicroKey type is imported, so it ships nothing, but the dependency still points up.",
   // rule 3 — storage
   "storage-api:src/components/ThemeSwitch.tsx":
