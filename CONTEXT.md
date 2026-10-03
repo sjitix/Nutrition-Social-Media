@@ -68,26 +68,31 @@ never blocks on the owner): `docs/models/OWNER-TODO.md`.
   lane file. **Does not edit** `promptV2.ts` / `ai.ts` / `agentLoop.ts` / `eval-hardcases.mts` (v1's) —
   runs them, and asks v1 before landing any change to them on `main`. Touches no accounts files.
 
-### >>> READ THIS FIRST — 2026-10-03 (shutdown): TRACK E IS DONE. Tomorrow starts with the test debt. <<<
+### >>> V1 LANE — 2026-10-03 (later): test debt PAID, accounts' asks DONE. Next: Day 1, `check:boundaries`. <<<
 
-**State:** `main` clean, **everything pushed** (`f370aa7`), `git log origin/main..HEAD` empty.
-`npm run test:engine` **628/0** · `test:api` **50/0** (33 new) · `tsc` clean · `npm run build`
-succeeds.
+**State:** `main` clean and pushed (`8c0ee66`). `test:engine` **660/0** · `test:ui` **51/0** (new) ·
+`test:api` **60/0** with LM Studio up · `tsc` clean. Live lane status: `docs/parallel/lane-v1.md`.
 
-#### 1. START HERE TOMORROW — the one thing that is owed
+#### 1. WHERE THE V1 LANE IS
 
-**Three pure functions are covered only through HTTP and belong in `npm run test:engine`:**
+- **Track E test debt — paid.** 24 engine tests for `previewOperations` / `swapCandidates` (a preview
+  never mutates its input and agrees with committing; a candidate list never offers what the executor
+  would refuse). New `npm run test:ui` covers `parseCommand` (yesterday's two bugs now have regression
+  tests) and `summariseWeek` (also previously untested).
+- **Accounts lane's asks — done:** `<AccountSync />` mounted in `src/app/sage/layout.tsx`; an
+  "Account" nav entry with an SVG `PersonIcon`. Their `modelFailed` fix is confirmed (`test:api` 60/0).
+- **`ship.mjs` now commits FIRST and rebases after** (`--autostash`): the old order could not ship
+  while you had uncommitted work, i.e. in the normal case. Announced to all lanes.
+- **WORKPLAN lesson 49**: a scripted edit must assert its anchor matched (`String.replace` silently
+  no-ops — two nav edits reported success and changed nothing).
+- **Owner decision raised, not taken:** both assistant routes append every turn to
+  `data/edit-log*.jsonl` unconditionally (flagged by the accounts lane). It is deliberate — STATUS.md
+  calls it the fine-tune's training data — so: opt-in, dev-only, or keep it and say so at the chat box?
+- **Models lane:** it RUNS `ai.ts`, `promptV2.ts`, `agentLoop.ts`, `eval-hardcases.mts` but they stay
+  v1's; answer its asks when they come (likely first: the over-act prompt fix). Tell it when any of
+  those, the assistant routes or the primitives' contract change.
 
-| function | where | why it needs engine tests |
-|---|---|---|
-| `previewOperations` | `src/lib/recipeDb.ts` | the confirm-before-commit contract — it must never mutate its input, and it is seeded so it must repeat |
-| `swapCandidates` | `src/lib/recipeDb.ts` | the safety claim: it must never offer a dish the executor would refuse (diet, allergen, same-day repeat) |
-| `parseCommand` | `src/app/sage/commands.ts` | pure string → operation. Verified this session only by a throwaway bundle check — **which is how both of its bugs surfaced**, so the check earned a permanent home |
-
-`parseCommand` lives under `src/app/`, so decide deliberately where its test goes rather than
-bending the engine suite's scope by accident.
-
-**Then: Day 1 of the main schedule** — `npm run check:boundaries` (`docs/v1/01-…md`).
+**NEXT: V1 Day 1 — `npm run check:boundaries`** (`docs/v1/01-…md`, spec in `02-module-map.md` §9).
 
 #### 2. TRACK E IS COMPLETE — what the app can now do with NO model
 
