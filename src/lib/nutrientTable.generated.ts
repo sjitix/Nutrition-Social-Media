@@ -8,7 +8,9 @@ export interface Per100g {
   zinc?: number; vitD?: number; vitC?: number; folate?: number; b12?: number;
 }
 
-export const NUTRIENT_TABLE: Record<string, { fdcId: number; desc: string; per100g: Per100g }> = {
+// filledFrom: values this food's own entry lacks, taken from another SR Legacy entry for the SAME food.
+// gaps: nutrients USDA does not report for it — read as 0, and documented in scripts/ingredient-map.json.
+export const NUTRIENT_TABLE: Record<string, { fdcId: number; desc: string; per100g: Per100g; filledFrom?: { fdcId: number; keys: string[] }; gaps?: string[] }> = {
   "brown rice": {
     "fdcId": 169703,
     "desc": "Rice, brown, long-grain, raw (Includes foods for USDA's Food Distribution Program)",
@@ -90,7 +92,10 @@ export const NUTRIENT_TABLE: Record<string, { fdcId: number; desc: string; per10
       "cal": 368,
       "b12": 0,
       "vitD": 0
-    }
+    },
+    "gaps": [
+      "vitC"
+    ]
   },
   "bulgur": {
     "fdcId": 170688,
@@ -236,7 +241,10 @@ export const NUTRIENT_TABLE: Record<string, { fdcId: number; desc: string; per10
       "zinc": 2.97,
       "b12": 0,
       "vitD": 0
-    }
+    },
+    "gaps": [
+      "vitC"
+    ]
   },
   "whole-wheat penne": {
     "fdcId": 169738,
@@ -256,7 +264,10 @@ export const NUTRIENT_TABLE: Record<string, { fdcId: number; desc: string; per10
       "zinc": 2.97,
       "b12": 0,
       "vitD": 0
-    }
+    },
+    "gaps": [
+      "vitC"
+    ]
   },
   "whole-wheat spaghetti": {
     "fdcId": 169738,
@@ -276,7 +287,10 @@ export const NUTRIENT_TABLE: Record<string, { fdcId: number; desc: string; per10
       "zinc": 2.97,
       "b12": 0,
       "vitD": 0
-    }
+    },
+    "gaps": [
+      "vitC"
+    ]
   },
   "orzo": {
     "fdcId": 169736,
@@ -338,7 +352,10 @@ export const NUTRIENT_TABLE: Record<string, { fdcId: number; desc: string; per10
       "potassium": 252,
       "zinc": 1.71,
       "vitD": 0
-    }
+    },
+    "gaps": [
+      "fiber"
+    ]
   },
   "rice noodles": {
     "fdcId": 169742,
@@ -505,7 +522,10 @@ export const NUTRIENT_TABLE: Record<string, { fdcId: number; desc: string; per10
       "carbs": 0.47,
       "cal": 155,
       "folate": 5
-    }
+    },
+    "gaps": [
+      "vitD"
+    ]
   },
   "lean beef": {
     "fdcId": 171758,
@@ -650,7 +670,11 @@ export const NUTRIENT_TABLE: Record<string, { fdcId: number; desc: string; per10
       "fat": 24.26,
       "carbs": 2.97,
       "cal": 290
-    }
+    },
+    "gaps": [
+      "vitD",
+      "folate"
+    ]
   },
   "salmon fillet": {
     "fdcId": 175167,
@@ -791,7 +815,22 @@ export const NUTRIENT_TABLE: Record<string, { fdcId: number; desc: string; per10
       "protein": 20.1,
       "iron": 0.52,
       "magnesium": 35,
-      "sodium": 119
+      "sodium": 119,
+      "vitC": 0,
+      "folate": 19,
+      "b12": 1.11,
+      "vitD": 0.1,
+      "fiber": 0
+    },
+    "filledFrom": {
+      "fdcId": 174210,
+      "keys": [
+        "vitC",
+        "folate",
+        "b12",
+        "vitD",
+        "fiber"
+      ]
     }
   },
   "prawns": {
@@ -807,7 +846,22 @@ export const NUTRIENT_TABLE: Record<string, { fdcId: number; desc: string; per10
       "protein": 20.1,
       "iron": 0.52,
       "magnesium": 35,
-      "sodium": 119
+      "sodium": 119,
+      "vitC": 0,
+      "folate": 19,
+      "b12": 1.11,
+      "vitD": 0.1,
+      "fiber": 0
+    },
+    "filledFrom": {
+      "fdcId": 174210,
+      "keys": [
+        "vitC",
+        "folate",
+        "b12",
+        "vitD",
+        "fiber"
+      ]
     }
   },
   "eggs": {
@@ -912,7 +966,10 @@ export const NUTRIENT_TABLE: Record<string, { fdcId: number; desc: string; per10
       "zinc": 1.14,
       "fat": 10.8,
       "vitD": 0
-    }
+    },
+    "gaps": [
+      "fiber"
+    ]
   },
   "edamame": {
     "fdcId": 168411,
@@ -1856,7 +1913,10 @@ export const NUTRIENT_TABLE: Record<string, { fdcId: number; desc: string; per10
       "vitD": 0.3,
       "carbs": 3.87,
       "cal": 22
-    }
+    },
+    "gaps": [
+      "magnesium"
+    ]
   },
   "bell pepper": {
     "fdcId": 170108,
@@ -2737,7 +2797,10 @@ export const NUTRIENT_TABLE: Record<string, { fdcId: number; desc: string; per10
       "zinc": 4.58,
       "calcium": 631,
       "b12": 0
-    }
+    },
+    "gaps": [
+      "vitD"
+    ]
   },
   "sesame seeds": {
     "fdcId": 170150,
@@ -3029,7 +3092,11 @@ export const NUTRIENT_TABLE: Record<string, { fdcId: number; desc: string; per10
       "sodium": 603,
       "vitC": 0,
       "folate": 16
-    }
+    },
+    "gaps": [
+      "vitD",
+      "b12"
+    ]
   },
   "salsa": {
     "fdcId": 174524,
@@ -3132,7 +3199,11 @@ export const NUTRIENT_TABLE: Record<string, { fdcId: number; desc: string; per10
       "calcium": 18,
       "potassium": 321,
       "zinc": 0.24
-    }
+    },
+    "gaps": [
+      "vitD",
+      "b12"
+    ]
   },
   "sriracha": {
     "fdcId": 171186,
@@ -3151,7 +3222,11 @@ export const NUTRIENT_TABLE: Record<string, { fdcId: number; desc: string; per10
       "calcium": 18,
       "potassium": 321,
       "zinc": 0.24
-    }
+    },
+    "gaps": [
+      "vitD",
+      "b12"
+    ]
   },
   "soy sauce": {
     "fdcId": 174277,
@@ -3317,7 +3392,11 @@ export const NUTRIENT_TABLE: Record<string, { fdcId: number; desc: string; per10
       "calcium": 18,
       "potassium": 321,
       "zinc": 0.24
-    }
+    },
+    "gaps": [
+      "vitD",
+      "b12"
+    ]
   },
   "horseradish": {
     "fdcId": 173472,

@@ -33,7 +33,7 @@ export const ingredientName = (slug: IngredientSlug): string => INGREDIENTS[slug
  * uses (D5 step 4).
  *
  * NAME FIRST, slug as the fallback. The first version tried the slug first, and an adversarial review
- * (2026-10-04) showed why that is wrong: a slug can arrive from outside — a model generating a plan
+ * (2026-10-03) showed why that is wrong: a slug can arrive from outside — a model generating a plan
  * (the plan schema now carries the field), an imported or synced file — and a slug that disagrees
  * with the name would then decide the nutrition while the allergen check, which reads the name, saw a
  * different food. With the name first, a supplied slug can never contradict what the user sees and

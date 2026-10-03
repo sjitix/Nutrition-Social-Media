@@ -56,6 +56,9 @@ export function allergensInFact(fact: string): string[] {
   const cue = fromCue.length > 0;
   const tokens = cue ? fromCue : parseExclusionTokens(text, "");
   for (const t of tokens) {
+    // "coeliac" is now an exclusion word in its own right (it blocks what "gluten" blocks), but the
+    // rule above already stored it AS gluten — keeping both would tell the user "gluten and coeliac".
+    if (/^c(?:o)?eliac$/.test(t)) continue;
     if (!t.includes(" ")) {
       if (cue || isFood(t)) out.add(t); // an explicitly named allergen we do not stock ("lupin") is kept
       continue;

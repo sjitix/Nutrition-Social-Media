@@ -26,7 +26,8 @@ export const UNIT_GRAMS: { default: Record<string, number>; perIngredient: Recor
     "small": 70,
     "large": 150,
     "leaves": 2,
-    "count": 100
+    "count": 100,
+    "medium": 100
   },
   "perIngredient": {
     "olive oil": {
@@ -148,11 +149,17 @@ export const UNIT_GRAMS: { default: Record<string, number>; perIngredient: Recor
     "eggs": {
       "count": 50,
       "piece": 50,
-      "pieces": 50
+      "pieces": 50,
+      "small": 38,
+      "medium": 44,
+      "large": 50
     },
     "egg": {
       "count": 50,
-      "piece": 50
+      "piece": 50,
+      "small": 38,
+      "medium": 44,
+      "large": 50
     },
     "egg whites": {
       "count": 33,

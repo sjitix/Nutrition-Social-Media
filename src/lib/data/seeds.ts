@@ -513,7 +513,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
     id: "b-turkey-hash", name: "Turkey Sausage & Sweet Potato Hash", type: "breakfast",
     cuisine: "american", mainProtein: "turkey",
     timeMinutes: 20, approxCost: 2,
-    dietTags: ["gluten_free"],
+    dietTags: [],
     description: "Skillet hash of turkey sausage, sweet potato and peppers.",
     ingredients: [
       { slug: "turkey-sausage", name: "turkey sausage", quantity: "120 g" },
@@ -1531,7 +1531,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "brown-rice", name: "brown rice", quantity: "60 g dry" },
       { slug: "sesame-oil", name: "sesame oil", quantity: "1 tsp" },
     ],
-    steps: ["Scramble tofu in sesame oil.", "Serve over rice with kimchi."],
+    steps: ["Scramble tofu in sesame oil.", "Serve over rice with kimchi (choose a vegan one: traditional kimchi is made with fish sauce)."],
   },
   {
     id: "b-baked-oatmeal", name: "Baked Oatmeal with Apple & Pecan", type: "breakfast",
@@ -2034,7 +2034,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
     id: "d-sausage-bean-traybake", name: "Pork Sausage, Peppers & White Bean Traybake", type: "dinner",
     cuisine: "italian", mainProtein: "pork",
     timeMinutes: 35, approxCost: 2,
-    dietTags: ["gluten_free"],
+    dietTags: [],
     description: "One-tray lean pork sausage with peppers and white beans.",
     ingredients: [
       { slug: "lean-pork-sausage", name: "lean pork sausage", quantity: "140 g" },
@@ -2842,7 +2842,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "chives", name: "chives", quantity: "10 g" },
       { slug: "sesame-oil", name: "sesame oil", quantity: "1 tsp" },
     ],
-    steps: ["Crumble and fry the tofu.", "Fold through kimchi and chives."],
+    steps: ["Crumble and fry the tofu.", "Fold through kimchi and chives (choose a vegan kimchi: traditional kimchi is made with fish sauce)."],
   },
   {
     id: "s-cottage-cheese-peach", name: "Cottage Cheese & Berries", type: "snack",
@@ -3117,7 +3117,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
     id: "d-indian-paneer-style-tofu", name: "Tikka Masala Tofu", type: "dinner",
     cuisine: "indian", mainProtein: "tofu",
     timeMinutes: 25, approxCost: 2,
-    dietTags: ["vegan", "vegetarian"],
+    dietTags: ["vegetarian"],
     description: "Crisped tofu in a spiced tomato sauce with rice.",
     ingredients: [
       { slug: "firm-tofu", name: "firm tofu", quantity: "200 g" },
@@ -3426,7 +3426,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
     id: "d-mexican-enchilada-bake", name: "Turkey Enchilada Bake", type: "dinner",
     cuisine: "mexican", mainProtein: "turkey",
     timeMinutes: 30, approxCost: 2,
-    dietTags: ["gluten_free"],
+    dietTags: [],
     description: "Minced turkey baked with corn tortillas and sauce.",
     ingredients: [
       { slug: "ground-turkey", name: "ground turkey", quantity: "180 g" },
@@ -6699,7 +6699,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
     id: "d-mexican-chicken-burrito-bake", name: "Chicken Burrito Bake", type: "dinner",
     cuisine: "mexican", mainProtein: "chicken",
     timeMinutes: 25, approxCost: 2,
-    dietTags: ["gluten_free"],
+    dietTags: [],
     description: "Rice, beans and chicken baked under enchilada sauce and cheddar.",
     ingredients: [
       { slug: "chicken-breast", name: "chicken breast", quantity: "180 g" },

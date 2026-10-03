@@ -9,7 +9,9 @@
     "Weight units (g, kg, oz, lb) are exact. Volume units (ml, l, cup) assume a water-like density;",
     "'cup' defaults to 240 g (a liquid cup) - give a dry ingredient a perIngredient cup override if it",
     "ever needs one, the way olive oil overrides tbsp. Our recipes use grams; these units mainly cover",
-    "pasted/imported quantities, and there micros (not the site-provided macros) are what use them."
+    "pasted/imported quantities, and there micros (not the site-provided macros) are what use them.",
+    "Size words (small/medium/large) are relative to the item: an ingredient with a count gets 0.75x / 1x / 1.3x of it",
+    "(src/lib/units.ts). Eggs give the USDA sizes instead (38 / 44 / 50 g, fdc 171287), because their count is already a LARGE egg."
   ],
   "default": {
     "g": 1,
@@ -33,7 +35,8 @@
     "small": 70,
     "large": 150,
     "leaves": 2,
-    "count": 100
+    "count": 100,
+    "medium": 100
   },
   "perIngredient": {
     "olive oil": {
@@ -155,11 +158,17 @@
     "eggs": {
       "count": 50,
       "piece": 50,
-      "pieces": 50
+      "pieces": 50,
+      "small": 38,
+      "medium": 44,
+      "large": 50
     },
     "egg": {
       "count": 50,
-      "piece": 50
+      "piece": 50,
+      "small": 38,
+      "medium": 44,
+      "large": 50
     },
     "egg whites": {
       "count": 33,
