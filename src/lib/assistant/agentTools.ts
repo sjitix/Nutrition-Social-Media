@@ -8,7 +8,7 @@
  * the same way a coding agent greps a repository rather than reading all of it.
  *
  * ── THESE ARE NOT `READ_ONLY_TOOLS` ────────────────────────────────────────────────────────────
- * `src/lib/reply.ts` exports a set with a confusingly similar name. Those are **user-facing
+ * `./reply.ts` exports a set with a confusingly similar name. Those are **user-facing
  * answers**: the tool's output IS the reply, and the set exists so an answer never falsely claims
  * the plan changed. Everything here is **model-facing**: the output goes back into the loop as
  * input to the next model call and the user never sees it. Both are "does not change the plan" and

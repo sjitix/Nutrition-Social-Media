@@ -11,7 +11,7 @@
     "ever needs one, the way olive oil overrides tbsp. Our recipes use grams; these units mainly cover",
     "pasted/imported quantities, and there micros (not the site-provided macros) are what use them.",
     "Size words (small/medium/large) are relative to the item: an ingredient with a count gets 0.75x / 1x / 1.3x of it",
-    "(src/lib/units.ts). Eggs give the USDA sizes instead (38 / 44 / 50 g, fdc 171287), because their count is already a LARGE egg."
+    "(src/lib/nutrition/units.ts). Eggs give the USDA sizes instead (38 / 44 / 50 g, fdc 171287), because their count is already a LARGE egg."
   ],
   "default": {
     "g": 1,

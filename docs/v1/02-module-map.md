@@ -72,7 +72,7 @@ gate's job is to keep it true, not to fix it.
 
 | Layer | What lives there | May import | Must never import |
 |---|---|---|---|
-| **L0 · Contracts** | `core/` — `types.ts` (the zod schemas and TS types every layer speaks), `slots.ts`, `micros.ts` (the micronutrient vocabulary), `imported.ts` (an imported recipe and its pure converter to a Meal) | zod only | anything in this repo |
+| **L0 · Contracts** | `core/` — `types.ts` (the zod schemas and TS types every layer speaks), `slots.ts`, `micros.ts` (the micronutrient vocabulary), `imported.ts` (an imported recipe and its pure converter to a Meal), `defaults.ts` (`DEFAULT_TARGETS`, zod-free so the browser can have it) | zod only | anything in this repo |
 | **L1 · Data** | `data/` — the 501 recipe seeds, ingredient identity, `nutrientTable.generated.ts`, `substitutions.ts`, `symptoms.ts`, `conditions.ts` (+ `nutrition/unitGrams.generated.ts`, kept client-safe) | L0 | anything computing over it |
 | **L2 · Pure computation** | `nutrition/` — `units.ts`, `nutrients.ts`, `targets.ts`, `exclusions.ts`, `safety.ts`, `grocery.ts` (+ `presentation/streak.ts`, local-day arithmetic) | L0–L1 | the plan engine, the assistant, any I/O |
 | **L3 · Plan engine** | selection, rebalancing, batch, the executor | L0–L2 | the assistant, providers, UI, `storage` |
@@ -699,9 +699,14 @@ caught — both in the gate's self-test, now 14/0). **Measured, and the reason `
 With it, every `/sage` route is back to its exact pre-barrel size and `/plan` drops 207 → 186 kB. The
 only bare side-effect import in `src/` is `globals.css`, and every listener in `src/lib` is registered
 inside a function; a module that ever needs to run on import must be added to that list.
-**Still open:** removing the shims (when the models lane, which will import the barrels, and the
-accounts lane have moved), the accounts lane's files into `persistence/` (asked), and the last two
-layer/payload debts (the assistant's find_recipes through the feed; `/plan`'s library import).
+**Still open:** removing the shims — when the models lane (which will import the barrels), the
+accounts lane (three imports, now listed debts) AND this lane's own `scripts/` have moved: 15 script
+files import through the shims, and 11 of `test-engine`'s names are private (`extractVideoText`,
+`UNIT_GRAMS`, `parseIngredient`, `decodeEntities`, and the seven read tools), so they move to deep
+paths, which the `scripts/` exemption allows. `ship.mjs` now type-checks `scripts/` on every gated
+commit, so a shim removed too early fails there rather than at Vercel. Also open: the accounts lane's
+files into `persistence/` (asked), and the last two layer/payload debts (the assistant's find_recipes
+through the feed; `/plan`'s library import).
 
 **The value split, and why Phase 3 is done anyway:** Phases 1 and 2 deliver most of the
 *enforcement* — sealed contracts and a file you can hold in your head. This section used to say
@@ -770,6 +775,8 @@ A homemade gate in the family of `check:recipes` / `check:data` — no new depen
 | 3 | **Only `persistence/storage` may contain a localStorage key string** | a second saved-recipes key already drifted once |
 | 4 | No **client component** imports a server barrel (`"use client"` + `plan` ⇒ fail) | the 185 kB Explore payload, made impossible |
 | 5 | No **import cycles** | true today; this keeps it true |
+| 7 | Every local import **resolves** — and none is computed | a path the gate cannot follow is a path it cannot check |
+| 8 | Nothing depends on **running at import time** | `"sideEffects": ["*.css"]` lets the bundler drop it |
 | 6 | No **emoji** in `src/` | a standing project rule with no enforcement today |
 
 `scripts/` is exempt by name (§2). Every failure prints the offending file, the import, and the rule
@@ -813,6 +820,11 @@ until its entry is deleted, so the list never claims a problem that is gone.
 | 6 | **`agentTools` (L4) → `feed` (L6)** — searching the library is engine work, the query moves down — *new* | A6 |
 | 7 | ~~**`conditions`, `symptoms` (L1) → `nutrients` (L2)**~~ — **PAID 2026-10-03 (D5a part 2)**: `MICRO_KEYS`, `MicroKey`, `Micros`, `MICRO_LABEL`, `MICRO_UNIT` moved to `core/micros.ts`; `nutrients.ts` re-exports them | A6 |
 | 8 | `ThemeSwitch` writes `localStorage` itself (the theme key predates the rule) | A6, with the accounts lane |
+| 9–11 | **`storage.ts` → `./types` and `./import`; `account/validate.ts` → `../slots`** — the old flat paths, found when importing a D5a shim became a violation (2026-10-03). Every name they use is in `core/client` | the accounts lane |
+
+Row 6 is keyed on its **names** since the D5a review: it covers `FEED_RECIPES`, `filterFeed`,
+`sortFeed` and `FeedSort` and nothing else, so the import cannot grow behind the debt (it covered the
+whole `presentation` index after part 3 renamed its key — imagery, batchGrocery, streak and all).
 
 Rows 1–3 were known (they are A4's measured target). **Rows 4–7 were not known by anyone** — which is
 the whole argument for having the gate. Rule 5 (cycles) and rule 6 (emoji) found nothing; rule 2
@@ -827,6 +839,48 @@ failed as "paid".
 **It runs without anyone remembering.** `scripts/ship.mjs` runs it first whenever a ship touches
 `src/`, before `test:engine` or `tsc`, so a layering mistake fails in a second rather than after a
 25-minute suite. A branch that predates the script skips it rather than failing.
+
+### Hardened 2026-10-03 — what an adversarial review of D5a found in it
+
+Four reviewers attacked the gate after the folder move, each with a probe against the real `check()`.
+Every hole below was reproduced, then fixed, and each fix has the self-test fixture that would have
+caught it (**11 → 41 cases**, all green; the real tree passes with the debts above).
+
+- **It resolved imports with string concatenation.** `"@/lib/plan/"`, `"@/lib/./recipeDb"`,
+  `"@/app/../lib/recipeDb"` and `require("@/lib/recipeDb")` each shipped the whole engine to a client
+  component with the gate green (a real esbuild bundle printed 501 recipes for each). It now resolves
+  with **TypeScript's own resolver under `tsconfig.json`**, over the in-memory tree (so fixtures still
+  work); `require()`, `import x = require()` and `/// <reference>` are read; and a local import that
+  resolves to nothing, or a computed `import()`, **fails** (rule 7) instead of being taken for a package.
+- **Type positions were invisible.** `import("../assistant/agentLoop").ModelFn` reached past a barrel
+  four times in `providers/ai.ts` and passed. Rules 1 and 2 now read `import("x").T` too (and the four
+  are fixed).
+- **An exemption by location exempted the importer as well.** A shim sits outside every module folder,
+  so any file could import any PRIVATE name through an old flat path (66 such names; `runAssistant`,
+  `fetchHtml`, every read tool). **Importing a shim from `src/` is now rule 2** (`old-path:`), with the
+  accounts lane's three imports listed as debts. Shims are recognised from the **parsed** file, not a
+  regex: a lone CR or U+2028 ends a `//` comment for the parser but not for `[^\n]*`, which let a
+  look-alike carry code.
+- **Entry points were matched by suffix.** A `client.ts` one folder deeper counted as the module's
+  entry. Now exact: `index.ts`, or `client.ts` **only when it is a pure re-export barrel in a folder
+  that is not server-only** — `account/client.ts` is sync glue, not a door.
+- **`assistant/` was server-only by four file names**, so its fifth file, `reply.ts`, and any future
+  `assistant/client.ts` were open. The whole folder is server-only now.
+- **Packages were never followed, so zod was free.** `/onboarding` shipped all of zod for
+  `DEFAULT_TARGETS` (six numbers); `core/client.ts` could have re-exported `types.ts` with the gate
+  green. Rule 4 now fails a client component — **or a `client.ts` entry, imported or not** — that
+  reaches `zod`, `@anthropic-ai/sdk` or `typescript` by value. `DEFAULT_TARGETS` moved to
+  `core/defaults.ts` (in `core/client`); `/plan` takes `DAYS` from `core/client`.
+- **`.js`/`.jsx` files were never walked**, though `allowJs` is on. They are now.
+- **The sideEffects promise was prose.** Rule 8 fails a bare `import "./x"` of a script, any statement
+  at the top level of `src/lib` that runs on load, and `package.json` drifting from `["*.css"]`.
+- **No gate type-checked anything after a `src/lib` change**, and `tsc` never saw a `.mts` script —
+  esbuild does not check that an imported TYPE exists, so a narrowed barrel passed every gate and
+  would have failed only at Vercel. `ship.mjs` now runs `tsc -p tsconfig.scripts.json` (src + scripts,
+  ~6 s) on every gated commit, and `--self-test` whenever the gate itself changes; CI runs both.
+  (It found three type errors in `test-ui.mts`, fixed.)
+- **Rule 5's self-test only had a plain-import cycle.** It now proves a cycle closed only through
+  re-export barrels is caught, and one whose closing edge is `export type` is not.
 
 **The method used to produce §3, so it can be re-run:** parse every `import { … } from "…"` in
 `src/` and `scripts/`, resolve `@/lib/x` and relative specifiers to a module, and compare the set of

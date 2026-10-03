@@ -1467,6 +1467,16 @@ Each of these was discovered by doing the work, and each earned its place.
     And re-read your own fix the same way: moving the fence's read pin into `readKey` put it outside
     that function's `try`, so a browser with storage blocked crashed on every load. That was found
     only by re-reading the change.
+64. **A gate that resolves paths its own way has a hole in the shape of every spelling it forgot — and
+    an exemption by LOCATION exempts whoever stands next to it.** `check:boundaries` passed 14/0 on its
+    self-test and was green on the tree, and an adversarial review still walked the whole engine into a
+    client component four ways (`"@/lib/plan/"`, `"@/lib/./recipeDb"`, a `..` detour, `require()`),
+    because the gate built paths by concatenating strings and called anything it could not find "a
+    package". The same review found the D5a shims, exempt because they sit outside every module folder,
+    exempting their IMPORTERS too: 66 private names reachable through old paths with nothing flagged.
+    **Resolve with the toolchain's own resolver, fail closed on anything unresolved, and when you
+    exempt a thing, check who can reach THROUGH it.** And a self-test only proves the cases someone
+    thought of: each hole found gets the fixture that would have caught it (11 → 41).
 
 ---
 

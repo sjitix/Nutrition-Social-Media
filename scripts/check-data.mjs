@@ -30,7 +30,7 @@ const evalMsgs = new Set(
   JSON.parse(readFileSync(join(root, "data", "eval-cases.json"), "utf8")).cases.map((c) => norm(c.msg)),
 );
 
-// Mirrors OperationSchema in src/lib/types.ts. Anything else is an invented field.
+// Mirrors OperationSchema in src/lib/core/types.ts. Anything else is an invented field.
 const FIELDS = new Set([
   "tool", "day", "mealType", "dish", "cuisine", "diet", "budget", "excludeFoods",
   "useIngredients", "targetCalories", "targetProtein", "targetCarbs", "targetFat",

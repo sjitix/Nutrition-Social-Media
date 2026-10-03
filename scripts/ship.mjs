@@ -20,9 +20,10 @@
  * What it guarantees, in order:
  *   1. The remote is fetched and divergence is reported BEFORE any work is done — and if the remote
  *      changed a file you are about to commit, it STOPS, because that is where a merge loses work.
- *   2. The gate runs (check:boundaries whenever src/ is touched; check:recipes + check:ingredients
- *      when the engine or the ingredient data is touched; then test:engine when src/lib is touched,
- *      else tsc) and a failure stops everything.
+ *   2. The gate runs (check:boundaries whenever src/ is touched, and its --self-test when the gate
+ *      itself is; check:recipes + check:ingredients when the engine or the ingredient data is touched;
+ *      tsc over src/ AND scripts/ always; then test:engine when src/lib is touched) and a failure
+ *      stops everything.
  *   3. The commit contains EXACTLY the paths asked for — verified against the commit afterwards, so
  *      a file swept in or dropped out is reported rather than discovered later.
  *   4. ONLY THEN the remote is fetched AGAIN — a 25-minute gate is long enough for another lane to
@@ -159,22 +160,31 @@ const hasBoundaries = existsSync("scripts/check-boundaries.mjs");
 // data runs both, in seconds, before the long engine suite.
 const touchesData = touchesEngine || dirty.some((l) => /^scripts\/(ingredient-map|food-units)\.json$/.test(porcelainPath(l)));
 const hasDataGates = existsSync("scripts/check-recipes.mts") && existsSync("scripts/check-ingredients.mts");
+// The gate that changed is the gate under suspicion: a check that has only ever passed proves nothing.
+const touchesBoundaryGate = dirty.some((l) => porcelainPath(l) === "scripts/check-boundaries.mjs");
+// TYPES, on every gated commit. test:engine and the data gates bundle with esbuild, which does not
+// check that an imported TYPE exists — so a src/lib commit that narrowed a barrel or removed a D5a
+// shim used to reach main with every gate green and fail only at Vercel's `next build`, or in a
+// script nobody runs (the D5a review, 2026-10-03). tsconfig.scripts.json is src/ plus scripts/,
+// whose .mts the main tsconfig never sees. ~6 s.
+const tscArgs = existsSync("tsconfig.scripts.json") ? ["tsc", "--noEmit", "-p", "tsconfig.scripts.json"] : ["tsc", "--noEmit"];
 if (skipGate) {
   console.log("ship: --no-gate given; skipping the gate (docs-only changes).");
 } else {
   console.log(
-    `\nship: running the gate — ${touchesCode && hasBoundaries ? "check:boundaries, then " : ""}` +
+    `\nship: running the gate — ${touchesCode && hasBoundaries ? `check:boundaries${touchesBoundaryGate ? " + its self-test" : ""}, then ` : ""}` +
       `${touchesData && hasDataGates ? "check:recipes + check:ingredients, then " : ""}` +
-      `${touchesEngine ? "npm run test:engine (src/lib changed)" : "tsc"}…`,
+      `tsc (${tscArgs.length > 2 ? "src + scripts" : "src"})${touchesEngine ? ", then npm run test:engine (src/lib changed)" : ""}…`,
   );
   try {
     if (touchesCode && hasBoundaries) run("node", ["scripts/check-boundaries.mjs"]);
+    if (touchesBoundaryGate) run("node", ["scripts/check-boundaries.mjs", "--self-test"]);
     if (touchesData && hasDataGates) {
       run("npm", ["run", "check:recipes"]);
       run("npm", ["run", "check:ingredients"]);
     }
+    run("npx", tscArgs);
     if (touchesEngine) run("npm", ["run", "test:engine"]);
-    else run("npx", ["tsc", "--noEmit"]);
   } catch {
     die("the gate failed. Nothing was committed. Fix it or revert — never push red.");
   }

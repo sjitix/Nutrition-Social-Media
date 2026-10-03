@@ -4,7 +4,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { RefreshIcon, Wordmark } from "@/components/icons";
 import { loadProfile, saveChat, savePlan, saveProfile } from "@/lib/storage";
-import { DEFAULT_TARGETS, type BodyStats, type UserProfile } from "@/lib/core";
+import { DEFAULT_TARGETS } from "@/lib/core/client";
+import type { BodyStats, UserProfile } from "@/lib/core";
 import { computeTargets, bodyStatProblems, bodyStatMessage, type Activity } from "@/lib/nutrition/client";
 
 const ACTIVITIES: { value: Activity; label: string }[] = [

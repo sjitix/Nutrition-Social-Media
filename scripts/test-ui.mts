@@ -86,18 +86,18 @@ check("bigger -> scale_portions bigger",
   check("a quantity is not mistaken for a calorie count", r?.operation.loggedCalories === 320,
     String(r?.operation.loggedCalories));
   check("...and no number is left inside the dish name", !/\d/.test(r?.operation.dish ?? ""),
-    r?.operation.dish);
+    String(r?.operation.dish));
 }
 
 // THE SECOND BUG: grammar words ended up in the dish. Logging after the fact is the common case.
 {
   const r = first("ate a kebab for dinner yesterday");
-  check("filler words are stripped from the dish name", r?.operation.dish === "kebab", r?.operation.dish);
+  check("filler words are stripped from the dish name", r?.operation.dish === "kebab", String(r?.operation.dish));
   check("...and the day word does not land in the dish either", r?.operation.day === yesterday);
 }
 {
   const r = first("log a burger and chips 900 for lunch");
-  check("a multi-word dish survives intact", r?.operation.dish === "burger and chips", r?.operation.dish);
+  check("a multi-word dish survives intact", r?.operation.dish === "burger and chips", String(r?.operation.dish));
   check("...with its calories read correctly", r?.operation.loggedCalories === 900);
   check("...and its slot", r?.operation.mealType === "lunch");
 }
