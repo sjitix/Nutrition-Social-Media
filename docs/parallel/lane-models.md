@@ -56,4 +56,5 @@ my branch.)*
 
 | sha | what |
 |---|---|
-| (pending) | lane set up: this file, the CONTEXT block, the README lane row, the owner to-do |
+| `3565e71` | lane set up: this file, the CONTEXT block, the README lane row, the owner to-do |
+| (this) | round 1 survey: `scripts/models/latency-sweep.mjs`, its scorecard, `docs/models/survey.md` — the free NVIDIA tier serves only one big model (Nemotron-Ultra-550B) and its latency is a 7–46 s queue lottery |
