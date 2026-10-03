@@ -1,16 +1,19 @@
-# Two agents, one repo — how the parallel lanes work
+# Three agents, one repo — how the parallel lanes work
 
-**Since 2026-10-03 two Claude agents work on this repo at the same time**, on different dimensions of
-the product. This file is the protocol. Both agents read it at the start of every session, and it
-changes only when the owner changes the arrangement.
+**Since 2026-10-03 Claude agents work on this repo at the same time** (two at first; a third, the
+models lane, joined the same day), on different dimensions of the product. This file is the protocol.
+Every agent reads it at the start of every session, and it changes only when the owner changes the
+arrangement.
 
 | lane | agent | works in | owns |
 |---|---|---|---|
 | **v1** | the V1 agent — continues the V1 schedule (`docs/v1/`), Track E follow-ups, the test debt, `check:boundaries`, the `recipeDb` split | the main folder `Nutrition-Social-Media-main/`, branch `main` | everything not listed under accounts |
 | **accounts** | the accounts agent — real accounts, a hosted database, sync, export/import, delete-my-data (V1 milestone B3/D11, dimensions #13 and #14) | its own **git worktree** `../NutriFlow-accounts/`, branch `accounts`, shipping onto `main` | the files listed below |
+| **models** *(added 2026-10-03)* | the models agent — model enhancement: surveys high-parameter LLMs for quality AND latency, the loop-level eval, the assistant-brain choice | its own **git worktree** `../NutriFlow-models/`, branch `models`, shipping onto `main` | the files listed below |
 
-Live status of each lane: **`lane-v1.md`** and **`lane-accounts.md`** in this folder. **Each agent writes
-ONLY its own lane file**, so those two never conflict.
+Live status of each lane: **`lane-v1.md`**, **`lane-accounts.md`** and **`lane-models.md`** in this
+folder. **Each agent writes ONLY its own lane file**, so those never conflict. Where this file says "the
+other lane", read "the other lanes" — the rules apply pairwise between all three.
 
 ---
 
@@ -35,6 +38,17 @@ folder.** Each one's work reaches the other only through `origin/main`.
 - `scripts/test-account.mts` + `scripts/test-account.mjs` (run with `node scripts/test-account.mjs`; no package.json change needed)
 - `.env.local.example` — only the account-related lines
 - `docs/parallel/lane-accounts.md`, `docs/worklog/*-accounts.md`
+
+**The models lane owns** (the other lanes do not edit these; ask instead):
+
+- `docs/models/**` (new — model research, benchmarks, decisions, the owner to-do)
+- `scripts/models/**` (new — model-eval tooling: latency sweeps, the loop-level eval)
+- `data/eval-runs/**` — primary writer; every scorecard is timestamped, so a v1 run of
+  `eval:hardcases` landing a file there never collides
+- `docs/parallel/lane-models.md`, `docs/worklog/*-models.md`
+
+It **runs but does not edit** `scripts/eval-hardcases.mts`, `src/lib/promptV2.ts`, `src/lib/ai.ts` and
+`src/lib/agentLoop.ts` (v1's), and asks the v1 agent before any change to them lands on `main`.
 
 **Shared — announce before touching, keep the edit tiny, ship it at once:**
 

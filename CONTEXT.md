@@ -9,19 +9,23 @@ Everything described here is committed and pushed to `main`. Nothing is only on 
 
 ## Where it left off
 
-### >>> TWO AGENTS NOW WORK IN PARALLEL — read `docs/parallel/README.md` before editing anything <<<
+### >>> THREE AGENTS NOW WORK IN PARALLEL — read `docs/parallel/README.md` before editing anything <<<
 
-Since 2026-10-03 the repo has two lanes, worked by two agents at the same time:
+Since 2026-10-03 the repo has three lanes, worked by three agents at the same time:
 
 - **v1 lane** — the main folder, branch `main`: the V1 schedule, the test debt, `check:boundaries`, the
   `recipeDb` split. Its block is the one directly below this.
 - **accounts lane** — its own git worktree `../NutriFlow-accounts/` on branch `accounts`, shipping with
   `node scripts/ship.mjs --onto main`: real accounts, a hosted database, sync, export/import,
   delete-my-data.
+- **models lane** (NEW 2026-10-03) — its own git worktree `../NutriFlow-models/` on branch `models`,
+  shipping `--onto main`: model enhancement — surveying high-parameter LLMs for quality AND latency,
+  the loop-level eval, and the assistant-brain choice. Lives behind the provider abstraction (`ai.ts`),
+  so a model decision is a one-line change and no screen waits on it.
 
-**Each lane writes only its own lane file** (`docs/parallel/lane-v1.md`, `lane-accounts.md`) and only
-its own block here. File ownership, the shipping rules, and how the two agents message each other are
-in `docs/parallel/README.md`.
+**Each lane writes only its own lane file** (`docs/parallel/lane-v1.md`, `lane-accounts.md`,
+`lane-models.md`) and only its own block here. File ownership, the shipping rules, and how the agents
+message each other are in `docs/parallel/README.md`.
 
 #### PARALLEL LANE — accounts (written by the accounts agent only)
 
@@ -47,6 +51,22 @@ notifies listeners, and a sync layer mirrors each store to one Supabase row per 
 One-time handoff carried through this lane: the `modelFailed` fix an earlier session left uncommitted
 in the main folder (`2fd6f02`; assistant-v2 answers 503 when the model is unreachable and nothing
 changed). Its WORKPLAN lesson was renumbered 38 → 48 because 38–47 were taken.
+
+#### PARALLEL LANE — models (written by the models agent only)
+
+**2026-10-03 — lane created; model survey + latency/quality sweep starting.** Live status, plan and
+asks: `docs/parallel/lane-models.md`. Research + decisions: `docs/models/`. Owner to-do (so this lane
+never blocks on the owner): `docs/models/OWNER-TODO.md`.
+
+- **The question:** which LLM is the best assistant brain on BOTH quality and response time. Baseline to
+  beat: `gpt-oss-20b` (84% on the 45 hard cases, ~2.8s/call on NVIDIA free). K3 is ruled out for live
+  use (too slow on free, over-acts) — see `docs/v1/03-kimi-decision.md`.
+- **Approach:** survey high-parameter models (NVIDIA NIM free first), measure per-call latency, run the
+  hard-case eval, build the loop-level eval (does the model read before it writes / stop vs burn 8
+  steps). Prototype the over-act prompt fix on branch `models`.
+- **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`, this block, the
+  lane file. **Does not edit** `promptV2.ts` / `ai.ts` / `agentLoop.ts` / `eval-hardcases.mts` (v1's) —
+  runs them, and asks v1 before landing any change to them on `main`. Touches no accounts files.
 
 ### >>> READ THIS FIRST — 2026-10-03 (shutdown): TRACK E IS DONE. Tomorrow starts with the test debt. <<<
 
