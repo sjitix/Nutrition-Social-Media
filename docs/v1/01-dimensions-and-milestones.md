@@ -66,7 +66,7 @@ verified by reading the files listed — `state` is what the code does today, no
 | 17 | **Photography** | `recipes.ts` (`RECIPE_IMAGES`), `public/food/` | 5 of 501 photographed | `check:images` gate + a batch of dishes (B4) |
 | 18 | **Micronutrients + conditions** | `nutrients.ts`, `conditions.ts` | Engine done; `selectConditionAwareWeek` **not wired** | Ask-vs-auto-apply call, then wire (B6) |
 | 19 | **Meal logging / streak** | `streak.ts`, `log_meal` in the executor | Engine-only; **nothing in the UI writes a log** | B1 — this is the missing feedback loop |
-| 20 | **Gates / observability** | `test:engine`, `check:recipes`, `check:data`, `test:api`, `eval:hardcases` | Strong (628/0 claimed at handoff) | `check:boundaries` (A1), `check:images` (B4), an eval **scorecard file** (C1) |
+| 20 | **Gates / observability** | `test:engine`, `check:recipes`, `check:data`, `test:api`, `eval:hardcases` | Strong (`test:engine` 660/0, `test:ui` 51/0, `test:api` 60/0 on 2026-10-03; `check:recipes` passes but nothing runs it automatically — A7) | `check:boundaries` (A1), `check:images` (B4), an eval **scorecard file** (C1) |
 | 21 | **Deployment** | Vercel + GitHub Pages | Both live | Release pass (D4) |
 | 22 | **Work record** | *nothing* | Sessions are reconstructed from `CONTEXT.md` | The daily history (D1 / doc 04) |
 | 23 | **Library growth capacity** | the 182-entry ingredient table + `npm run build:nutrients` | Each new ingredient needs a **hand-curated FDC id**; auto-matching is banned | A curation helper (B7, D5) so the rate isn't an afternoon per ingredient |
@@ -100,12 +100,25 @@ does (gate: `test:engine` identical before and after). B and C change *what it d
 move files. Never run an A-day and a B/C-day against the same module on the same day — a red gate
 then has two candidate causes, which is exactly the trap lesson 2 and lesson 44 both describe.
 
+**Track A first — the owner's ruling** (comment on the module-map board, 2026-09-19: *"make sure
+everything is already modularised and we start building on that architecture … if this isn't done
+already, we should spend a good amount of time doing it"*). **Track A is a gate on all feature work,
+not one lane among four:** no B, C or E milestone starts until D1–D5b are done. Fixes to broken
+things are allowed; new features wait. **This comment went unread until 2026-10-03, and Track E was
+built in between on the old structure** — nothing of it needs undoing (its modules are in the map
+and it kept the two-layer rule), but it ran out of order, and that is recorded rather than smoothed
+over. Track A also grew because of it: **D5a (A6)** puts every module behind a barrel in its folder
+— Phase 3 of the reorganisation, previously "optional, because cheap", now committed — and **D5b
+(A7)** proves the maths exact (owner comment on L2). Full reasoning: `02-module-map.md` §0 and §5.
+
 ---
 
 ## 4. The schedule
 
-Thirteen working days — twelve, plus **D5**, added when the owner asked for the library to grow a
-lot (§8). Each day: one **main** milestone (the day's real work) and one **parallel**
+Sixteen working days — the original twelve, plus **D5** (the owner asked for the library to grow a
+lot, §8), plus **D5a, D5b and D9a** (from the owner's comments on the module-map board,
+2026-09-19). The inserted days carry letter suffixes rather than renumbering the rest, because other
+lanes' files and the history already point at D6–D13 by number. Each day: one **main** milestone (the day's real work) and one **parallel**
 item (small, independent, different module — the thing that keeps two threads moving without two
 causes for one failure). Every day ends green and pushed; a day that ends red rolls forward and the
 schedule slips by a day rather than pretending.
@@ -113,14 +126,17 @@ schedule slips by a day rather than pretending.
 | Day | Main milestone | Parallel | Usable on its own when… | Depends on | Gate |
 |---|---|---|---|---|---|
 | **D1** | **A1 — freeze the contracts.** Land `02-module-map.md` as the enforced truth: add `npm run check:boundaries` (a homemade gate in the `check:recipes` family, no new dependency) asserting the layering: no client component imports the engine, no module imports above its layer, only `storage.ts` names a storage key. | **D1-p** — stand up the daily-history log (doc 04) and write day 1 into it | The gate runs, names a violation in plain English, and passes on a clean tree | — | `check:boundaries` + `tsc` |
-| **D2** | **A2 — split `recipeDb.ts`, part 1: data out of engine.** `SEED_RECIPES` (≈7.9k lines) moves to `src/lib/recipes/data.ts`; selection + rebalancing stay. A barrel re-exports the existing 24 names so **no call site changes**. | — | `test:engine` is byte-for-byte the same result and no importer was touched | D1 | `test:engine` **628/0**, unchanged count |
+| **D2** | **A2 — split `recipeDb.ts`, part 1: data out of engine.** `SEED_RECIPES` (≈7.9k lines) moves to `src/lib/recipes/data.ts`; selection + rebalancing stay. A barrel re-exports the existing 24 names so **no call site changes**. | — | `test:engine` is byte-for-byte the same result and no importer was touched | D1 | `test:engine` **660/0** (the count on 2026-10-03), unchanged |
 | **D3** | **A3 — split part 2: the executor.** `applyOperations` → `src/lib/plan/execute.ts`; batch selection → `src/lib/plan/batch.ts`. Same barrel discipline. | **C1-a** — start the K3 re-run in the background (it takes ~50 min of wall-clock and marinates) | Same suite result; `recipeDb.ts` is under ~2k lines and is *one* idea | D2 | `test:engine` unchanged |
 | **D4** | **A4 — the browser payload boundary.** Introduce the card projection (`RecipeCard`: only what a card renders) so the client stops importing 501 full recipes. **Measured 2026-10-03: the library IS in a client chunk** — `Shakshuka`, `Miso-Glazed Cod`, `fdcId` and `approxCost` all appear in `.next/static/chunks/*.js`, and zod with them. Baseline first-load JS: **`/sage/plan` 216 kB, `/sage/explore` 212 kB** against 102 kB shared. Those four greps are the test. | **C1-b** — record the Kimi decision from the scorecard (doc 03) | Those markers are GONE from the client chunks and first-load JS drops against the 216/212 kB baseline, with the number recorded | A3 | `npm run build`, markers grepped, first-load JS compared |
 | **D5** | **A5 — ingredients become a first-class entity.** The 182 curated ingredients are keyed by *name* and every recipe references them as **free text**. Give each a stable id, have recipes carry that id, and add `check:ingredients` asserting every one of the ~3,000 recipe ingredient references resolves to a real FDC-backed entry. Nutrition maths is unchanged — this is identity, not arithmetic. | **B7** — a curation helper that *proposes* USDA matches for a new ingredient for a human to confirm. Never auto-accepts: `salmon fillet → Salmonberries` is why. | Every recipe resolves to ids with zero unmatched, and adding an ingredient is a minutes-long job instead of an afternoon | D3 | `check:ingredients` + `test:engine` unchanged |
+| **D5a** | **A6 — every module behind its barrel, in its folder.** *(Owner comment 1, 2026-09-19.)* Phases 1 and 3 of `02-module-map.md` §5 together: an `index.ts` per module carrying only its public names, the folders (`core/`, `data/`, `nutrition/`, `plan/`, `assistant/`, `providers/`, `persistence/`, `presentation/`), and the gate's rule 2 (no deep imports) switched from reporting to failing. **Coordinated with the other lanes**: their files move only with their agreement, and each old path keeps a one-line re-export until every lane has rebased past it. | — | No deep import anywhere outside `scripts/`; the 68 promises-kept-to-nobody count is driven down and the new number recorded | D5 | `check:boundaries` (rule 2 enforcing) + `tsc` + `test:engine` identical |
+| **D5b** | **A7 — the maths, proven exact.** *(Owner comment on L2, 2026-09-19: "this has to work perfectly".)* Property tests for every L2 function (linear scaling, unit round-trips, published Mifflin-St Jeor examples, allergen matching both ways); every USDA entry checks its own 4/4/9; `deriveMacros` refuses an unknown ingredient instead of skipping it; **`check:recipes` + `check:ingredients` join the `ship.mjs` gate and CI**, so a new ingredient or recipe is verified automatically; Atwater tightened from 20% to the tightest the library passes. Full list: `02-module-map.md` §4 L2. | — | Adding an ingredient or recipe cannot reach `main` without every check running, and each L2 law has a property test | D5 | `test:engine` + `check:recipes` + `check:ingredients`, all now automatic |
 | **D6** | **C2 — safety + the three assistant bugs.** The **crisis pre-scan** on the raw message (before the model sees it); ban non-library dish names in replies; strip emoji (project rule); fix fuzzy swap-match ("burger" must not return a shrimp salad). | **B5** — per-batch locks (the batch tail) | A crisis phrasing is caught even when the model would have answered it, proven by a test | C1-b (model chosen) | `test:engine` + new safety tests |
 | **D7** | **B1 — meal logging, end to end.** A UI write path for `log_meal`; Today stops inferring "eaten" from the clock and reads the log; `SLOT_HOUR` becomes the fallback, not the truth. | **D1-p** — daily history entry | Today shows what you actually logged, and says so honestly when you have logged nothing | A3 (executor is its own module) | `test:engine` + `test:api` |
 | **D8** | **B2 — one app.** Execute the decision on `/plan` (1,819 lines): retire to `/classic`-style archive, or keep and justify. Whatever it is, one app is the product. | **B6** — wire condition-aware generation on the ASK path (VISION says ask) | Every nav path leads into one coherent app; nothing links to a dead screen | Owner decision (§5) | `tsc` + `build` + link crawl |
 | **D9** | **C3 — the assistant speaks first.** RULE 3: a standing check produces a suggestion ("Thursday is 40 g short — fix it?") accepted in one tap, on Week and Today. | — | The suggestion is engine-derived, one tap applies it, and it never appears when there is no shortfall | B1, C2 | `test:engine` + a11y check |
+| **D9a** | **C4 — the assistant's vocabulary grows.** *(Owner comment on primitives, 2026-09-19.)* Everything a button can do, the assistant can say: move a meal to another day, fix every short day at once, skip a meal, cap one meal's cook time, put a saved or imported recipe in a slot, "I already have rice". Each primitive is a thin mapping onto an engine operation; a missing operation is built and tested in the engine first, in its own commit. Announced to the models lane before landing — it changes the contract they evaluate. Gap table: `02-module-map.md` §4 L4. | — | Every Track E control has a chat equivalent, each with hard-case eval rows | C2, A6 | `test:engine` + `test:api` + eval rows added |
 | **D10** | **B4 — imagery.** Build `check:images` (spec is in `CONTEXT.md`: bad key, missing file, orphan, two recipes one file, oversize) and generate a batch of dishes against `designs/midjourney-dish-photography.md`. | **D2-a** — recapture `designs/screens/*.png` | The gate catches a deliberately broken mapping; N recipes are photographed and the count on Home is derived, not asserted | — | `check:images` |
 | **D11** | **B3 — your data is yours.** Profile/plan export + import (a file), so a device-local V1 is not a one-drive product. If the Supabase keys have arrived, this is instead **accounts behind `savedStore.ts`**. | — | You can move your plan to another device without an account | — | `test:api` |
 | **D12** | **D2 — the device pass.** Real-phone verification (sub-500px is *unverified* by the headless tool — see lesson 19), a11y sweep, perf budget re-measured cold vs warm, prod vs dev (lesson 29). | — | Every screen is usable on a real phone, with the measurements recorded | D4, B2 | Lighthouse + manual |
@@ -151,8 +167,12 @@ blocking, so none of them silently becomes the reason V1 slipped.
 
 ```
 A1 contracts ─► A2 data split ─► A3 executor split ─┬─► A4 payload boundary
+                                                    ├─► A5 ingredient ids ─► A6 barrels + folders
+                                                    │                     └► A7 maths proven ─► library expansion
                                                     └─► B1 meal logging ─► C3 speaks first
+all of Track A (A1–A7) ─► any B / C / E feature work      (owner's ruling, 2026-09-19)
 C1 model decision ─► C2 safety + quality ───────────────────────────────► C3
+C2 + A6 ─► C4 the vocabulary grows
 B2 one app ─► D2 device pass ◄─ A4
 everything ─► D4 release
 D1 daily history: starts day 1, runs every day, blocks nothing

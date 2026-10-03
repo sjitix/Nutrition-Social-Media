@@ -162,12 +162,13 @@
     </div>
     <div class="eyebrow">NutriFlow · planning board 1 of 3</div>
     <h1 style="margin-top:10px">The road to Version&nbsp;1</h1>
-    <p class="lede" style="margin-top:14px">Thirteen working days, four parallel tracks. One main milestone a day,
-      one small parallel item beside it, and a gate that has to be green before anything is pushed.</p>
+    <p class="lede" style="margin-top:14px">Sixteen working days. <b>Architecture first, as a gate</b>: no new
+      feature starts until the code is modular. One main milestone a day, one small parallel item beside it, and a
+      gate that has to be green before anything is pushed.</p>
     <div class="stamp">
       <b><i>source</i> docs/v1/01-dimensions-and-milestones.md</b>
       <b><i>synced</i> 2026-10-03</b>
-      <b><i>commit</i> f370aa7</b>
+      <b><i>commit</i> f657fa9+</b>
     </div>
   </header>
 
@@ -225,16 +226,26 @@
   </section>
 
   <section id="schedule">
-    <div class="shead"><span class="eyebrow">Twelve days</span><span class="rule"></span></div>
+    <div class="shead"><span class="eyebrow">Sixteen days</span><span class="rule"></span></div>
     <h2>The schedule</h2>
+    <div class="callout" id="track-a-first" style="margin:4px 0 18px;border-color:var(--accent-line);background:var(--accent-soft)">
+      <b>Track A first &mdash; your ruling, from a comment on the module map (2026-09-19).</b> &ldquo;Make sure
+      everything is already modularised and we start building on that architecture.&rdquo; It is not done yet: there
+      is <b>no barrel file anywhere in the code</b> and <span class="mono">recipeDb.ts</span> is
+      <b>11,061 lines</b>. So <b>D1&ndash;D5b are now a gate on all feature work</b> &mdash; fixes are allowed, new
+      features wait. Two days were added to Track A because of it (<b>D5a</b> and <b>D5b</b>), and one to the
+      assistant (<b>D9a</b>). <b>Honest note:</b> that comment went unread until 2026-10-03, and Track E was built on
+      the old structure in between. Nothing of it needs undoing, but it was out of order.
+    </div>
     <div class="ribbon">
+      <div style="background:var(--t-a)"></div><div style="background:var(--t-a)"></div>
       <div style="background:var(--t-a)"></div><div style="background:var(--t-a)"></div>
       <div style="background:var(--t-a)"></div><div style="background:var(--t-a)"></div>
       <div style="background:var(--t-a)"></div><div style="background:var(--t-c)"></div>
       <div style="background:var(--t-b)"></div><div style="background:var(--t-b)"></div>
-      <div style="background:var(--t-c)"></div><div style="background:var(--t-b)"></div>
-      <div style="background:var(--t-b)"></div><div style="background:var(--t-d)"></div>
-      <div style="background:var(--t-d)"></div>
+      <div style="background:var(--t-c)"></div><div style="background:var(--t-c)"></div>
+      <div style="background:var(--t-b)"></div><div style="background:var(--t-b)"></div>
+      <div style="background:var(--t-d)"></div><div style="background:var(--t-d)"></div>
     </div>
     <div class="legend">
       <span class="chip"><span class="dot" style="background:var(--t-a)"></span>A · Architecture</span>
@@ -272,7 +283,7 @@
         <div class="meta">
           <div><span class="k">Usable when</span><span class="mono">test:engine</span> returns an identical result and no importer changed.</div>
           <div><span class="k">Depends on</span>D1</div>
-          <div><span class="k">Gate</span><span class="mono">test:engine 628/0</span>, unchanged count</div>
+          <div><span class="k">Gate</span><span class="mono">test:engine 660/0</span>, unchanged count</div>
         </div>
       </div>
     </article>
@@ -302,7 +313,7 @@
           and a client-safe barrel — the second axis of the boundary, and the one that costs money.</p>
         <div class="par"><b>Parallel · C1-b</b><span>Record the Kimi decision from the scorecard.</span></div>
         <div class="meta">
-          <div><span class="k">Usable when</span>Explore's first-load JS drops measurably against the 185&nbsp;kB baseline, with the number recorded.</div>
+          <div><span class="k">Usable when</span>The four library markers are gone from the client chunks and first-load JS drops against the measured 216&nbsp;/&nbsp;212&nbsp;kB baseline, with the number recorded.</div>
           <div><span class="k">Depends on</span>D3</div>
           <div><span class="k">Gate</span><span class="mono">npm run build</span>, first-load JS compared</div>
         </div>
@@ -328,6 +339,51 @@
         </div>
         <p style="font-size:12.5px;color:var(--mut);margin:11px 0 0">Added 2026-09-19 from your comment on this
           board. The reasoning, the library target and the retailer question are in the section below.</p>
+      </div>
+    </article>
+
+    <article class="day" id="D5a">
+      <div class="edge" style="background:var(--t-a)"></div>
+      <div class="rail"><div class="num">5a</div><span class="tk" style="background:var(--accent-soft);color:var(--t-a)">A6</span></div>
+      <div class="bd">
+        <h3>Every module behind its barrel, in its folder</h3>
+        <p class="desc">One <span class="mono">index.ts</span> per module carrying only its public names, and the
+          folders: <span class="mono">core · data · nutrition · plan · assistant · providers · persistence ·
+          presentation</span>. The gate's &ldquo;no deep imports&rdquo; rule switches from reporting to failing. This
+          used to be &ldquo;optional, because cheap&rdquo; &mdash; your ruling makes it committed: a structure you can
+          only see by reading a document is not one anyone builds on.</p>
+        <div class="par"><b>Coordinated</b><span>The other two agents' files move only with their agreement, and every
+          old path keeps a one-line re-export until each lane has caught up &mdash; moving a file someone is editing is
+          how work gets lost.</span></div>
+        <div class="meta">
+          <div><span class="k">Usable when</span>No deep import anywhere outside <span class="mono">scripts/</span>, and the 68 unused-promise count is driven down and recorded.</div>
+          <div><span class="k">Depends on</span>D5</div>
+          <div><span class="k">Gate</span><span class="mono">check:boundaries</span> + <span class="mono">tsc</span> + <span class="mono">test:engine</span> identical</div>
+        </div>
+        <p style="font-size:12.5px;color:var(--mut);margin:11px 0 0">Added 2026-10-03 from your comment on the module map.</p>
+      </div>
+    </article>
+
+    <article class="day" id="D5b">
+      <div class="edge" style="background:var(--t-a)"></div>
+      <div class="rail"><div class="num">5b</div><span class="tk" style="background:var(--accent-soft);color:var(--t-a)">A7</span></div>
+      <div class="bd">
+        <h3>The maths, proven exact</h3>
+        <p class="desc">Every number the app shows is computed in one layer of pure functions &mdash; the one place
+          where &ldquo;perfectly&rdquo; can be <i>proven</i>. Property tests for every law (2&times; an ingredient is 2&times;
+          its calories; a cup is 16 tablespoons; the published Mifflin-St Jeor examples come out exactly; an
+          allergen matches both ways and never inside another word). Every USDA entry checks its own maths.
+          <span class="mono">deriveMacros</span> refuses an unknown ingredient instead of quietly skipping it.</p>
+        <div class="par"><b>The automation</b><span><span class="mono">check:recipes</span> passes today but
+          <b>nothing runs it</b> &mdash; not the ship script, not CI. It and <span class="mono">check:ingredients</span>
+          join both, so a new ingredient or recipe is verified every time, by default. That is what makes
+          &ldquo;expand by a lot&rdquo; safe.</span></div>
+        <div class="meta">
+          <div><span class="k">Usable when</span>A new ingredient or recipe cannot reach <span class="mono">main</span> without every check running, and each law has a property test.</div>
+          <div><span class="k">Depends on</span>D5 (the tests key on ingredient ids)</div>
+          <div><span class="k">Gate</span><span class="mono">test:engine</span> + <span class="mono">check:recipes</span> + <span class="mono">check:ingredients</span>, all automatic</div>
+        </div>
+        <p style="font-size:12.5px;color:var(--mut);margin:11px 0 0">Added 2026-10-03 from your comment on L2 of the module map.</p>
       </div>
     </article>
 
@@ -393,6 +449,26 @@
           <div><span class="k">Depends on</span>B1, C2</div>
           <div><span class="k">Gate</span><span class="mono">test:engine</span> + a11y check</div>
         </div>
+      </div>
+    </article>
+
+    <article class="day" id="D9a">
+      <div class="edge" style="background:var(--t-c)"></div>
+      <div class="rail"><div class="num">9a</div><span class="tk" style="background:var(--amber-soft);color:var(--t-c)">C4</span></div>
+      <div class="bd">
+        <h3>The assistant's vocabulary grows</h3>
+        <p class="desc">Since Track E, the buttons can do things the assistant cannot say &mdash; backwards, for a product
+          whose pitch is &ldquo;edit your week by chat&rdquo;. So: move a meal to another day, fix every short day at
+          once, skip a meal, &ldquo;only 20 minutes tonight&rdquo;, put a saved recipe in a slot, &ldquo;I already have
+          rice&rdquo;. Each one is a thin mapping onto an engine operation; a missing operation is built and tested in the
+          engine first.</p>
+        <div class="meta">
+          <div><span class="k">Usable when</span>Every hand control has a chat equivalent, each with hard-case eval rows.</div>
+          <div><span class="k">Depends on</span>C2 (safety), A6 (barrels)</div>
+          <div><span class="k">Gate</span><span class="mono">test:engine</span> + <span class="mono">test:api</span> + eval rows</div>
+        </div>
+        <p style="font-size:12.5px;color:var(--mut);margin:11px 0 0">Added 2026-10-03 from your comment on the primitives.
+          Which model runs it is the <b>models lane's</b> question, and your 128&nbsp;GB question has gone to it.</p>
       </div>
     </article>
 

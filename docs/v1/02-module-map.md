@@ -14,6 +14,33 @@ one the owner called the heart of it. Written 2026-09-19 against `125d7b3`.*
 Everything below was computed from the code, not remembered. The method is in §9 so it can be
 re-run after any refactor and the answers checked rather than believed.
 
+**What "contract" means in this document** *(the owner asked, 2026-09-19).* It is the word for the
+thing described in the quote above: **a module's name, plus the promise its description makes, plus
+the rules it keeps** — and nothing about how it keeps them. Whoever uses the module may rely on the
+contract and on nothing else; whoever writes the module may change anything that is not in it.
+Concretely, each contract below has three parts: the **public** names (what you may call), the
+**promise** (what calling it does), and the **invariants** (what is always true afterwards, e.g. "an
+allergen never reaches a plate"). The term is borrowed from software engineering ("design by
+contract") because it carries the one idea that matters here: *two sides, each bound to their half,
+and a change on one side that keeps the terms breaks nothing on the other.*
+
+---
+
+## 0. Owner direction, from the comments on the module-map board (2026-09-19)
+
+Seven comments, answered late — they sat unread until 2026-10-03, which is recorded here because it
+changed what happened in between (Track E was built before this direction was read). Each one is
+applied where it belongs below; this is the index.
+
+| # | Comment, in short | Where it is applied |
+|---|---|---|
+| 1 | **Modularise first, then build on that architecture — spend real time on it** | §5 "Modularise first" — Track A is now a gate on all feature work, and the folders are committed, not optional |
+| 2 | "Why do you use the word contract" | the definition above |
+| 3 | "What is this?" — on L0 | §2 "The layers in plain words" |
+| 4 | Ingredient and recipe databases need expanding by a lot | §4 L1 "Built to grow" |
+| 5 | L2 is pure maths — focus on it and its automation, it has to work perfectly, including as the databases grow | §4 L2 "The maths must be exact" — new milestone **A7** |
+| 6–7 | Expand the primitives; and what is the strongest cloud model that is fast enough for beta (a 128 GB machine?) | §4 L4 "The vocabulary will grow" — new milestone **C4**; the model question belongs to the **models lane** (`docs/parallel/lane-models.md`), which was set up for exactly it |
+
 ---
 
 ## 1. What "public" has to mean here, to be worth anything
@@ -58,6 +85,29 @@ gate's job is to keep it true, not to fix it.
 decides, the engine computes.** L4 may ask L3 for anything; it may never do arithmetic itself, and
 it is never the thing that claims a change happened. Any refactor that puts a number in L4 is wrong
 however tidy the folders look.
+
+**The layers in plain words** *(the owner asked "what is this?" on L0)*. Read the stack bottom-up;
+each layer only ever uses the ones beneath it.
+
+- **L0 · Contracts — the shared vocabulary.** One file, `types.ts`, that says what a *meal*, a *day*,
+  a *week plan* and a *profile* look like: which fields they have and what type each is. It contains
+  no logic. Every other part of the app speaks in these shapes, which is why it sits at the bottom:
+  change a shape here and every layer above feels it.
+- **L1 · Data — the facts.** The recipes, the USDA nutrient values, the symptom and substitution
+  tables. Lists of things, no calculation.
+- **L2 · Pure computation — the maths.** Grams from "1 1/2 cups", micronutrients from an ingredient
+  list, calorie targets from body stats, "does this dish contain an allergen". Same input, same
+  answer, every time; no memory, no network.
+- **L3 · Plan engine — the decisions.** Picks the week's dishes, holds each day on its targets,
+  executes every change. The only thing allowed to say a plan changed.
+- **L4 · Assistant — the conversation.** Turns what a model asked for into engine operations. It
+  decides *what* to ask; it never does the arithmetic.
+- **L5 · Adapters — the outside world.** The model provider, recipe import from a link, the browser's
+  storage.
+- **L6 · Presentation — the screens.**
+
+**How to read the numbers on the board** (e.g. *types 22 / 28*): the module exports 28 names, and
+22 of them are actually used by something outside it. The gap is promises nobody relies on yet.
 
 **Tooling is deliberately exempt.** `scripts/test-engine.mts` must be able to reach a private
 function to test it; a test suite that can only see the public surface can only test the public
@@ -151,6 +201,23 @@ symptom, substitution and condition tools."*
 - **Invariants:** `CRISIS_FLAGS` is safety data — it may only grow, and anything reading it must
   fail loud, never silently miss.
 
+**L1 is built to grow — "expand by a lot"** *(owner, 2026-09-19, said twice).* Today: **182
+ingredients, 501 recipes.** Target recorded in the schedule's owner-gated table: **400 ingredients /
+900 recipes** (a default until the owner names a number). The order is deliberate, because growing
+the library on today's shape would multiply today's weakness:
+
+1. **D5 · A5 — ingredient identity first.** Recipes reference ingredients by free-text name today, so
+   a new recipe can silently point at nothing. Each ingredient gets a stable id and every recipe
+   carries ids; `check:ingredients` fails on any reference that does not resolve to an FDC-backed entry.
+2. **D5b · A7 — the maths proven exact** (see L2), so each new ingredient is *checked automatically*
+   instead of eyeballed.
+3. **B7 — a curation helper** that proposes USDA matches for a new ingredient for a human to confirm.
+   Never auto-accepts (`salmon fillet → Salmonberries`). This is what makes adding an ingredient a
+   minutes-long job, and therefore what makes "by a lot" affordable.
+4. **Then the expansion itself**, in batches, each batch gated by `check:recipes` +
+   `check:ingredients` + `test:engine`. Retail products (Lidl-style) attach to ingredient ids after
+   that — research and the design are in `01-…md` §8.
+
 ### L2 · Pure computation
 
 **`nutrition/nutrients`** — *"Micronutrient maths: convert a quantity to grams, sum a recipe's
@@ -179,6 +246,48 @@ micros, report coverage against a daily reference."*
 **`nutrition/grocery`, `presentation/streak`** — *"Aisle categorisation"* and *"local-day streak
 arithmetic."* Public: `groupByAisle`, `aisleFor`, `AISLE_ORDER`, `Aisle`; `currentStreak`,
 `isoDay`, `prevDay`. Invariant: streaks key on the **local** day, never UTC.
+
+#### The maths must be exact — milestone A7 *(owner, 2026-09-19)*
+
+> "This part has to be one of the most crucial features. Since it's pure mathematics, we can make it
+> work well … really focus on this one and its automation, even when including expansion of
+> ingredients and recipes database. This has to work perfectly."
+
+Agreed, and the reason is the product claim itself: every number the app shows is computed here,
+and pure functions are the one place where "perfectly" is actually achievable — they can be proven,
+not just spot-checked. **Measured state on 2026-10-03:**
+
+| What | Today | The gap |
+|---|---|---|
+| `check:recipes` (every ingredient weighable, plausible meals, Atwater) | **passes** — 501 recipes, worst Atwater miss 15% | **nothing runs it automatically**: not `ship.mjs`, not CI. A data change can ship without it |
+| `deriveMacros` — the function every macro in the app comes from | **0 unit tests** (covered only indirectly by `check:recipes`) | no direct proof of the arithmetic: quantity scaling, division by servings, rounding |
+| `deriveMacros` with an unknown ingredient | silently **skips** it (`if (!per \|\| !grams) continue`) | safe today only because `check:recipes` forbids unknowns; the function itself does not refuse |
+| `gramsFor`, `microsForIngredients`, `computeTargets`, `haystackBlocked` | tested in `test:engine` (14 / 10 / 6 / 21 mentions) | example-based, not property-based |
+| `wordMatches` | 1 test mention | the matcher every allergen check rests on |
+| the USDA table's own consistency | not checked | an entry whose own kcal disagrees with its 4/4/9 would pass every gate |
+| Atwater tolerance | 20% | loose enough to hide a wrong quantity |
+
+**The A7 programme — what "works perfectly, automatically" means in checkable terms:**
+
+1. **Properties, not examples.** For every L2 function, the laws it must obey, asserted over the
+   whole library and over random inputs: macros scale **linearly** with quantity (2× the ingredient
+   = 2× its contribution); dividing by servings and multiplying back agrees within rounding; unit
+   conversion round-trips (`1 cup` = `16 tbsp` = `48 tsp` in grams); `bmr` reproduces the published
+   Mifflin-St Jeor worked examples exactly; the calorie floor always holds; an allergen matches in
+   both directions and never matches a substring of a different word (`egg` / `eggplant`).
+2. **Every table entry checks itself.** Each of the 182 (soon 400) USDA entries: macros within
+   physical bounds (protein + carbs + fat ≤ 100 g per 100 g), its kcal consistent with its own
+   4/4/9, every unit any recipe uses has a weight.
+3. **Refuse, never skip.** `deriveMacros` reports an unknown ingredient instead of silently
+   contributing zero, so the guarantee lives in the function and not only in a separate gate.
+4. **It runs without anyone remembering to run it.** `check:recipes` (and `check:ingredients` from
+   A5) join the `ship.mjs` gate whenever `src/lib` or the data changes, and the GitHub workflow — so
+   **adding an ingredient or a recipe is verified automatically, every time**, which is the part that
+   makes "expand by a lot" safe.
+5. **Tighten Atwater** to the tightest tolerance the measured library passes, and record the number.
+
+**Where A7 sits in the order:** after D5 (ingredient identity — the property tests key on ids) and
+before any library expansion. The schedule in `01-…md` carries it as **D5b**.
 
 ### L3 · Plan engine — the split (see §5)
 
@@ -234,6 +343,35 @@ computes, it never writes.
   `Nutrient`, `Scope`, `verbToOperation`, `PrimitiveOpSchema` — **22 names, none imported anywhere.**
 - **Invariants:** every write reaches the engine through `applyOperations`; this module adds no
   arithmetic of its own.
+
+**The vocabulary will grow — milestone C4** *(owner, 2026-09-19: "we will definitely need to expand
+more on the primitives").* The model may emit 17 primitives plus any raw engine operation. Since
+Track E, the **buttons can do things the assistant cannot say** — which is backwards for a product
+whose pitch is "edit your week by chat". The gaps, found by comparing `actions.ts` against
+`PrimitiveOpSchema`:
+
+| A person can… | by hand (Track E) | by chat today |
+|---|---|---|
+| move a meal to another day | drag, or `M` | no — would need two swaps with exact dish names |
+| fix every short day at once | "Fix my week" | no — one `rebalance_day` per day |
+| skip a meal | — | no engine operation exists |
+| cap tonight's cook time ("20 minutes tonight") | — | only as a standing constraint on every meal |
+| put a saved or imported recipe in a slot | Explore → add to plan | partly — `swap` needs the exact name |
+| say what is already in the cupboard | — | no engine operation exists |
+
+**The rule for adding one, so the vocabulary grows without breaking the two-layer split:** a new
+primitive is a *thin mapping onto an engine operation*; if the engine has no such operation, the
+operation is built and tested in `test:engine` **first**, in its own commit. Every addition gets
+hard-case eval rows, and a read-only one joins `reply.READ_ONLY_TOOLS`. **It changes the contract
+the models lane evaluates against**, so it is announced to them before it lands. C4 comes **after**
+Track A (owner comment 1) and after C2 (safety).
+
+**Which model runs it — not this document's call.** The owner's question on the same comment —
+the strongest cloud model that is still fast enough for a beta, and whether a 128 GB machine is the
+answer — is the **models lane's** mandate (`docs/parallel/lane-models.md`): it is measuring quality
+*and* latency on free NVIDIA NIM models now, against the 84% `gpt-oss-20b` baseline. The question
+was forwarded to it verbatim on 2026-10-03. The constraint this side holds: whatever model wins
+arrives through `ModelFn`, so the choice is a provider change, never a code change here.
 
 **`assistant/read-surface`** (`agentTools.ts`) — *"Seven pure lookups the MODEL calls and the user
 never sees."*
@@ -327,6 +465,35 @@ tile; **an image appears only on the dish it depicts.**
 
 ## 5. The reorganisation proposal
 
+### Modularise first — the owner's ruling, and where it actually stands *(2026-09-19, read 2026-10-03)*
+
+> "Before starting working on all this, we should make sure everything is already modularised and we
+> start building on that architecture, following its rules and structure. If this isn't done
+> already, we should spend a good amount of time doing it."
+
+**It is not done. Measured 2026-10-03:** there is **no `index.ts` barrel anywhere in `src/`**;
+`recipeDb.ts` is **11,061 lines** (it was 10,850 when this map was written — Track E added ~210);
+none of the three phases below has started. And the honest part: **Track E (2026-10-02) was built on
+the old structure before this comment was read.** Nothing of it needs undoing — its modules
+(`actions`, `commands`, `previewOperations`, `swapCandidates`) are already in this map, and Track E
+kept the two-layer rule — but it was out of order, and it is the last thing that will be.
+
+**What changes because of this comment:**
+
+1. **Track A is a gate, not a lane.** No feature work (Tracks B, C, E) starts until Track A is
+   finished: D1 the gate → D2–D3 split `recipeDb` → D4 the payload boundary → D5 ingredient identity
+   → **D5a (A6) every module behind its barrel** → **D5b (A7) the maths proven exact**. Fixes to
+   broken things are allowed; new features wait.
+2. **Phase 3 (the folders) is committed, not optional.** Below it says Phase 3 is "worth doing only
+   because it is cheap". The owner asked for the architecture to be *built on*, and a structure you
+   can only see by reading this document is not one anyone builds on. It becomes milestone **A6**,
+   done together with Phase 1, and the gate's rule 2 (barrels only) switches from reporting to failing.
+3. **Files owned by the other lanes move only with their agreement.** `storage.ts`, `savedStore.ts`
+   and `account/**` are the accounts lane's; `ai.ts`, `promptV2.ts` and `agentLoop.ts` are run daily
+   by the models lane. Moving a file another agent is editing is how work gets lost in a rebase, so
+   A6 is announced in `lane-v1.md` first, each owner moves (or approves moving) their own files, and
+   the old path keeps a one-line re-export until every lane has rebased past it.
+
 ### Phase 1 — seal, without moving anything *(low risk, do first)*
 
 Add an `index.ts` per module folder, move the ~60 unconsumed names off the public surface, delete
@@ -334,7 +501,8 @@ Add an `index.ts` per module folder, move the ~60 unconsumed names off the publi
 
 ### Phase 2 — split `recipeDb.ts` *(the big one)*
 
-It is 10,850 lines and three unrelated jobs sharing a file:
+It is 11,061 lines (10,850 when measured on 2026-09-19 — the line ranges below are from that
+day and have drifted by ~210 lines since) and three unrelated jobs sharing a file:
 
 | Lines | Share | What it is | Becomes |
 |---|---|---|---|
@@ -360,10 +528,13 @@ src/persistence/   storage, saved-store
 src/presentation/  feed, imagery, batch-grocery, streak, week-stats
 ```
 
-**Be honest about the value split:** Phases 1 and 2 deliver nearly all of it — enforceable contracts
-and a file you can hold in your head. Phase 3 is navigation, and it is worth doing *only* because it
-is cheap when done mechanically with `tsc` as the gate. **It must not be attempted in the same
-commit as a behaviour change.**
+**The value split, and why Phase 3 is done anyway:** Phases 1 and 2 deliver most of the
+*enforcement* — sealed contracts and a file you can hold in your head. This section used to say
+Phase 3 was worth doing "only because it is cheap". **The owner's ruling (top of this section)
+overrides that:** the point is to build *on* the architecture, and a structure visible only in a
+document is not one anyone builds on. So Phase 3 is milestone **A6**, done with Phase 1, `tsc` +
+an identical `test:engine` as its gate, coordinated with the other lanes. **It must not be attempted
+in the same commit as a behaviour change.**
 
 ---
 
