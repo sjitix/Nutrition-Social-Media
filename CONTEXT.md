@@ -97,7 +97,7 @@ onto main) and `models-exp` (experiments in v1-owned files; never merged without
 
 **C2 pre-scan (safety, pulled forward):** `src/lib/safety.ts` `redFlag` runs on the user's RAW
 message in both assistant routes before any model AND before demo mode; `symptomNote` shares it.
-If not on `origin/main`, its gate failed — check `git log`. **Owner decision #8** is open (which way
+**LANDED `0152d9a`, test:engine 722/0** (42 new red-flag checks). **Owner decision #8** is open (which way
 it errs on 5 food lines; whether to add eating-disorder/hopelessness phrasings — `01-…md` §5).
 **`test:api` has 18 new pre-scan checks NOT yet run as a suite** (LM Studio was busy with the models
 lane; the same checks passed as a direct probe) — run `npm run test:api` when LM Studio is free.
@@ -118,7 +118,7 @@ barrel. A 105-point fingerprint identical before/after. **New engine code goes i
 `check:boundaries` rule 2 now enforces the `plan/` index.
 
 **State:** `main` pushed (`5cab547` + docs). `check:boundaries` passes (0 new, **9 known debts**) ·
-`test:engine` **680/0** · `test:ui` **51/0** · `test:api` **60/0** · `tsc` clean. Live lane status:
+`test:engine` **722/0** · `test:ui` **51/0** · `test:api` 60/0 last full run (18 new pre-scan checks not yet run as a suite) · `tsc` clean. Live lane status:
 `docs/parallel/lane-v1.md`. **Dev server: UP on :3000** (pid 800) — stop it before any `npm run build`.
 
 #### 0. READ THIS FIRST — the owner's ruling, found two weeks late
