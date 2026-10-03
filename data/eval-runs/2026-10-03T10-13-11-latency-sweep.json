@@ -1,0 +1,23 @@
+{
+  "ranAt": "2026-10-03T10:13:11.868Z",
+  "endpoint": "http://localhost:1234/v1",
+  "probes": 3,
+  "timeoutS": 300,
+  "system": "You are NutriFlow's assistant — a warm, sharp personal nutritionist. The user has a weekly meal plan (~2000 kcal, 150 g protein, 3 meals/day). Reply in 2-3 friendly sentences.",
+  "user": "i've been really tired lately and i think i want to eat more vegetarian, but i don't want to lose protein. what would you change in my week?",
+  "results": [
+    {
+      "model": "qwen/qwen3-30b-a3b-2507",
+      "reachable": true,
+      "okCalls": 3,
+      "calls": 3,
+      "medianTotalS": 8.490353500000012,
+      "bestTotalS": 6.481027700000006,
+      "medianOutTokens": 86,
+      "reasoning": false,
+      "lastError": null,
+      "lastStatus": 200,
+      "sample": "Totally get it—energy slumps can be linked to protein and iron balance! Let’s swap in more plant-based protein powerhouses like lentils, chickpeas, tofu, tempeh, and edamame across your meals. I’ll tweak your plan to kee"
+    }
+  ]
+}

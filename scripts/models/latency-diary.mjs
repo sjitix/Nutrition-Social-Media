@@ -9,6 +9,9 @@
  * is a distribution over a day, so this records one call per model per interval and appends a line of
  * JSON each time — append-only, so it survives being killed, and a reader can compute median / p90 /
  * failure rate per hour. The request is the same realistic nutritionist prompt the sweep uses.
+ *
+ * Output cap 2000, not the sweep's 400: reasoning models (GLM-5.3, Kimi K3) think before they write,
+ * and at 400 they came back with empty content — a harness failure that would read as a model one.
  */
 import { appendFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -35,7 +38,7 @@ async function probe(model) {
     const res = await fetch(`${BASE_URL}/chat/completions`, {
       method: "POST", signal: ac.signal,
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${KEY}` },
-      body: JSON.stringify({ model, temperature: 0.3, max_tokens: 400, messages: [{ role: "system", content: SYSTEM }, { role: "user", content: USER }] }),
+      body: JSON.stringify({ model, temperature: 0.3, max_tokens: 2000, messages: [{ role: "system", content: SYSTEM }, { role: "user", content: USER }] }),
     });
     const text = await res.text();
     const seconds = (performance.now() - t0) / 1000;
