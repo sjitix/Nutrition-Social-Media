@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { applyOperations, previewOperations } from "@/lib/recipeDb";
-import { describeOperations } from "@/lib/reply";
-import type { Operation, PlanSnapshot, UserProfile, WeekPlan } from "@/lib/types";
+import { describeOperations } from "@/lib/assistant";
+import type { Operation, PlanSnapshot, UserProfile, WeekPlan } from "@/lib/core";
 
 export const maxDuration = 60;
 

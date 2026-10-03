@@ -2,8 +2,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import { buildWeek } from "../recipeDb";
-import { AssistantTurnV2Schema, AgentTurnSchema, type AssistantTurnV2 } from "../assistant/primitives";
-import { assistantV2SystemPrompt } from "../assistant/promptV2";
+import { AssistantTurnV2Schema, AgentTurnSchema, type AssistantTurnV2 } from "../assistant";
+import { assistantV2SystemPrompt } from "../assistant";
 import {
   AssistantResponseSchema,
   AssistantTurnSchema,
@@ -17,7 +17,7 @@ import {
   type Meal,
   type UserProfile,
   type WeekPlan,
-} from "../core/types";
+} from "../core";
 
 type MealType = (typeof MEAL_TYPES)[number];
 

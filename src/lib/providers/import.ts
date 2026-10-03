@@ -13,7 +13,7 @@
  */
 
 // The shape and the pure converter live in core/imported (D5a); re-exported so callers are unchanged.
-import { importedToMeal, type ImportedRecipe } from "../core/imported";
+import { importedToMeal, type ImportedRecipe } from "../core/client";
 export { importedToMeal, type ImportedRecipe };
 
 /**

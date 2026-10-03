@@ -684,8 +684,22 @@ models lane agreed first; the accounts lane's `storage.ts`, `savedStore.ts` and 
 until they answer (asked in lane-v1.md). Gates: `tsc`, `check:boundaries` (same 6 debts,
 `providers/` now server-only as a folder), a 139-hash fingerprint of every module's export surface
 and the engine's behaviour (identical), and a production build (route sizes within 1 kB of HEAD's).
-**Not yet:** the `index.ts` barrels and rule 2 enforcing (part 3, with the client-safe split §6
-requires), the three debts scheduled here (part 2), and removing the shims (when every lane has moved).
+**Part 2 DONE** (`cc38524`): the micronutrient vocabulary → `core/micros.ts`, the imported-recipe shape and
+converter → `core/imported.ts`; three debts paid. **Part 3 DONE** (2026-10-03): every folder has an
+`index.ts` carrying only the names someone outside it uses (computed from the code, plus the models
+lane's list), and the folders the browser uses also have a **`client.ts`** — `core/client` (no zod),
+`nutrition/client` (no USDA table or ingredient data), `presentation/client` (no engine). 111 imports
+were rewritten to the barrels; nothing in `src/` reaches past one, and **rule 2 now passes with no
+exemption except the D5a re-export shims** (recognised by exact shape; a look-alike that adds code is
+caught — both in the gate's self-test, now 14/0). **Measured, and the reason `package.json` declares
+`"sideEffects": ["*.css"]`:** the barrels alone cost every `/sage` route 3–7 kB of first-load JS
+(Explore 132 → 139 kB), because without that declaration webpack keeps every module a barrel touches.
+With it, every `/sage` route is back to its exact pre-barrel size and `/plan` drops 207 → 186 kB. The
+only bare side-effect import in `src/` is `globals.css`, and every listener in `src/lib` is registered
+inside a function; a module that ever needs to run on import must be added to that list.
+**Still open:** removing the shims (when the models lane, which will import the barrels, and the
+accounts lane have moved), the accounts lane's files into `persistence/` (asked), and the last two
+layer/payload debts (the assistant's find_recipes through the feed; `/plan`'s library import).
 
 **The value split, and why Phase 3 is done anyway:** Phases 1 and 2 deliver most of the
 *enforcement* — sealed contracts and a file you can hold in your head. This section used to say

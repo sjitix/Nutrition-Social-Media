@@ -34,10 +34,10 @@ import {
   type DietTag,
   type Recipe,
 } from "../recipeDb";
-import { FEED_RECIPES, filterFeed, sortFeed, type FeedSort } from "../presentation/feed";
-import { microsForIngredients, DAILY_REFERENCE, MICRO_KEYS, MICRO_LABEL, MICRO_UNIT } from "../nutrition/nutrients";
+import { FEED_RECIPES, filterFeed, sortFeed, type FeedSort } from "../presentation";
+import { microsForIngredients, DAILY_REFERENCE, MICRO_KEYS, MICRO_LABEL, MICRO_UNIT } from "../nutrition";
 import { applyPrimitives, type PrimitiveOp } from "./primitives";
-import type { DayPlan, Meal, UserProfile, WeekPlan } from "../core/types";
+import type { DayPlan, Meal, UserProfile, WeekPlan } from "../core";
 
 /** Everything the tools may read. Passed in, never fetched — see rule 1. */
 export interface AgentContext {

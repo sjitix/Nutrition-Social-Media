@@ -15,7 +15,7 @@ import {
   type FeedMealType,
   type FeedDiet,
   type FeedSort,
-} from "@/lib/feedFilter";
+} from "@/lib/presentation/client";
 
 /**
  * The live library, in the boards' visual language.

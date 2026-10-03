@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useRef } from "react";
-import type { FeedItem } from "@/lib/feedFilter";
+import type { FeedItem } from "@/lib/presentation/client";
 
 /**
  * The full recipe: everything the library holds about one dish.

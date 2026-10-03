@@ -3,7 +3,7 @@
 import { loadBatchPlan, loadPlan, loadProfile, saveBatchPlan, savePlan, saveProfile } from "@/lib/storage";
 import { notifyPlanChanged } from "./myPlan";
 import { summariseWeek, type WeekStats } from "./weekStats";
-import type { DayPlan, Meal, Operation, PlanSnapshot, UserProfile, WeekPlan } from "@/lib/types";
+import type { DayPlan, Meal, Operation, PlanSnapshot, UserProfile, WeekPlan } from "@/lib/core";
 
 /**
  * The ONE path every direct action takes — tap a meal, drag it, resize it, log what you really ate.

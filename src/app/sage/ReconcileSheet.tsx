@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Sheet } from "./Sheet";
 import { ActionError, previewOperation, runOperation, type ActionResult, type PreviewResult } from "./actions";
-import type { DayPlan, Operation } from "@/lib/types";
+import type { DayPlan, Operation } from "@/lib/core";
 
 /**
  * "Here is what that would do to your day. Do you still want it?"

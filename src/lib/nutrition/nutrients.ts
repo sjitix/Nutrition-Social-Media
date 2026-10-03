@@ -11,15 +11,15 @@
  * unmapped ingredient contributes nothing, so callers can refuse to show a number they'd be
  * guessing at.
  */
-import { NUTRIENT_TABLE, type Per100g } from "../data/nutrientTable.generated";
+import { NUTRIENT_TABLE, type Per100g } from "../data";
 // Unit conversion lives in ./units (A4): it needs only the unit weights, and the browser's grocery
 // list should not download this module's USDA table to add up grams. Re-exported, so every caller
 // that imports gramsFor from here is unchanged; client code imports it from ./units directly.
 import { gramsFor } from "./units";
-import { tableKey } from "../data/ingredients";
+import { tableKey } from "../data";
 // The vocabulary (which nutrients, their names and units) is a contract and lives in core/ (D5a);
 // re-exported here so every caller that imports it from nutrients is unchanged.
-import { MICRO_KEYS, MICRO_LABEL, MICRO_UNIT, type MicroKey, type Micros } from "../core/micros";
+import { MICRO_KEYS, MICRO_LABEL, MICRO_UNIT, type MicroKey, type Micros } from "../core/client";
 export { gramsFor, MICRO_KEYS, MICRO_LABEL, MICRO_UNIT, type MicroKey, type Micros };
 
 export const emptyMicros = (): Micros =>

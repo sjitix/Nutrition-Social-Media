@@ -1,4 +1,4 @@
-import type { Operation } from "../core/types";
+import type { Operation } from "../core";
 
 /**
  * How a turn's final reply and plan-changed flag are assembled.

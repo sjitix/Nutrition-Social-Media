@@ -16,7 +16,7 @@
  * powder passed a milk allergy, and a pizza base passed a coeliac. Each list now names the foods
  * the sweep found missing; scripts/test-engine.mts holds the cases.
  */
-import { INGREDIENTS } from "../data/ingredients";
+import { INGREDIENTS } from "../data";
 
 // Prepared/compound foods hide allergens their NAME doesn't spell out: pesto carries tree nuts
 // (pine/cashew) AND parmesan; hummus carries tahini (sesame); Caesar dressing carries anchovy (fish)

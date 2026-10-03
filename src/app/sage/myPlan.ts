@@ -1,7 +1,7 @@
 import { loadPlan, loadProfile, savePlan, saveProfile, loadBatchPlan, saveBatchPlan } from "@/lib/storage";
-import { groupByAisle, type Aisle } from "@/lib/grocery";
+import { groupByAisle, type Aisle } from "@/lib/nutrition/client";
 import { summariseWeek, type WeekStats } from "./weekStats";
-import type { UserProfile, WeekPlan } from "@/lib/types";
+import type { UserProfile, WeekPlan } from "@/lib/core";
 
 /**
  * The bridge between the shared /sage demo and a REAL person's week.

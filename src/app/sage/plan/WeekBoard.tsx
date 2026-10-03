@@ -3,18 +3,18 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { gradientForMeal, imageForMeal } from "@/lib/recipes";
+import { gradientForMeal, imageForMeal } from "@/lib/presentation/client";
 import { RefreshIcon } from "@/components/icons";
 // From the client-safe slots module, NOT ../demo: demo.ts builds the fixture week with the engine,
 // and importing even four words from it shipped the whole recipe library on this route (A4).
-import { SLOT_LABELS as SLOTS } from "@/lib/slots";
+import { SLOT_LABELS as SLOTS } from "@/lib/core/client";
 import { loadMyWeek, generateMyWeek, PLAN_CHANGED_EVENT } from "../myPlan";
 import type { WeekStats } from "../weekStats";
 import { MealSheet } from "../MealSheet";
 import { ReconcileSheet } from "../ReconcileSheet";
 import { fixMyWeek, movePair, undoLast, canUndo, lastChangeLabel, ActionError } from "../actions";
 import { CommandPalette } from "../CommandPalette";
-import type { DayPlan, Meal, Operation, UserProfile, WeekPlan } from "@/lib/types";
+import type { DayPlan, Meal, Operation, UserProfile, WeekPlan } from "@/lib/core";
 
 interface Targets {
   targetCalories: number;
