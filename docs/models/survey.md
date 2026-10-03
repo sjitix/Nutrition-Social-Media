@@ -289,6 +289,20 @@ measured as pure upstream time:
 | reasoning on (today's default) | 11/14 | 0 | ~2 | 22.7 / 73 |
 | **reasoning off + guard + fast finish** | **12/14** | **0** | **1.39** | **5.2 / 22** |
 
+The loop eval agrees (`2026-10-03T16-16-14-loop-…`, 26 scenarios):
+
+| 550B | passed | model calls per message | median / p90 / max s per message |
+|---|---|---|---|
+| reasoning on | 23/25 (1 infra) | ~1.9 | 24.8 / 58 / 90 |
+| **reasoning off + guard + fast finish** | **23/26** | **1.31** | **8.4 / 19.9 / 25.1** |
+
+Same quality, ~3× faster at the median, p90 and worst case. The three misses are the long-standing ones:
+- a scripted allergy the model never excluded;
+- `eat-out-future`, reserve vs resize;
+- `rate`, which asks "which days?".
+The last two are being tested as a prompt-wording change. **Proposed to v1:** reasoning off as an env-level
+request setting (`LOCAL_AI_EXTRA_BODY`), and fast finish inside `runAgent`.
+
 About 4× faster per turn with no loss of quality.
 - **The guard earned its place.** On "wednesday too" the model again claimed "Wednesday now has 2000
   kcal…" without acting. The guard nudged it, and it then sent the vegetarian constrain for Wednesday.
