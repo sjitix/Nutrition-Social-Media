@@ -244,6 +244,19 @@ reasoning off and skipping the loop's wasted last call (Round 5, below).
 
 ## Round 5 — making the big model faster (2026-10-03, in progress)
 
+> **CORRECTION PENDING (adversarial review, 2026-10-03 evening).** A 5-reviewer review of the eval harness
+> found that the speed claims below compare unlike things:
+> - **Different clocks.** The reasoning-ON arms were timed on the wall clock, direct to NVIDIA, including the
+>   adapter's retry back-off on 429s. The OFF arms were timed as pure upstream seconds through pace-proxy.
+> - **Different code.** The engine fixes, D5b and the false-claim guard landed between the arms.
+> - **No clean fast-finish-off arm** on the same code.
+> - **An allergy difference.** The scripted-allergy scenario failed 0/4 with reasoning off, against 1/2 with
+>   it on.
+> So "~3–4× faster with no loss" is **not established**. A fair re-measurement is running: one commit,
+> wall clock for every arm, reasoning on vs off vs off + fast finish (`fair: …` labels in `data/eval-runs`).
+> The review also found three act checks a do-nothing model passed, and fixed them (`aa8c83c`). Older loop
+> scores carry up to 2 free passes, and older conversation scores 1.
+
 The owner asked how developers make a big model faster. `scripts/models/latency-anatomy.mts` streamed 16
 real calls (the agent prompt, ~3,000 tokens) to the 550B and split each into its parts
 (`2026-10-03T13-07-25-anatomy-…ultra-550b.json`):
