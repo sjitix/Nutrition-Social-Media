@@ -691,10 +691,10 @@ until its entry is deleted, so the list never claims a problem that is gone.
 
 | # | Debt | Owed to |
 |---|---|---|
-| 1 | Explore → `feed.ts` → `recipeDb` (the whole library ships) | A4 |
+| 1 | ~~Explore → `feed.ts` → `recipeDb` (the whole library ships)~~ — **PAID 2026-10-03**: `feed.ts` split into the client-safe `feedFilter.ts` and a server `feed.ts`; the cards arrive as a prop. `/sage/explore` **189 → 114 kB** first-load JS (the HTML grew 32 → 80 kB gz — net ≈ −26 kB) | A4 |
 | 2 | `/plan` → `feed.ts` → `recipeDb` | A4 / B2 |
 | 3 | ~~`WeekBoard` → `../demo` (for `SLOTS`) → `recipeDb`~~ — **PAID 2026-10-03**: `SLOT_LABELS` moved to `@/lib/slots`; `/sage/plan` first-load JS **226 → 129 kB** | A4 |
-| 4 | **`GroceriesClient` → `batchGrocery` → `nutrients` → the USDA table** — *new, found on the first run*. **Verified real by build measurement** (`fdcId` in the route's chunks; 45 kB raw / 11 kB gz), not a module-granularity false positive | A4 |
+| 4 | ~~**`GroceriesClient` → `batchGrocery` → `nutrients` → the USDA table**~~ — *new, found on the first run*; **verified real by build measurement** (`fdcId` in the route's chunks; 45 kB raw / 11 kB gz), then **PAID 2026-10-03**: the generator emits the unit weights into their own `unitGrams.generated.ts`, `gramsFor` lives in `units.ts`, `batchGrocery` imports that. `/sage/groceries` **123 → 113 kB** | A4 |
 | 5 | **`/plan` → `import.ts`** (a pure converter living inside the network adapter) — *new* | B2 / A6 |
 | 6 | **`agentTools` (L4) → `feed` (L6)** — searching the library is engine work, the query moves down — *new* | A6 |
 | 7 | **`conditions`, `symptoms` (L1) → `nutrients` (L2)** — the micronutrient vocabulary is a contract and moves to L0 — *new* | A6 |

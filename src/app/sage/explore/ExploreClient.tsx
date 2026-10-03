@@ -4,8 +4,10 @@ import Image from "next/image";
 import { memo, useCallback, useDeferredValue, useMemo, useState } from "react";
 import { useSaved } from "@/lib/savedStore";
 import { RecipeModal } from "./RecipeModal";
+// From the client-safe half of the feed, NOT @/lib/feed: that module builds the cards from the engine,
+// and importing it here shipped the whole recipe library to every visitor (V1 A4). The cards arrive as a
+// prop from the server page instead.
 import {
-  FEED_RECIPES,
   filterFeed,
   sortFeed,
   HIGH_PROTEIN_G,
@@ -13,7 +15,7 @@ import {
   type FeedMealType,
   type FeedDiet,
   type FeedSort,
-} from "@/lib/feed";
+} from "@/lib/feedFilter";
 
 /**
  * The live library, in the boards' visual language.
@@ -55,7 +57,7 @@ const SORTS: [FeedSort, string][] = [
   ["time", "Quickest"],
 ];
 
-export function ExploreClient() {
+export function ExploreClient({ items }: { items: FeedItem[] }) {
   const [mealType, setMealType] = useState<FeedMealType>("all");
   const [diet, setDiet] = useState<FeedDiet>("all");
   const [highProtein, setHighProtein] = useState(false);
@@ -74,8 +76,9 @@ export function ExploreClient() {
   // `saved` deliberately is NOT a dependency: it changes on every save, and recomputing the whole
   // library because one card was bookmarked is work for nothing.
   const base = useMemo(
-    () => sortFeed(filterFeed(FEED_RECIPES, { mealType, diet, highProtein, maxTime: quick ? 20 : null, query: deferredQuery }), sort),
-    [mealType, diet, highProtein, quick, deferredQuery, sort],
+    () => sortFeed(filterFeed(items, { mealType, diet, highProtein, maxTime: quick ? 20 : null, query: deferredQuery }), sort),
+    // `items` is the server's prop: the same reference on every render, so it costs no recomputes.
+    [items, mealType, diet, highProtein, quick, deferredQuery, sort],
   );
 
   // "Saved" is applied HERE rather than inside filterFeed: that function is pure and unit-tested
@@ -109,7 +112,7 @@ export function ExploreClient() {
           <input
             value={query}
             onChange={(e) => change(setQuery)(e.target.value)}
-            placeholder={`Search ${FEED_RECIPES.length} recipes by name or ingredient…`}
+            placeholder={`Search ${items.length} recipes by name or ingredient…`}
             className="w-full bg-transparent py-1.5 text-[13.5px] outline-none placeholder:text-mut"
             aria-label="Search recipes"
           />
@@ -166,9 +169,9 @@ export function ExploreClient() {
       </div>
 
       <p className="mt-5 flex flex-wrap items-baseline gap-x-2 text-[12px] tabular-nums text-mut">
-        {results.length === FEED_RECIPES.length
+        {results.length === items.length
           ? `${results.length} recipes`
-          : `${results.length} of ${FEED_RECIPES.length} recipes`}
+          : `${results.length} of ${items.length} recipes`}
         {onlySaved && ` you saved`}
         {loaded && saved.size > 0 && (
           <span className="text-[11.5px]">

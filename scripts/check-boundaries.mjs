@@ -43,6 +43,9 @@ const LIB_LAYERS = {
   "types.ts": 0, "slots.ts": 0,
   "nutrientTable.generated.ts": 1, "substitutions.ts": 1, "symptoms.ts": 1, "conditions.ts": 1,
   "data/": 1, // the recipe seeds and their vocabulary (A2, 2026-10-03); imports nothing
+  "unitGrams.generated.ts": 1, // grams per unit, generated apart from the USDA table (A4)
+  "units.ts": 2, // gramsFor, needing only the unit weights — client-safe (A4)
+  "feedFilter.ts": 6, // the feed's card type + pure filter/sort, client-safe (A4)
   "nutrients.ts": 2, "targets.ts": 2, "exclusions.ts": 2, "grocery.ts": 2, "streak.ts": 2,
   "recipeDb.ts": 3, // since A3 a one-line barrel over plan/
   "plan/": 3, // the engine, split out of recipeDb.ts (A3, 2026-10-03); index.ts is its public surface
@@ -85,12 +88,8 @@ const KEY_PATTERN = /^nutriflow\./;
  */
 const KNOWN_DEBT = {
   // rule 4 — the browser payload (milestone A4 is exactly this list)
-  "client-server:src/app/sage/explore/ExploreClient.tsx->src/lib/recipeDb.ts":
-    "A4 (D4): Explore imports FEED_RECIPES from feed.ts, which carries the whole library. The card projection replaces it.",
   "client-server:src/app/plan/page.tsx->src/lib/recipeDb.ts":
     "A4 (D4) / B2 (D8): the legacy /plan page imports feed.ts the same way. Fixed by the card projection, or retired by the one-app decision.",
-  "client-server:src/app/sage/groceries/GroceriesClient.tsx->src/lib/nutrientTable.generated.ts":
-    "A4 (D4): found by this gate on its first run. The bulk (meal-prep) grocery list runs in the browser (it is computed from the reader's own week) and needs gramsFor, whose MODULE also holds the 80 kB USDA table. Unverified whether the bundler tree-shakes the table away (gramsFor reads only UNIT_GRAMS) — measure the route's chunks for `fdcId` before fixing. Fix if real: give the unit weights their own module.",
   "client-server:src/app/plan/page.tsx->src/lib/import.ts":
     "B2 (D8) / A6 (D5a): the legacy /plan page imports importedToMeal, a pure converter that lives inside the network adapter with the SSRF guard. Move the converter out, or retire /plan.",
   // rule 1 — layering (milestone A6 moves these pieces to the layer they belong in)

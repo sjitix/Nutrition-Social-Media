@@ -100,6 +100,13 @@ disabled) — good for showing the UI without any AI.
   header before touching it; the comments record real allergen exposures this code has caused.
 - `src/lib/targets.ts` — Mifflin-St Jeor, hydration. `src/lib/substitutions.ts`,
   `src/lib/symptoms.ts` — curated data for those tools.
+- `src/lib/units.ts` + `unitGrams.generated.ts` — `gramsFor` and the unit weights, **kept apart from
+  the USDA table** so browser code that only converts units does not download it (A4). Both generated
+  files come from `npm run build:nutrients -- --emit`.
+- `src/lib/feedFilter.ts` — the feed's card type and the pure `filterFeed`/`sortFeed`, **client-safe**.
+  `src/lib/feed.ts` builds `FEED_RECIPES` from the engine and is SERVER-only; it re-exports
+  `feedFilter`, so server code may import either. A client component imports `feedFilter` and gets its
+  cards as a prop (see `sage/explore/page.tsx`) — `check:boundaries` rule 4 fails the other way.
 - `src/lib/feed.ts` — the library as filterable cards. `filterFeed`/`sortFeed` are pure and
   tested; call them rather than writing new filter logic.
 - `src/lib/grocery.ts` — aisle categoriser, pure and tested.
