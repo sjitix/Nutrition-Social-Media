@@ -13,6 +13,9 @@
 **628 / 0**, 501 recipes, `check:recipes` green. **`CONTEXT.md`'s top block is the live cross-session
 state**; this section is the build record.
 
+**Since 2026-10-03 two agents build in parallel lanes** — v1 (main folder) and accounts (its own
+worktree). Protocol, file ownership and live status: **`docs/parallel/`**. Read it before editing.
+
 **The V1 plan now lives in `docs/v1/`** — the day-by-day milestone schedule, the module map (public
 vs private per module), the Kimi decision, and the daily worklog. Read it before picking up work.
 
@@ -1244,6 +1247,19 @@ Each of these was discovered by doing the work, and each earned its place.
     not a safe place to park work. Related: the owner's standing warning to beware of commit
     conflicts, and lesson 36 — a step that must happen gets its own invocation, close to the thing it
     belongs to.
+
+48. **A green gate is not a working app — run the thing.** The agent screen was committed with a
+    clean `tsc`, a green production build and 498 passing engine tests, and it was broken: with the
+    provider unreachable `/api/assistant-v2` returned `200` rather than `503`, because `runAgent`
+    catches the model's own failure so partial engine work survives, which quietly turned the
+    route's offline branch into dead code. The screen then presented a stopped model server as an
+    ordinary completed turn ("1 of 8 steps"), and the `503` assertion in `test:api` could never
+    execute — **it had been passing by never running.** Found in about two minutes by serving the
+    build and pointing the provider at a dead port. **Two rules: when a wrapper starts CATCHING an
+    error something upstream used to handle, check every caller that branched on that error; and
+    an integration test that only asserts inside `if (status === 503)` is not covering the 503,
+    it is covering nothing.** The fix reports `modelFailed` so callers can tell an unreachable
+    model from a finished turn, without discarding work the engine really did.
 
 ---
 

@@ -3138,6 +3138,53 @@ if (violations.size === 0) {
     const r = await runAgent({ ...base, model: p.fn });
     check("loop: a remember op marks the profile changed", r.profileChanged === true);
   }
+
+  // A MODEL THAT CANNOT BE REACHED. The loop swallows the error so that work the engine already
+  // finished survives — but it has to REPORT it, because the caller has to tell an offline
+  // provider apart from a finished turn. It could not: a stopped LM Studio came back from
+  // /api/assistant-v2 as an ordinary 200 reading "1 of 8 steps", and the 503 assertion in
+  // test:api was consequently unreachable. These pin the distinction down.
+  {
+    const dead: ModelFn = async () => {
+      throw new Error("fetch failed");
+    };
+    const r = await runAgent({ ...base, model: dead });
+    check("loop: a model that throws sets modelFailed", r.modelFailed === true);
+    check("loop: ...and changes nothing", !r.planChanged && !r.profileChanged);
+    check("loop: ...and says so rather than inventing a reply",
+      /couldn't reach|could not reach/i.test(r.reply), r.reply.slice(0, 70));
+    check("loop: ...and is not reported as giving up (that means the step cap)", r.gaveUp === false);
+  }
+
+  // The other half: the model dies AFTER the engine has already carried out a write. The change is
+  // real and must be kept, so this is not a failed run — but modelFailed still has to be true, or
+  // a half-finished turn is indistinguishable from a complete one.
+  {
+    // `resize` and not `regenerate_week`: the primitive vocabulary is swap/resize/pin/rate/log/…
+    // and has no regenerate. An unknown op is ignored by design, so the first draft of this test
+    // wrote nothing and then asserted a change had been kept — it failed, correctly, and the TEST
+    // was the thing that was wrong. `resize` bigger changes the plan deterministically, which also
+    // keeps this off the random-week dice that lesson 37 is about.
+    let calls = 0;
+    const diesAfterWriting: ModelFn = async () => {
+      calls++;
+      if (calls === 1) {
+        return turn("", [{ op: "resize", direction: "bigger", day: "Monday" } as unknown as PrimitiveOp]);
+      }
+      throw new Error("ECONNREFUSED");
+    };
+    const r = await runAgent({ ...base, model: diesAfterWriting });
+    check("loop: a model dying mid-run still reports modelFailed", r.modelFailed === true);
+    check("loop: ...but KEEPS the change the engine already made", r.planChanged === true);
+    check("loop: ...and still offers the undo snapshot for it", Boolean(r.previous));
+  }
+
+  // The ordinary path must not claim failure.
+  {
+    const p = scripted([turn("All done.")]);
+    const r = await runAgent({ ...base, model: p.fn });
+    check("loop: a clean run reports modelFailed false", r.modelFailed === false);
+  }
 }
 
 // ---------------------------------------------------------------- report

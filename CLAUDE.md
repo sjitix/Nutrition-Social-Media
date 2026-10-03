@@ -330,6 +330,13 @@ LM Studio: load model, push GPU offload to max, context >= 8192, Start Server on
   unrelated message, and force-pushing to fix attribution would have broken the other machine's
   clone (WORKPLAN lesson 47). So: **run the gate first, then stage and commit as one adjacent step.**
   Never leave work staged across a wait.
+- **Two agents work in parallel lanes — read `docs/parallel/README.md` first, every session.** The v1
+  lane works in this folder on `main`; the accounts lane works in its own git worktree
+  (`../NutriFlow-accounts/`, branch `accounts`) and ships with `ship.mjs --onto main`. Never edit a file
+  in the other lane's folder or a file the other lane owns (the ownership table is in that README);
+  keep your own lane file (`docs/parallel/lane-*.md`) current; edit only your own block of
+  `CONTEXT.md`; and message the other agent (`ListAgents` / `SendMessage`) before touching anything
+  shared. A conflict here is lesson 47 with a second author.
 - **Keep the four documents current. This is not optional, and it is not a chore to do if there is
   time left.** The owner works across many separate conversations and none of them can see the
   others. These files are the only thing carrying state between sessions. A stale one is worse than
@@ -344,7 +351,7 @@ LM Studio: load model, push GPU offload to max, context >= 8192, Start Server on
   | `CLAUDE.md` | how the repo works; standing rules | the structure, commands, routes or rules change |
   | `WORKPLAN.md` | the build record, phases, and hard-won lessons | work ships, or a lesson is learned the hard way |
   | `VISION.md` | the product north star and quality bar | a directional decision is made about what the product IS |
-  | `ASSISTANT-SCHEMA.md` | the assistant contract: the turn shape, the primitives, and (v3, at the bottom) the READ SURFACE and AGENT LOOP, both now BUILT (`agentTools.ts`, `agentLoop.ts`) and wired to `/api/assistant-v2` — no screen calls them yet | the assistant's capabilities or contract change |
+  | `ASSISTANT-SCHEMA.md` | the assistant contract: the turn shape, the primitives, and (v3, at the bottom) the READ SURFACE and AGENT LOOP, both now BUILT (`agentTools.ts`, `agentLoop.ts`) and wired to `/api/assistant-v2`, which `/sage/assistant` drives | the assistant's capabilities or contract change |
   | `STATUS.md` + `public/status.html` | the fine-tune run. **Served publicly** — it must never claim something is running when it is not | the training state changes |
   | `docs/v1/02-module-map.md` | the module contract: public vs private per module, the layer model, the invariants | **a module boundary moves — in the SAME commit that moves it** |
   | `docs/worklog/YYYY-MM-DD.md` | what was tackled that day, how much got solved, what blocked, what deferred | **every work-day, the same day** |

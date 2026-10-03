@@ -70,6 +70,15 @@ export interface AgentRunResult {
   steps: number;
   /** True when MAX_STEPS stopped it rather than the model deciding it was done. */
   gaveUp: boolean;
+  /**
+   * True when the MODEL itself could not be reached or failed, as opposed to the agent deciding it
+   * was finished. The loop swallows that error on purpose — work the engine already completed in
+   * earlier steps must not be thrown away — but swallowing it silently turned an unreachable
+   * provider into an ordinary-looking 200 response, which is how a stopped LM Studio came back to
+   * the screen as a normal turn reading "1 of 8 steps". The caller has to be able to tell the
+   * difference, so it is reported rather than left to be inferred from the reply text.
+   */
+  modelFailed: boolean;
   notes: string[];
 }
 
@@ -203,6 +212,7 @@ export async function runAgent(args: {
     transcript,
     steps,
     gaveUp,
+    modelFailed,
     notes,
   };
 }

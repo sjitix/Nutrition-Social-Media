@@ -9,6 +9,33 @@ Everything described here is committed and pushed to `main`. Nothing is only on 
 
 ## Where it left off
 
+### >>> TWO AGENTS NOW WORK IN PARALLEL — read `docs/parallel/README.md` before editing anything <<<
+
+Since 2026-10-03 the repo has two lanes, worked by two agents at the same time:
+
+- **v1 lane** — the main folder, branch `main`: the V1 schedule, the test debt, `check:boundaries`, the
+  `recipeDb` split. Its block is the one directly below this.
+- **accounts lane** — its own git worktree `../NutriFlow-accounts/` on branch `accounts`, shipping with
+  `node scripts/ship.mjs --onto main`: real accounts, a hosted database, sync, export/import,
+  delete-my-data.
+
+**Each lane writes only its own lane file** (`docs/parallel/lane-v1.md`, `lane-accounts.md`) and only
+its own block here. File ownership, the shipping rules, and how the two agents message each other are
+in `docs/parallel/README.md`.
+
+#### PARALLEL LANE — accounts (written by the accounts agent only)
+
+**2026-10-03:** lane set up. Plan and live status: `docs/parallel/lane-accounts.md`. Design in one
+line: **local-first, the account is a mirror** — `storage.ts`'s API does not change, so no screen has
+to; a sync layer underneath mirrors each storage key to one Supabase row per user (RLS). Milestones
+A1–A3 (export/import + delete-my-data, the sync seam, the SQL schema) need **no keys** and come first;
+A4+ wait on the owner's **Supabase Project URL + anon key**.
+
+One-time handoff carried through this lane: the uncommitted `modelFailed` fix an earlier session left
+in the main folder (assistant-v2 now answers 503 when the model is unreachable and nothing changed).
+It was moved out of the main folder so the v1 lane starts clean, and its WORKPLAN lesson was renumbered
+38 → 48 because 38–47 were taken.
+
 ### >>> READ THIS FIRST — 2026-10-03 (shutdown): TRACK E IS DONE. Tomorrow starts with the test debt. <<<
 
 **State:** `main` clean, **everything pushed** (`f370aa7`), `git log origin/main..HEAD` empty.
@@ -604,6 +631,16 @@ function, so there is ONE copy of "average protein this week" rather than two th
 The first real run is where prompt-shaped bugs will surface (does the model actually call
 `find_recipes` before deciding? does it stop, or burn all 8 steps?). Treat the screen as built and
 the BEHAVIOUR as untested.
+
+**One regression was found this way and fixed — it is why running the app matters.** Serving the
+production build and pointing the provider at a dead port showed `/api/assistant-v2` returning
+**200 instead of 503** when the model was unreachable: `runAgent` catches the model's failure (on
+purpose — engine work already done must not be discarded), so the route's offline branch had become
+dead code and a stopped LM Studio reached the screen as an ordinary turn reading "1 of 8 steps".
+The result now carries `modelFailed`; the route answers **503 when nothing was accomplished** and
+**200 + `modelFailed: true` when the engine had already changed something**, which the screen
+reports as an unfinished turn. Eight loop tests cover it. **Note what did not catch this: a clean
+`tsc`, a green production build, and 498 passing tests. Only starting the server did.**
 
 **2. ACCOUNTS — decided, blocked on the owner.**
 Real accounts with a hosted database (Supabase) were chosen over a local profile. **Nothing is

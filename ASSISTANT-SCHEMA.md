@@ -105,8 +105,9 @@ core, invariants, and macro math are unchanged — so `test:engine` keeps guardi
 
 **This section is no longer a proposal.** The read surface is `src/lib/agentTools.ts` and the loop
 is `src/lib/agentLoop.ts`; `/api/assistant-v2` runs it. What is described below is what the code
-does — if the two ever disagree, the code is right and this file is stale. The one part still
-unbuilt is a CLIENT: no screen calls the route yet.
+does — if the two ever disagree, the code is right and this file is stale. `/sage/assistant` is
+the client that drives it. What has NOT happened yet is a run against a real model: every turn so
+far has exercised demo mode and the failure paths.
 
 Everything above describes ONE model call that emits `{thinking, reply, operations}`. That is the
 reason-then-act turn, and it stays. What follows wraps it in a loop and gives the model eyes.
@@ -171,6 +172,14 @@ reply = composeReply(turn.reply, engine notes)
 - **One undo snapshot per user turn,** taken before the first write of that turn, not per step —
   otherwise "undo" walks back one loop iteration rather than one thing the user asked for.
 - **The transcript is the memory.** Nothing is stored between turns; the server stays stateless.
+- **A model that cannot be reached is reported, not swallowed.** The loop catches the model's own
+  failure so that work the engine already completed in earlier steps is not thrown away — but it
+  sets `modelFailed` on the result, and the caller MUST branch on it. This was learned by
+  shipping the bug: because the loop caught the error, the route's offline handling became dead
+  code and a stopped LM Studio came back as an ordinary `200` reading "1 of 8 steps". The rule the
+  route now follows: **model failed and nothing changed → `503 offline`; model failed after the
+  engine had already changed something → `200` (that work is real and is kept) carrying
+  `modelFailed: true`, so the client can say the turn did not finish.**
 
 ## Testing it with no model at all (RULE 2)
 

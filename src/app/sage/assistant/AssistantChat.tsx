@@ -45,6 +45,12 @@ interface Turn {
   steps?: number;
   maxSteps?: number;
   gaveUp?: boolean;
+  /**
+   * The model died part way through a turn the engine had already partly carried out. The changes
+   * are real and are kept, so this is not an error state — but it is not a finished turn either,
+   * and saying nothing would present it as one.
+   */
+  incomplete?: boolean;
   avgProtein?: number;
   /** Set when the turn did not reach the agent at all. */
   problem?: "no-server" | "offline" | "demo" | "error";
@@ -184,6 +190,7 @@ export default function AssistantChat({
         steps: typeof data?.steps === "number" ? data.steps : undefined,
         maxSteps: typeof data?.maxSteps === "number" ? data.maxSteps : undefined,
         gaveUp: data?.gaveUp === true,
+        incomplete: data?.modelFailed === true,
         avgProtein: summariseWeek(nextPlan).avgProtein,
         problem: data?.demo ? "demo" : undefined,
       });
@@ -244,6 +251,12 @@ export default function AssistantChat({
                   <p className="mt-4 border-t border-line pt-3 text-[11.5px] leading-relaxed text-mut">
                     Demo mode — no AI key is set on this deployment, deliberately. Your plan is
                     untouched.
+                  </p>
+                )}
+                {t.incomplete && (
+                  <p className="mt-4 border-t border-line pt-3 text-[11.5px] leading-relaxed text-mut">
+                    The assistant became unreachable part way through this one. Anything it had
+                    already changed is kept — the turn just did not finish.
                   </p>
                 )}
                 {t.gaveUp && (

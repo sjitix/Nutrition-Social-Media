@@ -108,6 +108,23 @@ export async function POST(request: Request) {
       planChanged: result.planChanged,
     });
 
+    // An unreachable provider is an OFFLINE condition and has to answer like one. `runAgent`
+    // catches the model's failure so that work the engine already finished is not thrown away —
+    // but that also means the exception never reaches the catch below, and this route quietly
+    // started returning 200 for a stopped LM Studio. The screen then showed an infrastructure
+    // failure as an ordinary turn ("1 of 8 steps"), and the 503 assertion in test:api became
+    // unreachable. So: if the model failed and NOTHING was accomplished, it is a 503, exactly as
+    // it was before the loop was wired.
+    if (result.modelFailed && !result.planChanged && !result.profileChanged) {
+      return NextResponse.json(
+        {
+          error: "The chat assistant is offline right now. You can still rate, pin and resize meals directly, or regenerate your plan — those work without it.",
+          offline: true,
+        },
+        { status: 503 },
+      );
+    }
+
     return NextResponse.json({
       reply: result.reply,
       planChanged: result.planChanged,
@@ -115,6 +132,10 @@ export async function POST(request: Request) {
       profile: result.profile,
       previous: result.previous,
       provider,
+      // The other half of the case above: the model died PART WAY through, after the engine had
+      // already changed something. That work is real and is kept, so this is a 200 — but the turn
+      // is incomplete and the client has to be able to say so.
+      modelFailed: result.modelFailed,
       // Surfaced so the client can show the work, and so "it gave up" is visible in the response
       // rather than only inferable from a vague reply.
       steps: result.steps,
