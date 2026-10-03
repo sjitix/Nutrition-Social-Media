@@ -142,7 +142,9 @@ disabled) — good for showing the UI without any AI.
   had to change. Owned by the accounts lane (`docs/parallel/`).
 - `src/lib/account/` — **accounts: local-first, the account is a mirror.** `portable.ts` (the export
   file), `validate.ts` (ONE zod-free check per store, for files AND rows pulled from the account),
-  `merge.ts` (the pure sync rules — key-order-blind, because Postgres jsonb reorders keys), `sync.ts`
+  `merge.ts` (the pure sync rules — key-order-blind, because Postgres jsonb reorders keys; and every
+  write is stamped later than what it replaces, `nextStamp`, because device clocks disagree by hours —
+  lesson 57), `sync.ts`
   (`syncNow` + the debounced mirror, both ends injected), `supabase.ts` (raw REST to Supabase — **no
   SDK**; sign-in is **PKCE**, never tokens from a URL), `client.ts` (browser glue: the session, the one
   running sync pinned to its account, the account-switch guard, status). With no

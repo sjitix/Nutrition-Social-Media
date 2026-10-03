@@ -25,9 +25,16 @@
  *     only replaces a value the account already had loses nothing, and takes no backup: otherwise every
  *     routine change from another device would push the important backups out.
  *
- * Clock skew between devices can mis-order two edits made within seconds of each other on different
- * machines. For one person's meal plan that is an acceptable trade for a model this simple; the
- * backup in rule 5 is the net under it.
+ * CLOCKS. Write times come from each device's own clock, and clocks disagree: by hours after a dual
+ * boot, and by anything on a phone whose time was set by hand. Compared raw, that LOST EDITS SILENTLY.
+ * A phone two hours slow stamped an edit made after it synced as older than the copy it had just
+ * pulled. The next sync pulled that copy back over the edit, with no backup, because the edit also
+ * looked older than the last agreement. A device a day fast locked a store against every other device
+ * for a day. Both were reproduced against this engine.
+ * So no write is ever stamped earlier than the value it replaces (`nextStamp`, the logical-clock rule):
+ * an edit made after a device synced beats what it synced, whatever any clock says. Raw clocks now
+ * decide only true conflicts, where two devices edited before either saw the other's write, and there
+ * rule 5's backup is the net.
  */
 import type { StoreName } from "../storage";
 
@@ -80,6 +87,16 @@ const same = (a: unknown, b: unknown) => canonical(a) === canonical(b);
 const isEmpty = (v: unknown) => v === null || v === undefined;
 
 /**
+ * The write time for a new write that replaces a value written at `prev`: `now`, or just after `prev`
+ * if `prev` is not earlier. Every write path stamps through this (storage.ts `write`, the imports
+ * history, and the merges below), so a write is always LATER than what it replaces, on any device,
+ * whatever its clock says. See CLOCKS above.
+ */
+export function nextStamp(now: number, prev: number | undefined): number {
+  return prev !== undefined && prev >= now ? prev + 1 : now;
+}
+
+/**
  * @param synced For each store, the write time this device and the account last agreed on. A local
  *   value written after that (or never synced at all) is an edit the account has not seen.
  */
@@ -112,10 +129,13 @@ export function planSync(
 
     if (UNION_STORES.has(name) && !isEmpty(l.value) && !isEmpty(r.value)) {
       const merged = unionStore(name, l.value, r.value);
-      // If the union is just one side, it is a plain push or pull — no need to write both.
+      // If the account already holds the union, it is a plain pull. If this device does AND its copy
+      // is the newer write, a plain push. Anything else is written to BOTH sides, stamped later than
+      // either. A push carrying an older stamp than the account's would be skipped by the server on
+      // every sync, and this store would never settle (reproduced with a device whose clock ran fast).
       if (same(merged, r.value)) actions.push({ name, kind: "pull", value: r.value, at: r.at });
-      else if (same(merged, l.value)) actions.push({ name, kind: "push", value: l.value, at: l.at });
-      else actions.push({ name, kind: "merge", value: merged, at: now });
+      else if (same(merged, l.value) && l.at > r.at) actions.push({ name, kind: "push", value: l.value, at: l.at });
+      else actions.push({ name, kind: "merge", value: merged, at: nextStamp(now, Math.max(l.at, r.at)) });
       continue;
     }
 

@@ -66,6 +66,37 @@ const MUTATIONS = [
     from: "  return new TextEncoder().encode(JSON.stringify(value)).length;",
     to: "  return JSON.stringify(value).length;",
   },
+  // The clock rule (lesson 57): every stamp another device compares is later than what it replaces.
+  {
+    name: "a local write is stamped by the raw clock again (earlier than the value it replaces)",
+    file: "src/lib/storage.ts",
+    from: "  const at = opts.at ?? nextStamp(Date.now(), loadStoreMeta()[name]);",
+    to: "  const at = opts.at ?? Date.now();",
+  },
+  {
+    name: "a union is stamped by the raw clock again",
+    file: "src/lib/account/merge.ts",
+    from: "at: nextStamp(now, Math.max(l.at, r.at)) });",
+    to: "at: now });",
+  },
+  {
+    name: "a device holding the whole union pushes it under its own older stamp",
+    file: "src/lib/account/merge.ts",
+    from: "else if (same(merged, l.value) && l.at > r.at) actions.push(",
+    to: "else if (same(merged, l.value)) actions.push(",
+  },
+  {
+    name: "an import is stamped by the raw clock again",
+    file: "src/lib/storage.ts",
+    from: "importedAt: nextStamp(Date.now(), newest) }",
+    to: "importedAt: Date.now() }",
+  },
+  {
+    name: "\"Put it back\" is stamped by the raw clock again",
+    file: "src/lib/storage.ts",
+    from: "      const at = nextStamp(Date.now(), loadStoreMeta()[n]);",
+    to: "      const at = Date.now();",
+  },
 ];
 
 const root = process.argv[2] ?? process.cwd();

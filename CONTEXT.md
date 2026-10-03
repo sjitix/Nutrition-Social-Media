@@ -51,10 +51,19 @@ Supabase row per user under RLS.
   in. Its first run found that every signed-in user still held TRUNCATE. RLS does not cover TRUNCATE,
   so one user could have emptied every account. It was not reachable through the REST API, and it is
   now closed in 0001. Lesson 56.
-- **Gate for this lane:** `node scripts/test-account.mjs` — **240 checks**, including the real
-  `client.ts` end to end against an in-memory Supabase (RLS, PKCE, conditional writes, jsonb order) ·
-  `node scripts/test-account-sql.mjs --mutate` — **37 checks in real Postgres, 15/15 broken guards
-  caught** · `node scripts/mutate-account.mjs` — 9/9.
+- **Clock skew between devices lost edits silently, and is fixed (lesson 57).** Each write was
+  stamped with its device's own clock, and the stamps were compared raw. All of these were reproduced
+  against the real engine:
+  - a phone 2 h slow had an edit it made AFTER syncing pulled back over, with no backup;
+  - a device a day fast locked a store against every other device for a day;
+  - merged stores never settled;
+  - "Put it back" lost the restored copy.
+  Now every write is stamped later than what it replaces (`nextStamp`, the logical-clock rule), so raw
+  clocks decide only true conflicts, where the backup applies.
+- **Gate for this lane:** `node scripts/test-account.mjs` — **252 checks**, including the real
+  `client.ts` end to end against an in-memory Supabase (RLS, PKCE, conditional writes, jsonb order,
+  skewed device clocks) · `node scripts/test-account-sql.mjs --mutate` — **37 checks in real
+  Postgres, 15/15 broken guards caught** · `node scripts/mutate-account.mjs` — **14/14**.
 - **Owner, to switch accounts on:** `supabase/README.md` — create a project, run **both** migrations,
   **configure custom SMTP** (without it only your own organisation receives sign-in emails), then put
   `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` in `.env.local` and Vercel. Never the

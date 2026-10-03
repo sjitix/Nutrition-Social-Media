@@ -18,10 +18,15 @@ skeptics) found real bugs in the A1–A4 code. All are fixed and shipped as `819
 
 Then the SQL ran for the first time, in PGlite with Supabase's default grants. It found that signed-in
 users still held TRUNCATE, which is now closed in 0001. The store-size cap now counts UTF-8 bytes, as
-the server does. **Next:**
-- a second adversarial review, this time of the hardening itself (the fixes are about a thousand new
-  lines);
-- then wait on the owner's Supabase project for a live run.
+the server does.
+
+**Clock skew between devices lost edits silently, and is fixed (lesson 57).** A phone 2 h slow had
+its post-sync edit pulled back over with no backup, and a device a day fast locked stores for a day.
+Every write is now stamped later than what it replaces.
+
+**Running:** a second adversarial review, this time of the hardening itself: four lenses on a frozen
+snapshot (`../NutriFlow-review2`, detached, to be removed afterwards), each with a skeptic. **Next:**
+fix whatever it confirms, then wait on the owner's Supabase project for a live run.
 
 ## Files I'm editing right now
 
@@ -40,6 +45,11 @@ the server does. **Next:**
     nothing. This was needed because screens re-save what they loaded (GroceriesClient's persist
     effect, AssistantChat after every turn), and with sync that made a stale copy the "newest edit".
   - **`rememberImport` stamps each entry with `importedAt`**, so two devices' histories merge by recency.
+  - **Write stamps are ORDERING stamps, not wall-clock times** (lesson 57). A write, an import or a
+    restore is stamped `max(now, the replaced value's stamp + 1)`, so one can sit slightly in the
+    future after a device with a fast clock synced. No screen reads them today. If one ever shows
+    `importedAt` or the store meta as a time ("imported 3 min ago"), say so first, since that time can
+    be wrong.
   New beside the old API (all accounts-only): `STORE_NAMES`, `readStore`/`writeStore`, `onStoreChange`,
   `loadStoreMeta`, `loadSyncedAt`/`markSynced`, `takeBackup`/`loadBackups`/`restoreBackup(id)`/
   `discardBackup(id)`, owner/session/PKCE helpers, `onSignInChangedElsewhere`, `claimSyncReload`.
@@ -120,4 +130,5 @@ whose claims were each checked against the code (and corrected twice by the revi
 | `91501d5` | docs: A1–A4 recorded — what works without keys, what waits on them, and two asks |
 | `8190c2b` | the adversarial review's fixes: PKCE, the account-switch guard and per-account pin, key-order-blind sync, `upsert_state` (0002), restore without deletions, rows validated on pull, the privacy note — 238/0, 8/8 mutations caught, engine 680/0 |
 | `a42a97e` | the SQL executed in real Postgres (`test-account-sql.mjs`, 37/0, 15/15 mutations); TRUNCATE revoked from signed-in users; test plan rows 5/5b/5c; lessons 52–56 |
-| *(next)* | the store-size cap counts UTF-8 bytes, as the server does (`storeBytes`): a long Japanese or Arabic chat was waved through by `.length` and then refused, re-uploaded on every edit — 240/0, 9/9 mutations |
+| `5c6c80c` | the store-size cap counts UTF-8 bytes, as the server does (`storeBytes`): a long Japanese or Arabic chat was waved through by `.length` and then refused, re-uploaded on every edit — 240/0, 9/9 mutations, engine 680/0 |
+| *(next)* | clock skew: every write stamped later than what it replaces (`nextStamp`). A 2-h-slow phone lost post-sync edits silently; a day-fast device locked stores; merged stores never settled; "Put it back" lost its copy. All reproduced first — 252/0, 14/14 mutations, lesson 57 |
