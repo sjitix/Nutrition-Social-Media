@@ -17,13 +17,10 @@ import { NUTRIENT_TABLE, type Per100g } from "../data/nutrientTable.generated";
 // that imports gramsFor from here is unchanged; client code imports it from ./units directly.
 import { gramsFor } from "./units";
 import { tableKey } from "../data/ingredients";
-export { gramsFor };
-
-export const MICRO_KEYS = [
-  "iron", "calcium", "magnesium", "potassium", "zinc", "vitD", "vitC", "folate", "b12",
-] as const;
-export type MicroKey = (typeof MICRO_KEYS)[number];
-export type Micros = Record<MicroKey, number>;
+// The vocabulary (which nutrients, their names and units) is a contract and lives in core/ (D5a);
+// re-exported here so every caller that imports it from nutrients is unchanged.
+import { MICRO_KEYS, MICRO_LABEL, MICRO_UNIT, type MicroKey, type Micros } from "../core/micros";
+export { gramsFor, MICRO_KEYS, MICRO_LABEL, MICRO_UNIT, type MicroKey, type Micros };
 
 export const emptyMicros = (): Micros =>
   Object.fromEntries(MICRO_KEYS.map((k) => [k, 0])) as Micros;
@@ -66,12 +63,3 @@ export const DAILY_REFERENCE: Micros = {
   vitD: 15, vitC: 80, folate: 400, b12: 2.4,
 };
 
-export const MICRO_LABEL: Record<MicroKey, string> = {
-  iron: "iron", calcium: "calcium", magnesium: "magnesium", potassium: "potassium",
-  zinc: "zinc", vitD: "vitamin D", vitC: "vitamin C", folate: "folate", b12: "vitamin B12",
-};
-
-export const MICRO_UNIT: Record<MicroKey, string> = {
-  iron: "mg", calcium: "mg", magnesium: "mg", potassium: "mg", zinc: "mg",
-  vitD: "µg", vitC: "mg", folate: "µg", b12: "µg",
-};

@@ -72,7 +72,7 @@ gate's job is to keep it true, not to fix it.
 
 | Layer | What lives there | May import | Must never import |
 |---|---|---|---|
-| **L0 · Contracts** | `core/` — `types.ts` (the zod schemas and TS types every layer speaks), `slots.ts` | zod only | anything in this repo |
+| **L0 · Contracts** | `core/` — `types.ts` (the zod schemas and TS types every layer speaks), `slots.ts`, `micros.ts` (the micronutrient vocabulary), `imported.ts` (an imported recipe and its pure converter to a Meal) | zod only | anything in this repo |
 | **L1 · Data** | `data/` — the 501 recipe seeds, ingredient identity, `nutrientTable.generated.ts`, `substitutions.ts`, `symptoms.ts`, `conditions.ts` (+ `nutrition/unitGrams.generated.ts`, kept client-safe) | L0 | anything computing over it |
 | **L2 · Pure computation** | `nutrition/` — `units.ts`, `nutrients.ts`, `targets.ts`, `exclusions.ts`, `safety.ts`, `grocery.ts` (+ `presentation/streak.ts`, local-day arithmetic) | L0–L1 | the plan engine, the assistant, any I/O |
 | **L3 · Plan engine** | selection, rebalancing, batch, the executor | L0–L2 | the assistant, providers, UI, `storage` |
@@ -793,9 +793,9 @@ until its entry is deleted, so the list never claims a problem that is gone.
 | 2 | `/plan` → `feed.ts` → `recipeDb` | A4 / B2 |
 | 3 | ~~`WeekBoard` → `../demo` (for `SLOTS`) → `recipeDb`~~ — **PAID 2026-10-03**: `SLOT_LABELS` moved to `@/lib/slots`; `/sage/plan` first-load JS **226 → 129 kB** | A4 |
 | 4 | ~~**`GroceriesClient` → `batchGrocery` → `nutrients` → the USDA table**~~ — *new, found on the first run*; **verified real by build measurement** (`fdcId` in the route's chunks; 45 kB raw / 11 kB gz), then **PAID 2026-10-03**: the generator emits the unit weights into their own `unitGrams.generated.ts`, `gramsFor` lives in `units.ts`, `batchGrocery` imports that. `/sage/groceries` **123 → 113 kB** | A4 |
-| 5 | **`/plan` → `import.ts`** (a pure converter living inside the network adapter) — *new* | B2 / A6 |
+| 5 | ~~**`/plan` → `import.ts`** (a pure converter living inside the network adapter)~~ — **PAID 2026-10-03 (D5a part 2)**: `ImportedRecipe` and `importedToMeal` moved to `core/imported.ts`; `providers/import.ts` re-exports them | B2 / A6 |
 | 6 | **`agentTools` (L4) → `feed` (L6)** — searching the library is engine work, the query moves down — *new* | A6 |
-| 7 | **`conditions`, `symptoms` (L1) → `nutrients` (L2)** — the micronutrient vocabulary is a contract and moves to L0 — *new* | A6 |
+| 7 | ~~**`conditions`, `symptoms` (L1) → `nutrients` (L2)**~~ — **PAID 2026-10-03 (D5a part 2)**: `MICRO_KEYS`, `MicroKey`, `Micros`, `MICRO_LABEL`, `MICRO_UNIT` moved to `core/micros.ts`; `nutrients.ts` re-exports them | A6 |
 | 8 | `ThemeSwitch` writes `localStorage` itself (the theme key predates the rule) | A6, with the accounts lane |
 
 Rows 1–3 were known (they are A4's measured target). **Rows 4–7 were not known by anyone** — which is

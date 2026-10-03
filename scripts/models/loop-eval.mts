@@ -29,7 +29,7 @@ import { selectWeekFromDb, rebalanceWeek, withSeed } from "@/lib/recipeDb";
 import { dietTagConflicts, haystackBlocked } from "@/lib/exclusions";
 import { isReadTool } from "@/lib/agentTools";
 import { claimsChange } from "@/lib/reply";
-import { withFastFinish } from "./fast-finish";
+import { withFastFinish, fastFinishModeFromEnv } from "./fast-finish";
 import type { UserProfile, WeekPlan, Meal } from "@/lib/types";
 
 const MODEL = process.env.LOCAL_AI_MODEL ?? "(unset)";
@@ -358,8 +358,10 @@ if (resolveProvider() !== "local") {
 // the same file measures before and after. The engine gets TODAY via runAgent either way.
 const baseModel = (agentModelFn as (o?: { today?: string }) => ReturnType<typeof agentModelFn>)({ today: TODAY });
 // FAST_FINISH=1: skip the loop's last call when the engine's notes will be the reply anyway (see fast-finish.ts).
-const FAST_FINISH = process.env.FAST_FINISH === "1";
-const { fn: model, stats: ff } = withFastFinish(baseModel, FAST_FINISH);
+// FAST_FINISH=reply adds v1's rule: skip only when the write step also carried a reply.
+const FAST_FINISH_MODE = fastFinishModeFromEnv(process.env.FAST_FINISH);
+const FAST_FINISH = FAST_FINISH_MODE !== "off";
+const { fn: model, stats: ff } = withFastFinish(baseModel, FAST_FINISH_MODE);
 
 // Stamp WHICH prompt this run measured — the prompt is the variable under test, and a scorecard that
 // can't say which one it graded is unreadable a week later. Called through a widened type so this
@@ -477,14 +479,16 @@ const summary = {
   engineIssues: rows.filter((r) => r.engineIssue).map((r) => `${r.id}: ${r.engineIssue}`),
   meanSteps: graded.length ? +(graded.reduce((s, r) => s + r.steps, 0) / graded.length).toFixed(2) : null,
   meanModelCalls: graded.length ? +(graded.reduce((s, r) => s + r.modelCalls, 0) / graded.length).toFixed(2) : null,
-  fastFinish: FAST_FINISH,
+  fastFinish: FAST_FINISH_MODE,
+  /** Skips the "reply" rule withheld because the write step's reply was empty. */
+  fastFinishBlockedByEmptyReply: ff.blockedByEmptyReply,
   medianSecondsPerMessage: q(0.5),
   p90SecondsPerMessage: q(0.9),
   maxSecondsPerMessage: secs.length ? secs[secs.length - 1] : null,
 };
 
 console.log(`\npass ${summary.pass}/${graded.length} (${summary.passRate}%)  · act ${summary.actPass}  · hold ${summary.holdPass}  · read-before-write ${summary.readBeforeWrite}`);
-console.log(`steps mean ${summary.meanSteps}  · model calls mean ${summary.meanModelCalls}${FAST_FINISH ? " (fast finish)" : ""}  · gave up ${summary.gaveUp}  · emoji replies ${summary.emojiReplies}  · FALSE CLAIMS ${summary.falseClaims} (guard: ${summary.guardRetries} nudged, ${summary.guardCatches} caught)  · per-message seconds: median ${summary.medianSecondsPerMessage?.toFixed(1)}  p90 ${summary.p90SecondsPerMessage?.toFixed(1)}  max ${summary.maxSecondsPerMessage?.toFixed(1)}`);
+console.log(`steps mean ${summary.meanSteps}  · model calls mean ${summary.meanModelCalls}${FAST_FINISH ? ` (fast finish: ${FAST_FINISH_MODE}${FAST_FINISH_MODE === "reply" ? `, ${ff.blockedByEmptyReply} withheld` : ""})` : ""}  · gave up ${summary.gaveUp}  · emoji replies ${summary.emojiReplies}  · FALSE CLAIMS ${summary.falseClaims} (guard: ${summary.guardRetries} nudged, ${summary.guardCatches} caught)  · per-message seconds: median ${summary.medianSecondsPerMessage?.toFixed(1)}  p90 ${summary.p90SecondsPerMessage?.toFixed(1)}  max ${summary.maxSecondsPerMessage?.toFixed(1)}`);
 for (const e of summary.engineIssues) console.log(`ENGINE (not the model): ${e}`);
 if (!summary.trustworthy) console.log(`!! ${summary.infraFailures} scenario(s) never reached the model — not counted as misses; re-run before quoting.`);
 

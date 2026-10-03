@@ -27,7 +27,7 @@ import {
 import { FEED_RECIPES, filterFeed, sortFeed, type FeedFilter, type FeedDiet, type FeedSort } from "@/lib/feed";
 import { groupByAisle } from "@/lib/grocery";
 import { currentStreak, isoDay } from "@/lib/streak";
-import { importedToMeal, type ImportedRecipe } from "@/lib/import";
+import { importedToMeal, type ImportedRecipe } from "@/lib/core/imported";
 import {
   loadChat,
   loadGroceriesChecked,

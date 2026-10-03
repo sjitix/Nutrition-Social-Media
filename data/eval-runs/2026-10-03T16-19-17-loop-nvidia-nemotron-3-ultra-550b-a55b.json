@@ -1,0 +1,78 @@
+{
+  "kind": "loop-eval",
+  "ranAt": "2026-10-03T16:19:17.745Z",
+  "model": "nvidia/nemotron-3-ultra-550b-a55b",
+  "endpoint": "http://localhost:8792/v1",
+  "maxSteps": 8,
+  "prompt": {
+    "sha": "6c0016f97ea1",
+    "agentSection": true,
+    "howToDecide": true,
+    "label": "main+wording"
+  },
+  "summary": {
+    "scenarios": 2,
+    "infraFailures": 0,
+    "trustworthy": true,
+    "pass": 2,
+    "passRate": 100,
+    "actPass": "2/2",
+    "holdPass": "0/0",
+    "readBeforeWrite": "0/0",
+    "gaveUp": 0,
+    "emojiReplies": 0,
+    "falseClaims": 0,
+    "engineIssues": [],
+    "meanSteps": 2,
+    "meanModelCalls": 2,
+    "fastFinish": false,
+    "medianSecondsPerMessage": 19.04,
+    "p90SecondsPerMessage": 19.04,
+    "maxSecondsPerMessage": 19.04
+  },
+  "rows": [
+    {
+      "id": "eat-out-future",
+      "want": "act",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 17.96,
+      "readFirst": null,
+      "ops": [
+        "reserve"
+      ],
+      "reply": "I've set aside 800 kcal for Friday dinner — about 40% of your day — and made the other meals lighter. That 800 is a typical restaurant main, not a measured number. Tell me what you actually ate and I'",
+      "emoji": false,
+      "engineIssue": null,
+      "writes": "[{\"op\":\"reserve\",\"day\":\"Friday\",\"slot\":\"dinner\"}]",
+      "modelCalls": 2,
+      "falseClaim": false
+    },
+    {
+      "id": "rate",
+      "want": "act",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 19.04,
+      "readFirst": null,
+      "ops": [
+        "rate"
+      ],
+      "reply": "Noted — you rated Peanut Butter Banana Shake Bowl 5/5. I'll reach for it more often.",
+      "emoji": false,
+      "engineIssue": null,
+      "writes": "[{\"op\":\"rate\",\"rating\":5,\"dish\":\"Peanut Butter Banana Shake Bowl\"}]",
+      "modelCalls": 2,
+      "falseClaim": false
+    }
+  ],
+  "variant": "WORDING ARM: main prompt + appended wording note (pace-proxy APPEND_SYSTEM), reasoning on, ONLY rate|eat-out-future"
+}

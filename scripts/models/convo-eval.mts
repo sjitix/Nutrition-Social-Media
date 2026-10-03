@@ -38,7 +38,7 @@ import { selectWeekFromDb, rebalanceWeek, withSeed } from "@/lib/recipeDb";
 import { dietTagConflicts, haystackBlocked } from "@/lib/exclusions";
 import { isReadTool } from "@/lib/agentTools";
 import { claimsChange } from "@/lib/reply";
-import { withFastFinish } from "./fast-finish";
+import { withFastFinish, fastFinishModeFromEnv } from "./fast-finish";
 import type { UserProfile, WeekPlan, Meal, PlanSnapshot } from "@/lib/types";
 
 const MODEL = process.env.LOCAL_AI_MODEL ?? "(unset)";
@@ -302,8 +302,10 @@ if (resolveProvider() !== "local") {
 }
 const baseModel = (agentModelFn as (o?: { today?: string }) => ReturnType<typeof agentModelFn>)({ today: TODAY });
 // FAST_FINISH=1: skip the loop's last call when the engine's notes will be the reply anyway (see fast-finish.ts).
-const FAST_FINISH = process.env.FAST_FINISH === "1";
-const { fn: model, stats: ff } = withFastFinish(baseModel, FAST_FINISH);
+// FAST_FINISH=reply adds v1's rule: skip only when the write step also carried a reply.
+const FAST_FINISH_MODE = fastFinishModeFromEnv(process.env.FAST_FINISH);
+const FAST_FINISH = FAST_FINISH_MODE !== "off";
+const { fn: model, stats: ff } = withFastFinish(baseModel, FAST_FINISH_MODE);
 const promptText = (assistantV2SystemPrompt as (p: UserProfile, w: WeekPlan, o?: { agent?: boolean }) => string)(PROFILE, PLAN, { agent: true });
 const PROMPT = {
   sha: createHash("sha256").update(promptText).digest("hex").slice(0, 12),
@@ -412,14 +414,16 @@ const summary = {
   guardRetries: gradedTurns.filter((t) => t.guardRetried).length,
   guardCatches: gradedTurns.filter((t) => t.guardCaught).length,
   meanModelCallsPerTurn: gradedTurns.length ? +(gradedTurns.reduce((s, t) => s + t.modelCalls, 0) / gradedTurns.length).toFixed(2) : null,
-  fastFinish: FAST_FINISH,
+  fastFinish: FAST_FINISH_MODE,
+  /** Skips the "reply" rule withheld because the write step's reply was empty. */
+  fastFinishBlockedByEmptyReply: ff.blockedByEmptyReply,
   medianSecondsPerTurn: q(0.5),
   p90SecondsPerTurn: q(0.9),
   maxSecondsPerTurn: secs.length ? +secs[secs.length - 1].toFixed(1) : null,
 };
 console.log(`\npass ${summary.pass}/${graded.length} conversations (${summary.passRate}%)  · turns ${summary.turnsPassed}  · second turns ${summary.secondTurnsPassed}`);
 console.log(`by skill ${Object.entries(bySkill).map(([k, v]) => `${k} ${v}`).join("  · ")}`);
-console.log(`gave up ${summary.gaveUp}  · model calls per turn ${summary.meanModelCallsPerTurn}${FAST_FINISH ? " (fast finish)" : ""}  · emoji replies ${summary.emojiReplies}  · FALSE CLAIMS ${summary.falseClaims} (guard: ${summary.guardRetries} nudged, ${summary.guardCatches} caught)  · per-turn seconds: median ${summary.medianSecondsPerTurn}  p90 ${summary.p90SecondsPerTurn}  max ${summary.maxSecondsPerTurn}`);
+console.log(`gave up ${summary.gaveUp}  · model calls per turn ${summary.meanModelCallsPerTurn}${FAST_FINISH ? ` (fast finish: ${FAST_FINISH_MODE}${FAST_FINISH_MODE === "reply" ? `, ${ff.blockedByEmptyReply} withheld` : ""})` : ""}  · emoji replies ${summary.emojiReplies}  · FALSE CLAIMS ${summary.falseClaims} (guard: ${summary.guardRetries} nudged, ${summary.guardCatches} caught)  · per-turn seconds: median ${summary.medianSecondsPerTurn}  p90 ${summary.p90SecondsPerTurn}  max ${summary.maxSecondsPerTurn}`);
 if (!summary.trustworthy) console.log(`!! ${summary.infraFailures} conversation(s) never finished reaching the model — not counted; re-run before quoting.`);
 
 const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);

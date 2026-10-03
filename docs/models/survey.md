@@ -303,6 +303,19 @@ Same quality, ~3× faster at the median, p90 and worst case. The three misses ar
 The last two are being tested as a prompt-wording change. **Proposed to v1:** reasoning off as an env-level
 request setting (`LOCAL_AI_EXTRA_BODY`), and fast finish inside `runAgent`.
 
+**Wording A/B for the two habitual misses** (pace-proxy `APPEND_SYSTEM`, 550B, reasoning on, 3 runs per
+arm). The appended note: "have it more often / loved it / make that a regular" is a RATING (rate 5, don't
+swap it into every day, don't ask which days); a reservation / eating out / "save some room" is a
+RESERVATION (reserve, not resize).
+
+| | eat-out → `reserve` | "more often" → `rate` |
+|---|---|---|
+| today's prompt | 1/3 | 0/3 |
+| **with the note** | **3/3** | **3/3** |
+
+Next: put the wording inline on the `rate` and `reserve` lines (a branch from main), then run the full
+loop and conversation evals to check it moves nothing else, before it goes to v1.
+
 About 4× faster per turn with no loss of quality.
 - **The guard earned its place.** On "wednesday too" the model again claimed "Wednesday now has 2000
   kcal…" without acting. The guard nudged it, and it then sent the vegetarian constrain for Wednesday.
