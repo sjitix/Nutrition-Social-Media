@@ -10,7 +10,10 @@
     "'negligible': spices/sauces used in tsp amounts - still mapped, never silently zeroed.",
     "'slug' is the ingredient's PERMANENT id (V1 D5, docs/v1/06-ingredient-identity.md). Recipes and",
     "every lookup use it, so a display name can change without touching a recipe. Never edit a slug",
-    "once it exists; a new ingredient gets a new one. Not 'id': that already pins an fdc_id above."
+    "once it exists; a new ingredient gets a new one. Not 'id': that already pins an fdc_id above.",
+    "'fill' borrows the nutrients a food LACKS from another SR Legacy entry for the same food ({from: fdc_id, why}); the",
+    "primary entry still decides every value it reports. 'gaps' names each nutrient SR Legacy does not report, with why: the",
+    "build fails on a missing nutrient that is neither filled nor listed, so a gap can never pass as a zero unnoticed."
   ],
   "map": {
     "brown rice": {
@@ -31,7 +34,10 @@
     "quinoa": {
       "slug": "quinoa",
       "q": "Quinoa, uncooked",
-      "state": "dry"
+      "state": "dry",
+      "gaps": {
+        "vitC": "SR Legacy reports no value for this food (raw quinoa); negligible in reality."
+      }
     },
     "bulgur": {
       "slug": "bulgur",
@@ -63,17 +69,26 @@
     "whole-wheat pasta": {
       "slug": "whole-wheat-pasta",
       "q": "Pasta, whole-wheat, dry",
-      "state": "dry"
+      "state": "dry",
+      "gaps": {
+        "vitC": "SR Legacy reports no value for this food; negligible in reality."
+      }
     },
     "whole-wheat penne": {
       "slug": "whole-wheat-penne",
       "q": "Pasta, whole-wheat, dry",
-      "state": "dry"
+      "state": "dry",
+      "gaps": {
+        "vitC": "SR Legacy reports no value for this food; negligible in reality."
+      }
     },
     "whole-wheat spaghetti": {
       "slug": "whole-wheat-spaghetti",
       "q": "Pasta, whole-wheat, dry",
-      "state": "dry"
+      "state": "dry",
+      "gaps": {
+        "vitC": "SR Legacy reports no value for this food; negligible in reality."
+      }
     },
     "orzo": {
       "slug": "orzo",
@@ -87,7 +102,10 @@
     },
     "soba noodles": {
       "slug": "soba-noodles",
-      "q": "Noodles, japanese, soba, dry"
+      "q": "Noodles, japanese, soba, dry",
+      "gaps": {
+        "fiber": "SR Legacy reports no fiber for dry (168906) or cooked (168907) soba. Soba is buckwheat and wheat, so soba dishes UNDERSTATE fiber. Not invented."
+      }
     },
     "rice noodles": {
       "slug": "rice-noodles",
@@ -119,7 +137,10 @@
     },
     "turkey sausage": {
       "slug": "turkey-sausage",
-      "q": "Turkey sausage, fresh, raw"
+      "q": "Turkey sausage, fresh, raw",
+      "gaps": {
+        "vitD": "SR Legacy reports no value for this food."
+      }
     },
     "lean beef": {
       "slug": "lean-beef",
@@ -147,7 +168,11 @@
     },
     "lean pork sausage": {
       "slug": "lean-pork-sausage",
-      "q": "Sausage, Italian, pork, mild, raw"
+      "q": "Sausage, Italian, pork, mild, raw",
+      "gaps": {
+        "vitD": "SR Legacy reports no value for this food.",
+        "folate": "SR Legacy reports no value for this food."
+      }
     },
     "salmon fillet": {
       "slug": "salmon-fillet",
@@ -175,11 +200,19 @@
     },
     "shrimp": {
       "slug": "shrimp",
-      "q": "Crustaceans, shrimp, raw"
+      "q": "Crustaceans, shrimp, raw",
+      "fill": {
+        "from": 174210,
+        "why": "Crustaceans, shrimp, raw (175179) carries macros but no fiber, vitamin D, C, folate or B12. The same food in its other SR Legacy entry, Crustaceans, shrimp, mixed species, raw (174210), reports them; only the MISSING values are taken from it, so the macros do not change. Without it a shrimp dish claimed full micronutrient coverage while counting raw shrimp as having no B12 (D5b)."
+      }
     },
     "prawns": {
       "slug": "prawns",
-      "q": "Crustaceans, shrimp, raw"
+      "q": "Crustaceans, shrimp, raw",
+      "fill": {
+        "from": 174210,
+        "why": "Crustaceans, shrimp, raw (175179) carries macros but no fiber, vitamin D, C, folate or B12. The same food in its other SR Legacy entry, Crustaceans, shrimp, mixed species, raw (174210), reports them; only the MISSING values are taken from it, so the macros do not change. Without it a shrimp dish claimed full micronutrient coverage while counting raw shrimp as having no B12 (D5b)."
+      }
     },
     "eggs": {
       "slug": "eggs",
@@ -199,7 +232,10 @@
     },
     "tempeh": {
       "slug": "tempeh",
-      "q": "Tempeh"
+      "q": "Tempeh",
+      "gaps": {
+        "fiber": "SR Legacy reports no fiber for tempeh (174272) or cooked tempeh (172467). Tempeh is whole fermented soybeans, so its true fiber is well above 0: tempeh dishes UNDERSTATE fiber. Not invented; fill it from a sourced value when one is available offline."
+      }
     },
     "edamame": {
       "slug": "edamame",
@@ -387,7 +423,10 @@
     },
     "portobello mushrooms": {
       "slug": "portobello-mushrooms",
-      "q": "Mushrooms, portabella, raw"
+      "q": "Mushrooms, portabella, raw",
+      "gaps": {
+        "magnesium": "SR Legacy reports no value for this food (raw portabella, 169255)."
+      }
     },
     "bell pepper": {
       "slug": "bell-pepper",
@@ -555,7 +594,10 @@
     },
     "chia seeds": {
       "slug": "chia-seeds",
-      "q": "Seeds, chia seeds, dried"
+      "q": "Seeds, chia seeds, dried",
+      "gaps": {
+        "vitD": "SR Legacy reports no value for this food; negligible in a plant food."
+      }
     },
     "sesame seeds": {
       "slug": "sesame-seeds",
@@ -611,7 +653,11 @@
     },
     "pesto": {
       "slug": "pesto",
-      "q": "Sauce, pesto, ready-to-serve, refrigerated"
+      "q": "Sauce, pesto, ready-to-serve, refrigerated",
+      "gaps": {
+        "vitD": "SR Legacy reports no value for this food.",
+        "b12": "SR Legacy reports no value for this food (the parmesan in it carries a little)."
+      }
     },
     "salsa": {
       "slug": "salsa",
@@ -632,12 +678,20 @@
     "buffalo sauce": {
       "slug": "buffalo-sauce",
       "q": "Sauce, hot chile, sriracha",
-      "negligible": true
+      "negligible": true,
+      "gaps": {
+        "vitD": "SR Legacy reports no value for this food; negligible in reality.",
+        "b12": "SR Legacy reports no value for this food; negligible in reality."
+      }
     },
     "sriracha": {
       "slug": "sriracha",
       "q": "Sauce, hot chile, sriracha",
-      "negligible": true
+      "negligible": true,
+      "gaps": {
+        "vitD": "SR Legacy reports no value for this food; negligible in reality.",
+        "b12": "SR Legacy reports no value for this food; negligible in reality."
+      }
     },
     "soy sauce": {
       "slug": "soy-sauce",
@@ -676,7 +730,11 @@
     "harissa": {
       "slug": "harissa",
       "q": "Sauce, hot chile, sriracha",
-      "negligible": true
+      "negligible": true,
+      "gaps": {
+        "vitD": "SR Legacy reports no value for this food; negligible in reality.",
+        "b12": "SR Legacy reports no value for this food; negligible in reality."
+      }
     },
     "horseradish": {
       "slug": "horseradish",

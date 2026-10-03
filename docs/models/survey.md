@@ -77,10 +77,17 @@ running.
 
 ## Latency diary (all day, one probe per model per 10 min)
 
-`data/eval-runs/latency-diary-<date>.jsonl`. First readings: Ultra-550B 7.6 s but also a **429** (my
-own concurrent evals pushed the account's rate limit — free-tier headroom is thin); **K3 63 s**, far
-better than the ~250 s measured in September, so its free queue has improved. The diary's output cap
-was raised 400 → 2000 after reasoning models (GLM, K3) returned empty content at 400.
+`data/eval-runs/latency-diary-2026-10-03.jsonl`: 87 probes from morning to late afternoon (short prompt,
+2,000-token cap; the cap was raised from 400 after reasoning models returned empty content).
+
+| model | answered | median | p90 | note |
+|---|---|---|---|---|
+| gpt-oss-20b | 25/25 | 7.3 s | 13.7 s | the only model that answered every time |
+| Nemotron-3-Ultra-550B | 4/12 | 7.6 s | 14.0 s | 8 of 12 hit the rate limit while evals ran; pulled from the diary at midday to protect the evals |
+| Kimi K3 (2.8T) | 11/25 | 67 s | 96 s | better than September's ~250 s, still not a chat brain |
+| GLM-5.3 | 17/25 | 89 s | 141 s | a reasoning model; slow all day |
+
+The diary was stopped at 16:40 so that every free-tier request went to the 550B runs.
 
 ## The free tier's rate limit is the real ceiling — and it moves
 

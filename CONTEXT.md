@@ -60,10 +60,19 @@ Supabase row per user under RLS.
   - "Put it back" lost the restored copy.
   Now every write is stamped later than what it replaces (`nextStamp`, the logical-clock rule), so raw
   clocks decide only true conflicts, where the backup applies.
-- **Gate for this lane:** `node scripts/test-account.mjs` — **252 checks**, including the real
+- **A second adversarial review, of the hardening itself, found more. Batch 1 is fixed (lesson 58):**
+  - "Delete my account" in a stale tab deleted the OTHER account another tab had signed in;
+  - a failed first sync left the browser unowned, so the next person's sign-in uploaded the previous
+    person's data;
+  - "Put it back" on the oldest copy destroyed it;
+  - the import preview hid the lists it would clear;
+  - a push could replace the account's copy with no copy kept anywhere (now rule 6).
+  Still open, in the lane file: stale tabs (the two-tab cases), sign-in against the real GoTrue (a
+  401 signs people out; the 5-minute first-link window), and test and fake fidelity.
+- **Gate for this lane:** `node scripts/test-account.mjs` — **269 checks**, including the real
   `client.ts` end to end against an in-memory Supabase (RLS, PKCE, conditional writes, jsonb order,
   skewed device clocks) · `node scripts/test-account-sql.mjs --mutate` — **37 checks in real
-  Postgres, 15/15 broken guards caught** · `node scripts/mutate-account.mjs` — **14/14**.
+  Postgres, 15/15 broken guards caught** · `node scripts/mutate-account.mjs` — **25/25**.
 - **Owner, to switch accounts on:** `supabase/README.md` — create a project, run **both** migrations,
   **configure custom SMTP** (without it only your own organisation receives sign-in emails), then put
   `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` in `.env.local` and Vercel. Never the
@@ -78,12 +87,12 @@ in the main folder (`2fd6f02`). Its WORKPLAN lesson was renumbered 38 → 48 bec
 
 #### PARALLEL LANE — models (written by the models agent only)
 
-**2026-10-03 (afternoon) — the read-tool fix is LANDING (v1 applied `models-exp` 543bcb2), and the
-search for the biggest free fast model goes on.** Live status: `docs/parallel/lane-models.md`. Data and
+**2026-10-03 (late afternoon) — the read-tool fix (`3392461`) and the date line (`4f53468`) are ON
+MAIN; the free-provider search is done (`docs/models/free-providers-2026-10.md`: no free tier gives big
++ fast + volume at once); making the 550B faster is in progress (survey Round 5).** Live status: `docs/parallel/lane-models.md`. Data and
 decisions: `docs/models/` (README "Decisions on record", then `survey.md` Round 4). Owner to-do:
 `docs/models/OWNER-TODO.md`. Branches: `models` (ships my paths onto main), `models-exp` (the prompt and
-schema work; v1 is landing it on main), `models-exp-date` ("today is Monday (2026-10-05)" in the prompt,
-being measured on the 550B, offered to v1 next).
+schema work, landed; now equal to main), `models-exp-date` (the date line, landed as `4f53468`; retired).
 
 - **Owner's direction (2026-10-03, twice):** big models first ("like the 550B"); find the biggest FREE
   model, ~100B+, with an optimal response time; no more effort on training or using 20–30B except as

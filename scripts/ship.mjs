@@ -251,11 +251,23 @@ if (behindNow > 0) {
 // The work is already a commit, so nothing below can lose it: it stays in the reflog whatever
 // happens. `--autostash` is for the OTHER uncommitted files in the tree (not part of this commit),
 // which would otherwise make git refuse to rebase at all.
+// The uncommitted files the autostash could not put back, if any (see the check after the pull).
+let stashTrouble = null;
 if (behindNow > 0) {
   console.log("\nship: rebasing the commit onto the remote…");
   const rebaseDir = (name) => existsSync(git(["rev-parse", "--git-path", name]));
+  const stashes = () => git(["stash", "list"]).split("\n").filter(Boolean).length;
+  const stashesBefore = stashes();
   try {
     run("git", ["pull", "--rebase", "--autostash", "origin", branch]);
+    // The pull can SUCCEED while re-applying the autostash conflicts: git prints a line, keeps the
+    // stash, stages what it could and leaves the conflicted files unmerged — and exits 0. That
+    // happened on 2026-10-03 (WORKPLAN lesson 61): the commit was rebased cleanly and pushed, but
+    // WORKPLAN.md sat unmerged in the working tree with nothing saying so. The commit itself is fine
+    // and is still pushed below; the tree is reported, loudly, and the exit code is non-zero.
+    const unmerged = git(["diff", "--name-only", "--diff-filter=U"]).split("\n").filter(Boolean);
+    const kept = stashes() > stashesBefore;
+    if (unmerged.length || kept) stashTrouble = { unmerged, kept };
   } catch {
     if (rebaseDir("rebase-merge") || rebaseDir("rebase-apply")) {
       // A real conflict. Abort to return to the commit exactly as it was made, on the old base.
@@ -295,6 +307,18 @@ try {
   run("git", ["push", "origin", `HEAD:${branch}`]);
 } catch {
   die("the push failed. The commit is safe locally; fetch, rebase and run ship again.");
+}
+
+if (stashTrouble) {
+  // Said after the push, because the commit is not the problem: the uncommitted files are.
+  process.on("exit", () => {
+    console.error("\nship: WARNING — your OTHER uncommitted changes did not come back cleanly after the rebase.");
+    for (const u of stashTrouble.unmerged) console.error(`  unmerged: ${u}`);
+    if (stashTrouble.kept) console.error("  the autostash is still in `git stash list` (stash@{0}) — it holds them all.");
+    console.error("ship: resolve the unmerged files by hand, then `git reset -q` to unstage, compare with");
+    console.error("ship: `git diff stash@{0}`, and only then `git stash drop`. Commit nothing until `git status` is sane.");
+  });
+  process.exitCode = 4;
 }
 
 git(["fetch", "origin"]);

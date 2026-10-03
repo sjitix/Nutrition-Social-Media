@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { RefreshIcon, Wordmark } from "@/components/icons";
 import { loadProfile, saveChat, savePlan, saveProfile } from "@/lib/storage";
 import { DEFAULT_TARGETS, type BodyStats, type UserProfile } from "@/lib/types";
-import { computeTargets, type Activity } from "@/lib/targets";
+import { computeTargets, bodyStatProblems, bodyStatMessage, type Activity } from "@/lib/targets";
 
 const ACTIVITIES: { value: Activity; label: string }[] = [
   { value: "sedentary", label: "Desk job, little exercise" },
@@ -73,7 +73,16 @@ export default function OnboardingPage() {
   const ageN = posNum(age);
   const heightN = posNum(heightCm);
   const weightN = posNum(weightKg);
-  const bodyStatsComplete = ageN !== null && heightN !== null && weightN !== null && !!sex && !!activity;
+  // …and inside the adult range the equation is for (BODY_LIMITS): an age of 5 or a weight of 900
+  // is a typo, and computing from it would quietly set nonsense targets.
+  const typedStats = {
+    ...(ageN !== null ? { age: ageN } : {}),
+    ...(heightN !== null ? { heightCm: heightN } : {}),
+    ...(weightN !== null ? { weightKg: weightN } : {}),
+  };
+  const statProblems = bodyStatProblems(typedStats);
+  const bodyStatsComplete =
+    ageN !== null && heightN !== null && weightN !== null && !!sex && !!activity && statProblems.length === 0;
 
   // Prefill from an existing profile so a returning user ("New plan") isn't re-entering everything.
   useEffect(() => {
@@ -303,6 +312,9 @@ export default function OnboardingPage() {
               className="mt-3 rounded-full bg-vio px-4 py-2 text-sm font-bold text-white transition hover:bg-vio-deep disabled:opacity-50">
               {computed ? "Recalculate my targets" : "Calculate my targets"}
             </button>
+            {statProblems.length > 0 && (
+              <p role="status" className="mt-2 text-sm text-mut">{bodyStatMessage(statProblems, typedStats)}</p>
+            )}
             {computed && (
               <span className="ml-3 text-sm text-mut">
                 Done — {targetCalories} kcal, {proteinGrams}g protein. Tweak below if you like.

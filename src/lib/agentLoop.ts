@@ -27,11 +27,20 @@
  */
 import { runReadTool, isReadTool, type AgentContext } from "./agentTools";
 import { applyPrimitives, type PrimitiveOp } from "./primitives";
-import { composeReply } from "./reply";
+import { claimsChange, composeReply } from "./reply";
 import type { PlanSnapshot, UserProfile, WeekPlan } from "./types";
 
 /** A cap, not a target. Reaching it is a bug to investigate, not a normal outcome. */
 export const MAX_STEPS = 8;
+
+/**
+ * What the model is told when it says something changed and nothing did. It goes in the transcript
+ * as the result of the write it should have sent, never to the user, and the model gets ONE more
+ * step to either send the operation or say plainly that nothing changed. Fixing the turn beats hiding
+ * it: the person usually asked for something real. (Models lane's proposal, 2026-10-03.)
+ */
+export const FALSE_CLAIM_NUDGE =
+  "Nothing was applied: no operation ran, but your reply says something changed. Send the operation now, or tell the user plainly that nothing has changed yet.";
 
 /** One reason-then-act turn: exactly what the v2 model was trained to emit. */
 export interface AgentTurn {
@@ -80,6 +89,10 @@ export interface AgentRunResult {
    */
   modelFailed: boolean;
   notes: string[];
+  /** The model claimed a change with nothing applied, and was given one more step to fix it. */
+  falseClaimRetried: boolean;
+  /** …and still claimed it, so the reply was replaced with an honest one (reply.ts NOTHING_CHANGED_REPLY). */
+  falseClaimCaught: boolean;
 }
 
 const isRead = (o: PrimitiveOp): boolean => isReadTool(String((o as { op?: string }).op ?? ""));
@@ -129,6 +142,7 @@ export async function runAgent(args: {
   let lastReply = "";
   let gaveUp = false;
   let modelFailed = false;
+  let falseClaimRetried = false;
 
   while (steps < maxSteps) {
     steps++;
@@ -148,7 +162,17 @@ export async function runAgent(args: {
     transcript.push({ role: "assistant", turn: { ...turn, operations: ops } });
     lastReply = typeof turn?.reply === "string" ? turn.reply : "";
 
-    if (ops.length === 0) break; // the model says it is done
+    if (ops.length === 0) {
+      // The model says it is done. If its reply is the only thing the user will read (the engine is
+      // silent) and it claims a change that nothing made, give it one step to make it real or retract.
+      const unbacked = !planChanged && !profileChanged && notes.length === 0 && replyOverride === undefined;
+      if (!falseClaimRetried && unbacked && claimsChange(lastReply) && steps < maxSteps) {
+        falseClaimRetried = true;
+        transcript.push({ role: "tool", name: "apply", result: { notes: [FALSE_CLAIM_NUDGE], planChanged: false, profileChanged: false } });
+        continue;
+      }
+      break;
+    }
 
     const reads = ops.filter(isRead);
     const writes = ops.filter((o) => !isRead(o));
@@ -201,8 +225,9 @@ export async function runAgent(args: {
     );
   }
 
+  const reply = composeReply({ modelReply: lastReply, notes, replyOverride, planChanged, profileChanged });
   return {
-    reply: composeReply({ modelReply: lastReply, notes, replyOverride, planChanged }),
+    reply,
     plan,
     profile,
     planChanged,
@@ -214,5 +239,7 @@ export async function runAgent(args: {
     gaveUp,
     modelFailed,
     notes,
+    falseClaimRetried,
+    falseClaimCaught: reply !== lastReply.trim() && notes.length === 0 && replyOverride === undefined && claimsChange(lastReply),
   };
 }

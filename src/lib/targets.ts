@@ -51,13 +51,56 @@ export const CALORIE_FLOOR: Record<Sex, number> = { female: 1200, male: 1500 };
 /** When we don't know someone's sex, use the lower floor — under-restricting is the safe error. */
 export const DEFAULT_CALORIE_FLOOR = CALORIE_FLOOR.female;
 
+/**
+ * The bodies these equations are for. Mifflin-St Jeor was fitted on adults; past these limits it
+ * extrapolates into nonsense, and the executor used to store and SAY the result: age 500 gave "your
+ * resting burn is about -570 kcal", 5000 kg gave 79,020 kcal and 8 kg of protein a day, and a weight
+ * of -80 kg prescribed -2.3 L of fluid (found by the D5b property sweep, 2026-10-03). Under 18,
+ * growth changes the numbers, and setting a child's calorie deficit is not this app's job.
+ */
+export const BODY_LIMITS = {
+  age: { min: 18, max: 100, unit: "years" },
+  heightCm: { min: 120, max: 230, unit: "cm" },
+  weightKg: { min: 30, max: 300, unit: "kg" },
+} as const;
+export type BodyStat = keyof typeof BODY_LIMITS;
+
+/** The stats given that are not real numbers inside BODY_LIMITS. A stat not given is not a problem. */
+export function bodyStatProblems(s: Partial<Record<BodyStat, number>>): BodyStat[] {
+  return (Object.keys(BODY_LIMITS) as BodyStat[]).filter((k) => {
+    const v = s[k];
+    return v != null && (!Number.isFinite(v) || v < BODY_LIMITS[k].min || v > BODY_LIMITS[k].max);
+  });
+}
+
+/** One sentence naming the range of each stat that is out of it — for the user, not a log. */
+export function bodyStatMessage(problems: BodyStat[], s: Partial<Record<BodyStat, number>>): string {
+  if (problems.includes("age") && Number.isFinite(s.age) && (s.age as number) > 0 && (s.age as number) < BODY_LIMITS.age.min)
+    return "I can only work out targets for adults. Under 18, growth changes the numbers — a GP or a registered dietitian is the right person to set them.";
+  const names: Record<BodyStat, string> = { age: "age", heightCm: "height", weightKg: "weight" };
+  const ranges = problems.map((k) => `${names[k]} ${BODY_LIMITS[k].min}–${BODY_LIMITS[k].max} ${BODY_LIMITS[k].unit}`);
+  return `Your ${problems.map((k) => names[k]).join(", ")} doesn't look right — I can work targets out for ${ranges.join(", ")}.`;
+}
+
+/** A stat forced into its limits: what the arithmetic below uses, so it can never return NaN or a
+ *  negative. Callers refuse an out-of-range stat BEFORE this (bodyStatProblems); this is the floor
+ *  under a caller that forgets. */
+const within = (k: BodyStat, v: number) =>
+  Number.isFinite(v) ? Math.min(BODY_LIMITS[k].max, Math.max(BODY_LIMITS[k].min, v)) : BODY_LIMITS[k].min;
+
 /** Mifflin-St Jeor resting metabolic rate. */
 export function bmr({ age, heightCm, weightKg, sex }: Pick<TargetInput, "age" | "heightCm" | "weightKg" | "sex">): number {
   const base = 10 * weightKg + 6.25 * heightCm - 5 * age;
   return sex === "male" ? base + 5 : base - 161;
 }
 
-export function computeTargets(input: TargetInput): Targets {
+export function computeTargets(raw: TargetInput): Targets {
+  const input: TargetInput = {
+    ...raw,
+    age: within("age", raw.age),
+    heightCm: within("heightCm", raw.heightCm),
+    weightKg: within("weightKg", raw.weightKg),
+  };
   const b = bmr(input);
   const tdee = b * ACTIVITY_FACTOR[input.activity];
 
@@ -77,11 +120,18 @@ export function computeTargets(input: TargetInput): Targets {
   }
 
   // Protein: higher in a deficit (protects muscle) and when building. g/kg bodyweight.
+  // The weight it is per kg OF is capped at a BMI of 30: protein tracks lean mass, not total mass, and
+  // per kg of total weight a 230 kg person was set 460 g a day — 68% of their calories, with carbs
+  // forced to zero and the macros no longer adding up to the calories (D5b). Below BMI 30 this
+  // changes nothing.
   const proteinPerKg = input.goal === "lose_weight" ? 2.0 : input.goal === "build_muscle" ? 1.9 : 1.6;
-  const proteinGrams = Math.round(input.weightKg * proteinPerKg);
+  const heightM = input.heightCm / 100;
+  const referenceKg = Math.min(input.weightKg, 30 * heightM * heightM);
 
   // Fat at 25% of calories (a sane floor for hormones), carbs take the remainder.
   const fatGrams = Math.round((calories * 0.25) / 9);
+  // …and protein never takes more than the calories fat leaves, so the macros always sum to the target.
+  const proteinGrams = Math.min(Math.round(referenceKg * proteinPerKg), Math.floor((calories - fatGrams * 9) / 4));
   const carbsGrams = Math.max(0, Math.round((calories - proteinGrams * 4 - fatGrams * 9) / 4));
 
   return {
@@ -129,7 +179,7 @@ const ML_PER_KG = 35;
 const FROM_FOOD = 0.2; // a fifth of total water intake arrives as food
 
 export function hydrationTarget(weightKg: number, activity: Activity): Hydration {
-  const perKgMl = Math.round(weightKg * ML_PER_KG);
+  const perKgMl = Math.round(within("weightKg", weightKg) * ML_PER_KG);
   const activityMl = SWEAT_ALLOWANCE[activity];
   const totalMl = perKgMl + activityMl;
   const drinksMl = Math.round((totalMl * (1 - FROM_FOOD)) / 50) * 50; // to a tidy 50 mL

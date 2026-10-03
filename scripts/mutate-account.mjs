@@ -57,8 +57,8 @@ const MUTATIONS = [
   {
     name: "Delete-everything clears without stopping the sync",
     file: "src/lib/account/client.ts",
-    from: "  const s = currentSession();\n  stopRunning();\n  if (cfg && s) {",
-    to: "  const s = currentSession();\n  if (cfg && s) {",
+    from: "  stopRunning();\n  if (cfg && s) {",
+    to: "  if (cfg && s) {",
   },
   {
     name: "store size counted in UTF-16 units again, not the bytes the server counts",
@@ -96,6 +96,67 @@ const MUTATIONS = [
     file: "src/lib/storage.ts",
     from: "      const at = nextStamp(Date.now(), loadStoreMeta()[n]);",
     to: "      const at = Date.now();",
+  },
+  // Review 2, batch 1.
+  {
+    name: "\"Put it back\" looks the copy up again AFTER the safety copy pushed it out",
+    file: "src/lib/storage.ts",
+    from: "    return restoreBackup(target);",
+    to: "    return restoreBackup(id);",
+  },
+  {
+    name: "a file carrying a cleared (null) store is accepted",
+    file: "src/lib/account/portable.ts",
+    from: "    if (value === null) return { ok: false, error:",
+    to: "    if (false) return { ok: false, error:",
+  },
+  {
+    name: "the import preview hides the empty lists it would clear",
+    file: "src/lib/account/portable.ts",
+    from: "    else if (opts.incoming && Array.isArray(data[name])) out.push(",
+    to: "    else if (false) out.push(",
+  },
+  {
+    name: "the owner is recorded only after a first sync succeeds",
+    file: "src/lib/account/client.ts",
+    from: "  } else if (!owner) {",
+    to: "  } else if (false) {",
+  },
+  {
+    name: "deleting the account clears the owner again",
+    file: "src/lib/account/client.ts",
+    from: "  saveSessionRaw(null);\n  setStatus({\n    state: \"signed-out\",\n    message: \"Your account and everything",
+    to: "  saveSessionRaw(null);\n  saveSyncOwner(null);\n  setStatus({\n    state: \"signed-out\",\n    message: \"Your account and everything",
+  },
+  {
+    name: "\"Delete my account\" acts on whatever session is stored (unpinned)",
+    file: "src/lib/account/client.ts",
+    from: "    s = await liveSession(cfg, mine);",
+    to: "    s = await liveSession(cfg);",
+  },
+  {
+    name: "sign-out ends a sign-in this tab isn't showing",
+    file: "src/lib/account/client.ts",
+    from: "  if (stored && stored.userId !== mine) {",
+    to: "  if (false) {",
+  },
+  {
+    name: "\"Delete everything in this browser\" clears an account this tab isn't showing",
+    file: "src/lib/account/client.ts",
+    from: "  if (s && s.userId !== shownUser()) {",
+    to: "  if (false) {",
+  },
+  {
+    name: "a push replaces an account copy this device never saw, keeping nothing (rule 6)",
+    file: "src/lib/account/merge.ts",
+    from: "      if (!isEmpty(r.value) && r.at !== synced[name]) keepAccountCopy[name] = r.value;",
+    to: "",
+  },
+  {
+    name: "rule 6 also keeps the version this device already agreed on (backup churn)",
+    file: "src/lib/account/merge.ts",
+    from: "      if (!isEmpty(r.value) && r.at !== synced[name]) keepAccountCopy[name] = r.value;",
+    to: "      if (!isEmpty(r.value)) keepAccountCopy[name] = r.value;",
   },
 ];
 

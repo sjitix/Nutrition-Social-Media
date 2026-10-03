@@ -71,6 +71,29 @@ export function describeOperations(operations: Operation[]): string {
     : `${phrases.slice(0, -1).join(", ")} and ${phrases[phrases.length - 1]}`;
 }
 
+/**
+ * Does this reply CLAIM that something changed? ("Done — dinner is now lighter", "Wednesday now has
+ * 2000 kcal", "I've swapped your breakfast".)
+ *
+ * Why it exists: with reasoning turned off, a fast model imitated the engine's note style from earlier
+ * turns and claimed changes it never made, quoting numbers the engine never computed. No operation
+ * ran, so `planChanged` was rightly false, but the text told the user the opposite (models lane,
+ * 2026-10-03: 2 of 28 turns with reasoning off; earlier fine-tunes did it too, e.g. "Done — I've made
+ * your breakfast egg-free" after an operation that changed nothing). The pattern is theirs, validated
+ * on every stored turn: it catches 8 of 8 fabrications and trips on none of 5 honest replies. Note
+ * "right now / currently averages" is a description, not a claim. ONE copy: the evals import this.
+ */
+const CLAIMS_CHANGE =
+  /^(done|all set)\b|(?<!\bright |\bcurrently |\bas of )\bnow (has|lands|averages|comes to)\b|\bi(?:'ve| have) (made|swapped|changed|updated|added|lightened|moved|set|replaced|resized|raised|increased|boosted|bumped)\b/i;
+
+export function claimsChange(text: string): boolean {
+  return CLAIMS_CHANGE.test(text.trim().replace(/[‘’]/g, "'"));
+}
+
+/** What the user reads instead of a claim the engine cannot back. Honest, and it keeps the turn going. */
+export const NOTHING_CHANGED_REPLY =
+  "I haven't changed anything yet. Tell me what you'd like changed and I'll do it, or ask me to show you the plan first.";
+
 export function composeReply(args: {
   /** What the LLM wrote. Untrusted prose. */
   modelReply: string | undefined;
@@ -79,8 +102,15 @@ export function composeReply(args: {
   /** Set by the engine on a crisis or urgent medical symptom. Discards the model entirely. */
   replyOverride?: string;
   planChanged: boolean;
+  /**
+   * Whether the profile changed. Pass it when you KNOW it (the agent loop does): with both flags
+   * false and no engine notes, a model reply that claims a change is replaced by
+   * NOTHING_CHANGED_REPLY, because nothing the user can see would back it. Left undefined, the reply
+   * passes as before — a caller that cannot tell must not silence a true statement.
+   */
+  profileChanged?: boolean;
 }): string {
-  const { modelReply, notes, replyOverride, planChanged } = args;
+  const { modelReply, notes, replyOverride, planChanged, profileChanged } = args;
 
   // The engine's word is final. Not prepended to, not appended to — the whole reply. Keyed off
   // PRESENCE, not truthiness: an override is set only on a crisis or urgent symptom, where the model
@@ -102,6 +132,11 @@ export function composeReply(args: {
   if (clean.length) return clean.join(" ");
 
   const base = modelReply?.trim();
-  if (base) return base;
+  if (base) {
+    // The engine is silent and nothing changed, so this text is the model's alone. It may not say
+    // something changed (the two-layer rule: only the engine may claim a change).
+    if (profileChanged === false && !planChanged && claimsChange(base)) return NOTHING_CHANGED_REPLY;
+    return base;
+  }
   return planChanged ? "Done — I updated your plan." : "Happy to help.";
 }

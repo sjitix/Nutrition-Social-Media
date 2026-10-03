@@ -8,7 +8,7 @@
  * is internal to this folder, and check:boundaries fails anything outside the folder that imports it.
  */
 import { DAYS, type DayPlan, type Meal, type Operation, type UserProfile, type WeekPlan, type LockedMeal, type MealRating, type PlanSnapshot } from "../types";
-import { computeTargets, explainTargets, hydrationTarget, explainHydration, CALORIE_FLOOR, DEFAULT_CALORIE_FLOOR } from "../targets";
+import { computeTargets, explainTargets, hydrationTarget, explainHydration, CALORIE_FLOOR, DEFAULT_CALORIE_FLOOR, BODY_LIMITS, bodyStatProblems, bodyStatMessage } from "../targets";
 import { type Recipe } from "../data/seeds";
 import { wordMatches } from "../exclusions";
 import { RECIPES, baseRecipeOf, scaleRecipeToTarget, toMeal } from "./library";
@@ -920,18 +920,14 @@ export function applyOperations(
           notes.push(`I need your ${missing.join(", ")} before I can work out your targets.`);
           break;
         }
-        // Present but nonsensical (0, negative, non-finite) must be refused too — this is the layer
-        // that does the arithmetic so the model never does, and it must not turn a bad number into a
-        // NaN/negative calorie or protein target.
-        const bad = (
-          [
-            ["age", op.age],
-            ["height", op.heightCm],
-            ["weight", op.weightKg],
-          ] as const
-        ).filter(([, v]) => !Number.isFinite(v as number) || (v as number) <= 0).map(([k]) => k);
+        // Present but nonsensical must be refused too — this is the layer that does the arithmetic so
+        // the model never does, and it must not turn a bad number into a NaN, negative or absurd target.
+        // "Nonsensical" is not only 0 or negative: age 500 was accepted, stored, and answered with "your
+        // resting burn is about -570 kcal" (D5b). BODY_LIMITS is the adult range the equation is for.
+        const stats = { age: op.age!, heightCm: op.heightCm!, weightKg: op.weightKg! };
+        const bad = bodyStatProblems(stats);
         if (bad.length) {
-          notes.push(`Your ${bad.join(", ")} doesn't look right — I can only work targets from real, positive numbers.`);
+          notes.push(bodyStatMessage(bad, stats));
           break;
         }
         const t = computeTargets({
@@ -1159,6 +1155,12 @@ export function applyOperations(
         const weightKg = op.weightKg ?? p.bodyStats?.weightKg;
         if (!weightKg) {
           notes.push("How much do you weigh? Fluid needs scale with body weight, and I'd rather ask than guess.");
+          break;
+        }
+        // A weight we would not compute targets from is not one to prescribe fluid from, or to keep:
+        // -80 kg used to answer "aim for about -2.3 L a day" and store the -80 (D5b).
+        if (bodyStatProblems({ weightKg }).length) {
+          notes.push(`${weightKg} kg doesn't look right, so I haven't used it — fluid needs scale with body weight, and I work them out for ${BODY_LIMITS.weightKg.min}–${BODY_LIMITS.weightKg.max} kg.`);
           break;
         }
         // No stored activity means we don't know it. Assume the least, and say so below — a

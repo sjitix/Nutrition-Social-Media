@@ -42,17 +42,21 @@ export function toMeal(r: Recipe): Meal {
  * Add up what the ingredients actually are, per serving, from USDA per-100g values.
  *
  * `gramsFor` knows the unit conventions ("1 tbsp", "70 g dry", "1 can"). An ingredient we cannot
- * price contributes nothing — which would quietly understate the dish, so check-recipes.mts fails
- * on any unpriced ingredient rather than letting it pass.
+ * price is REFUSED, not skipped (V1 D5b): skipping it quietly understated the dish's calories and
+ * every nutrient in it, and only check:recipes stood between that and a user. Now the library will
+ * not load with one in it — `next build` fails, so it cannot deploy — and the error names the line.
  */
-function deriveMacros(r: RecipeSeed): Recipe {
+function deriveMacros(r: RecipeSeed, unpriced: string[]): Recipe {
   const servings = Math.max(1, r.servings ?? 1);
   let cal = 0, protein = 0, carbs = 0, fat = 0, fiber = 0;
   for (const i of r.ingredients) {
     const key = tableKey(i); // the one rule (D5): name first, the slug if the name stops resolving
     const per = NUTRIENT_TABLE[key]?.per100g;
     const grams = gramsFor(key, i.quantity);
-    if (!per || !grams) continue;
+    if (!per || !grams) {
+      unpriced.push(`${r.id}: "${i.name}" ${per ? `can't be weighed from "${i.quantity}"` : "has no USDA entry"}`);
+      continue;
+    }
     const f = grams / 100;
     cal += (per.cal ?? 0) * f;
     protein += (per.protein ?? 0) * f;
@@ -71,7 +75,13 @@ function deriveMacros(r: RecipeSeed): Recipe {
 }
 
 /** The library the whole engine uses. Macros come from the food, not from a card. */
-export const RECIPES: Recipe[] = SEED_RECIPES.map(deriveMacros);
+export const RECIPES: Recipe[] = (() => {
+  const unpriced: string[] = [];
+  const recipes = SEED_RECIPES.map((r) => deriveMacros(r, unpriced));
+  if (unpriced.length)
+    throw new Error(`Recipe library: ${unpriced.length} ingredient(s) cannot be priced, so their dishes would under-report every nutrient:\n  ${unpriced.join("\n  ")}`);
+  return recipes;
+})();
 
 // Micronutrients per recipe, computed once from the USDA-mapped ingredients.
 const microsCache = new Map<string, ReturnType<typeof microsForIngredients>>();

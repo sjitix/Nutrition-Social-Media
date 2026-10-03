@@ -23,16 +23,18 @@ import { currentStreak, prevDay, isoDay } from "@/lib/streak";
 import { expandConstrain, applyRemember, applyPrimitives, memoryContext, AssistantTurnV2Schema, allergensInFact, type PrimitiveOp } from "@/lib/primitives";
 import { assistantV2SystemPrompt } from "@/lib/promptV2";
 import { redFlag, CRISIS_REPLY } from "@/lib/safety";
-import { tableKey } from "@/lib/data/ingredients";
+import { tableKey, INGREDIENTS, resolveIngredient } from "@/lib/data/ingredients";
 import { validateExample, validateBatch, type TrainingExample } from "@/lib/dataValidate";
 import { generateExamples } from "@/lib/genV2";
 import { microsForIngredients } from "@/lib/nutrients";
 import { bulkGroceriesFromWeek, formatBulkQuantity, batchEfficiency } from "@/lib/batchGrocery";
-import { haystackBlocked, dietTagConflicts, parseExclusionTokens } from "@/lib/exclusions";
-import { bmr, computeTargets, hydrationTarget } from "@/lib/targets";
-import { composeReply, planWasChanged, describeOperations, READ_ONLY_TOOLS } from "@/lib/reply";
+import { haystackBlocked, dietTagConflicts, parseExclusionTokens, expandExclusion, EXCLUSION_CATEGORIES } from "@/lib/exclusions";
+import { bmr, computeTargets, hydrationTarget, CALORIE_FLOOR, DEFAULT_CALORIE_FLOOR, BODY_LIMITS } from "@/lib/targets";
+import { composeReply, planWasChanged, describeOperations, READ_ONLY_TOOLS, claimsChange, NOTHING_CHANGED_REPLY } from "@/lib/reply";
 import { SUBSTITUTES } from "@/lib/substitutions";
 import { NUTRIENT_TABLE } from "@/lib/nutrientTable.generated";
+import { UNIT_GRAMS } from "@/lib/unitGrams.generated";
+import { readFileSync } from "node:fs";
 import { gramsFor } from "@/lib/nutrients";
 import { MICRO_KEYS, DAILY_REFERENCE, MICRO_LABEL } from "@/lib/nutrients";
 import { parseRecipeHtml, parseIngredient, isSafePublicUrl, importedToMeal, decodeEntities } from "@/lib/import";
@@ -40,7 +42,7 @@ import {
   findRecipes, inspectRecipe, getPlan, getProfile, getSaved, report, whatIf,
   runReadTool, isReadTool, READ_TOOL_NAMES, MAX_ROWS,
 } from "@/lib/agentTools";
-import { runAgent, MAX_STEPS, type AgentTurn, type ModelFn } from "@/lib/agentLoop";
+import { runAgent, MAX_STEPS, FALSE_CLAIM_NUDGE, type AgentTurn, type ModelFn } from "@/lib/agentLoop";
 
 // ---------------------------------------------------------------- harness
 let pass = 0;
@@ -324,8 +326,23 @@ console.log("\n--- SCENARIOS (user perspective) ---");
   }
   check("go vegetarian replaces the violating meat dish", monLunchVeg !== meatLunch, `${meatLunch} -> ${monLunchVeg}`);
   check("go vegetarian: the whole week is vegetarian", allVeg);
-  check("go vegetarian: already-vegetarian dishes are kept, not reshuffled",
-    keptVeg >= Math.floor(wereVeg * 0.5), `${keptVeg}/${wereVeg} veg dishes preserved`);
+  // One random week decides nothing here: how many vegetarian dishes survive varies week to week.
+  // Measured over 60 seeded weeks (2026-10-03): 64% kept on average, with 1-2 weeks in 60 below half,
+  // both before and after D5b. So this check, judged on one unseeded week, failed a ship gate at 3/8.
+  // It is judged on the total over this week plus ten seeded ones.
+  let keptAll = keptVeg, wereAll = wereVeg;
+  for (let s = 0; s < 10; s++)
+    withSeed(300 + s, () => {
+      const w0 = applyOperations(BASE, freshWeek(BASE), [op({ tool: "swap_meal", day: "Monday", mealType: "lunch", dish: "chicken" })]).plan;
+      const b0 = w0.days.flatMap((d) => d.meals.map((m) => m.name));
+      const a0 = applyOperations(BASE, w0, [op({ tool: "update_profile", diet: "vegetarian" })]).plan.days.flatMap((d) => d.meals.map((m) => m.name));
+      b0.forEach((n, i) => {
+        const rr = recipeByName.get(n.toLowerCase());
+        if (rr && dietOk(rr.dietTags, "vegetarian")) { wereAll++; if (a0[i] === n) keptAll++; }
+      });
+    });
+  check("go vegetarian: already-vegetarian dishes are kept, not reshuffled (over 11 weeks)",
+    keptAll >= Math.ceil(wereAll * 0.5), `${keptAll}/${wereAll} veg dishes preserved`);
 }
 {
   // === MEAL-PREP / BATCH MODE (M1) ===
@@ -859,6 +876,185 @@ console.log("\n--- COMPUTE_TARGETS (the engine does the arithmetic) ---");
   check("full facts -> profile targets are set", full.profile.targetCalories > 2900 && full.profile.proteinGrams === 152, `${full.profile.targetCalories} kcal, ${full.profile.proteinGrams}g protein`);
   check("compute_targets explains itself in plain English", full.notes.some((n) => /resting burn/.test(n)), (full.notes[0] ?? "").slice(0, 90));
 }
+// ---------------------------------------------------------------- energy targets as properties (D5b)
+console.log("\n--- TARGETS: properties (Mifflin-St Jeor, activity factors, floor, macro sum, hydration, body limits) ---");
+{
+  const ACTS = ["sedentary", "light", "moderate", "active", "very_active"] as const;
+  const GOALS = ["lose_weight", "maintain", "build_muscle"] as const;
+  // Mifflin MD, St Jeor ST et al., Am J Clin Nutr 1990;51:241-7, in the rounded form clinical references
+  // use: 10*kg + 6.25*cm - 5*age + 5 (men) / - 161 (women). The paper's own regression is
+  // 9.99*kg + 6.25*cm - 4.92*age + 166*sex - 161; the app uses the rounded form.
+  const MSJ = (age: number, cm: number, kg: number, sex: "male" | "female") =>
+    10 * kg + 6.25 * cm - 5 * age + (sex === "male" ? 5 : -161);
+
+  // 1. Worked examples, by hand and one published (Omni Calculator: 60 y man, 5'4" = 162.56 cm,
+  //    150 lb = 68.04 kg -> 680.4 + 1016 - 300 + 5 = 1401.4 kcal/day).
+  const worked: [string, number, number, number, "male" | "female", number][] = [
+    ["M 30y 180cm 80kg", 30, 180, 80, "male", 1780],
+    ["F 30y 165cm 60kg", 30, 165, 60, "female", 1320.25],
+    ["M 60y 162.56cm 68.04kg (published)", 60, 162.56, 68.04, "male", 1401.4],
+    ["F 45y 160cm 55kg", 45, 160, 55, "female", 1164],
+    ["M 25y 175cm 70kg", 25, 175, 70, "male", 1673.75],
+    ["F 70y 150cm 50kg", 70, 150, 50, "female", 926.5],
+  ];
+  const offMsj = worked.filter(([, a, h, w, s, want]) => Math.abs(bmr({ age: a, heightCm: h, weightKg: w, sex: s }) - want) > 1e-9);
+  check("bmr: Mifflin-St Jeor reproduced exactly on six worked examples", offMsj.length === 0,
+    offMsj.map(([l, a, h, w, s]) => `${l} -> ${bmr({ age: a, heightCm: h, weightKg: w, sex: s })}`).join("; "));
+
+  // 2. Monotonicity, as exact partial slopes: +1 kg = +10, +1 cm = +6.25, +1 y = -5, male - female = 166.
+  const slopeErr: string[] = [];
+  for (const sex of ["male", "female"] as const)
+    for (let age = 18; age <= 90; age += 6) for (let h = 140; h <= 210; h += 7) for (let w = 40; w <= 200; w += 8) {
+      const b = bmr({ age, heightCm: h, weightKg: w, sex });
+      const dw = bmr({ age, heightCm: h, weightKg: w + 1, sex }) - b;
+      const dh = bmr({ age, heightCm: h + 1, weightKg: w, sex }) - b;
+      const da = bmr({ age: age + 1, heightCm: h, weightKg: w, sex }) - b;
+      const ds = bmr({ age, heightCm: h, weightKg: w, sex: "male" }) - bmr({ age, heightCm: h, weightKg: w, sex: "female" });
+      if (Math.abs(dw - 10) > 1e-9 || Math.abs(dh - 6.25) > 1e-9 || Math.abs(da + 5) > 1e-9 || Math.abs(ds - 166) > 1e-9)
+        slopeErr.push(`${sex} ${age}/${h}/${w}: dW=${dw} dH=${dh} dA=${da} dSex=${ds}`);
+    }
+  check("bmr: heavier +10/kg, taller +6.25/cm, older -5/y, male-female = 166, everywhere", slopeErr.length === 0, slopeErr[0] ?? "");
+
+  // 2b. The same order survives the whole pipeline: calories never fall with weight, height or
+  //     activity, never rise with age, and lose <= maintain <= build.
+  const monoErr: string[] = [];
+  for (const sex of ["male", "female"] as const)
+    for (let age = 18; age <= 90; age += 12) for (let h = 140; h <= 210; h += 14) for (let w = 40; w <= 200; w += 16)
+      for (const goal of GOALS) {
+        const kc = (o: Partial<{ age: number; heightCm: number; weightKg: number }>, activity: (typeof ACTS)[number]) =>
+          computeTargets({ age, heightCm: h, weightKg: w, sex, activity, goal, ...o }).calories;
+        const byAct = ACTS.map((a) => kc({}, a));
+        for (let i = 1; i < byAct.length; i++) if (byAct[i] < byAct[i - 1]) monoErr.push(`${sex} ${goal} ${age}/${h}/${w} by activity: ${byAct.join(",")}`);
+        for (const a of ACTS) {
+          const c = kc({}, a);
+          if (kc({ weightKg: w + 5 }, a) < c || kc({ heightCm: h + 5 }, a) < c || kc({ age: age + 5 }, a) > c)
+            monoErr.push(`${sex} ${a} ${goal} ${age}/${h}/${w}`);
+        }
+      }
+  for (const sex of ["male", "female"] as const) for (const a of ACTS) for (let w = 40; w <= 200; w += 16) {
+    const g = GOALS.map((goal) => computeTargets({ age: 40, heightCm: 170, weightKg: w, sex, activity: a, goal }).calories);
+    if (!(g[0] <= g[1] && g[1] <= g[2])) monoErr.push(`${sex} ${a} ${w}kg lose/maintain/build ${g.join(",")}`);
+  }
+  check("computeTargets: calories monotone in weight, height, age, activity and goal", monoErr.length === 0, monoErr[0] ?? "");
+
+  // 3. Activity factors are the Harris-Benedict standard activity factors (1.2 / 1.375 / 1.55 /
+  //    1.725 / 1.9). M 25y 160cm 72kg has a BMR of exactly 1600, so every TDEE is an integer.
+  const STD = { sedentary: 1.2, light: 1.375, moderate: 1.55, active: 1.725, very_active: 1.9 } as const;
+  const b1600 = { age: 25, heightCm: 160, weightKg: 72, sex: "male" as const };
+  const tds = ACTS.map((activity) => computeTargets({ ...b1600, activity, goal: "maintain" }));
+  check("activity factors: BMR 1600 -> TDEE 1920 / 2200 / 2480 / 2760 / 3040",
+    bmr(b1600) === 1600 && tds.map((t) => t.tdee).join() === "1920,2200,2480,2760,3040" && tds.map((t) => t.calories).join() === "1920,2200,2480,2760,3040",
+    `tdee ${tds.map((t) => t.tdee).join(",")}, kcal ${tds.map((t) => t.calories).join(",")}`);
+  const pipeErr: string[] = [];
+  for (const sex of ["male", "female"] as const) for (const a of ACTS)
+    for (let age = 18; age <= 90; age += 8) for (let h = 140; h <= 210; h += 10) for (let w = 40; w <= 200; w += 10) {
+      const exact = MSJ(age, h, w, sex);
+      const t = computeTargets({ age, heightCm: h, weightKg: w, sex, activity: a, goal: "maintain" });
+      if (t.bmr !== Math.round(exact) || Math.abs(t.tdee - exact * STD[a]) > 0.5) pipeErr.push(`${sex} ${a} ${age}/${h}/${w}: tdee ${t.tdee} vs ${exact * STD[a]}`);
+    }
+  check("computeTargets: bmr = round(MSJ), tdee = round(MSJ x standard factor), across a grid", pipeErr.length === 0, pipeErr[0] ?? "");
+
+  // 4. The floor holds on every input, for every sex value the code can be handed — unknown/other
+  //    falls back to the lower floor — and a clamp always lands exactly on it.
+  check("calorie floors: male 1500, female 1200, default = the lower one",
+    CALORIE_FLOOR.male === 1500 && CALORIE_FLOOR.female === 1200 && DEFAULT_CALORIE_FLOOR === 1200);
+  const floorErr: string[] = [];
+  let floorN = 0, floorClamped = 0;
+  for (const sex of ["male", "female", "other", undefined, ""] as unknown as ("male" | "female")[]) {
+    const floor = (CALORIE_FLOOR as Record<string, number>)[sex as string] ?? DEFAULT_CALORIE_FLOOR;
+    for (const activity of ACTS) for (const goal of GOALS)
+      for (let age = 18; age <= 110; age += 4) for (let h = 100; h <= 220; h += 10) for (let w = 25; w <= 250; w += 15) {
+        const t = computeTargets({ age, heightCm: h, weightKg: w, sex, activity, goal });
+        floorN++;
+        if (t.clampedTo !== undefined) floorClamped++;
+        if (!(t.calories >= floor)) floorErr.push(`sex=${String(sex)} ${activity} ${goal} ${age}/${h}/${w}: ${t.calories} < ${floor}`);
+        if (t.clampedTo !== undefined && (t.clampedTo !== floor || t.calories !== floor))
+          floorErr.push(`sex=${String(sex)} ${age}/${h}/${w}: ${t.calories} clampedTo=${t.clampedTo}`);
+      }
+  }
+  check("calorie floor: never below it for male/female/other/unknown, on any input", floorErr.length === 0 && floorClamped > 0,
+    floorErr[0] ?? `${floorN} inputs, ${floorClamped} clamped`);
+
+  // 4b. Even handed garbage, computeTargets returns finite, non-negative targets at or above the floor
+  //     (a NaN weight used to give NaN calories, and a weight of -80 a protein target of -160 g).
+  const garbage = [NaN, Infinity, -Infinity, -80, 0, 1e9];
+  const garbageErr: string[] = [];
+  for (const g of garbage) for (const field of ["age", "heightCm", "weightKg"] as const) {
+    const t = computeTargets({ age: 30, heightCm: 170, weightKg: 70, sex: "female", activity: "light", goal: "lose_weight", [field]: g });
+    const nums = [t.calories, t.proteinGrams, t.carbsGrams, t.fatGrams];
+    if (!nums.every((n) => Number.isFinite(n) && n >= 0) || t.calories < 1200) garbageErr.push(`${field}=${g}: ${nums.join("/")}`);
+  }
+  check("computeTargets: never NaN, Infinity or negative, and never below the floor, whatever it is handed", garbageErr.length === 0, garbageErr[0] ?? `${garbage.length * 3} inputs`);
+
+  // 5. The executor refuses a stat that is not a real number INSIDE the adult range, and stores nothing.
+  //    Age 500 used to be stored and answered "your resting burn is about -570 kcal"; 5000 kg gave
+  //    79,020 kcal and 8,000 g of protein.
+  const wk = freshWeek(BASE);
+  const absurd: [string, Partial<Operation>][] = [
+    ["NaN weight", { weightKg: NaN }], ["Infinity height", { heightCm: Infinity }], ["-Infinity age", { age: -Infinity }],
+    ["age 500", { age: 500 }], ["age 2", { age: 2 }], ["weight 5000 kg", { weightKg: 5000 }], ["weight 0.5 kg", { weightKg: 0.5 }],
+    ["height 5 cm", { heightCm: 5 }], ["height 2500 cm", { heightCm: 2500 }],
+  ];
+  for (const [label, bad] of absurd) {
+    const r = applyOperations(BASE, wk, [op({ tool: "compute_targets", age: 30, heightCm: 180, weightKg: 80, sex: "male", activity: "moderate", ...bad } as never)]);
+    check(`compute_targets refuses ${label}, targets and bodyStats untouched`,
+      r.notes.some((n) => /doesn't look right|only work out targets for adults/.test(n)) && r.profile.targetCalories === 2000 &&
+        r.profile.proteinGrams === 150 && r.profile.bodyStats === undefined && !r.notes.some((n) => /resting burn/.test(n)),
+      `${r.profile.targetCalories} kcal; ${r.notes[0] ?? "(none)"}`);
+  }
+  const teen = applyOperations(BASE, wk, [op({ tool: "compute_targets", age: 15, heightCm: 165, weightKg: 55, sex: "female", activity: "light", goal: "lose_weight" } as never)]);
+  check("compute_targets will not set a deficit for someone under 18, and says who should",
+    teen.profile.targetCalories === 2000 && teen.profile.bodyStats === undefined && teen.notes.some((n) => /adults.*GP|dietitian/.test(n)), teen.notes[0] ?? "(none)");
+  const edge = applyOperations(BASE, wk, [op({ tool: "compute_targets", age: BODY_LIMITS.age.min, heightCm: BODY_LIMITS.heightCm.max, weightKg: BODY_LIMITS.weightKg.max, sex: "male", activity: "moderate" } as never)]);
+  check("compute_targets accepts the limits themselves", edge.profile.bodyStats?.weightKg === BODY_LIMITS.weightKg.max, edge.notes[0] ?? "(none)");
+
+  // 6. The macro split adds back up EVERYWHERE in the executor's domain: 4P + 4C + 9F is within 7 kcal
+  //    of the calorie target (carbs round +-2 kcal, calories round to 10 = +-5). It used to break at
+  //    high weights, where protein at 2 g per kg of TOTAL weight left nothing for carbs (230 kg: 460 g
+  //    of protein, 68% of the calories); protein is now per kg of weight capped at a BMI of 30.
+  const macroErr: string[] = [];
+  let macroN = 0, macroWorst = 0, zeroCarb = 0;
+  for (const sex of ["male", "female"] as const) for (const activity of ACTS) for (const goal of GOALS)
+    for (let age = BODY_LIMITS.age.min; age <= BODY_LIMITS.age.max; age += 3)
+      for (let h = BODY_LIMITS.heightCm.min; h <= BODY_LIMITS.heightCm.max; h += 7)
+        for (let w = BODY_LIMITS.weightKg.min; w <= BODY_LIMITS.weightKg.max; w += 9) {
+          const t = computeTargets({ age, heightCm: h, weightKg: w, sex, activity, goal });
+          if (t.carbsGrams === 0) zeroCarb++;
+          macroN++;
+          const d = Math.abs(t.proteinGrams * 4 + t.carbsGrams * 4 + t.fatGrams * 9 - t.calories);
+          macroWorst = Math.max(macroWorst, d);
+          if (d > 7) macroErr.push(`${sex} ${activity} ${goal} ${age}/${h}/${w}: P${t.proteinGrams} C${t.carbsGrams} F${t.fatGrams} vs ${t.calories}`);
+        }
+  check("macros: 4P + 4C + 9F within 7 kcal of the calorie target, across the whole accepted range", macroErr.length === 0, macroErr[0] ?? `${macroN} inputs, worst ${macroWorst} kcal`);
+  check("macros: carbs never squeezed to 0 anywhere in the accepted range", zeroCarb === 0, `${zeroCarb}`);
+  const big = computeTargets({ age: 60, heightCm: 155, weightKg: 230, sex: "female", activity: "sedentary", goal: "lose_weight" });
+  check("protein for a very heavy body is set from a BMI-30 reference weight, not total weight",
+    big.proteinGrams <= Math.round(2.0 * 30 * 1.55 * 1.55) && big.proteinGrams * 4 <= 0.4 * big.calories, `${big.proteinGrams} g of ${big.calories} kcal`);
+  const ordinary = computeTargets({ age: 30, heightCm: 180, weightKg: 80, sex: "male", activity: "moderate", goal: "build_muscle" });
+  check("...and an ordinary body's protein is unchanged (1.9 g/kg x 80 kg)", ordinary.proteinGrams === 152, `${ordinary.proteinGrams}`);
+
+  // 7. Hydration: 35 mL/kg + the sweat allowance; drink 80% of it to the nearest 50 mL; low <= drink <= high;
+  //    monotone in weight and activity.
+  const ALLOW = [0, 250, 500, 750, 1000];
+  const hydErr: string[] = [];
+  for (let w = 30; w <= 200; w++) ACTS.forEach((a, i) => {
+    const h = hydrationTarget(w, a);
+    if (h.totalMl !== Math.round(35 * w) + ALLOW[i]) hydErr.push(`total ${w}kg ${a}`);
+    if (h.drinksMl % 50 || h.lowMl % 50 || h.highMl % 50) hydErr.push(`not to 50 mL ${w}kg ${a}`);
+    if (Math.abs(h.drinksMl - 0.8 * h.totalMl) > 25) hydErr.push(`drinks ${h.drinksMl} vs 80% of ${h.totalMl}`);
+    if (!(h.lowMl <= h.drinksMl && h.drinksMl <= h.highMl)) hydErr.push(`band ${w}kg ${a}`);
+    if (i && hydrationTarget(w, ACTS[i - 1]).drinksMl > h.drinksMl) hydErr.push(`activity order ${w}kg ${a}`);
+    if (hydrationTarget(w + 1, a).drinksMl < h.drinksMl) hydErr.push(`weight order ${w}kg ${a}`);
+  });
+  check("hydrationTarget: 35 mL/kg + allowance, 80% to drink in 50 mL steps, band brackets it, monotone", hydErr.length === 0, hydErr[0] ?? "");
+  check("hydrationTarget: never negative, whatever weight it is handed", [-80, NaN, 0, 1e9].every((w) => hydrationTarget(w, "sedentary").drinksMl > 0));
+  for (const w of [-80, 5000, 10]) {
+    const r = applyOperations(BASE, wk, [op({ tool: "hydration", weightKg: w } as never)]);
+    check(`hydration refuses a weight of ${w} kg and does not store it`,
+      r.profile.bodyStats?.weightKg === undefined && !r.notes.some((n) => /aim for about/.test(n)) && r.notes.some((n) => /doesn't look right/.test(n)),
+      r.notes[0] ?? "(none)");
+  }
+}
 {
   // gramsFor must read a MIXED number ("1 1/2") as 1.5, not the old silent 100g misparse; and a
   // plain "1/2" must still halve (regression guard for the widened regex). Ratios avoid magic grams.
@@ -880,6 +1076,492 @@ console.log("\n--- COMPUTE_TARGETS (the engine does the arithmetic) ---");
   check("gramsFor: a cup defaults to a liquid cup (240 g)", gramsFor("yogurt", "1 cup") === 240);
   check("gramsFor: cups plural with a mixed number", gramsFor("rice", "1 1/2 cups") === 360);
 }
+// ---------------------------------------------------------------- unit conversion laws (D5b)
+console.log("\n--- UNIT CONVERSION LAWS (gramsFor + unitGrams.generated) ---");
+{
+  const D = UNIT_GRAMS.default;
+  const P = UNIT_GRAMS.perIngredient;
+
+  // 1. The DEFAULT table agrees with itself. Exact, because every value is a terminating decimal and
+  //    the multipliers are small integers. lb/oz are within 0.01% of the international avoirdupois
+  //    definitions (28.349523125 g, 453.59237 g); the spoons are the metric 5/15 ml with a 240 ml cup.
+  check("units: default 1 tbsp = 3 tsp", D.tbsp === 3 * D.tsp, `${D.tbsp} vs ${3 * D.tsp}`);
+  check("units: default 1 cup = 16 tbsp", D.cup === 16 * D.tbsp, `${D.cup} vs ${16 * D.tbsp}`);
+  check("units: default kg = 1000 g, l = 1000 ml", D.kg === 1000 * D.g && D.l === 1000 * D.ml);
+  check("units: default lb = 16 oz", D.lb === 16 * D.oz, `${D.lb} vs ${16 * D.oz}`);
+  check("units: oz and lb within 0.01% of their legal definitions",
+    Math.abs(D.oz / 28.349523125 - 1) < 1e-4 && Math.abs(D.lb / 453.59237 - 1) < 1e-4, `oz=${D.oz} lb=${D.lb}`);
+  check("units: default singular and plural agree (cup/cups, piece/pieces, slice/slices, clove/cloves)",
+    D.cup === D.cups && D.piece === D.pieces && D.slice === D.slices && D.clove === D.cloves);
+
+  // 2. Every weight in the table is a positive finite number, and every key is reachable: gramsFor
+  //    lowercases both the ingredient and the unit, and the unit regex only captures [a-zA-Z-].
+  const badVal: string[] = [];
+  const badKey: string[] = [];
+  for (const [u, g] of Object.entries(D)) {
+    if (!(Number.isFinite(g) && g > 0)) badVal.push(`default.${u}=${g}`);
+    if (!/^[a-z-]+$/.test(u)) badKey.push(`default.${u}`);
+  }
+  for (const [ing, t] of Object.entries(P)) {
+    if (ing !== ing.trim().toLowerCase()) badKey.push(ing);
+    for (const [u, g] of Object.entries(t)) {
+      if (!(Number.isFinite(g) && g > 0)) badVal.push(`${ing}.${u}=${g}`);
+      if (!/^[a-z-]+$/.test(u)) badKey.push(`${ing}.${u}`);
+    }
+  }
+  check("units: every table weight is finite and > 0", badVal.length === 0, badVal.slice(0, 5).join(", "));
+  check("units: every table key is reachable (lowercase, matched by the unit regex)", badKey.length === 0, badKey.slice(0, 5).join(", "));
+
+  // 3. The generated module is the JSON it says it is generated from (not stale after a hand edit).
+  const json = JSON.parse(readFileSync("scripts/food-units.json", "utf8"));
+  check("units: unitGrams.generated.ts matches scripts/food-units.json",
+    JSON.stringify(json.default) === JSON.stringify(D) && JSON.stringify(json.perIngredient) === JSON.stringify(P));
+
+  // 4. Amount arithmetic is exact for every (ingredient, unit) the table knows, plus two ingredients
+  //    it does not: "2 u" = 2x, "1 1/2 u" = 1.5x, "1/2 u" = 0.5x = "0.5 u", 1/4 + 3/4 = 1, and the
+  //    result ignores case and whitespace. "count" is the bare number.
+  const ings = [...Object.keys(P), "rice", "za'atar"];
+  const units = [...new Set([...Object.keys(D), ...Object.values(P).flatMap((t) => Object.keys(t))])];
+  const scaleBad: string[] = [];
+  let pairs = 0;
+  for (const x of ings) for (const u of units) {
+    const sp = u === "count" ? "" : " " + u;
+    const one = gramsFor(x, `1${sp}`);
+    pairs++;
+    if (one == null) { scaleBad.push(`${x}|${u}: 1 -> null`); continue; }
+    const two = gramsFor(x, `2${sp}`), mixed = gramsFor(x, `1 1/2${sp}`), half = gramsFor(x, `1/2${sp}`);
+    const dec = gramsFor(x, `0.5${sp}`), q1 = gramsFor(x, `1/4${sp}`), q3 = gramsFor(x, `3/4${sp}`);
+    const loud = gramsFor(`  ${x.toUpperCase()} `, `  1 / 2${sp.toUpperCase()}  `);
+    if (two !== 2 * one) scaleBad.push(`${x}|${u}: 2x ${two} vs ${2 * one}`);
+    if (mixed !== 1.5 * one) scaleBad.push(`${x}|${u}: 1 1/2 ${mixed} vs ${1.5 * one}`);
+    if (half !== 0.5 * one) scaleBad.push(`${x}|${u}: 1/2 ${half} vs ${0.5 * one}`);
+    if (dec !== half) scaleBad.push(`${x}|${u}: 0.5 ${dec} vs 1/2 ${half}`);
+    if (q1 == null || q3 == null || Math.abs(q1 + q3 - one) > 1e-9 * one) scaleBad.push(`${x}|${u}: 1/4+3/4 != 1`);
+    if (loud !== half) scaleBad.push(`${x}|${u}: case/whitespace ${loud} vs ${half}`);
+  }
+  check("units: 2x, 1 1/2, 1/2, 0.5 and 1/4+3/4 scale exactly, case- and whitespace-blind",
+    scaleBad.length === 0, `${pairs} ingredient/unit pairs; ${scaleBad.slice(0, 3).join("; ")}`);
+
+  // 5. A unit it does not know is null, never a guess — including near-misses of known units
+  //    ("tablespoon", "cans", "lbs") and the T/t ambiguity, which must not silently pick one.
+  const unknownQ = ["1 tablespoon", "2 tablespoons", "1 teaspoon", "1 pinch", "1 handful", "1 bunch", "2 grams",
+    "1 litre", "1 ounce", "1 pound", "1 dash", "2 sprigs", "1 tin", "1 packet", "2 cans", "1 lbs", "1 T", "1 t",
+    "1 c", "1 fl-oz", "1 to 2 cups", "2-3 cloves", "2 eggs", "1 head", "1 stick"];
+  const guessed = unknownQ.filter((q) => gramsFor("rice", q) !== null || gramsFor("eggs", q) !== null);
+  check("units: an unknown unit returns null, never a guess", guessed.length === 0, guessed.join(", "));
+
+  // 6. Degenerate amounts are refused, and nothing ever comes back NaN, Infinity, zero or negative.
+  const degenerate = ["", "   ", "0", "0 g", "0.0 g", "00 g", "0/1 g", "1/0 g", "0/0 g", "0 1/0 g", "-1 cup", "- 1 cup",
+    "NaN g", "Infinity g", "abc", "g", "1e3 g", ".5 cup"];
+  const accepted = degenerate.filter((q) => gramsFor("rice", q) !== null);
+  check("units: zero, negative, divide-by-zero and non-numeric amounts return null", accepted.length === 0, accepted.join(", "));
+  {
+    let s = 12345;
+    const rnd = () => ((s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+    const parts = ["0", "1", "2", "10", "1/2", "3/4", "1/0", "0/0", "1.5", ".5", "-", " ", "/", "1 1/2", "cup", "tbsp", "g",
+      "piece", "x", "(", ")", "e", "E5", "99999999999999999999999999999999", ",", "."];
+    const weird: string[] = [];
+    for (let k = 0; k < 20000; k++) {
+      let q = "";
+      const n = 1 + Math.floor(rnd() * 4);
+      for (let j = 0; j < n; j++) q += parts[Math.floor(rnd() * parts.length)] + (rnd() < 0.5 ? " " : "");
+      const g = gramsFor(ings[Math.floor(rnd() * ings.length)], q);
+      if (g !== null && !(Number.isFinite(g) && g > 0)) weird.push(`"${q}" -> ${g}`);
+    }
+    check("units: fuzz — 20,000 random quantities give null or a finite positive weight", weird.length === 0, weird.slice(0, 3).join(", "));
+  }
+
+  // 7. Every quantity in the library weighs something — by the key the engine uses (tableKey) AND by
+  //    the display name, which is what bulkGroceriesFromWeek and the substitute cost read. If the two
+  //    paths disagreed, the grocery list would sum different grams from the macros the card shows.
+  const unweighable: string[] = [];
+  const pathsDiffer: string[] = [];
+  let rows = 0;
+  for (const r of RECIPES) for (const i of r.ingredients) {
+    rows++;
+    const g = gramsFor(tableKey(i), i.quantity);
+    if (g == null || !Number.isFinite(g) || g <= 0) unweighable.push(`${r.id}: ${i.name} "${i.quantity}"`);
+    if (gramsFor(i.name, i.quantity) !== g) pathsDiffer.push(`${r.id}: ${i.name} "${i.quantity}"`);
+  }
+  check("units: every ingredient quantity in the library resolves to grams", unweighable.length === 0,
+    `${rows} rows; ${unweighable.slice(0, 3).join("; ")}`);
+  check("units: display-name and tableKey paths weigh every library row the same", pathsDiffer.length === 0, pathsDiffer.slice(0, 3).join("; "));
+
+  // 8. scripts/build-nutrients.mts keeps its OWN, older parser for its accuracy gate, and that one does
+  //    not read mixed numbers ("1 1/2 tbsp" olive oil = 100 g there, 20.25 g here). The two agree on
+  //    the library only while no seed is written as a mixed number; when one is, port the regex there.
+  const mixedSeeds = RECIPES.flatMap((r) => r.ingredients.filter((i) => /^\s*\d+\s+\d+\s*\//.test(i.quantity)).map((i) => `${r.id}: "${i.quantity}"`));
+  check("units: no library quantity is a mixed number (build-nutrients.mts's parser can't read one)", mixedSeeds.length === 0, mixedSeeds.slice(0, 3).join("; "));
+  // 9. Per INGREDIENT, every unit agrees with the ones it overrides (D5b found these broken: a matcha
+  //    tablespoon weighed 15 g though 3 of its teaspoons weigh 6; a cup of olive oil 240 g though 16 of
+  //    its tablespoons weigh 216; "bell peppers: 2 pieces" 200 g while "2 piece" was 238 g — a live seed).
+  //    3% tolerance: where an ingredient overrides BOTH units of a pair, the two are separate kitchen
+  //    measurements (cocoa: 2.5 g a teaspoon, 7.4 g a tablespoon) and need not divide exactly.
+  const near = (a: number | null, b: number | null) => a != null && b != null && Math.abs(a - b) <= 0.03 * Math.max(a, b);
+  const unitLaw: string[] = [];
+  for (const x of Object.keys(P)) {
+    const g = (q: string) => gramsFor(x, q);
+    if (!near(g("1 tbsp"), 3 * (g("1 tsp") ?? NaN))) unitLaw.push(`${x}: tbsp ${g("1 tbsp")} vs 3 tsp ${3 * (g("1 tsp") ?? NaN)}`);
+    if (!near(g("1 cup"), 16 * (g("1 tbsp") ?? NaN))) unitLaw.push(`${x}: cup ${g("1 cup")} vs 16 tbsp`);
+    if (!near(g("1 tbsp"), g("15 ml"))) unitLaw.push(`${x}: tbsp ${g("1 tbsp")} vs 15 ml ${g("15 ml")}`);
+    if (!near(g("1 l"), 1000 * (g("1 ml") ?? NaN))) unitLaw.push(`${x}: l vs 1000 ml`);
+    for (const [a, b] of [["piece", "pieces"], ["slice", "slices"], ["clove", "cloves"], ["cup", "cups"]])
+      if (g(`2 ${a}`) !== g(`2 ${b}`)) unitLaw.push(`${x}: 2 ${a} ${g(`2 ${a}`)} vs 2 ${b} ${g(`2 ${b}`)}`);
+    const t = P[x] as Record<string, number | undefined>;
+    if (t.count != null || t.piece != null || t.pieces != null) {
+      if (!(g("1") === g("1 piece") && g("1 piece") === g("1 pieces"))) unitLaw.push(`${x}: count ${g("1")} / piece ${g("1 piece")} / pieces ${g("1 pieces")}`);
+      if (!((g("1 small") ?? NaN) <= (g("1") ?? NaN) && (g("1") ?? NaN) <= (g("1 large") ?? NaN))) unitLaw.push(`${x}: small ${g("1 small")} / count ${g("1")} / large ${g("1 large")}`);
+    }
+  }
+  check("units: per ingredient, tbsp = 3 tsp = 15 ml, cup = 16 tbsp, l = 1000 ml, singular = plural, count = piece, small <= one <= large",
+    unitLaw.length === 0, unitLaw.slice(0, 4).join("; ") || `${Object.keys(P).length} ingredients`);
+  check("units: eggs come in USDA sizes (small 38, medium 44, large 50 g)",
+    gramsFor("eggs", "1 small") === 38 && gramsFor("eggs", "1 medium") === 44 && gramsFor("eggs", "2 large") === 100);
+
+  // 10. A number with text after it that is not a unit is null, not "count"; a whole number is a mixed
+  //     number only when a real fraction follows it. ("2 (400 g) cans" was 200 g; "1 2 cups" was 3 cups.)
+  const junk = ["2 (400 g) cans", "1,5 g", "1.5.2 g", "1/2/3 cup", "1/-2 cup", "1 (15 oz) can", "1 2 cups", "1 14 oz can", "3 1 g", "10 3 g"];
+  const junkWeighed = junk.filter((q) => gramsFor("rice", q) !== null);
+  check("units: a number followed by something that is not a unit is null, never a count", junkWeighed.length === 0, junkWeighed.map((q) => `"${q}" -> ${gramsFor("rice", q)}`).join(", "));
+  check("units: thousands separators and vulgar fractions read as written (1,000 g; 2 ½ cups; ½ cup)",
+    gramsFor("rice", "1,000 g") === 1000 && gramsFor("rice", "2 ½ cups") === 600 && gramsFor("rice", "½ cup") === 120);
+  check("units: a unit may still be followed by words (\"70 g dry\", \"2 pieces, beaten\")",
+    gramsFor("rice", "70 g dry") === 70 && gramsFor("eggs", "2 pieces, beaten") === 100);
+}
+
+// ---------------------------------------------------------------- USDA table + Atwater (D5b)
+// The nutrient table is a verbatim copy of USDA SR Legacy (a probe against the CSVs in
+// data/usda found 0 differences in 180 entries x 15 nutrients, and 0 description mismatches), except
+// that a value a food's entry does not report may be FILLED from another SR Legacy entry for the same
+// food (shrimp's B12, from 174210). These laws are what it must satisfy without the 36 MB source.
+console.log("\n--- USDA TABLE (per-entry laws, documented gaps, exact use) ---");
+{
+  type P100 = (typeof NUTRIENT_TABLE)[string]["per100g"];
+  type NKey = keyof P100;
+  const ENTRIES = Object.entries(NUTRIENT_TABLE);
+  const v = (e: { per100g: P100 }, k: NKey) => e.per100g[k] ?? 0;
+
+  // 1. No negative, NaN or infinite value anywhere: a negative gram cannot exist, and a NaN would
+  //    poison every sum it reaches (deriveMacros, microsForIngredients) without throwing.
+  const bad: string[] = [];
+  for (const [k, e] of ENTRIES)
+    for (const [n, x] of Object.entries(e.per100g))
+      if (typeof x !== "number" || !Number.isFinite(x) || x < 0) bad.push(`${k}.${n}=${x}`);
+  check("USDA: no negative or non-finite value in any entry", bad.length === 0, bad.slice(0, 5).join(", "));
+
+  // 2. Energy and the three macros are always present. Fiber is NOT required: SR Legacy has no fiber
+  //    row for soba 168906 or tempeh 174272 (raw shrimp's is filled from 174210) — see 2b.
+  const noMacro = ENTRIES.filter(([, e]) => (["cal", "protein", "carbs", "fat"] as const).some((m) => e.per100g[m] === undefined)).map(([k]) => k);
+  check("USDA: every entry has cal, protein, carbs and fat", noMacro.length === 0, noMacro.join(", "));
+
+  // 2b. Every nutrient an entry lacks is a DOCUMENTED gap, listed on the entry; nothing reads as 0
+  //     unannounced. build-nutrients fails on an undocumented one; this proves the table it wrote agrees.
+  //     Shrimp used to claim full micronutrient coverage while counting raw shrimp as having no B12,
+  //     which the same food's other raw entry reports at 1.11 ug per 100 g (D5b).
+  const ALL_KEYS = ["cal", "protein", "carbs", "fat", "fiber", "calcium", "iron", "magnesium", "potassium", "sodium", "zinc", "vitD", "vitC", "folate", "b12"] as const;
+  const undocumented: string[] = [];
+  for (const [k, e] of ENTRIES) {
+    const missing = ALL_KEYS.filter((n) => e.per100g[n] === undefined);
+    const gaps = e.gaps ?? [];
+    if (missing.join() !== [...gaps].sort((a, b) => ALL_KEYS.indexOf(a as never) - ALL_KEYS.indexOf(b as never)).join()) undocumented.push(`${k}: missing [${missing}] vs gaps [${gaps}]`);
+  }
+  check("USDA: every missing nutrient is a documented gap, and every documented gap is really missing", undocumented.length === 0, undocumented.slice(0, 4).join("; "));
+  check("USDA: shrimp and prawns carry B12 and folate, filled from the same food's other raw entry (174210)",
+    (["shrimp", "prawns"] as const).every((k) => NUTRIENT_TABLE[k].per100g.b12 === 1.11 && NUTRIENT_TABLE[k].filledFrom?.fdcId === 174210 && NUTRIENT_TABLE[k].per100g.cal === 85),
+    JSON.stringify(NUTRIENT_TABLE.shrimp.filledFrom));
+
+  // 3. Mass balance. USDA carbohydrate is nutrient 1005, "by difference" = 100 - water - ash -
+  //    protein - fat (- alcohol), and it INCLUDES fiber, so P + C + F can reach 100 (an oil) but
+  //    never pass it. 0.01 g covers the 2-dp rounding of three fields.
+  let maxPcf = 0, maxPcfKey = "";
+  for (const [k, e] of ENTRIES) {
+    const s = v(e, "protein") + v(e, "carbs") + v(e, "fat");
+    if (s > maxPcf) { maxPcf = s; maxPcfKey = k; }
+  }
+  check("USDA: protein + carbs + fat <= 100 g per 100 g", maxPcf <= 100.01, `max ${maxPcf.toFixed(2)} (${maxPcfKey})`);
+
+  //    ...and with the micronutrients added in grams (mg / 1e3, ug / 1e6). Olive oil is 100.005 g:
+  //    its fat is printed as exactly 100, so 0.05 g of rounding allowance is needed, and is all.
+  const MG: NKey[] = ["calcium", "iron", "magnesium", "potassium", "sodium", "zinc", "vitC"];
+  const UG: NKey[] = ["vitD", "folate", "b12"];
+  let maxAll = 0, maxAllKey = "";
+  for (const [k, e] of ENTRIES) {
+    const s = v(e, "protein") + v(e, "carbs") + v(e, "fat")
+      + MG.reduce((t, n) => t + v(e, n), 0) / 1000 + UG.reduce((t, n) => t + v(e, n), 0) / 1e6;
+    if (s > maxAll) { maxAll = s; maxAllKey = k; }
+  }
+  check("USDA: macros + micronutrients never outweigh the 100 g they are measured in", maxAll <= 100.05, `max ${maxAll.toFixed(3)} g (${maxAllKey})`);
+
+  // 4. Fiber is a PART of carbohydrate-by-difference, so it can never exceed it.
+  const fiberOver = ENTRIES.filter(([, e]) => v(e, "fiber") > v(e, "carbs")).map(([k, e]) => `${k} fiber ${v(e, "fiber")} > carbs ${v(e, "carbs")}`);
+  check("USDA: fiber <= carbs in every entry (fiber is inside carbs-by-difference)", fiberOver.length === 0, fiberOver.join("; "));
+
+  // 5. No value exceeds the most extreme food in the WHOLE of SR Legacy for that nutrient (maxima
+  //    measured from data/usda, fdc of the record holder in the comment). Catches a unit slip:
+  //    vitamin D written in IU or ng, sodium in ug, energy in kJ.
+  const SR_LEGACY_MAX: Record<NKey, number> = {
+    cal: 902,         // 171400
+    protein: 88.32,   // 174276
+    carbs: 100,       // 169896
+    fat: 100,         // 167625
+    fiber: 79,        // 170289
+    calcium: 7364,    // 172804
+    iron: 123.6,      // 170938
+    magnesium: 781,   // 169713
+    potassium: 16500, // 175041
+    sodium: 38758,    // 173468 (salt)
+    zinc: 90.95,      // 171981
+    vitD: 250,        // 173577
+    vitC: 2732,       // 173487
+    folate: 3786,     // 167717
+    b12: 98.89,       // 171975
+  };
+  const overCap: string[] = [];
+  for (const [k, e] of ENTRIES)
+    for (const n of Object.keys(SR_LEGACY_MAX) as NKey[])
+      if (v(e, n) > SR_LEGACY_MAX[n]) overCap.push(`${k}.${n}=${v(e, n)} > ${SR_LEGACY_MAX[n]}`);
+  check("USDA: no value exceeds the SR Legacy maximum for its nutrient (unit slips)", overCap.length === 0, overCap.slice(0, 5).join("; "));
+
+  // 6. Energy. USDA computes kcal with FOOD-SPECIFIC Atwater factors, so 4/4/9 is only an
+  //    approximation. Every entry must land within max(15 kcal, 10%) of 4/4/9 — the nut/seed/legume
+  //    family sits at 7-9% (honey, tempeh, avocado, garlic use 88% of that allowance) — OR be one
+  //    of the reviewed outliers below, whose kcal must then match USDA's own specific factors
+  //    (protein / carbs / fat, from food_calorie_conversion_factor.csv) to within 1 kcal: USDA
+  //    rounds energy to whole kcal. All eight are high-fiber spices, cocoa or citrus; none is a
+  //    data error. A NEW entry that misses 4/4/9 badly fails here until someone looks at it.
+  const SPECIFIC_FACTORS: Record<number, [number, number, number]> = {
+    169593: [1.83, 1.33, 8.37], // cocoa, dry powder, unsweetened   (4/4/9 overshoots 90%)
+    171320: [1.82, 2.85, 8.37], // cinnamon, ground                  (42%)
+    171329: [3.36, 2.35, 8.37], // paprika (also smoked paprika, cajun spice)  (38%)
+    171319: [3.23, 2.39, 8.37], // chili powder (also fajita, taco spice)      (35%)
+    170924: [3.12, 2.92, 8.37], // curry powder (also tikka, ras el hanout)    (25%)
+    170923: [3.36, 2.9, 8.37],  // cumin seed (also shawarma spice)            (20%)
+    168155: [3.36, 2.48, 8.37], // limes, raw                        (56%, 17 kcal)
+    167746: [3.36, 2.48, 8.37], // lemons, raw, without peel          (53%, 15 kcal)
+  };
+  const energyBad: string[] = [];
+  const absMiss: number[] = [];
+  for (const [k, e] of ENTRIES) {
+    const P = v(e, "protein"), C = v(e, "carbs"), F = v(e, "fat"), cal = v(e, "cal");
+    const diff = 4 * P + 4 * C + 9 * F - cal;
+    absMiss.push(Math.abs(diff));
+    if (Math.abs(diff) <= Math.max(15, 0.1 * cal)) continue;
+    const f = SPECIFIC_FACTORS[e.fdcId];
+    if (!f) { energyBad.push(`${k} (${e.fdcId}): ${cal} kcal vs 4/4/9 ${(cal + diff).toFixed(1)} — unreviewed`); continue; }
+    const specific = f[0] * P + f[1] * C + f[2] * F;
+    if (Math.abs(specific - cal) > 1) energyBad.push(`${k} (${e.fdcId}): ${cal} kcal vs its specific factors ${specific.toFixed(1)}`);
+  }
+  absMiss.sort((a, b) => a - b);
+  check("USDA: every entry's kcal matches 4/4/9, or its own USDA specific factors (reviewed list)",
+    energyBad.length === 0,
+    energyBad.length ? energyBad.slice(0, 5).join("; ") : `|4/4/9 - kcal| median ${absMiss[absMiss.length >> 1].toFixed(1)}, max ${absMiss[absMiss.length - 1].toFixed(1)} kcal`);
+  // The reviewed list must not rot: every id on it is still in the table.
+  const tableIds = new Set(ENTRIES.map(([, e]) => e.fdcId));
+  const stale = Object.keys(SPECIFIC_FACTORS).filter((id) => !tableIds.has(Number(id)));
+  check("USDA: every reviewed energy outlier is still in the table", stale.length === 0, stale.join(", "));
+
+  // 7. Use: a recipe's macros are EXACTLY the table's numbers summed over its ingredients, per
+  //    serving, rounded once at the end. If deriveMacros ever reads a different key for kcal than
+  //    for protein, double-counts, or forgets servings on one field, this is where it shows.
+  //    (No per-RECIPE Atwater check here, on purpose: with both sides derived from the table, a
+  //    recipe's 4/4/9 miss is just the kcal-weighted mean of its ingredients' misses, so it is
+  //    fully decided by law 6 plus the ingredient mix. A wrong QUANTITY only moves the weights —
+  //    salmon x10 in Baked Salmon & Potatoes takes its miss from +2.05% to -1.74% — so a
+  //    recipe-level Atwater tolerance cannot catch the error it was written to catch.)
+  const drift: string[] = [];
+  for (const r of RECIPES) {
+    const servings = Math.max(1, r.servings ?? 1);
+    let cal = 0, P = 0, C = 0, F = 0, Fi = 0;
+    for (const i of r.ingredients) {
+      const key = tableKey(i);
+      const e = NUTRIENT_TABLE[key];
+      const g = gramsFor(key, i.quantity);
+      if (!e || !g) continue;
+      const f = g / 100;
+      cal += v(e, "cal") * f; P += v(e, "protein") * f; C += v(e, "carbs") * f; F += v(e, "fat") * f; Fi += v(e, "fiber") * f;
+    }
+    const want = [cal, P, C, F, Fi].map((x) => Math.round(x / servings));
+    const got = [r.calories, r.proteinGrams, r.carbsGrams, r.fatGrams, r.fiberGrams];
+    if (want.some((x, j) => x !== got[j])) drift.push(`${r.name}: ${got.join("/")} vs table ${want.join("/")}`);
+  }
+  check("USDA use: every recipe's kcal/P/C/F/fiber is exactly the table sum per serving", drift.length === 0, drift.slice(0, 3).join("; "));
+}
+
+// ---------------------------------------------------------------- macro derivation
+// deriveMacros (plan/library.ts) is private, so every law here recomputes a recipe's macros from the
+// exported pieces — NUTRIENT_TABLE + gramsFor + the ingredient's identity — and compares with RECIPES.
+// The full recomputation goes through the SLUG's curated name, not tableKey's name-first route, so a
+// display name that drifted onto another food would show up as a disagreement rather than agree with itself.
+console.log("\n--- MACRO DERIVATION (recomputed independently) ---");
+{
+  type Ing = { name: string; quantity: string; slug?: string };
+  const MACROS = ["cal", "protein", "carbs", "fat", "fiber"] as const;
+  type M = (typeof MACROS)[number];
+  const FIELD: Record<M, "calories" | "proteinGrams" | "carbsGrams" | "fatGrams" | "fiberGrams"> = {
+    cal: "calories", protein: "proteinGrams", carbs: "carbsGrams", fat: "fatGrams", fiber: "fiberGrams",
+  };
+  const zero = (): Record<M, number> => ({ cal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
+  const contribution = (i: Ing, viaSlug: boolean): Record<M, number> | null => {
+    const key = viaSlug && i.slug ? INGREDIENTS[i.slug as keyof typeof INGREDIENTS]?.name : tableKey(i);
+    const per = key ? NUTRIENT_TABLE[key]?.per100g : undefined;
+    const g = key ? gramsFor(key, i.quantity) : null;
+    if (!per || !g) return null;
+    const out = zero();
+    for (const k of MACROS) out[k] = ((per[k] ?? 0) * g) / 100;
+    return out;
+  };
+  const totals = (ings: Ing[], viaSlug = false) => {
+    const t = zero();
+    for (const i of ings) {
+      const c = contribution(i, viaSlug);
+      if (c) for (const k of MACROS) t[k] += c[k];
+    }
+    return t;
+  };
+  const divisor = (r: { servings?: number }) => Math.max(1, r.servings ?? 1);
+  // "1 1/2 cups" -> "3 cups", "1/4 piece" -> "0.5 piece", "70 g dry" -> "140 g dry"
+  const doubleQty = (q: string): string | null => {
+    const s = q.trim();
+    const m = s.match(/^(?:(\d+)\s+)?(\d+(?:\.\d+)?)(?:\s*\/\s*(\d+))?/);
+    if (!m) return null;
+    const amount = (m[1] ? Number(m[1]) : 0) + (m[3] ? Number(m[2]) / Number(m[3]) : Number(m[2]));
+    return `${2 * amount}${s.slice(m[0].length)}`;
+  };
+  const lineCount = RECIPES.reduce((s, r) => s + r.ingredients.length, 0);
+
+  // No silent skip: deriveMacros `continue`s past an ingredient it cannot find or weigh, which would
+  // quietly understate the dish. Every library line must both resolve AND weigh.
+  const skipped: string[] = [];
+  for (const r of RECIPES) for (const i of r.ingredients) {
+    const key = tableKey(i);
+    const g = gramsFor(key, i.quantity);
+    if (!NUTRIENT_TABLE[key] || !(g != null && g > 0)) skipped.push(`${r.id}: ${i.name} "${i.quantity}"`);
+  }
+  check("macros: no library ingredient is silently skipped (every line resolves in the table AND weighs)",
+    skipped.length === 0, skipped.length ? skipped.slice(0, 5).join("; ") : `${lineCount} ingredient lines`);
+  const partial = RECIPES.filter((r) => microsForIngredients(r.ingredients).coverage !== 1).map((r) => r.id);
+  check("macros: every recipe has coverage 1 on the micronutrient path too (the same lookup)",
+    partial.length === 0, partial.slice(0, 5).join(", "));
+
+  // No `?? 0` fallback on an energy macro: every table entry a recipe uses states cal/protein/carbs/fat.
+  // (Fiber is deliberately NOT asserted: SR Legacy omits it for tempeh and soba — documented gaps, above.)
+  const usedKeys = new Set(RECIPES.flatMap((r) => r.ingredients.map((i) => tableKey(i))));
+  const missingField: string[] = [];
+  for (const k of usedKeys) for (const f of ["cal", "protein", "carbs", "fat"] as const) {
+    const v = NUTRIENT_TABLE[k]?.per100g[f];
+    if (typeof v !== "number" || !Number.isFinite(v) || v < 0) missingField.push(`${k}.${f}`);
+  }
+  check("macros: every table entry a recipe uses states cal, protein, carbs and fat (no silent ?? 0)",
+    missingField.length === 0, missingField.length ? missingField.slice(0, 8).join(", ") : `${usedKeys.size} entries`);
+
+  // The food the macros come from is the food the seed's slug names (tableKey reads the NAME first).
+  const slugMismatch: string[] = [];
+  for (const r of RECIPES) for (const i of r.ingredients) {
+    if (resolveIngredient(i.name) !== i.slug) slugMismatch.push(`${r.id}: "${i.name}" -> ${resolveIngredient(i.name)}, slug ${i.slug}`);
+  }
+  check("macros: every library ingredient's display name resolves to its own slug",
+    slugMismatch.length === 0, slugMismatch.slice(0, 5).join("; "));
+
+  // Every recipe's five macros equal the sum of its ingredients' USDA contributions, per serving,
+  // within rounding (|diff| <= 0.5, tighter than one unit). Exact Math.round agreement is reported too.
+  const off: string[] = [];
+  let exact = 0, worst = 0;
+  for (const r of RECIPES) {
+    const t = totals(r.ingredients, true);
+    let allExact = true;
+    for (const k of MACROS) {
+      const want = t[k] / divisor(r);
+      const got = r[FIELD[k]] ?? NaN;
+      worst = Math.max(worst, Math.abs(got - want));
+      if (got !== Math.round(want)) allExact = false;
+      if (!(Math.abs(got - want) <= 0.5 + 1e-9)) off.push(`${r.id}.${k}: ${got} vs ${want.toFixed(3)}`);
+    }
+    if (allExact) exact++;
+  }
+  check("macros: every recipe equals the sum of its ingredients' USDA contributions per serving (|diff| <= 0.5)",
+    RECIPES.length > 0 && off.length === 0,
+    off.length ? off.slice(0, 5).join("; ") : `${RECIPES.length} recipes, ${exact} exact to Math.round, worst |diff| ${worst.toFixed(3)}`);
+
+  // Servings: the divisor is a whole number >= 1 (so the Math.max clamp never changes it), and the
+  // per-serving figure times servings recovers the whole ingredient list within rounding (s/2).
+  const badServings = RECIPES.filter((r) => r.servings !== undefined && !(Number.isInteger(r.servings) && r.servings >= 1)).map((r) => `${r.id}=${r.servings}`);
+  check("macros: every recipe's servings is absent or a whole number >= 1", badServings.length === 0, badServings.join(", "));
+  const multi = RECIPES.filter((r) => (r.servings ?? 1) > 1);
+  const servBad: string[] = [];
+  for (const r of multi) {
+    const t = totals(r.ingredients);
+    const s = divisor(r);
+    for (const k of MACROS) {
+      const per = r[FIELD[k]] ?? NaN;
+      if (!(Math.abs(per * s - t[k]) <= s / 2 + 1e-9)) servBad.push(`${r.id}.${k}: ${per} x ${s} vs ${t[k].toFixed(2)}`);
+    }
+  }
+  check("macros: per-serving x servings = the whole ingredient list's total (within s/2)",
+    multi.length > 0 && servBad.length === 0,
+    servBad.length ? servBad.slice(0, 5).join("; ") : multi.map((r) => `${r.id} x${r.servings}`).join(", "));
+  const microDivBad: string[] = [];
+  for (const r of multi) {
+    const raw = microsForIngredients(r.ingredients).micros;
+    const got = recipeMicros(r).micros;
+    for (const k of MICRO_KEYS) if (Math.abs(got[k] - raw[k] / divisor(r)) > 1e-9) microDivBad.push(`${r.id}.${k}`);
+  }
+  check("macros: recipeMicros divides by the same servings divisor as the macros",
+    multi.length > 0 && microDivBad.length === 0, microDivBad.slice(0, 5).join(", "));
+
+  // Linearity of the weighing: doubling the written amount doubles the grams, on EVERY library line —
+  // fractions, mixed numbers, "70 g dry", bare counts.
+  const nonLinear: string[] = [];
+  for (const r of RECIPES) for (const i of r.ingredients) {
+    const key = tableKey(i);
+    const d = doubleQty(i.quantity);
+    const g1 = gramsFor(key, i.quantity);
+    const g2 = d == null ? null : gramsFor(key, d);
+    if (g1 == null || g2 == null || Math.abs(g2 - 2 * g1) > 1e-9 * Math.max(1, g1)) nonLinear.push(`${key} "${i.quantity}" -> "${d}": ${g1} / ${g2}`);
+  }
+  check("macros: gramsFor(2 x amount) = 2 x gramsFor(amount) on every library quantity",
+    nonLinear.length === 0, nonLinear.length ? nonLinear.slice(0, 5).join("; ") : `${lineCount} lines`);
+
+  // Linearity of the derivation: in a modified seed with ONE ingredient doubled, the total rises by
+  // exactly that ingredient's contribution — every macro (reproduced), and every micronutrient through
+  // the exported microsForIngredients, which walks the same tableKey + gramsFor path.
+  const linBad: string[] = [];
+  let probes = 0;
+  const sample = RECIPES.filter((_, idx) => idx % 25 === 0).concat(multi);
+  for (const r of sample) {
+    const base = totals(r.ingredients);
+    const baseMicro = microsForIngredients(r.ingredients).micros;
+    r.ingredients.forEach((ing, j) => {
+      const d = doubleQty(ing.quantity);
+      const c = contribution(ing, false);
+      if (d == null || c == null) { linBad.push(`${r.id}[${j}] unparseable`); return; }
+      const mod = r.ingredients.map((x, k) => (k === j ? { ...x, quantity: d } : x));
+      const t2 = totals(mod);
+      for (const k of MACROS) if (Math.abs(t2[k] - base[k] - c[k]) > 1e-6) linBad.push(`${r.id}[${j}].${k}`);
+      const m2 = microsForIngredients(mod).micros;
+      const key = tableKey(ing);
+      const g = gramsFor(key, ing.quantity) ?? 0;
+      const per = NUTRIENT_TABLE[key].per100g;
+      for (const k of MICRO_KEYS) if (Math.abs(m2[k] - baseMicro[k] - ((per[k] ?? 0) * g) / 100) > 1e-6) linBad.push(`${r.id}[${j}].${k} (micro)`);
+      probes++;
+    });
+  }
+  check("macros: doubling one ingredient adds exactly its own contribution again (macros + micros)",
+    probes > 50 && linBad.length === 0,
+    linBad.length ? linBad.slice(0, 5).join("; ") : `${probes} single-ingredient doublings over ${sample.length} recipes`);
+
+  // Order independence, and the output shape every consumer assumes.
+  const orderBad = RECIPES.filter((r) => {
+    const a = totals(r.ingredients), b = totals([...r.ingredients].reverse());
+    return MACROS.some((k) => Math.round(a[k] / divisor(r)) !== Math.round(b[k] / divisor(r)));
+  }).map((r) => r.id);
+  check("macros: reversing a recipe's ingredient list changes no rounded macro", orderBad.length === 0, orderBad.slice(0, 5).join(", "));
+  const shapeBad = RECIPES.filter((r) => MACROS.some((k) => {
+    const v = r[FIELD[k]];
+    return !(typeof v === "number" && Number.isInteger(v) && v >= 0);
+  })).map((r) => r.id);
+  check("macros: every recipe's five macros (fiber included) are non-negative integers", shapeBad.length === 0, shapeBad.slice(0, 5).join(", "));
+}
+
 
 // ---------------------------------------------------------------- 1e. log_meal
 console.log("\n--- LOG_MEAL (real life derails the plan) ---");
@@ -1448,7 +2130,7 @@ console.log("--- SYMPTOM CHECK (never diagnose, never dose, always the doctor) -
 
   // The note is the WHOLE reply on a feelings message, so it must end with something a "yes please"
   // can accept. When the associated nutrients all look adequate it used to end on "see a doctor" and
-  // offer nothing — the next turn had to guess (models lane's conversation eval, 2026-10-04).
+  // offer nothing — the next turn had to guess (models lane's conversation eval, 2026-10-03).
   {
     const adequate = sym("my nails are brittle").notes.join(" ");
     if (/look adequate/.test(adequate)) {
@@ -1863,6 +2545,281 @@ console.log("--- ALLERGEN MATCHING (found by audit: a peanut-allergic user was s
     }
   }
   check("the planner never serves an allergen, in any phrasing", served === "", served);
+}
+
+// ---------------------------------------------------------------- allergen laws (D5b)
+// Derived as PROPERTIES of the matcher and swept over the whole library (V1 milestone D5b,
+// 2026-10-03). The sweep found eleven failing laws with real servings end to end; the second half of
+// this block holds each one's cases, now passing, so none can come back quietly.
+console.log("");
+console.log("--- ALLERGEN LAWS (D5b: properties, swept over the whole library) ---");
+{
+  const T = (a: string) => parseExclusionTokens(a, "");
+
+  // L1 — an allergen matches its plural and singular BOTH ways, typed either way, and as a modifier
+  // ("peanuts" must block "peanut butter"). The one-way version served a peanut allergy Thai Peanut Chicken.
+  const pairs: [string, string][] = [
+    ["peanut", "peanuts"], ["egg", "eggs"], ["almond", "almonds"], ["prawn", "prawns"], ["walnut", "walnuts"],
+    ["pecan", "pecans"], ["cashew", "cashews"], ["hazelnut", "hazelnuts"], ["pistachio", "pistachios"],
+    ["shrimp", "shrimps"], ["sardine", "sardines"], ["lobster", "lobsters"], ["tomato", "tomatoes"],
+    ["anchovy", "anchovies"], ["berry", "berries"], ["cherry", "cherries"],
+  ];
+  let oneWay = "";
+  for (const [s, p] of pairs) {
+    if (!haystackBlocked(p, T(s))) oneWay += ` ${s}->${p}`;
+    if (!haystackBlocked(s, T(p))) oneWay += ` ${p}->${s}`;
+    if (!haystackBlocked(`${s} butter`, T(p))) oneWay += ` ${p}->"${s} butter"`;
+  }
+  check("allergen law: singular and plural (-s, -es, -y/-ies) match both ways, incl. as a modifier", oneWay === "", oneWay || `${pairs.length * 3} cases`);
+  check("allergen law: the fish category blocks 'anchovies'", haystackBlocked("anchovies", ["fish"]));
+
+  // L2 — a category blocks EVERY member it lists: as the raw key, as parsed, and inside a sentence.
+  let memberMiss = "";
+  for (const key of EXCLUSION_CATEGORIES)
+    for (const term of expandExclusion(key)) {
+      if (!haystackBlocked(term, [key])) memberMiss += ` ${key}->${term}`;
+      if (!haystackBlocked(term, T(key))) memberMiss += ` T(${key})->${term}`;
+      if (!haystackBlocked(`Some Dish ${term} rice`, T(`allergic to ${key}`))) memberMiss += ` "allergic to ${key}"->${term}`;
+    }
+  check("allergen law: every category blocks every member it lists", memberMiss === "", memberMiss || `${EXCLUSION_CATEGORIES.length} categories`);
+
+  // L3 — the members that matter most, spelled exactly as the library spells them.
+  const named: [string, string][] = [
+    ["nuts", "peanut butter"], ["nuts", "pesto"], ["nut", "peanuts"], ["nuts", "almonds"], ["nuts", "walnuts"], ["nuts", "pecans"],
+    ["tree nuts", "almonds"], ["tree nuts", "pesto"],
+    ["dairy", "light caesar dressing"], ["dairy", "pesto"], ["dairy", "greek yogurt"], ["dairy", "cottage cheese"],
+    ["dairy", "ice cream"], ["dairy", "butter"], ["milk", "light caesar dressing"], ["lactose", "parmesan"],
+    ["gluten", "soy-ginger sauce"], ["gluten", "ginger-soy sauce"], ["gluten", "sesame-soy sauce"], ["gluten", "soy sauce"],
+    ["gluten", "teriyaki sauce"], ["gluten", "whole-wheat penne"], ["gluten", "sourdough bread"], ["gluten", "panko"],
+    ["gluten", "burger bun"], ["gluten", "soba noodles"], ["gluten", "wholegrain bagel"], ["wheat", "sesame-soy sauce"],
+    ["shellfish", "prawns"], ["shellfish", "shrimp"], ["shellfish", "prawn"],
+    ["egg", "light caesar dressing"], ["egg", "egg noodles"], ["egg", "egg whites"],
+    ["fish", "smoked mackerel"], ["fish", "canned tuna"], ["fish", "cod fillet"], ["fish", "light caesar dressing"],
+    ["sesame", "tahini"], ["sesame", "hummus"], ["sesame", "sesame oil"],
+    ["soy", "firm tofu"], ["soy", "miso paste"], ["soy", "edamame"], ["soy", "tempeh"], ["soy", "soy protein powder"],
+    ["pork", "lean pork sausage"], ["pork", "pork tenderloin"],
+  ];
+  let namedLeak = "";
+  for (const [k, food] of named) if (!haystackBlocked(food, T(k))) namedLeak += ` ${k}->"${food}"`;
+  check("allergen law: each category blocks its members as the library spells them", namedLeak === "", namedLeak || `${named.length} cases`);
+  check("allergen law: 'tree nuts' does not list peanut (a legume)", !expandExclusion("tree nuts").includes("peanut"));
+
+  // L4 — never a word-fragment false positive. Nutmeg is a seed, not a nut: a nut allergy leaves it alone.
+  // Nor a two-letter word read as a stem: "so" is not soy, "co" is not cod. Nor a cooking verb read as a
+  // gluten food: nine recipes with no gluten in them were blocked for every coeliac by "toast the cumin".
+  const fragments: [string, string][] = [
+    ["egg", "eggplant"], ["eggs", "eggplant"], ["oat", "goat cheese"], ["oats", "goat cheese"], ["ham", "graham crackers"],
+    ["pork", "graham crackers"], ["ham", "hamburger"], ["nut", "nutmeg"], ["nuts", "nutmeg"], ["tree nuts", "nutmeg"],
+    ["nuts", "coconut milk"], ["nuts", "butternut squash"], ["nuts", "nutritional yeast"], ["nut", "doughnut"],
+    ["dairy", "butternut squash"], ["dairy", "peanut butter"], ["dairy", "almond butter"], ["milk", "cocoa butter"],
+    ["pea", "peanuts"], ["peas", "peanut butter"], ["corn", "unicorn"], ["rice", "licorice"], ["tuna", "fortunate"],
+    ["fish", "selfish"], ["ham", "shame"], ["egg", "veggie"], ["cod", "avocado"], ["bun", "bunch of parsley"],
+    ["soy", "toss so it coats"], ["fish", "a co op"], ["gluten", "toast the cumin seeds"], ["gluten", "toasted sesame seeds"],
+    ["gluten", "wrap in foil and bake"], ["gluten", "mix everything into a dough"], ["dairy", "soy protein powder"],
+  ];
+  let frag = "";
+  for (const [tok, food] of fragments) if (haystackBlocked(food, T(tok))) frag += ` "${tok}"->"${food}"`;
+  check("allergen law: no word-fragment false positive (eggplant, goat, graham, nutmeg, 'so', 'toast the')", frag === "", frag || `${fragments.length} cases`);
+  check("allergen law: ...while toast and wraps as FOODS still block",
+    haystackBlocked("serve on whole-grain toast", T("gluten")) && haystackBlocked("Chilli Avocado Toast", T("gluten")) &&
+      haystackBlocked("Beef Fajita Wrap whole-wheat wrap", T("gluten")));
+  const gluten = T("gluten");
+  const stepOnly = RECIPES.filter((r) => haystackBlocked(recipeHay(r), gluten) &&
+    !haystackBlocked(`${r.name} ${r.ingredients.map((i) => i.name).join(" ")}`, gluten));
+  check("allergen law: no recipe is blocked for gluten by its METHOD alone", stepOnly.length === 0, stepOnly.map((r) => r.name).join(" | "));
+
+  // L5 — a contrast clause never cancels an allergy, on EITHER side of the contrast word, and a food
+  // the user says is fine is not blocked. The first version kept only the clause before the contrast
+  // word, so "fine with almonds but allergic to peanuts" was served peanut dishes 7 times in 5 weeks.
+  const contrastCases: [string, string, string][] = [
+    ["peanuts but fine with almonds", "peanut butter", "almonds"],
+    ["fine with almonds but allergic to peanuts", "peanut butter", "almonds"],
+    ["i can eat almonds but not peanuts", "peanut butter", "almonds"],
+    ["almonds are fine however peanuts are not", "peanut butter", "almonds"],
+    ["I'm not allergic to almonds, but peanuts yes", "peanut butter", "almonds"],
+    ["nuts are fine except peanuts", "peanut butter", "walnuts"],
+  ];
+  for (const [typed, block, allow] of contrastCases) {
+    const t = T(typed);
+    check(`allergen law: "${typed}" blocks ${block} and not ${allow}`, haystackBlocked(block, t) && !haystackBlocked(allow, t), JSON.stringify(t));
+  }
+  check("allergen law: 'shellfish, except crab' still blocks prawns", haystackBlocked("prawns", T("shellfish, except crab")));
+  check("allergen law: 'no dairy except butter' still blocks cheddar", haystackBlocked("cheddar", T("no dairy except butter")));
+  check("allergen law: an allowance word inside an allergy does not cancel it ('ok so I'm allergic to peanuts')",
+    haystackBlocked("peanut butter", T("ok so I'm allergic to peanuts")));
+
+  // L6 — matching is case- and whitespace-insensitive on both sides.
+  check("allergen law: case and padding do not matter",
+    haystackBlocked("THAI PEANUT CHICKEN", ["  Peanuts "]) && haystackBlocked("Greek Yogurt", [" DAIRY"]) && haystackBlocked("Prawns", T("SHELLFISH")));
+
+  // L7 — exclusions compose: naming a second allergy never unblocks the first.
+  let composeMiss = "";
+  for (const a of EXCLUSION_CATEGORIES)
+    for (const b of ["peanuts", "sesame", "shellfish"]) {
+      const both = parseExclusionTokens(`${a}, ${b}`, "");
+      const split = parseExclusionTokens(a, b);
+      for (const food of expandExclusion(a))
+        if (!haystackBlocked(food, both) || !haystackBlocked(food, split)) composeMiss += ` ${a}+${b}->${food}`;
+    }
+  check("allergen law: adding an allergy (or splitting it into dislikes) never unblocks another", composeMiss === "", composeMiss || "clean");
+
+  // L8 — every ordinary way of TYPING an allergy blocks the food. 15 of 17 of these lost the allergy
+  // before: "severe peanut allergy" was served peanut 9 times in 5 weeks, "dairy-free" dairy 23 times.
+  const typings: [string, string][] = [
+    ["peanuts.", "peanut butter"], ["Peanuts!", "peanut butter"], ["(peanuts)", "peanut butter"], ["*peanuts*", "peanut"],
+    ["\"peanuts\"", "peanut"], ["'peanuts'", "peanut"], ["I’m allergic to peanuts", "peanut butter"],
+    ["peanuts\nshellfish", "shrimp"], ["peanuts\nshellfish", "peanut"], ["peanuts shellfish", "prawn"],
+    ["shrimp or crab", "prawns"], ["shrimp or crab", "crab"], ["severe peanut allergy", "peanut butter"],
+    ["life-threatening peanut allergy", "satay"], ["anaphylactic to peanuts", "peanut butter"],
+    ["dairy-free", "cheddar"], ["gluten-free", "bread"], ["nut-free", "almonds"], ["coeliac", "pizza base"],
+    ["celiac", "pasta"], ["Coeliac disease", "bread"], ["my son is allergic to nuts", "almond"],
+    ["cow's milk", "cheddar"], ["crème fraîche", "creme fraiche"], ["no dairy products please", "milk"],
+  ];
+  let typedLeak = "";
+  for (const [typed, food] of typings) if (!haystackBlocked(food, T(typed))) typedLeak += ` ${JSON.stringify(typed)}->"${food}" ${JSON.stringify(T(typed))}`;
+  check("allergen law: every ordinary way of typing an allergy blocks the food", typedLeak === "", typedLeak || `${typings.length} cases`);
+  // The form a food comes in is not the allergen: an "oat milk" dislike must not strip dairy milk.
+  const carriers: [string, string][] = [["peanut butter", "butter"], ["oat milk", "milk"], ["almond milk", "cheddar"], ["coconut milk", "greek yogurt"]];
+  let carrierOver = "";
+  for (const [typed, food] of carriers) if (haystackBlocked(food, T(typed))) carrierOver += ` "${typed}"->"${food}"`;
+  check("allergen law: a phrase blocks the food it is MADE of, not the form it comes in", carrierOver === "", carrierOver);
+
+  // L9 — synonyms and UK/EU label terms block each other. "prawns" left 12 shrimp recipes eligible and
+  // was served shrimp 9 times in 5 weeks; "soya" was served tofu 15 times.
+  const synonyms: [string, string][] = [
+    ["prawns", "shrimp"], ["shrimp", "prawns"], ["crustaceans", "crab"], ["crustaceans", "shrimp"], ["molluscs", "mussels"],
+    ["shellfish", "oysters"], ["soya", "firm tofu"], ["soya", "soy sauce"], ["soybeans", "edamame"], ["yoghurt", "greek yogurt"],
+    ["yogurt", "yoghurt"], ["groundnuts", "peanut butter"],
+  ];
+  let synLeak = "";
+  for (const [typed, food] of synonyms) if (!haystackBlocked(food, T(typed))) synLeak += ` "${typed}"->"${food}"`;
+  check("allergen law: synonyms and label terms block each other (prawn/shrimp, soya, crustaceans…)", synLeak === "", synLeak || `${synonyms.length} cases`);
+
+  // L10 — compound and prepared foods carry the allergens their usual recipe does (the pesto/Caesar
+  // precedent). Whey protein powder passed a milk allergy 27 times in 10 weeks; a pizza base passed a coeliac.
+  const compounds: [string, string][] = [
+    ["gluten", "pizza base"], ["gluten", "Pepperoni & Mozzarella Pizza"], ["dairy", "protein powder"], ["milk", "protein powder"],
+    ["lactose", "protein powder"], ["dairy", "tikka masala sauce"], ["nuts", "tikka masala sauce"], ["fish", "kimchi"],
+    ["shellfish", "kimchi"], ["nuts", "granola"], ["nuts", "muesli"], ["tree nuts", "granola"], ["dairy", "buffalo sauce"],
+    ["gluten", "enchilada sauce"], ["gluten", "turkey sausage"], ["wheat", "lean pork sausage"], ["pork", "pepperoni"],
+    ["pork", "prosciutto"], ["dairy", "buttermilk"], ["dairy", "ghee"], ["dairy", "paneer"], ["dairy", "whey"],
+    ["gluten", "breadcrumbs"], ["gluten", "flatbread"], ["gluten", "barley"], ["gluten", "rye crackers"],
+    ["soy", "soya milk"], ["egg", "mayonnaise"], ["sesame", "halva"],
+  ];
+  let compoundLeak = "";
+  for (const [k, food] of compounds) if (!haystackBlocked(food, T(k))) compoundLeak += ` ${k}->"${food}"`;
+  check("allergen law: compound foods carry their usual allergens (pizza base, whey, tikka masala, kimchi…)", compoundLeak === "", compoundLeak || `${compounds.length} cases`);
+  check("allergen law: the allergen path agrees with the diet path on gluten and dairy, across the library", (() => {
+    for (const r of RECIPES) {
+      const names = r.ingredients.map((i) => i.name);
+      if (dietTagConflicts("gluten_free", names).length && !haystackBlocked(recipeHay(r), T("gluten"))) return false;
+      const dairy = dietTagConflicts("vegan", names).filter((n) => /milk|cheese|yogurt|butter|cream|whey|protein powder|ghee|paneer/.test(n));
+      if (dairy.length && !haystackBlocked(recipeHay(r), T("dairy"))) return false;
+    }
+    return true;
+  })());
+
+  // L11 — LIBRARY SWEEP. An oracle written independently of CATEGORY_TERMS: unambiguous members,
+  // word-bounded, with plurals. Every recipe — treats included — that contains a member must be
+  // blocked by that category's token, through the same haystack the engine uses.
+  const W = (words: string[]) => new RegExp(`\\b(${words.join("|")})(s|es)?\\b`, "i");
+  const ORACLE: Record<string, RegExp> = {
+    nuts: W(["almond", "walnut", "pecan", "cashew", "hazelnut", "pistachio", "macadamia", "peanut", "pine nut", "pesto"]),
+    "tree nuts": W(["almond", "walnut", "pecan", "cashew", "hazelnut", "pistachio", "macadamia", "pine nut", "pesto"]),
+    peanuts: W(["peanut"]),
+    dairy: W(["milk", "cheese", "yogurt", "yoghurt", "butter(?<!peanut butter)(?<!almond butter)", "cream", "feta", "mozzarella", "cheddar", "parmesan", "ricotta", "halloumi", "paneer", "ghee", "caesar dressing", "pesto", "protein powder(?<!soy protein powder)"]),
+    gluten: W(["bread", "pasta", "couscous", "bulgur", "orzo", "panko", "spaghetti", "penne", "noodle", "bagel", "wrap", "tortilla", "flour", "wheat", "toast", "bun", "soy sauce", "soy-ginger sauce", "ginger-soy sauce", "sesame-soy sauce", "teriyaki", "muesli", "granola", "pizza base", "sausage", "enchilada sauce"]),
+    shellfish: W(["shrimp", "prawn", "crab", "lobster", "scallop", "mussel", "clam", "oyster"]),
+    fish: W(["salmon", "tuna", "cod", "mackerel", "trout", "sardine", "haddock", "fish", "caesar dressing"]),
+    egg: W(["egg", "mayonnaise", "mayo", "aioli", "caesar dressing"]),
+    soy: W(["tofu", "tempeh", "edamame", "soy", "soya", "miso", "teriyaki"]),
+    sesame: W(["sesame", "tahini", "hummus"]),
+    pork: W(["pork", "bacon", "ham", "chorizo", "prosciutto", "pancetta", "salami"]),
+  };
+  const sweepLeaks: string[] = [];
+  let pairsSeen = 0;
+  for (const [token, re] of Object.entries(ORACLE)) {
+    const tokens = T(token);
+    for (const r of RECIPES) {
+      const hit = r.ingredients.map((i) => i.name.toLowerCase()).find((n) => re.test(n));
+      if (!hit) continue;
+      pairsSeen++;
+      if (!haystackBlocked(recipeHay(r), tokens)) sweepLeaks.push(`${token}: ${r.name} <- ${hit}`);
+    }
+  }
+  check("allergen law: every recipe holding a category member is blocked by that category, treats included",
+    sweepLeaks.length === 0, sweepLeaks.length ? sweepLeaks.slice(0, 6).join("; ") : `${pairsSeen} recipe x allergen pairs`);
+  // Prove the presence: the sweep must actually have looked at every allergen.
+  check("...and the sweep exercised every allergen in the oracle",
+    Object.values(ORACLE).every((re) => RECIPES.some((r) => r.ingredients.some((i) => re.test(i.name.toLowerCase())))), `${pairsSeen} pairs`);
+
+  // L12 — DIET TAGS against an independent oracle (dietTagConflicts' own sweep is in DATA INTEGRITY;
+  // this one uses different lists so a gap in NON_VEGAN/NON_VEGETARIAN cannot hide itself).
+  const MEAT_FISH = W(["chicken", "beef", "pork", "turkey", "lamb", "duck", "ham", "bacon", "chorizo", "sausage", "steak", "salmon", "tuna", "cod", "mackerel", "trout", "shrimp", "prawn", "crab", "lobster", "sardine", "fish", "gelatin", "caesar dressing"]);
+  const ANIMAL = W(["milk", "cheese", "yogurt", "yoghurt", "butter", "cream", "feta", "mozzarella", "cheddar", "parmesan", "ricotta", "halloumi", "honey", "egg", "ghee", "whey", "pesto", "caesar dressing", "tikka masala sauce"]);
+  const PLANT_OK = /^(peanut butter|almond butter|soy protein powder|eggplant|cocoa butter)$/;
+  const GLUTEN = W(["bread", "pasta", "couscous", "bulgur", "orzo", "panko", "spaghetti", "penne", "noodle", "bagel", "wrap", "tortilla", "flour", "wheat", "toast", "bun", "rye", "barley", "soy sauce", "soy-ginger sauce", "ginger-soy sauce", "sesame-soy sauce", "teriyaki", "muesli", "granola", "pizza base", "sausage", "enchilada sauce"]);
+  const GF_OK = /^(rice noodles|corn tortillas|chickpea flour|oat flour)$/;
+  const STARCH = W(["rice", "quinoa", "pasta", "bread", "toast", "tortilla", "oat", "potato", "banana", "honey", "mango", "couscous", "bulgur", "orzo", "noodle", "lentil", "chickpea", "black bean", "kidney bean", "cannellini bean", "corn", "granola", "muesli", "bagel", "wrap", "pizza base", "bun"]);
+  const tagLies: string[] = [];
+  for (const r of RECIPES) {
+    const ing = r.ingredients.map((i) => i.name.toLowerCase());
+    const veg = r.dietTags.includes("vegetarian") || r.dietTags.includes("vegan");
+    for (const n of ing) {
+      if (veg && MEAT_FISH.test(n)) tagLies.push(`${r.id} [vegetarian] <- ${n}`);
+      if (r.dietTags.includes("vegan") && !PLANT_OK.test(n) && (ANIMAL.test(n) || n === "protein powder")) tagLies.push(`${r.id} [vegan] <- ${n}`);
+      if (r.dietTags.includes("gluten_free") && !GF_OK.test(n) && GLUTEN.test(n)) tagLies.push(`${r.id} [gluten_free] <- ${n}`);
+      if (r.dietTags.includes("keto") && STARCH.test(n)) tagLies.push(`${r.id} [keto] <- ${n}`);
+    }
+  }
+  check("diet-tag law: no vegan/vegetarian/gluten_free/keto tag contradicted by an independent ingredient oracle",
+    tagLies.length === 0, tagLies.length ? tagLies.slice(0, 6).join("; ") : `${RECIPES.length} recipes`);
+
+  // L13 — dietTagConflicts catches each class it exists for, and leaves compliant foods alone.
+  const mustFlag: [string, string][] = [["vegan", "eggs"], ["vegan", "greek yogurt"], ["vegan", "honey"], ["vegan", "protein powder"],
+    ["vegetarian", "chicken breast"], ["vegetarian", "smoked salmon"], ["gluten_free", "whole-wheat penne"],
+    ["gluten_free", "soy-ginger sauce"], ["gluten_free", "sourdough bread"], ["gluten_free", "pizza base"],
+    ["vegetarian", "lamb mince"], ["vegetarian", "ham"], ["vegetarian", "chorizo"], ["vegetarian", "anchovies"], ["vegetarian", "fish sauce"],
+    ["vegetarian", "crab"], ["vegetarian", "light caesar dressing"], ["vegan", "anchovy"], ["vegan", "ghee"], ["vegan", "whey"],
+    ["vegan", "pesto"], ["vegan", "yoghurt"], ["vegan", "gelatin"], ["vegan", "mayonnaise"], ["vegan", "tikka masala sauce"],
+    ["gluten_free", "barley"], ["gluten_free", "rye bread"], ["gluten_free", "turkey sausage"], ["gluten_free", "enchilada sauce"]];
+  let unflagged = "";
+  for (const [t, n] of mustFlag) if (!dietTagConflicts(t, [n]).length) unflagged += ` ${t}:${n}`;
+  check("diet-tag law: dietTagConflicts flags each class of violation", unflagged === "", unflagged || `${mustFlag.length} controls`);
+  const mustPass: [string, string][] = [["vegan", "eggplant"], ["vegan", "peanut butter"], ["vegan", "almond butter"], ["vegan", "soy protein powder"],
+    ["gluten_free", "corn tortillas"], ["gluten_free", "rice noodles"], ["gluten_free", "chickpea flour"], ["vegetarian", "eggs"], ["vegetarian", "greek yogurt"],
+    ["vegetarian", "graham crackers"], ["vegetarian", "collard greens"], ["vegan", "oyster mushrooms"], ["vegan", "vegan pesto"],
+    ["gluten_free", "gluten-free sausage"], ["gluten_free", "maltodextrin"]];
+  let overflag = "";
+  for (const [t, n] of mustPass) if (dietTagConflicts(t, [n]).length) overflag += ` ${t}:${n}`;
+  check("diet-tag law: dietTagConflicts leaves compliant foods alone", overflag === "", overflag || `${mustPass.length} controls`);
+
+  // END TO END — the phrasings the sweep caught on a plate. Four seeded weeks each; none may serve it.
+  const E2E: [string, string][] = [
+    ["fine with almonds but allergic to peanuts", "peanuts"], ["severe peanut allergy", "peanuts"], ["I’m allergic to peanuts.", "peanuts"],
+    ["shrimp or crab", "shellfish"], ["dairy-free", "dairy"], ["prawns", "shellfish"], ["crustaceans", "shellfish"], ["soya", "soy"],
+    ["yoghurt", "yogurt"], ["groundnuts", "peanuts"], ["milk", "protein powder"],
+  ];
+  let e2eServed = "";
+  for (const [typed, meaning] of E2E) {
+    const prof: UserProfile = { ...BASE, allergies: typed };
+    const oracle = T(meaning);
+    for (let s = 0; s < 4 && !e2eServed; s++) {
+      const wk = withSeed(500 + s, () => freshWeek(prof));
+      for (const d of wk.days)
+        for (const m of d.meals)
+          if (haystackBlocked(mealHay(m), oracle)) e2eServed = `"${typed}": ${d.day} ${m.name}`;
+    }
+  }
+  check("end to end: no phrasing the sweep caught is served the food it names", e2eServed === "", e2eServed || `${E2E.length} phrasings x 4 weeks`);
+  // …and a direct request cannot route around it: a coeliac asking for pizza does not get the pizza.
+  for (const allergy of ["coeliac", "gluten-free", "wheat"]) {
+    const prof: UserProfile = { ...BASE, allergies: allergy };
+    const r = applyOperations(prof, freshWeek(prof), [op({ tool: "swap_meal", day: "Saturday", mealType: "dinner", dish: "pizza" })]);
+    const sat = r.plan.days.find((x) => x.day === "Saturday")!;
+    check(`end to end: allergies "${allergy}" + "swap Saturday dinner for pizza" serves no gluten`,
+      !sat.meals.some((m) => haystackBlocked(mealHay(m), T("gluten"))), sat.meals.map((m) => m.name).join(" | "));
+  }
 }
 
 console.log("");
@@ -3053,7 +4010,12 @@ console.log("\n--- THE ASSISTANT'S WORDS BIND THE ENGINE ---");
   // A seeded week that REALLY has peanut dishes — Monday breakfast and Friday dinner — so the results
   // below cannot come from chance. The precondition is asserted, not assumed.
   const pnut = (d: DayPlan) => d.meals.filter((m) => m.ingredients.some((i) => /peanut/i.test(i.name)));
-  const aw = withSeed(20, () => rebalanceWeek(selectWeekFromDb(BASE), BASE));
+  // The first seed whose week really has both — SEARCHED, not hard-coded: any library change reshuffles
+  // which seed does (seed 20 stopped having them when D5b re-weighed seven recipes).
+  const seededWeek = (seed: number) => withSeed(seed, () => rebalanceWeek(selectWeekFromDb(BASE), BASE));
+  const hasBoth = (w: WeekPlan) => (["Monday", "Friday"] as const).every((day) => pnut(w.days.find((d) => d.day === day)!).length > 0);
+  const peanutSeed = Array.from({ length: 400 }, (_, i) => i).find((seed) => hasBoth(seededWeek(seed))) ?? -1;
+  const aw = seededWeek(peanutSeed);
   const monday = aw.days.find((d) => d.day === "Monday")!;
   const friday = aw.days.find((d) => d.day === "Friday")!;
   check("precondition: the seeded week has a peanut dish on Monday AND on Friday",
@@ -3102,7 +4064,7 @@ console.log("\n--- THE ASSISTANT'S WORDS BIND THE ENGINE ---");
     bfasts.every((m) => !m.ingredients.some((i) => /milk|cheese|yogurt|butter|cream|ricotta/i.test(i.name))),
     [...new Set(bfasts.map((m) => m.name))].join(", "));
 }
-// ---------------------------------------------------------------- INGREDIENT IDENTITY (D5, 2026-10-04)
+// ---------------------------------------------------------------- INGREDIENT IDENTITY (D5, 2026-10-03)
 // Every library ingredient carries a slug; lookups resolve the NAME first and fall back to the slug.
 // The cases below are the D5 adversarial review's findings, each pinned so it cannot come back.
 console.log("\n--- INGREDIENT IDENTITY (D5) ---");
@@ -3484,9 +4446,100 @@ if (violations.size === 0) {
       r.plan.days.every((d) => d.meals.every((m) => !/salmon/i.test(m.name))));
   }
 
+  // A reply may not claim a change the engine did not make (models lane, 2026-10-03). With reasoning
+  // off, a fast model imitated the engine's note style and wrote "Wednesday now has 2000 kcal…" with no
+  // operation at all. The loop gives it ONE more step to send the operation or retract; if it still
+  // claims a change, the user reads an honest line instead.
+  {
+    // The detector, on the models lane's stored turns: every fabrication caught, no honest reply tripped.
+    const FABRICATED = [
+      "Wednesday now has 2000 kcal and 144g protein. Fat comes to 82g against about 65g.",
+      "Done — dinner is now a lighter portion of Chicken & Vegetable Stir-Fry with Rice. Monday still hits 2000 kcal and 150g protein.",
+      "Done — breakfast is off the menu.",
+      "Done — I've made your week breakfast-free.",
+      "Done — I've swapped your B12 meals for fortified options and kept you vegan.",
+      "Done — I've made your breakfast egg-free.",
+      "No eggs, no problem — I’ve swapped them out of tomorrow's breakfast…",
+      "Done — I've raised the protein target for every breakfast to 55 g.",
+    ];
+    const HONEST = [
+      "I'd be glad to help. The plan right now averages about 2000 kcal a day. For weight loss we'd typically create a deficit — but the right number depends on you. Do you have a calorie target in mind, or …",
+      "Your plan currently averages 2000 kcal a day.",
+      "Want me to make Wednesday vegetarian too?",
+      "Here are three vegan options.",
+      "I couldn't use salmon on a vegan week.",
+      "Nothing has changed yet — want me to make breakfast egg-free?",
+    ];
+    const missed = FABRICATED.filter((t) => !claimsChange(t));
+    const tripped = HONEST.filter((t) => claimsChange(t));
+    check("false claim: claimsChange catches every stored fabrication", missed.length === 0, missed.join(" | "));
+    check("false claim: ...and trips on no honest reply (\"right now averages\" is a description)", tripped.length === 0, tripped.join(" | "));
+
+    // composeReply: only a caller that KNOWS nothing changed gets the guard; the legacy routes are untouched.
+    const claim = "Done — I've made your breakfast egg-free.";
+    check("false claim: composeReply replaces an unbacked claim when it knows nothing changed",
+      composeReply({ modelReply: claim, notes: [], planChanged: false, profileChanged: false }) === NOTHING_CHANGED_REPLY);
+    check("false claim: ...never when the engine has notes (the notes are the reply)",
+      composeReply({ modelReply: claim, notes: ["Your breakfasts are egg-free now."], planChanged: false, profileChanged: false }) === "Your breakfasts are egg-free now.");
+    check("false claim: ...never when the profile DID change",
+      composeReply({ modelReply: claim, notes: [], planChanged: false, profileChanged: true }) === claim);
+    check("false claim: ...and never for a caller that cannot tell (profileChanged undefined)",
+      composeReply({ modelReply: claim, notes: [], planChanged: false }) === claim);
+
+    // 1. Claim, then fix it: the nudge reaches the model, the operation runs, the engine speaks.
+    {
+      const p = scripted([
+        turn("Done — I've made your week vegetarian."),
+        turn("", [{ op: "constrain", diet: "vegetarian" } as unknown as PrimitiveOp]),
+        turn("Your week is vegetarian now."),
+      ]);
+      const r = await runAgent({ ...base, model: p.fn });
+      const nudge = r.transcript.find((e) => e.role === "tool" && e.name === "apply" &&
+        (e as { result: { notes: string[] } }).result.notes.includes(FALSE_CLAIM_NUDGE));
+      check("false claim, fixed: the model is told nothing was applied (in the transcript, not to the user)",
+        Boolean(nudge) && !r.reply.includes("Nothing was applied"));
+      check("false claim, fixed: the operation it then sends really runs", r.planChanged === true && r.falseClaimRetried && !r.falseClaimCaught,
+        `steps ${r.steps}, planChanged ${r.planChanged}`);
+      check("false claim, fixed: the reply is the engine's, so it is true",
+        r.notes.length > 0 && r.reply === [...new Set(r.notes.map((n) => n.trim()).filter(Boolean))].join(" "), r.reply.slice(0, 80));
+    }
+    // 2. Claim twice: the user reads the honest line, and the run says it was caught.
+    {
+      const p = scripted([turn("Wednesday now has 2000 kcal and 144g protein.")]); // the same claim, forever
+      const r = await runAgent({ ...base, model: p.fn });
+      check("false claim, repeated: the user reads that nothing changed", r.reply === NOTHING_CHANGED_REPLY, r.reply.slice(0, 80));
+      check("false claim, repeated: one retry only, then stop", r.steps === 2 && p.calls() === 2 && r.falseClaimRetried && r.falseClaimCaught, `steps ${r.steps}`);
+      check("false claim, repeated: the plan is untouched and not reported as changed", r.plan === plan && r.planChanged === false);
+    }
+    // 3. Claim, then retract: the honest retraction is the reply.
+    {
+      const p = scripted([
+        turn("Done — I've made your breakfast egg-free."),
+        turn("Nothing has changed yet — want me to make breakfast egg-free?"),
+      ]);
+      const r = await runAgent({ ...base, model: p.fn });
+      check("false claim, retracted: the model's own honest reply stands",
+        r.reply === "Nothing has changed yet — want me to make breakfast egg-free?" && !r.falseClaimCaught, r.reply);
+    }
+    // 4. An honest answer is never retried — no extra model call, no extra cost.
+    {
+      const p = scripted([turn("Your plan currently averages 2000 kcal a day.")]);
+      const r = await runAgent({ ...base, model: p.fn });
+      check("false claim: an honest no-op answer costs exactly one call", r.steps === 1 && p.calls() === 1 && !r.falseClaimRetried);
+    }
+    // 5. A step cap of 1 leaves no room to retry: the honest line still replaces the claim.
+    {
+      const p = scripted([turn("Done — breakfast is off the menu.")]);
+      const r = await runAgent({ ...base, model: p.fn, maxSteps: 1 });
+      check("false claim: with no step left to retry, the claim is still never shown",
+        r.reply === NOTHING_CHANGED_REPLY && r.steps === 1, r.reply.slice(0, 60));
+    }
+  }
+
   // the loop must not quietly break the contract the rest of the app depends on
   {
-    const p = scripted([turn("All set.")]);
+    // Not "All set.": with nothing changed, that is itself an unbacked claim and gets one retry (below).
+    const p = scripted([turn("Happy to help.")]);
     const r = await runAgent({ ...base, model: p.fn });
     check("loop: a turn with no operations ends immediately", r.steps === 1);
     check("loop: the transcript keeps the user message first", r.transcript[0].role === "user");

@@ -230,6 +230,28 @@ const summary = (v: unknown) => (v as WeekPlan | null)?.weekSummary;
   storage.discardBackup(storage.loadBackups()[0].id);
   check("discard by id: forgets just that one", storage.loadBackups().map((b) => b.reason).join() === "third");
 
+  // "Put it back" on the OLDEST of three copies (review 2, found twice: the safety copy taken first
+  // evicted the very copy being put back, so the button destroyed it and restored nothing, silently).
+  memory.clear();
+  storage.savePlan(week("OLDEST"));
+  storage.takeBackup("first");
+  storage.savePlan(week("MIDDLE"));
+  storage.takeBackup("second");
+  storage.savePlan(week("NEWEST"));
+  storage.takeBackup("third");
+  storage.savePlan(week("NOW"));
+  const oldest = storage.loadBackups()[2];
+  const putBack = storage.putBackCopy(oldest.id, "before putting back the oldest copy");
+  check("put back: the OLDEST of three copies comes back (the safety copy taken first must not evict it)",
+    putBack && storage.loadPlan()?.weekSummary === "week OLDEST",
+    json({ putBack, plan: storage.loadPlan()?.weekSummary, copies: storage.loadBackups().map((b) => b.reason) }));
+  check("put back: …and what was here a moment ago is kept as a copy",
+    storage.loadBackups().some((b) => summary(b.data.plan) === "week NOW"));
+  check("put back: …and no OTHER copy was pushed out for it (the one put back is used up, freeing its own place)",
+    storage.loadBackups().map((b) => b.reason).join() === "before putting back the oldest copy,third,second",
+    storage.loadBackups().map((b) => b.reason).join());
+  check("put back: a copy that no longer exists changes nothing and says so", storage.putBackCopy(-1, "x") === false);
+
   // The older single-object shape (shipped in eac9bb8) still reads as a one-item list.
   memory.setItem("nutriflow.backup", JSON.stringify({ reason: "legacy", takenAt: 5, data: { saved: ["x"] } }));
   const legacy = storage.loadBackups();
@@ -315,6 +337,19 @@ const summary = (v: unknown) => (v as WeekPlan | null)?.weekSummary;
   const future = parseExport(good({ saved: ["A"], streakBadges: [1] }));
   check("unknown store: skipped with a warning, not fatal", future.ok && future.warnings.length === 1 && future.stores.join() === "saved");
 
+  // Review 2: a file carrying an explicit null passed validation (null is fine for an ACCOUNT row, a
+  // deliberate clear) and deleted that store everywhere while the preview mentioned nothing. A real
+  // export never contains one, so a file that does is refused.
+  check("reject: a file carrying a cleared (null) store — a real export never does, and it deleted that store everywhere",
+    err(good({ saved: ["A"], plan: null })).startsWith("Nothing was imported"), err(good({ saved: ["A"], plan: null })));
+  // Empty lists ARE in real exports (a reset chat, the last recipe unsaved). The preview hid them, and
+  // bringing the file in then cleared those stores here and on every device.
+  const empties = parseExport(good({ plan: week("E"), saved: [], chat: [] }));
+  const told = empties.ok ? describeData(empties.bundle.data, { incoming: true }) : [];
+  check("describe: an empty list the file carries is named, with what bringing it in does",
+    told.some((d) => d.includes("saved recipes") && d.includes("clears")) && told.some((d) => d.includes("chat") && d.includes("clears")),
+    json(told));
+
   check("validate: a cleared store (null) is always acceptable", checkStore("plan", null) === null);
   check("validate: a real week and a real import pass",
     checkStore("plan", week("OK")) === null && checkStore("imports", [{ name: "R", sourceUrl: "https://e.com/r", ingredients: [], steps: [] }]) === null);
@@ -351,6 +386,11 @@ const summary = (v: unknown) => (v as WeekPlan | null)?.weekSummary;
   check("rule 5: data never synced at all (legacy, at 0) is backed up", planSync({ plan: v("L", 0) }, { plan: v("R", 9) }, 0).needsBackup);
   check("rule 5: pulling into an EMPTY slot needs no backup", !planSync({}, { plan: v("R", 9) }, 0).needsBackup);
   check("rule 5: pushing never needs a backup", !planSync({ plan: v("L", 9) }, { plan: v("R", 5) }, 0).needsBackup);
+  // Rule 6 (review 2): a push that replaces an account copy this device never agreed on keeps that copy.
+  check("rule 6: pushing over an account copy this device never saw keeps that copy here",
+    json(planSync({ saved: v(["mine"], 9) }, { saved: v(["theirs"], 5) }, 0).keepAccountCopy) === json({ saved: ["theirs"] }));
+  check("rule 6: …but not the version this device already agreed on (that is only its own edit's predecessor)",
+    json(planSync({ saved: v(["mine"], 9) }, { saved: v(["theirs"], 5) }, 0, { saved: 5 }).keepAccountCopy) === "{}");
 
   const visits = planSync({ visits: v(["2026-10-03", "2026-10-01"], 9) }, { visits: v(["2026-10-02"], 5) }, 77).actions[0];
   check("rule 3: visit history is UNIONED, not overwritten",
@@ -1148,6 +1188,37 @@ await (async () => {
   await signOut();
   fakeWindow.localStorage = laptop;
 
+  // ---- destructive actions are pinned too (review 2: a tab that missed another tab's sign-in deleted
+  //      THAT account, while telling this one its account was gone) ----
+  const pinRoom = new MemoryStorage();
+  fakeWindow.localStorage = pinRoom;
+  await signIn("una@example.com");
+  await startSync();
+  const vic = sb.sessionFor("vic@example.com");
+  sb.table("uid-vic").set("plan", { value: week("VIC"), updated_at: new Date().toISOString() });
+  storage.saveSessionRaw({
+    accessToken: vic.access_token, refreshToken: vic.refresh_token, expiresAt: Math.floor(Date.now() / 1000) + 3600,
+    userId: "uid-vic", email: "vic@example.com",
+  }); // no "storage" event: this tab never hears about it
+  let deleteRefused = "";
+  try { await deleteAccount(); } catch (e) { deleteRefused = (e as Error).message; }
+  check("pinned delete: 'Delete my account' in a tab showing Una never deletes the account another tab signed in",
+    sb.users.has("uid-vic") && sb.table("uid-vic").has("plan") && deleteRefused.includes("another tab"),
+    json({ vicExists: sb.users.has("uid-vic"), deleteRefused }));
+  check("pinned delete: …and Una's account is untouched too", sb.users.has("uid-una"));
+  const logoutsBefore = sb.logouts;
+  await signOut();
+  check("pinned sign-out: signing out in that tab leaves the other account's sign-in alone",
+    currentSession()?.userId === "uid-vic" && sb.logouts === logoutsBefore,
+    json({ session: currentSession()?.userId ?? null, logouts: sb.logouts - logoutsBefore }));
+  let forgetRefused = "";
+  try { await forgetThisBrowser(); } catch (e) { forgetRefused = (e as Error).message; }
+  check("pinned forget: 'Delete everything in this browser' refuses while the browser holds an account this tab isn't showing",
+    forgetRefused.includes("another tab") && currentSession()?.userId === "uid-vic",
+    json({ forgetRefused, session: currentSession()?.userId ?? null }));
+  storage.saveSessionRaw(null);
+  fakeWindow.localStorage = laptop;
+
   // ---- sign out keeps the device's data ----
   memory.clear();
   fakeWindow.localStorage = laptop;
@@ -1212,7 +1283,14 @@ await (async () => {
   check("delete account: the account and its rows are gone on the server", !sb.users.has("uid-bob") && !sb.rows.has("uid-bob"));
   check("delete account: signed out, and the browser keeps its copy", currentSession() === null && storage.loadPlan()?.weekSummary === "week BOB-COPY",
     json({ session: currentSession()?.userId ?? null, local: storage.loadPlan()?.weekSummary }));
-  check("delete account: the browser's data is no longer tied to the deleted account", storage.loadSyncOwner() === null);
+  check("delete account: the browser's data STAYS marked as the deleted account's (review 2: clearing that let the next sign-in upload it)",
+    storage.loadSyncOwner() === "uid-bob", json(storage.loadSyncOwner()));
+  await signIn("dee@example.com");
+  await startSync();
+  check("delete account: the next person to sign in here does NOT get the deleted account's data uploaded into theirs",
+    summary(sb.table("uid-dee").get("plan")?.value) !== "week BOB-COPY", summary(sb.table("uid-dee").get("plan")?.value));
+  check("delete account: …it is set aside here as a copy instead", storage.loadBackups().some((b) => summary(b.data.plan) === "week BOB-COPY"));
+  await signOut();
 
   // ---- a first sync that FAILS: nothing is sent until a full sync succeeds, then it is retried ----
   const desk = new MemoryStorage();
@@ -1230,8 +1308,9 @@ await (async () => {
   await settle();
   check("failed first sync: the next startSync retries it and the edit goes up properly",
     json(sb.table("uid-carol").get("saved")?.value) === json(["Shakshuka"]) && accountStatus().state !== "offline");
-  check("failed first sync: …with the account's earlier list kept as a copy, not lost",
-    storage.loadBackups().some((b) => json(b.data.saved) === json(["Dal"])) || json(storage.loadSaved()) === json(["Shakshuka"]));
+  check("failed first sync: …and the account's earlier list is kept as a copy here, not lost",
+    storage.loadBackups().some((b) => json(b.data.saved) === json(["Dal"])),
+    json(storage.loadBackups().map((b) => ({ reason: b.reason, saved: b.data.saved }))));
 
   // ---- signing out while offline says the last edits didn't make it ----
   sb.down = true;
@@ -1240,6 +1319,32 @@ await (async () => {
   check("sign-out offline: says the latest changes hadn't reached the account, and that they're kept",
     (accountStatus().message ?? "").includes("hadn't reached") && json(storage.loadSaved()).includes("Dal"));
   sb.down = false;
+
+  // ---- a FAILED first sync must still mark the browser's data as this account's (review 2, found
+  //      twice: the owner was recorded only after a SUCCESSFUL first sync, so a person's unsynced data,
+  //      left in a shared browser, went up into the NEXT person's account — health notes included) ----
+  const sharedPc = new MemoryStorage();
+  fakeWindow.localStorage = sharedPc;
+  const hourAgoIso = new Date(Date.now() - 3_600_000).toISOString();
+  sb.table("uid-ben").set("plan", { value: week("BEN-OWN"), updated_at: hourAgoIso });
+  sb.table("uid-ben").set("profile", { value: { ...PROFILE, name: "Ben" }, updated_at: hourAgoIso });
+  await signIn("ivy@example.com");
+  sb.failPulls = 1;
+  await startSync();
+  storage.saveProfile({ ...PROFILE, name: "Ivy", allergies: "peanuts" });
+  storage.savePlan(week("IVY"));
+  await signOut();
+  await signIn("ben@example.com");
+  await startSync();
+  await settle();
+  const benProfile = sb.table("uid-ben").get("profile")?.value as UserProfile | undefined;
+  check("owner: after a FAILED first sync, the next person's sign-in does not upload the previous person's data",
+    summary(sb.table("uid-ben").get("plan")?.value) === "week BEN-OWN" && benProfile?.name === "Ben",
+    json({ plan: summary(sb.table("uid-ben").get("plan")?.value), profile: benProfile?.name }));
+  check("owner: …the previous person's data is set aside here as a copy, not lost",
+    storage.loadBackups().some((b) => summary(b.data.plan) === "week IVY"));
+  check("owner: …and the next person sees their own week", storage.loadPlan()?.weekSummary === "week BEN-OWN");
+  await signOut();
 
   // ---- forget this browser DURING a slow pull: the pull must not refill the cleared browser ----
   const kiosk = new MemoryStorage();
