@@ -94,6 +94,12 @@ anywhere inside a block to that whole block.
 
 **Never resolve a thread that was not acted on.** Resolve is a claim that the work is done.
 
+**Do not wait for step 2.** Read all three boards' threads at the **start of every session**, whether
+or not the owner says "evaluate my comments". Plain comments notify nobody. On 2026-09-19 the
+module-map board collected seven comments minutes after the other two boards had been answered, and
+they sat unread until 2026-10-03 — one of them a ruling (modularise before building) that a whole
+feature day was then built against. WORKPLAN lesson 50.
+
 ## Design notes, so a later edit does not drift
 
 **The boards are white and light, and are NOT the product's sage theme.** The first version used the

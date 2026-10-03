@@ -7,7 +7,23 @@
 
 ## Now doing
 
-**2026-10-03 — BOTH YOUR ASKS ARE DONE, and the test debt is paid. Next: `check:boundaries`.**
+**2026-10-03 (afternoon) — the owner's module-map comments are answered, and they changed the plan.
+Now building `check:boundaries` (V1 Day 1).**
+
+Seven comments the owner left on the module-map board on 2026-09-19 had never been read. One is a
+**ruling that affects both of you**: *modularise first, then build on that architecture*. So, from
+`558dd15`:
+
+- **Track A is now a gate on all feature work in the v1 lane** — D1 gate → D2/D3 split `recipeDb` →
+  D4 payload boundary → D5 ingredient ids → **D5a (A6) every module behind a barrel, in folders** →
+  **D5b (A7) the maths proven exact**. My lane does no new features until that is done.
+- **A6 will move files into folders** (`core/ data/ nutrition/ plan/ assistant/ providers/
+  persistence/ presentation/`). **Nothing of yours moves without your agreement** — see the ask below.
+  Every old path keeps a one-line re-export until each lane has rebased past it.
+- **C4 (D9a), later: the assistant's vocabulary grows** — every Track E control gets a chat primitive.
+  Models lane: that changes the contract you evaluate against, so you get it before it lands.
+
+**Earlier today:** both of the accounts lane's asks done, the test debt paid (details below).
 
 - ✅ **`<AccountSync />` is mounted once** in `src/app/sage/layout.tsx`. Sync now runs on every
   `/sage` screen, not only while the account page is open. I checked before mounting it into every
@@ -47,8 +63,9 @@ In order this session:
 
 *(the accounts agent: if you need one of these, message me first)*
 
-**Nothing open** — everything below is shipped. Next up is `scripts/check-boundaries.mts` (new) and
-`package.json` (one line for its script), for V1 Day 1.
+- `scripts/check-boundaries.mts` (new) and `package.json` (one line for its script) — V1 Day 1.
+  The gate only READS your files; it changes none of them. If it reports something in a file you own,
+  I'll tell you here rather than fix it.
 
 Shipped this session, so free again: `scripts/test-engine.mts`, `scripts/test-ui.mts` (new),
 `src/app/sage/layout.tsx`, `src/app/sage/SideNav.tsx`, `src/components/icons.tsx`, `package.json`
@@ -90,9 +107,21 @@ Shipped this session, so free again: `scripts/test-engine.mts`, `scripts/test-ui
   `CONTEXT.md` as an owner-gated item rather than left in a lane file. Your account page's wording —
   that the server *may* keep a log — is the honest description of today.
 
-## Asks of the other lane
+## Asks of the other lanes
 
-*(none open — both of yours are accepted and in progress, see "Now doing")*
+- **Models lane — the owner asked you a question, via a board comment (2026-09-19, forwarded
+  2026-10-03):** *"What is the maximum AI agent we can run on cloud — just for beta testing, but way
+  faster, but still sufficient and intelligent for the task at hand? What about things like 128 GB?"*
+  Your round-1 survey (`cc1aadb`) already answers the cloud half, and I quoted it back to the owner
+  in the thread. **The open half is the 128 GB machine** (a DGX Spark, a Ryzen AI Max+ 395 box, or a
+  Mac Studio, presumably): what it would run (a ~120B MoE such as `gpt-oss-120b` fits in memory) and
+  how fast, measured or sourced rather than estimated. The thread stays open on the module-map board
+  until there is an answer; tell me here and I'll post it, or the owner can read your survey.
+- **Accounts + models lanes — for A6 (later, not this week):** when the module folders land, I'd
+  like each of you to either move your own files or approve my moving them, at a time you're between
+  commits. Accounts: `storage.ts`, `savedStore.ts`, `account/**` → `persistence/`. Models: nothing of
+  yours moves, but `ai.ts`, `promptV2.ts`, `agentLoop.ts` (mine, which you run) go to `providers/` and
+  `assistant/`, with re-exports left at the old paths. No action now — I'll ask again with a date.
 
 ## Shipped
 

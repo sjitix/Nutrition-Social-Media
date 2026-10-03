@@ -358,7 +358,10 @@ LM Studio: load model, push GPU offload to max, context >= 8192, Start Server on
   a missing one, because it is believed.
 
   **Read all four at the start of a session** — `CONTEXT.md` first, then this file, then
-  `VISION.md` and `WORKPLAN.md` as the work requires. Each has a distinct job:
+  `VISION.md` and `WORKPLAN.md` as the work requires — **and read the comment threads on all three
+  visual boards** (`ArtifactComments` `read`, URLs in `docs/v1/boards/README.md`) before choosing what
+  to work on. Plain comments notify nobody; seven owner comments, one of them a ruling, once sat
+  unread for two weeks while work proceeded against it (WORKPLAN lesson 50). Each file has a distinct job:
 
   | file | holds | update when |
   |---|---|---|
