@@ -78,27 +78,32 @@ in the main folder (`2fd6f02`). Its WORKPLAN lesson was renumbered 38 → 48 bec
 
 #### PARALLEL LANE — models (written by the models agent only)
 
-**2026-10-03 (evening) — searching for the largest free model that is fast enough; a read-tool fix for
-v1 to land.** Live status: `docs/parallel/lane-models.md`. Data + decisions: `docs/models/` (start with
-`survey.md`). Owner to-do: `docs/models/OWNER-TODO.md`. Branches on GitHub: `models` (ships my paths
-onto main) and `models-exp` (experiments in v1-owned files; never merged without v1).
+**2026-10-03 (afternoon) — the read-tool fix is LANDING (v1 applied `models-exp` 543bcb2), and the
+search for the biggest free fast model goes on.** Live status: `docs/parallel/lane-models.md`. Data and
+decisions: `docs/models/` (README "Decisions on record", then `survey.md` Round 4). Owner to-do:
+`docs/models/OWNER-TODO.md`. Branches: `models` (ships my paths onto main), `models-exp` (the prompt and
+schema work; v1 is landing it on main), `models-exp-date` ("today is Monday (2026-10-05)" in the prompt,
+being measured on the 550B, offered to v1 next).
 
-- **Owner's direction:** 20B is too small; find the biggest free model with a good response time that
-  can do everything. `gpt-oss-20b` is only a control.
-- **Found, confirmed by v1: the agent loop could never use its read tools** (not in the turn schema or
-  the prompt; the prompt never explained the loop). Fix = `models-exp` (3 files, +80/−11), engine gate
-  680/0, check-boundaries clean. On Ultra-550B: read-before-write 0/2 → 2/2, give-ups 1 → 0, worst
-  message 106 s → 47 s. v1's review caught a safety hole in my draft (it steered models off `symptom`,
-  the only path to the crisis guard until C2) — fixed. Final before/after + v8 run, then "ready to land".
-- **Models so far:** Nemotron-Ultra-550B (NVIDIA free) 73–84% depending on run, honest declines, but
-  17–21 s/message and a rate limit that varies through the day; GLM-5.3 82% (v2) given room to think,
-  but 25–90 s/call; local Qwen3-30B 50 s/message on one 8 GB card; **keyless OVHcloud serves
-  gpt-oss-120b in 3.4 s and Llama-3.3-70B in 2.7 s** but locks an IP out after a burst — an OVH key
-  (400/min) is the top owner to-do.
-- **Methodology learned the hard way:** latency only from the real loop (short-prompt sweeps flatter
-  every model 3–10×); reasoning models need a big output budget; free-tier rate limits void parallel
-  runs (evals run one at a time now); the hard-case eval swings ~9 points between identical runs
-  (`docs/models/eval-variance.md`), so read it as a range.
+- **Owner's direction (2026-10-03, twice):** big models first ("like the 550B"); find the biggest FREE
+  model, ~100B+, with an optimal response time; no more effort on training or using 20–30B except as
+  a regression check. Memory: `big-hosted-model-first`.
+- **The conversation eval is the ruler that separates sizes** (`scripts/models/convo-eval.mts`, 14
+  two-turn conversations). 550B: 7/14 → **11/14** with the fix. gpt-oss-20b: 6/14 with either prompt.
+  The single-turn hard cases no longer separate them (both 91–96% v2 with the fix).
+- **The read-tool fix**: 550B hard cases 84 → 96% (v2), loop read-before-write 0/2 → 2/2, worst message
+  325 → 75 s. Gate 680/0 on the landing sha.
+- **Three engine bugs found by grading the engine's effect** (slot constrain a silent no-op that the
+  reply called a success, remembered allergy not enforced, day constrain dropping `exclude`). v1 fixed
+  all three in `98747f6`. One more reported: the symptom note replaces the model's reply, so the offer
+  the prompt asks for is lost unless a nutrient is low.
+- **Free big models today:** Nemotron-Ultra-550B on NVIDIA is the only big model that answers reliably
+  for free, at ~20 s median per message (p90 60–100 s). GLM-5.3 25–90 s per call; K3 slow queue;
+  keyless OVH has blocked this IP. The fast big options (Groq or OVH gpt-oss-120b, Gemini Flash) need a
+  free key: OWNER-TODO. A multi-agent search of every free provider is running (`ww8midxq4`); results
+  go to `docs/models/`.
+- **Methodology:** latency only from the real loop; one rate-limited run at a time; ranges, not single
+  scores; grade the engine's effect, not the model's operations.
 - **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`, this block, the
   lane file. Does not edit v1's files; asks v1 first. Touches no accounts files.
 

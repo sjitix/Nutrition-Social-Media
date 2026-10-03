@@ -72,6 +72,15 @@ const opsOf = (r: AgentRunResult) =>
 /** The fact is somewhere in the profile — memory, allergies or dislikes (whichever the engine wrote). */
 const knows = (p: UserProfile, re: RegExp) => re.test(JSON.stringify(p));
 const first = (...reasons: (string | null)[]) => reasons.find((x) => x) ?? null;
+/** A meal was logged into that slot: "Logged by you." for a free-form meal, or — when the dish matched a
+ *  library recipe, which keeps its own description — a `log` op for the slot that changed the dish. */
+const loggedOn = (r: AgentRunResult, b: WeekPlan, d: string, t: string) =>
+  /Logged by you/i.test(meal(r.plan, d, t)?.description ?? "") ||
+  (meal(r.plan, d, t)?.name !== meal(b, d, t)?.name &&
+    r.transcript.some((e) => e.role === "assistant" && e.turn.operations.some((o) => {
+      const x = o as { op?: string; day?: string; slot?: string };
+      return x.op === "log" && x.day === d && x.slot === t;
+    })));
 
 interface Ctx {
   /** The plan before this turn. */
@@ -93,7 +102,10 @@ const CONVOS: Convo[] = [
     id: "offer-accept", skill: "follow-through",
     turns: [
       { user: "i've been feeling really run down and tired lately", want: "hold",
-        check: (r) => first(holding(r), /\?/.test(r.reply) ? null : "offered nothing (no question in the reply)") },
+        // The offer can come from the model OR from the engine's symptom note, which replaces the model's
+        // reply and phrases its offer without a question mark (v1, 2026-10-03: "I can rebuild your week
+        // around <X> if you'd like." / "I can lean your week further toward <X> — just say so.").
+        check: (r) => first(holding(r), /\?|if you'd like|just say so/i.test(r.reply) ? null : "offered nothing") },
       { user: "yes please, go ahead", want: "act",
         check: (r) => (r.planChanged ? null : "said yes to its own offer and nothing changed") },
     ],
@@ -246,7 +258,7 @@ const CONVOS: Convo[] = [
     id: "log-then-tonight", skill: "date",
     turns: [
       { user: "i had a massive pizza for lunch today", want: "act",
-        check: (r) => (/Logged by you/i.test(meal(r.plan, "Monday", "lunch")?.description ?? "") ? null : `Monday lunch not logged ("${meal(r.plan, "Monday", "lunch")?.name}")`) },
+        check: (r, c) => (loggedOn(r, c.before, "Monday", "lunch") ? null : `Monday lunch not logged ("${meal(r.plan, "Monday", "lunch")?.name}")`) },
       { user: "go easy on dinner tonight then", want: "act",
         check: (r, c) => ((meal(r.plan, "Monday", "dinner")?.calories ?? 0) < (meal(c.before, "Monday", "dinner")?.calories ?? 0) ? null : "Monday dinner not smaller") },
     ],
@@ -323,7 +335,7 @@ for (const c of convos) {
       return x.op === "constrain" && typeof x.scope === "object" && x.scope !== null && "slot" in x.scope;
     }));
     if (reason && slotConstrain && !r.planChanged) reason += " [engine: slot-scoped constrain is a no-op]";
-    turns.push({ user: t.user, want: t.want, pass: reason === null, infra: false, reason, steps: r.steps, gaveUp: r.gaveUp, seconds, ops: opsOf(r), writes: writesOf(r), reply: r.reply.replace(/\s+/g, " ").slice(0, 240), emoji: EMOJI.test(r.reply) });
+    turns.push({ user: t.user, want: t.want, pass: reason === null, infra: false, reason, steps: r.steps, gaveUp: r.gaveUp, seconds, ops: opsOf(r), writes: writesOf(r), reply: r.reply.replace(/\s+/g, " ").slice(0, 600), emoji: EMOJI.test(r.reply) });
     // Carry state forward exactly as the client does between requests.
     profile = r.profile;
     plan = r.plan;
