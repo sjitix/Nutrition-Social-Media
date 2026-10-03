@@ -5,6 +5,7 @@ import { agentModelFn, resolveProvider, withTargetDefaults } from "@/lib/ai";
 import { runAgent, MAX_STEPS, type TranscriptEntry } from "@/lib/agentLoop";
 import { DEMO_ASSISTANT_REPLY } from "@/lib/demo";
 import { redFlag } from "@/lib/safety";
+import { requestDay } from "@/lib/streak";
 import type { ChatMessage, PlanSnapshot, UserProfile, WeekPlan } from "@/lib/types";
 
 export const maxDuration = 300;
@@ -35,6 +36,8 @@ interface AssistantV2Request {
    * and this route has no localStorage — see `agentTools.ts`.
    */
   saved?: string[];
+  /** The browser's LOCAL calendar day (YYYY-MM-DD). Checked by requestDay before it is believed. */
+  today?: string;
 }
 
 // Best-effort log of a full agent RUN — every step, every tool result. Richer than the old
@@ -107,7 +110,8 @@ export async function POST(request: Request) {
     );
 
     // One date for both: the engine (logging, eating out) and the model's prompt ("today is Monday…").
-    const today = new Date().toISOString().slice(0, 10);
+    // The person's own day when the browser sent a believable one, else the server's UTC day.
+    const today = requestDay(body.today, new Date());
     const result = await runAgent({
       profile,
       plan: body.plan,

@@ -15,6 +15,29 @@ export function isoDay(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+/**
+ * The day a request acts on: the person's OWN calendar day when their browser sent a believable one,
+ * else the server's UTC day.
+ *
+ * The assistant tells the model "Today is Monday…" and the engine logs meals against that date. Taken
+ * from the server alone, it was the UTC day, so for someone in New York at 9 pm, "today" was already
+ * tomorrow: "I had pasta tonight" landed on the wrong day. The browser knows the local day; the server
+ * only checks it is a real date that some time zone is in RIGHT NOW: between the date at UTC-12 and the
+ * date at UTC+14, the two ends of the Earth's clocks. (A plain "within a day of UTC" window was three
+ * days wide and accepted dates no zone was in.) Anything else (missing, malformed, "2026-02-31", a
+ * week off) falls back to the server's day rather than letting a request set an arbitrary date.
+ */
+export function requestDay(sent: unknown, now: Date): string {
+  const server = now.toISOString().slice(0, 10);
+  if (typeof sent !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(sent)) return server;
+  const t = Date.parse(`${sent}T00:00:00Z`);
+  if (!Number.isFinite(t) || new Date(t).toISOString().slice(0, 10) !== sent) return server;
+  const HOUR = 3_600_000;
+  const earliest = new Date(now.getTime() - 12 * HOUR).toISOString().slice(0, 10);
+  const latest = new Date(now.getTime() + 14 * HOUR).toISOString().slice(0, 10);
+  return sent >= earliest && sent <= latest ? sent : server;
+}
+
 /** The day before an ISO day, as an ISO day. Local-date arithmetic, so it round-trips with isoDay. */
 export function prevDay(iso: string): string {
   const [y, m, d] = iso.split("-").map(Number);

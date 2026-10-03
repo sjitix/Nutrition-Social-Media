@@ -19,7 +19,7 @@ import { MealSchema, WeekPlanSchema } from "@/lib/types";
 import { FEED_RECIPES, filterFeed, sortFeed, HIGH_PROTEIN_G, type FeedFilter } from "@/lib/feed";
 import { videoPlatform, extractVideoText } from "@/lib/videoImport";
 import { aisleFor, groupByAisle, AISLE_ORDER } from "@/lib/grocery";
-import { currentStreak, prevDay, isoDay } from "@/lib/streak";
+import { currentStreak, prevDay, isoDay, requestDay } from "@/lib/streak";
 import { expandConstrain, applyRemember, applyPrimitives, memoryContext, AssistantTurnV2Schema, allergensInFact, type PrimitiveOp } from "@/lib/primitives";
 import { assistantV2SystemPrompt } from "@/lib/promptV2";
 import { redFlag, CRISIS_REPLY } from "@/lib/safety";
@@ -3846,6 +3846,22 @@ console.log("--- STREAK (daily-use habit hook) ---");
   check("streak: unordered history still counts", currentStreak(["2026-08-02", "2026-08-04", "2026-08-03"], today) === 3);
   check("streak: empty history is 0", currentStreak([], today) === 0);
   check("streak: duplicates don't inflate it", currentStreak(["2026-08-04", "2026-08-04", "2026-08-03"], today) === 2);
+}
+{
+  // The assistant's "today" is the person's own calendar day when the browser sends a believable one.
+  // From the server alone it was the UTC day, already tomorrow on a US evening, so "I had pasta
+  // tonight" was logged against the wrong day. Believable = a date some time zone is in right now.
+  const usEvening = new Date("2026-10-04T02:00:00Z"); // 22:00 on Oct 3 in New York
+  check("requestDay: a US evening keeps its own day, not UTC's tomorrow", requestDay("2026-10-03", usEvening) === "2026-10-03");
+  const noonUtc = new Date("2026-10-04T12:00:00Z"); // UTC+14 is already at 02:00 on Oct 5; UTC-12 at 00:00 on Oct 4
+  check("requestDay: a day ahead is believed when UTC+14 is really there", requestDay("2026-10-05", noonUtc) === "2026-10-05");
+  check("requestDay: ...and a day no zone is in is not (Oct 3 at 12:00 UTC on Oct 4)", requestDay("2026-10-03", noonUtc) === "2026-10-04");
+  check("requestDay: Oct 5 is not believed at 02:00 UTC, when no zone has reached it", requestDay("2026-10-05", usEvening) === "2026-10-04");
+  const bad: unknown[] = [undefined, null, 12345, "", "2026-10-3", "2026-02-31", "2026-10-03T00:00", "2026-10-06", "1999-01-01", "not a date"];
+  const believed = bad.filter((b) => requestDay(b, usEvening) !== "2026-10-04");
+  check("requestDay: anything missing, malformed, impossible or out of range falls back to the server's day",
+    believed.length === 0, believed.map((b) => JSON.stringify(b)).join(", "));
+  check("requestDay: a leap day is a real day", requestDay("2028-02-29", new Date("2028-02-29T12:00:00Z")) === "2028-02-29");
 }
 
 console.log("--- VIDEO IMPORT (Phase 2: read a recipe from a reel's caption) ---");
