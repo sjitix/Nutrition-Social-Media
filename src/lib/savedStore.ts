@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { loadSaved, toggleSaved } from "./storage";
+import { accountConfig, currentSession } from "./account/client";
 
 /**
  * Where a saved recipe lives.
@@ -27,7 +28,7 @@ export interface SavedStore {
 }
 
 /**
- * The browser implementation, and the one in use until Supabase keys exist.
+ * The browser implementation — the only one (see `savedStore` below for why there is no second).
  *
  * It is not a placeholder — it stays as the fallback forever, because the GitHub Pages preview is
  * a static export with no server and must keep working, and because someone who has not signed in
@@ -57,11 +58,17 @@ export const localSavedStore: SavedStore = {
 };
 
 /**
- * The store the app should use. Today it is always the local one; when Supabase is configured this
- * returns the account-backed store for a signed-in reader and the local one otherwise.
+ * The store the app should use — always the browser one, which is also how saves reach an account.
+ *
+ * ACCOUNTS LIVE UNDERNEATH `storage.ts`, NOT HERE. A signed-in browser mirrors every store, `saved`
+ * included, to the account (src/lib/account/). So there is deliberately NO account-backed SavedStore:
+ * a second write path for the same list would race the mirror with conflicting timestamps, which is
+ * the two-lists-drifting bug this file's history already warns about. What changes when someone is
+ * signed in is only `kind`, so the interface can say truthfully where saves end up.
  */
 export function savedStore(): SavedStore {
-  return localSavedStore;
+  const signedIn = accountConfig() !== null && currentSession() !== null;
+  return signedIn ? { ...localSavedStore, kind: "account" } : localSavedStore;
 }
 
 /**

@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import {
-  STORE_NAMES, clearAll, loadBackup, readStore, restoreBackup, takeBackup, writeStore,
+  STORE_NAMES, discardBackup, loadBackups, readStore, restoreBackup, takeBackup, writeStore,
   type LocalBackup, type StoreName,
 } from "@/lib/storage";
 import {
   applyImport, buildExport, describeData, exportFilename, parseExport, type ParseResult,
 } from "@/lib/account/portable";
+import { forgetThisBrowser } from "@/lib/account/client";
 import { AccountPanel } from "./AccountPanel";
 
 /**
@@ -25,10 +26,16 @@ import { AccountPanel } from "./AccountPanel";
  */
 export function AccountClient() {
   const [held, setHeld] = useState<string[] | null>(null);
-  const [backup, setBackup] = useState<LocalBackup | null>(null);
+  const [backups, setBackups] = useState<LocalBackup[]>([]);
   const [incoming, setIncoming] = useState<{ file: string; result: ParseResult } | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // Focus goes INTO a confirm step when it opens, so a keyboard or screen-reader user lands on the
+  // question rather than on the page body after the button they pressed disappears.
+  const keepButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (confirmDelete) keepButton.current?.focus();
+  }, [confirmDelete]);
   const fileInput = useRef<HTMLInputElement>(null);
 
   // Read storage in an effect, never during render: the server render has no browser storage, and a
@@ -40,7 +47,7 @@ export function AccountClient() {
       if (v !== null) data[n] = v;
     }
     setHeld(describeData(data));
-    setBackup(loadBackup());
+    setBackups(loadBackups());
   }
   useEffect(refresh, []);
 
@@ -54,8 +61,10 @@ export function AccountClient() {
     document.body.appendChild(a);
     a.click();
     a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-    setNote(`Saved ${a.download}. Open this page on another device and bring it back in.`);
+    // Kept alive for a minute, not a second: iPhone Safari asks "Download?" and only then reads the
+    // file — a link revoked after one second is already dead and the download silently does nothing.
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    setNote(`Your browser is downloading ${a.download}. Open this page on another device and bring it back in.`);
   }
 
   async function pickFile(file: File | undefined) {
@@ -67,22 +76,42 @@ export function AccountClient() {
 
   function importNow() {
     if (!incoming?.result.ok) return;
-    takeBackup(`before importing ${incoming.file}`);
+    try {
+      takeBackup(`before importing ${incoming.file}`);
+    } catch (e) {
+      // No room for a safety copy means no import: replacing data without one is the thing to avoid.
+      setNote(e instanceof Error ? e.message : "Couldn't keep a safety copy, so nothing was imported.");
+      return;
+    }
     const written = applyImport(incoming.result.bundle, (n, v) => writeStore(n, v));
     setIncoming(null);
-    setNote(`Brought in ${written.length} item${written.length === 1 ? "" : "s"} from ${incoming.file}. What was here before is kept below until you discard it.`);
+    setNote(`Brought in ${written.length} item${written.length === 1 ? "" : "s"} from ${incoming.file}. What was here before is kept above until you forget it.`);
     refresh();
   }
 
-  function restoreNow() {
-    if (restoreBackup()) setNote("Put back exactly what this browser held before.");
+  function restoreNow(b: LocalBackup) {
+    // Putting a copy back replaces what is here now — so what is here now is kept as a copy first.
+    try {
+      takeBackup(`before putting back the copy from ${when(b.takenAt)}`);
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Couldn't keep a safety copy, so nothing was changed.");
+      return;
+    }
+    if (restoreBackup(b.id)) setNote("Put back exactly what this browser held then. What was here a moment ago is kept as a copy.");
     refresh();
   }
 
-  function deleteNow() {
-    clearAll();
+  function forget(b: LocalBackup) {
+    discardBackup(b.id);
+    refresh();
+  }
+
+  async function deleteNow() {
+    // Stop syncing (and cancel a sync in flight) BEFORE clearing, or a pull landing a moment later
+    // would put everything straight back; then end the sign-in. The account itself is untouched.
+    await forgetThisBrowser();
     setConfirmDelete(false);
-    setNote("Everything this app kept in this browser is gone.");
+    setNote("Everything this app kept in this browser is gone, and this browser is signed out. Your account, if you had one, is untouched.");
     refresh();
   }
 
@@ -101,25 +130,41 @@ export function AccountClient() {
         </p>
       </div>
 
-      {note && (
-        <p role="status" className="mt-6 max-w-[720px] rounded-[10px] bg-tint px-4 py-3 text-[12.5px] leading-relaxed">
-          {note}
-        </p>
-      )}
+      <p
+        role="status"
+        aria-live="polite"
+        className={note ? "mt-6 max-w-[720px] rounded-[10px] bg-tint px-4 py-3 text-[12.5px] leading-relaxed" : "sr-only"}
+      >
+        {note ?? ""}
+      </p>
 
-      {backup && (
-        <div className="mt-6 max-w-[720px] rounded-[12px] bg-panel p-5 text-white">
-          <p className="text-[9.5px] font-bold uppercase tracking-[0.16em] text-white/60">A way back</p>
-          <p className="mt-2 text-[13px] leading-relaxed text-white/85">
-            This browser kept a copy of your data from {when(backup.takenAt)}, {backup.reason}:{" "}
-            {describeData(backup.data).join(", ") || "it was empty"}.
+      {backups.length > 0 && (
+        <section className="mt-6 max-w-[720px] rounded-[12px] bg-panel p-5 text-white" aria-labelledby="backups-h">
+          <h2 id="backups-h" className="text-[9.5px] font-bold uppercase tracking-[0.16em] text-white/60">
+            {backups.length === 1 ? "A way back" : `${backups.length} ways back`}
+          </h2>
+          <ul className="mt-2 space-y-3">
+            {backups.map((b) => (
+              <li key={b.id} className="border-t border-white/15 pt-3 first:border-0 first:pt-0">
+                <p className="text-[13px] leading-relaxed text-white/85">
+                  A copy from {when(b.takenAt)}, {b.reason}: {describeData(b.data).join(", ") || "it was empty"}.
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button type="button" onClick={() => restoreNow(b)} className="rounded-full bg-white px-4 py-2 text-[12px] font-semibold text-plum transition hover:bg-cream">
+                    Put it back
+                  </button>
+                  <button type="button" onClick={() => forget(b)} className="rounded-full px-3 py-2 text-[12px] font-semibold text-white/70 transition hover:text-white">
+                    Forget this copy
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-[11px] leading-relaxed text-white/55">
+            Putting a copy back replaces what is here now, which is kept as a copy in turn. If you are
+            signed in, what you put back becomes your account&apos;s data too. The last three copies are kept.
           </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button type="button" onClick={restoreNow} className="rounded-full bg-white px-4 py-2 text-[12px] font-semibold text-plum transition hover:bg-cream">
-              Put it back
-            </button>
-          </div>
-        </div>
+        </section>
       )}
 
       <div className="mt-8 grid max-w-[1100px] gap-4 lg:grid-cols-2">
@@ -169,7 +214,7 @@ export function AccountClient() {
             Choose a NutriFlow file. You will see what is in it before anything changes, and what is
             here now is kept so you can put it back.
           </p>
-          <label className="mt-4 inline-block cursor-pointer rounded-full border border-line bg-cream px-5 py-2.5 text-[12.5px] font-semibold transition hover:border-vio">
+          <label className="mt-4 inline-block cursor-pointer rounded-full border border-line bg-cream px-5 py-2.5 text-[12.5px] font-semibold transition hover:border-vio focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-vio">
             Choose a file
             <input
               ref={fileInput}
@@ -192,7 +237,8 @@ export function AccountClient() {
                     <p key={w} className="mt-1.5 text-[11.5px] text-mut">{w}</p>
                   ))}
                   <p className="mt-2 text-[11.5px] leading-relaxed text-mut">
-                    Those replace what is here. Anything the file doesn&apos;t carry stays as it is.
+                    Those replace what is here — and, if you are signed in, in your account and on your
+                    other devices too. Anything the file doesn&apos;t carry stays as it is.
                   </p>
                   <div className="mt-3 flex gap-2">
                     <button type="button" onClick={importNow} className="rounded-full bg-vio px-4 py-2 text-[12px] font-semibold text-white transition hover:bg-vio-deep">
@@ -204,7 +250,7 @@ export function AccountClient() {
                   </div>
                 </>
               ) : (
-                <p className="text-[12.5px] leading-relaxed text-red-700">{incoming.result.error}</p>
+                <p role="alert" className="text-[12.5px] leading-relaxed text-red-700">{incoming.result.error}</p>
               )}
             </div>
           )}
@@ -213,25 +259,39 @@ export function AccountClient() {
         {/* ---- what is kept where — the privacy note, in plain words and only true ones ---- */}
         <section className="rounded-[12px] bg-cream p-5 lg:col-span-2">
           <h2 className="text-[10px] font-bold uppercase tracking-[0.16em] text-mut">What is kept, and where</h2>
+          {/*
+            Every sentence here was checked against the code, and two were corrected by an adversarial
+            review: "nothing leaves this browser unless you sign in" was false (building or changing a
+            plan sends your profile to the server), and "readable only by you" left out the people who
+            run the service and the sign-in records the provider keeps. Keep it true when things change.
+          */}
           <ul className="mt-2 max-w-[78ch] space-y-1.5 text-[12.5px] leading-relaxed">
             <li>
-              <b className="font-semibold">In this browser:</b> your profile and targets, your weeks,
-              saved and imported recipes, ticked grocery items, chat with the assistant, and which days
-              you opened the app. Nothing leaves it unless you sign in or download a file.
+              <b className="font-semibold">In this browser:</b> your profile and targets (including any
+              body measurements and things you told the assistant), your weeks, saved and imported
+              recipes, ticked grocery items, chat with the assistant, and which days you opened the app.
             </li>
             <li>
-              <b className="font-semibold">In your account, when you sign in:</b> a copy of exactly that
-              list, plus your email address so a sign-in link can reach you. It is readable only by
-              you — the database refuses every other account, and signed-out visitors see nothing.
+              <b className="font-semibold">Sent to work things out, not kept for your account:</b>
+              building or changing your plan sends your profile and your week to NutriFlow&apos;s server,
+              and, when an AI model is switched on, to that model&apos;s provider, to calculate the answer.
+              Messages to the assistant go the same way, together with your profile and week, and the
+              server may keep a log of each conversation to improve the assistant.
             </li>
             <li>
-              <b className="font-semibold">Not kept anywhere:</b> a password (sign-in is by email link),
-              payment details, or your location.
+              <b className="font-semibold">In your account, when you sign in:</b> a copy of the
+              in-browser list above, plus your email address so a sign-in link can reach you. It is
+              stored with our database provider, Supabase. Other accounts and signed-out visitors cannot
+              read it; the people who run NutriFlow can, to operate the service. Each sign-in also records
+              the IP address and browser it came from, as a security record.
             </li>
             <li>
-              <b className="font-semibold">Messages to the assistant</b> go to the server and the AI
-              model that answer them, and the server may keep a log of each conversation to improve the
-              assistant. Your account copy holds only the chat history you see here.
+              <b className="font-semibold">Not kept:</b> a password (sign-in is by email link) or payment
+              details.
+            </li>
+            <li>
+              <b className="font-semibold">Deleting your account</b> removes everything stored in it.
+              The sign-in provider keeps its security record of past sign-ins for a limited time after.
             </li>
           </ul>
         </section>
@@ -253,12 +313,12 @@ export function AccountClient() {
               Delete everything in this browser
             </button>
           ) : (
-            <div className="mt-4 flex flex-wrap items-center gap-2 rounded-[10px] bg-red-50 px-4 py-3">
-              <span className="text-[12.5px] text-red-700">Delete {held?.join(", ")}?</span>
+            <div className="mt-4 flex flex-wrap items-center gap-2 rounded-[10px] bg-red-50 px-4 py-3" role="group" aria-label="Confirm deleting everything in this browser">
+              <span className="text-[12.5px] text-red-700">Delete {held?.join(", ")}? This also signs this browser out.</span>
               <button type="button" onClick={deleteNow} className="rounded-full bg-red-700 px-4 py-2 text-[12px] font-semibold text-white transition hover:bg-red-800">
                 Yes, delete it all
               </button>
-              <button type="button" onClick={() => setConfirmDelete(false)} className="rounded-full px-3 py-2 text-[12px] font-semibold text-mut transition hover:text-plum">
+              <button ref={keepButton} type="button" onClick={() => setConfirmDelete(false)} className="rounded-full px-3 py-2 text-[12px] font-semibold text-mut transition hover:text-plum">
                 Keep it
               </button>
             </div>
