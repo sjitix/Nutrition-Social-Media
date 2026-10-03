@@ -30,6 +30,7 @@ import { dietTagConflicts, haystackBlocked } from "@/lib/exclusions";
 import { isReadTool } from "@/lib/agentTools";
 import { claimsChange } from "@/lib/reply";
 import { withFastFinish, fastFinishModeFromEnv } from "./fast-finish";
+import { withErrorCapture, isInfraError, hollowReply } from "./eval-common";
 import type { UserProfile, WeekPlan, Meal } from "@/lib/types";
 
 const MODEL = process.env.LOCAL_AI_MODEL ?? "(unset)";
@@ -137,7 +138,8 @@ const falseClaim = (r: AgentRunResult) =>
 /** The app's guard fields, read optionally so this file still runs against code from before 361b2e1. */
 const guard = (r: AgentRunResult) => r as AgentRunResult & { falseClaimRetried?: boolean; falseClaimCaught?: boolean };
 // A hold may still `remember` a fact (that's good nutritionist behaviour); it may not change the PLAN.
-const holdCheck = (r: AgentRunResult) => (r.planChanged ? "changed the plan when it should have held" : null);
+const holdCheck = (r: AgentRunResult) =>
+  r.planChanged ? "changed the plan when it should have held" : hollowReply(r.reply) ? `held, but said nothing ("${r.reply.trim()}")` : null;
 
 const SCENARIOS: Scenario[] = [
   {
@@ -189,10 +191,12 @@ const SCENARIOS: Scenario[] = [
   },
   {
     id: "exclude", want: "act",
-    message: "i really can't stand mushrooms, get rid of them",
+    // Eggs, not mushrooms: the fixed start week has no mushrooms, so a model that did nothing passed this
+    // (a do-nothing stub scored it, 2026-10-03). It has eggs in three breakfasts.
+    message: "i really can't stand eggs, get rid of them",
     check: (r) => {
-      const bad = allMeals(r.plan).filter((m) => contains(m, ["mushroom", "mushrooms"]));
-      return bad.length ? `still has mushrooms: ${bad.map((m) => m.name).join(", ")}` : null;
+      const bad = allMeals(r.plan).filter((m) => contains(m, ["egg", "eggs"]));
+      return bad.length ? `still has eggs: ${bad.map((m) => m.name).join(", ")}` : null;
     },
   },
   {
@@ -213,6 +217,8 @@ const SCENARIOS: Scenario[] = [
       if (!m) return "no Thursday dinner";
       if (!isVeg(m)) return `Thursday dinner "${m.name}" is not vegetarian`;
       if (m.timeMinutes > 20) return `Thursday dinner "${m.name}" takes ${m.timeMinutes} min`;
+      // The start week's Thursday dinner may already qualify; doing nothing must not pass.
+      if (m.name === meal(PLAN, "Thursday", "dinner")?.name) return "Thursday dinner unchanged";
       return null;
     },
   },
@@ -249,7 +255,7 @@ const SCENARIOS: Scenario[] = [
     id: "contradiction", want: "hold",
     message: "make the whole week vegan but put chicken on friday",
     check: (r) => {
-      if (!changed(r)) return null;
+      if (!r.planChanged) return hollowReply(r.reply) ? `held, but said nothing ("${r.reply.trim()}")` : null;
       // Acting is acceptable ONLY if it resolved honestly: a fully vegan week with no chicken.
       const vegan = allMeals(r.plan).every(isVegan);
       return vegan ? null : "built a broken 'vegan' week (or added chicken) instead of flagging the clash";
@@ -361,7 +367,16 @@ const baseModel = (agentModelFn as (o?: { today?: string }) => ReturnType<typeof
 // FAST_FINISH=reply adds v1's rule: skip only when the write step also carried a reply.
 const FAST_FINISH_MODE = fastFinishModeFromEnv(process.env.FAST_FINISH);
 const FAST_FINISH = FAST_FINISH_MODE !== "off";
-const { fn: model, stats: ff } = withFastFinish(baseModel, FAST_FINISH_MODE);
+const cap = withErrorCapture(baseModel);
+const { fn: model, stats: ff } = withFastFinish(cap.fn, FAST_FINISH_MODE);
+/** What this run actually sent, beyond the prompt: the scorecard's prompt sha cannot tell these arms apart. */
+const RUN_CONFIG = {
+  today: TODAY,
+  endpoint: process.env.LOCAL_AI_URL ?? null,
+  extraBody: process.env.LOCAL_AI_EXTRA_BODY ?? null,
+  fastFinish: FAST_FINISH_MODE,
+  clock: process.env.PACE_STATS ? "upstream seconds via pace-proxy /stats (pacing and 429 waits excluded)" : "wall clock (includes the adapter's own retry back-off)",
+};
 
 // Stamp WHICH prompt this run measured — the prompt is the variable under test, and a scorecard that
 // can't say which one it graded is unreadable a week later. Called through a widened type so this
@@ -395,6 +410,8 @@ interface Row {
   /** The app's guard (361b2e1): nudged the model once / replaced the reply. */
   guardRetried: boolean;
   guardCaught: boolean;
+  /** The wall clock for the same message, always recorded, so a proxy run can be compared with a direct one. */
+  wallSeconds?: number;
 }
 const EMOJI = /\p{Extended_Pictographic}/u;
 const rows: Row[] = [];
@@ -408,6 +425,7 @@ for (const s of scenarios) {
   let t0 = performance.now();
   let up0 = await upstreamSeconds();
   let sk0 = ff.skipped;
+  cap.reset();
   let r: AgentRunResult;
   try {
     // A scenario that never reached the model (rate limit, queue reset) is RE-RUN from scratch after a
@@ -415,13 +433,15 @@ for (const s of scenarios) {
     // that turned a whole run into infra failures (2026-10-03: 20/21). Only the final attempt is timed,
     // so the latency reported is a real answer's, not one padded by our own back-off.
     r = await runAgent({ profile: structuredClone(PROFILE), plan: structuredClone(PLAN), message: s.message, history, today: TODAY, model });
-    for (let attempt = 1; r.modelFailed && attempt <= LOOP_RETRIES; attempt++) {
+    // Only a TRANSPORT failure is re-run. Unusable model output (bad JSON, schema miss) is the model's miss.
+    for (let attempt = 1; r.modelFailed && isInfraError(cap.lastError()) && attempt <= LOOP_RETRIES; attempt++) {
       const wait = 30_000 * attempt;
       console.log(`   … ${s.id}: model unreachable, retry ${attempt}/${LOOP_RETRIES} in ${wait / 1000}s`);
       await new Promise((res) => setTimeout(res, wait));
       t0 = performance.now();
       up0 = await upstreamSeconds();
       sk0 = ff.skipped;
+      cap.reset();
       r = await runAgent({ profile: structuredClone(PROFILE), plan: structuredClone(PLAN), message: s.message, history, today: TODAY, model });
     }
   } catch (e) {
@@ -447,11 +467,14 @@ for (const s of scenarios) {
   }
   const readFirst = s.expectRead ? firstRead >= 0 && (firstWrite < 0 || firstRead < firstWrite) : null;
 
-  const infra = r.modelFailed;
-  const claimed = !infra && falseClaim(r);
-  const reason = infra ? "model unreachable / failed (infra)" : claimed ? "claimed a change it did not make" : s.check(r, before);
+  const infra = r.modelFailed && isInfraError(cap.lastError());
+  const badOutput = r.modelFailed && !infra;
+  const claimed = !r.modelFailed && falseClaim(r);
+  const reason = infra ? "model unreachable / failed (infra)"
+    : badOutput ? `unusable model output: ${cap.lastError().slice(0, 120)}`
+    : claimed ? "claimed a change it did not make" : s.check(r, before);
   const pass = !infra && reason === null;
-  rows.push({ id: s.id, want: s.want, pass, infra, reason, steps: r.steps, gaveUp: r.gaveUp, modelFailed: r.modelFailed, seconds, readFirst, ops: opsSeq, reply: r.reply.replace(/\s+/g, " ").slice(0, 200), emoji: EMOJI.test(r.reply), engineIssue: infra || !s.engine ? null : s.engine(r, before), writes: writesOf(r), modelCalls: r.steps - (ff.skipped - sk0), falseClaim: claimed, guardRetried: Boolean(guard(r).falseClaimRetried), guardCaught: Boolean(guard(r).falseClaimCaught) });
+  rows.push({ id: s.id, want: s.want, pass, infra, reason, steps: r.steps, gaveUp: r.gaveUp, modelFailed: r.modelFailed, seconds, readFirst, ops: opsSeq, reply: r.reply.replace(/\s+/g, " ").slice(0, 200), emoji: EMOJI.test(r.reply), engineIssue: infra || !s.engine ? null : s.engine(r, before), writes: writesOf(r), modelCalls: r.steps - (ff.skipped - sk0), falseClaim: claimed, guardRetried: Boolean(guard(r).falseClaimRetried), guardCaught: Boolean(guard(r).falseClaimCaught), wallSeconds });
   console.log(`${pass ? "✓ " : infra ? "!!" : "✗ "} ${s.id.padEnd(18)} ${seconds.toFixed(1).padStart(6)}s  ${r.steps} step${r.steps === 1 ? " " : "s"}${r.gaveUp ? " GAVE-UP" : ""}  [${opsSeq.join(",") || "no ops"}]${reason ? `  — ${reason}` : ""}`);
 }
 
@@ -483,6 +506,9 @@ const summary = {
   /** Skips the "reply" rule withheld because the write step's reply was empty. */
   fastFinishBlockedByEmptyReply: ff.blockedByEmptyReply,
   medianSecondsPerMessage: q(0.5),
+  /** The same messages on the wall clock (includes proxy pacing and retry waits): compare like with like. */
+  medianWallSecondsPerMessage: (() => { const w = graded.map((r) => r.wallSeconds ?? r.seconds).sort((x, y) => x - y); return w.length ? +w[Math.floor(w.length / 2)].toFixed(1) : null; })(),
+  unusableOutput: graded.filter((r) => /^unusable model output/.test(r.reason ?? "")).length,
   p90SecondsPerMessage: q(0.9),
   maxSecondsPerMessage: secs.length ? secs[secs.length - 1] : null,
 };
@@ -496,5 +522,5 @@ const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
 const dir = join(process.cwd(), "data", "eval-runs");
 mkdirSync(dir, { recursive: true });
 const out = join(dir, `${ts}-loop-${MODEL.replace(/[^a-z0-9.-]+/gi, "-")}.json`);
-writeFileSync(out, JSON.stringify({ kind: "loop-eval", ranAt: new Date().toISOString(), model: MODEL, endpoint: process.env.LOCAL_AI_URL, maxSteps: MAX_STEPS, prompt: PROMPT, summary, rows }, null, 2));
+writeFileSync(out, JSON.stringify({ kind: "loop-eval", ranAt: new Date().toISOString(), model: MODEL, endpoint: process.env.LOCAL_AI_URL, maxSteps: MAX_STEPS, prompt: PROMPT, config: RUN_CONFIG, summary, rows }, null, 2));
 console.log(`wrote ${out}`);
