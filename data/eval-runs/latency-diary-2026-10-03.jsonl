@@ -1,0 +1,4 @@
+{"at":"2026-10-03T09:55:14.077Z","model":"nvidia/nemotron-3-ultra-550b-a55b","ok":true,"status":200,"seconds":7.56,"outTokens":226}
+{"at":"2026-10-03T09:55:14.077Z","model":"z-ai/glm-5.3","ok":false,"status":200,"seconds":21.38,"outTokens":400,"err":"empty"}
+{"at":"2026-10-03T09:55:14.077Z","model":"openai/gpt-oss-20b","ok":true,"status":200,"seconds":4.41,"outTokens":166}
+{"at":"2026-10-03T09:55:14.077Z","model":"moonshotai/kimi-k3","ok":false,"status":200,"seconds":108.04,"outTokens":33,"err":"empty"}

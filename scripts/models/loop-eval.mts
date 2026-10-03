@@ -74,6 +74,12 @@ interface Scenario {
   expectRead?: boolean;
   /** Engine-verified outcome. Return null for pass, or the reason it failed. */
   check: (r: AgentRunResult, before: WeekPlan) => string | null;
+  /**
+   * An assertion about the ENGINE, not the model — reported apart and never counted in the model's
+   * score. Added from real failures so the engine fix has a test (e.g. the rebalancer swapping a
+   * different dish when the user scoped a change to one slot).
+   */
+  engine?: (r: AgentRunResult, before: WeekPlan) => string | null;
 }
 
 const changed = (r: AgentRunResult) => r.planChanged || r.profileChanged;
@@ -102,11 +108,23 @@ const SCENARIOS: Scenario[] = [
   {
     id: "single-slot", want: "act",
     message: "swap just wednesday's dinner for something with salmon",
+    // Other DAYS must be untouched. Wednesday's other meals may change: the engine's rebalancer can
+    // upgrade-swap a same-day meal to hit macros after a swap — an engine behaviour no model controls
+    // (raised with v1 as a product question), so it is not charged to the model here.
     check: (r, b) => {
       const m = meal(r.plan, "Wednesday", "dinner");
       if (!m || !contains(m, ["salmon"])) return `Wednesday dinner is "${m?.name}", no salmon`;
-      if (!unchangedExcept(b, r.plan, (d, t) => d === "Wednesday" && t === "dinner")) return "changed more than Wednesday dinner";
+      if (!unchangedExcept(b, r.plan, (d) => d === "Wednesday")) return "changed days other than Wednesday";
       return null;
+    },
+    // ENGINE (v1 agreed 2026-10-03: the user's scope outranks macro fit): a change scoped to one slot
+    // may resize the day's other meals but must not swap a different dish into them.
+    engine: (r, b) => {
+      const swapped = day(b, "Wednesday")!.meals
+        .filter((m) => m.type !== "dinner")
+        .filter((m) => meal(r.plan, "Wednesday", m.type)?.name !== m.name)
+        .map((m) => `${m.type}: "${m.name}" → "${meal(r.plan, "Wednesday", m.type)?.name}"`);
+      return swapped.length ? `scoped swap also replaced ${swapped.join("; ")}` : null;
     },
   },
   {
@@ -190,6 +208,70 @@ const SCENARIOS: Scenario[] = [
     message: "set me up for 16:8 fasting, nothing before noon",
     check: (r) => holdCheck(r),
   },
+  // ── coverage: every primitive family the assistant is supposed to be able to use ──────────────
+  {
+    id: "eat-out-future", want: "act",
+    message: "i've got a dinner reservation on friday night, save some room for it",
+    check: (r) => /^Eating out/i.test(meal(r.plan, "Friday", "dinner")?.description ?? "")
+      ? null : `Friday dinner not reserved ("${meal(r.plan, "Friday", "dinner")?.name}")`,
+  },
+  {
+    // TODAY is a Monday. Fails on any model if the prompt never tells it the date — tracked on purpose.
+    id: "log-today", want: "act",
+    message: "welp, i already smashed a big burger and fries for lunch today",
+    check: (r) => /Logged by you/i.test(meal(r.plan, "Monday", "lunch")?.description ?? "")
+      ? null : `Monday lunch not logged ("${meal(r.plan, "Monday", "lunch")?.name}")`,
+  },
+  {
+    id: "pin", want: "act",
+    message: "whatever else you change, keep sunday's dinner exactly as it is",
+    check: (r) => (r.profile.lockedMeals ?? []).some((l) => l.day === "Sunday" && l.mealType === "dinner")
+      ? null : "Sunday dinner not pinned",
+  },
+  {
+    id: "rate", want: "act",
+    message: "monday's breakfast was so good — can i have it more often?",
+    check: (r, b) => {
+      const name = meal(b, "Monday", "breakfast")?.name ?? "";
+      return (r.profile.mealRatings ?? []).some((x) => x.name === name && x.rating >= 4)
+        ? null : `no high rating recorded for "${name}"`;
+    },
+  },
+  {
+    id: "four-meals", want: "act",
+    message: "add an afternoon snack, i want 4 meals a day from now on",
+    check: (r) => r.profile.mealsPerDay === 4 && r.plan.days.every((d) => d.meals.some((m) => m.type === "snack"))
+      ? null : `mealsPerDay=${r.profile.mealsPerDay}, snack on ${r.plan.days.filter((d) => d.meals.some((m) => m.type === "snack")).length}/7 days`,
+  },
+  {
+    id: "meal-prep", want: "act",
+    message: "i'd rather meal prep — cook in bulk twice a week and eat the leftovers",
+    check: (r) => (r.profile.planMode === "batch" ? null : `planMode=${r.profile.planMode ?? "fresh"}`),
+  },
+  {
+    id: "cheaper", want: "act",
+    message: "money's tight this month, can you make the week cheaper?",
+    check: (r) => (r.profile.budget === "low" ? null : `budget=${r.profile.budget}`),
+  },
+  {
+    id: "iron-veg", want: "act",
+    message: "my doctor said my iron is low. i'm vegetarian though, keep it that way",
+    check: (r) => {
+      if (r.profile.diet !== "vegetarian" && r.profile.diet !== "vegan") return `diet=${r.profile.diet}`;
+      const bad = allMeals(r.plan).filter((m) => !isVeg(m));
+      return bad.length ? `non-veg meals: ${bad.map((m) => m.name).join(", ")}` : null;
+    },
+  },
+  {
+    id: "hydration", want: "hold",
+    message: "how much water should i drink a day? i'm about 80kg and pretty active",
+    check: (r) => holdCheck(r),
+  },
+  {
+    id: "household", want: "hold",
+    message: "i'm cooking for me and my girlfriend now, make the portions for two",
+    check: (r) => holdCheck(r),
+  },
 ];
 
 // ── run ─────────────────────────────────────────────────────────────────────────────────────────
@@ -205,7 +287,12 @@ interface Row {
   id: string; want: Want; pass: boolean; infra: boolean; reason: string | null;
   steps: number; gaveUp: boolean; modelFailed: boolean; seconds: number;
   readFirst: boolean | null; ops: string[]; reply: string;
+  /** An ENGINE assertion that failed on this run (not charged to the model). */
+  engineIssue: string | null;
+  /** The reply IS UI, and the project bans emoji in the UI (CLAUDE.md). Tracked, not failed. */
+  emoji: boolean;
 }
+const EMOJI = /\p{Extended_Pictographic}/u;
 const rows: Row[] = [];
 
 for (const s of scenarios) {
@@ -219,7 +306,7 @@ for (const s of scenarios) {
   try {
     r = await runAgent({ profile: structuredClone(PROFILE), plan: structuredClone(PLAN), message: s.message, history, today: TODAY, model });
   } catch (e) {
-    rows.push({ id: s.id, want: s.want, pass: false, infra: true, reason: `threw: ${(e as Error).message}`, steps: 0, gaveUp: false, modelFailed: true, seconds: (performance.now() - t0) / 1000, readFirst: null, ops: [], reply: "" });
+    rows.push({ id: s.id, want: s.want, pass: false, infra: true, reason: `threw: ${(e as Error).message}`, steps: 0, gaveUp: false, modelFailed: true, seconds: (performance.now() - t0) / 1000, readFirst: null, ops: [], reply: "", emoji: false, engineIssue: null });
     console.log(`!! ${s.id.padEnd(18)} threw`);
     continue;
   }
@@ -241,7 +328,7 @@ for (const s of scenarios) {
   const infra = r.modelFailed;
   const reason = infra ? "model unreachable / failed (infra)" : s.check(r, before);
   const pass = !infra && reason === null;
-  rows.push({ id: s.id, want: s.want, pass, infra, reason, steps: r.steps, gaveUp: r.gaveUp, modelFailed: r.modelFailed, seconds, readFirst, ops: opsSeq, reply: r.reply.replace(/\s+/g, " ").slice(0, 200) });
+  rows.push({ id: s.id, want: s.want, pass, infra, reason, steps: r.steps, gaveUp: r.gaveUp, modelFailed: r.modelFailed, seconds, readFirst, ops: opsSeq, reply: r.reply.replace(/\s+/g, " ").slice(0, 200), emoji: EMOJI.test(r.reply), engineIssue: infra || !s.engine ? null : s.engine(r, before) });
   console.log(`${pass ? "✓ " : infra ? "!!" : "✗ "} ${s.id.padEnd(18)} ${seconds.toFixed(1).padStart(6)}s  ${r.steps} step${r.steps === 1 ? " " : "s"}${r.gaveUp ? " GAVE-UP" : ""}  [${opsSeq.join(",") || "no ops"}]${reason ? `  — ${reason}` : ""}`);
 }
 
@@ -261,6 +348,9 @@ const summary = {
   holdPass: `${graded.filter((r) => r.want === "hold" && r.pass).length}/${graded.filter((r) => r.want === "hold").length}`,
   readBeforeWrite: `${readCases.filter((r) => r.readFirst).length}/${readCases.length}`,
   gaveUp: graded.filter((r) => r.gaveUp).length,
+  emojiReplies: graded.filter((r) => r.emoji).length,
+  /** Engine assertions that failed — about the engine, NOT this model; never part of passRate. */
+  engineIssues: rows.filter((r) => r.engineIssue).map((r) => `${r.id}: ${r.engineIssue}`),
   meanSteps: graded.length ? +(graded.reduce((s, r) => s + r.steps, 0) / graded.length).toFixed(2) : null,
   medianSecondsPerMessage: q(0.5),
   p90SecondsPerMessage: q(0.9),
@@ -268,7 +358,8 @@ const summary = {
 };
 
 console.log(`\npass ${summary.pass}/${graded.length} (${summary.passRate}%)  · act ${summary.actPass}  · hold ${summary.holdPass}  · read-before-write ${summary.readBeforeWrite}`);
-console.log(`steps mean ${summary.meanSteps}  · gave up ${summary.gaveUp}  · per-message seconds: median ${summary.medianSecondsPerMessage?.toFixed(1)}  p90 ${summary.p90SecondsPerMessage?.toFixed(1)}  max ${summary.maxSecondsPerMessage?.toFixed(1)}`);
+console.log(`steps mean ${summary.meanSteps}  · gave up ${summary.gaveUp}  · emoji replies ${summary.emojiReplies}  · per-message seconds: median ${summary.medianSecondsPerMessage?.toFixed(1)}  p90 ${summary.p90SecondsPerMessage?.toFixed(1)}  max ${summary.maxSecondsPerMessage?.toFixed(1)}`);
+for (const e of summary.engineIssues) console.log(`ENGINE (not the model): ${e}`);
 if (!summary.trustworthy) console.log(`!! ${summary.infraFailures} scenario(s) never reached the model — not counted as misses; re-run before quoting.`);
 
 const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);

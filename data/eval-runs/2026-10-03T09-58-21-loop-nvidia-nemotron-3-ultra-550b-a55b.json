@@ -1,0 +1,257 @@
+{
+  "kind": "loop-eval",
+  "ranAt": "2026-10-03T09:58:21.411Z",
+  "model": "nvidia/nemotron-3-ultra-550b-a55b",
+  "endpoint": "https://integrate.api.nvidia.com/v1",
+  "maxSteps": 8,
+  "summary": {
+    "scenarios": 14,
+    "infraFailures": 1,
+    "trustworthy": false,
+    "pass": 10,
+    "passRate": 77,
+    "actPass": "5/8",
+    "holdPass": "5/5",
+    "readBeforeWrite": "0/2",
+    "gaveUp": 1,
+    "meanSteps": 2.31,
+    "medianSecondsPerMessage": 21.428218800000003,
+    "p90SecondsPerMessage": 44.76752230000001,
+    "maxSecondsPerMessage": 106.18498810000001
+  },
+  "rows": [
+    {
+      "id": "day-vegetarian",
+      "want": "act",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 7.333068999999999,
+      "readFirst": null,
+      "ops": [
+        "constrain"
+      ],
+      "reply": "Tuesday now has 2000 kcal and 149g protein."
+    },
+    {
+      "id": "every-day-swap",
+      "want": "act",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 23.332716,
+      "readFirst": null,
+      "ops": [
+        "swap"
+      ],
+      "reply": "Set Cottage Cheese Pancakes with Blueberries as your breakfast every day. Your week now averages 1999 kcal and 150g protein."
+    },
+    {
+      "id": "single-slot",
+      "want": "act",
+      "pass": false,
+      "infra": false,
+      "reason": "Wednesday dinner is \"Baked Falafel Bowl with Roasted Veg & Tahini\", no salmon",
+      "steps": 8,
+      "gaveUp": true,
+      "modelFailed": false,
+      "seconds": 106.18498810000001,
+      "readFirst": null,
+      "ops": [
+        "swap",
+        "answer",
+        "answer",
+        "answer",
+        "answer",
+        "answer",
+        "answer",
+        "answer"
+      ],
+      "reply": "I didn't have \"Salmon with Roasted Vegetables and Quinoa\" — I used Baked Falafel Bowl with Roasted Veg & Tahini instead. Wednesday now has 2000 kcal and 150g protein. I bumped your lunch to Chicken & "
+    },
+    {
+      "id": "targets",
+      "want": "act",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 15.35394080000001,
+      "readFirst": null,
+      "ops": [
+        "constrain"
+      ],
+      "reply": "Your week now averages 1800 kcal and 160g protein."
+    },
+    {
+      "id": "exclude",
+      "want": "act",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 11.132804999999992,
+      "readFirst": null,
+      "ops": [
+        "remember",
+        "constrain"
+      ],
+      "reply": "Your week now averages 2000 kcal and 151g protein."
+    },
+    {
+      "id": "memory-allergy",
+      "want": "act",
+      "pass": false,
+      "infra": false,
+      "reason": "peanuts despite the allergy: Peanut Butter Banana Shake Bowl, Peanut Tofu Bites",
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 21.428218800000003,
+      "readFirst": null,
+      "ops": [
+        "remember",
+        "constrain"
+      ],
+      "reply": "Your week now averages 2000 kcal and 152g protein."
+    },
+    {
+      "id": "find-then-place",
+      "want": "act",
+      "pass": false,
+      "infra": false,
+      "reason": "Thursday dinner \"White Bean & Kale Stew\" takes 22 min",
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 18.636319099999994,
+      "readFirst": false,
+      "ops": [
+        "constrain"
+      ],
+      "reply": "Thursday now has 2001 kcal and 148g protein."
+    },
+    {
+      "id": "weekend-lighter",
+      "want": "act",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 44.76752230000001,
+      "readFirst": null,
+      "ops": [
+        "remember",
+        "constrain"
+      ],
+      "reply": "Saturday now has 1702 kcal and 150g protein. Sunday now has 1699 kcal and 150g protein. Carbs come to 153g against about 200g."
+    },
+    {
+      "id": "lookup-question",
+      "want": "hold",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 21.443153099999968,
+      "readFirst": false,
+      "ops": [
+        "explain"
+      ],
+      "reply": "Monday's dinner is Chicken & Vegetable Stir-Fry with Rice: 703 kcal (35% of your day) and 47g protein (31% of your 150g target). I picked it because it fits your 30-min limit at 20 min, it carries 9g "
+    },
+    {
+      "id": "general-qa",
+      "want": "hold",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 19.1192525,
+      "readFirst": null,
+      "ops": [
+        "answer"
+      ],
+      "reply": "Happy to help."
+    },
+    {
+      "id": "emotional",
+      "want": "hold",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 44.20724230000004,
+      "readFirst": null,
+      "ops": [
+        "symptom",
+        "remember"
+      ],
+      "reply": "Feeling tired can have many causes and most of them aren't dietary — I can't diagnose it, and if it's persisted you should see a doctor. What I can do is check the nutrients it's classically associate"
+    },
+    {
+      "id": "vague-goal",
+      "want": "hold",
+      "pass": false,
+      "infra": true,
+      "reason": "model unreachable / failed (infra)",
+      "steps": 3,
+      "gaveUp": false,
+      "modelFailed": true,
+      "seconds": 52.5980699,
+      "readFirst": null,
+      "ops": [
+        "remember",
+        "remember"
+      ],
+      "reply": "I couldn't reach the assistant to finish that."
+    },
+    {
+      "id": "contradiction",
+      "want": "hold",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 1,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 25.400471699999994,
+      "readFirst": null,
+      "ops": [],
+      "reply": "Those two clash — a vegan week means no animal products at all, including chicken. Want a fully vegan week, or a non-vegan week with chicken on Friday (and I can keep the rest plant-based if you like)"
+    },
+    {
+      "id": "unsupported",
+      "want": "hold",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 1,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 20.6243897,
+      "readFirst": null,
+      "ops": [],
+      "reply": "I can't set the plan to 2 meals a day — the engine only runs on 3 or 4 meals. For 16:8, the closest I can do is give you a tiny, quick breakfast (like a protein shake or yogurt) that you can have righ"
+    }
+  ],
+  "variant": "main prompt (before)"
+}

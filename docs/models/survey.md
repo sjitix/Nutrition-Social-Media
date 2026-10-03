@@ -41,6 +41,12 @@ the hard-case evals for Ultra-550B, GLM-5.3 and Lightning are running.
 | gpt-oss-20b *(control; Sept, LM Studio)* | 84% | 24/27 | 6/7 | 5/5 | 3/6 | yes | — |
 | **Nemotron-3-Ultra-550B** | **82%** | 23/27 | 4/7 | 5/5 | **5/6** | **yes (0 infra)** | `2026-10-03T09-48-24-…ultra-550b….json` |
 | Kimi K3 *(2026-10-02)* | ≤78% best case | — | 1/6 | — | ≤4/6 | no (8 infra) | `2026-10-02T22-13-09-moonshotai-kimi-k3.json` |
+| GLM-5.3 | 69% | 22/27 | 2/7 | 4/5 | 3/6 | yes (0 infra) — but **schemaOk 35/45** | `2026-10-03T10-00-28-z-ai-glm-5.3.json` |
+
+**GLM-5.3 is not yet fairly measured:** 10 of 45 replies didn't parse (a reasoning model that sometimes
+spent the budget before writing the JSON, or leaked its `{"thinking"…}` into the text). Where it did
+answer, its tone was among the warmest. Needs a format fix (larger output budget / JSON mode) before its
+judgement can be compared — on the to-do, behind the models that format cleanly.
 
 **Read:** 27× the parameters does not buy a higher score on this eval. The 550B model is clearly more
 *honest* (it declined 5 of 6 unsupported requests instead of faking them — the small model's worst
