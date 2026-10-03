@@ -3,6 +3,7 @@
  *
  *   node scripts/ship.mjs --message-file msg.txt -- src/lib/foo.ts docs/bar.md
  *   node scripts/ship.mjs --message "short message" --no-gate -- docs/bar.md
+ *   node scripts/ship.mjs --onto main --message-file msg.txt -- <paths>   (from a worktree on another branch)
  *
  * WHY THIS EXISTS. On 2026-10-03 a day's work landed on origin/main under an unrelated commit
  * message. The cause was not carelessness about git, it was the ORDER that correctness demands:
@@ -99,7 +100,10 @@ if (!commitMessage.trim()) die("the commit message is empty.");
 // ---- 1. the remote, before anything else -------------------------------------------------------
 console.log("\nship: fetching origin…");
 git(["fetch", "origin"]);
-const branch = git(["rev-parse", "--abbrev-ref", "HEAD"]);
+// `--onto <branch>` names the REMOTE branch to land on, for a worktree whose local branch is not it
+// (a second agent working in its own worktree on branch `accounts` ships with `--onto main`; see
+// docs/parallel/README.md). Without the flag it is the current branch, exactly as before.
+const branch = flag("--onto") ?? git(["rev-parse", "--abbrev-ref", "HEAD"]);
 const [behind, ahead] = git(["rev-list", "--left-right", "--count", `origin/${branch}...HEAD`])
   .split(/\s+/)
   .map(Number);
@@ -209,7 +213,7 @@ console.log(`ship: commit verified — ${committed.length} file(s), exactly as a
 // ---- 6. push, and prove it landed --------------------------------------------------------------
 console.log("ship: pushing…");
 try {
-  run("git", ["push", "origin", branch]);
+  run("git", ["push", "origin", `HEAD:${branch}`]);
 } catch {
   die("the push failed. The commit is safe locally; fetch, rebase and run ship again.");
 }

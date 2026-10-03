@@ -317,6 +317,13 @@ the app must keep working with **no keys configured** (the GitHub Pages preview 
 with no server), and RLS policies must be written so a signed-in person can only ever read and
 write their own rows.
 
+**The shape, decided 2026-10-03: local-first, the account is a mirror.** The browser copy stays the
+working copy every screen reads; when someone is signed in, each stored item is mirrored to their row
+and pulled back on another device. So an account adds *reach* and never becomes a dependency — no
+keys, offline, or signed out, the app behaves exactly as it does today. **Signing in must never cost
+someone the week already on their device.** And because a person's data is theirs, export-to-a-file
+and delete-everything ship first, before sync. Build record: `docs/parallel/lane-accounts.md`.
+
 **How that actually works (the key insight):** LLMs "change things" via **tool /
 function calling**. The model stays general; it interprets your message and emits
 **structured tool calls**; plain code (the tools) executes them against the database.

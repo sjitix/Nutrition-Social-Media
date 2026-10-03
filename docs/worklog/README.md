@@ -18,7 +18,7 @@ The survey of existing tools that led here, and why a hosted one was not chosen,
    `docs/v1/01-dimensions-and-milestones.md` and, on the board, in a separate collapsed block. Mixing
    the two makes a record of intentions, which is the one thing a work log must not become.
    (Owner's instruction, 2026-09-19, left as a comment on the day-log board.)
-1. **One file per day.** Never append to a shared file — two machines writing the same day's file is
+1. **One file per day, per lane.** Since 2026-10-03 two agents work in parallel (`docs/parallel/`): the v1 lane writes `YYYY-MM-DD.md`, the accounts lane `YYYY-MM-DD-accounts.md`. Never append to a shared file — two machines writing the same day's file is
    a merge conflict, and this repo has already had a doc silently duplicate and diverge
    (WORKPLAN lesson 40).
 2. **Write it the same day**, as part of the day's definition of done
@@ -60,3 +60,4 @@ The survey of existing tools that led here, and why a hosted one was not chosen,
 | [2026-09-19](2026-09-19.md) | V1 planning: milestones, module map, Kimi call, daily history — plus the three boards | done |
 | [2026-10-02](2026-10-02.md) | Library expansion + ingredient identity (day 5 added); context files brought current | done |
 | [2026-10-03](2026-10-03.md) | Track E — the direct-manipulation layer, H1–H8: tap a meal and change it, no model anywhere | done |
+| [2026-10-03 · accounts](2026-10-03-accounts.md) | Parallel lanes set up: protocol, worktree, `ship --onto`; accounts plan A1–A6 | done |
