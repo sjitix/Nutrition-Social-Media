@@ -132,8 +132,12 @@ async function call(variant: string, message: string): Promise<Row> {
     const j = m ? JSON.parse(m[0]) : null;
     if (j) { thinkingChars = String(j.thinking ?? "").length; replyChars = String(j.reply ?? "").length; opsChars = JSON.stringify(j.operations ?? []).length; }
   } catch { /* unparseable — still timed */ }
+  // A 200 that streamed nothing is a failure, not a 0.3 s answer — the free tier sometimes returns an
+  // empty stream instead of a 429, and the first run of this script averaged those in as fast calls.
+  const empty = content.trim().length === 0;
   return {
-    variant, message, ok: true, status, ttft, total, genSeconds: ttft === null ? null : total - ttft,
+    variant, message, ok: !empty, status, ...(empty ? { error: "empty response (200, nothing streamed)" } : {}),
+    ttft, total, genSeconds: ttft === null ? null : total - ttft,
     reasoningChars: reasoning.length, contentChars: content.length, thinkingChars, replyChars, opsChars,
     promptTokens: usage?.prompt_tokens ?? null, completionTokens: usage?.completion_tokens ?? null, systemChars: system.length,
   };
