@@ -196,6 +196,16 @@ The 550B's misses are mild:
 - an offer swallowed by the engine. The symptom note replaces the model's reply, and it ends without a
   question unless a nutrient is low. Reported to v1.
 
+**The date line (`models-exp-date`, "Today is Monday (2026-10-05)…").** The plan is keyed by weekday
+names, and the prompt never said which one is today, so even the 550B asked "which day is today?".
+550B, same scenarios, one run at a time:
+- `log-today` ("i already smashed a big burger and fries for lunch today"): logged it **3/3 with the
+  line**, **0/4 without**.
+- `log-then-tonight` (convo): both turns right with it (logged the pizza, lightened Monday's dinner);
+  asked "which day?" twice without it.
+- `eat-out-future` flips between `reserve` and `resize` in both arms (1/3 with the line, 2/4 without),
+  so that is the model's own variance and a prompt-wording item, not the date line.
+
 **Other big models, re-checked:** NVIDIA lists 80 models. Of the 10 big ones not yet measured, 8 return
 404 (listed, not served) and DeepSeek-V4.1-Flash and Gemma-4-31B time out at 180 s with a 2,000-token
 budget (`2026-10-03T11-44-15-latency-sweep.json`). **Keyless OVH has blocked this IP on every model**
