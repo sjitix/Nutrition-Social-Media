@@ -16,6 +16,7 @@ import { NUTRIENT_TABLE, type Per100g } from "./nutrientTable.generated";
 // list should not download this module's USDA table to add up grams. Re-exported, so every caller
 // that imports gramsFor from here is unchanged; client code imports it from ./units directly.
 import { gramsFor } from "./units";
+import { tableKey } from "./data/ingredients";
 export { gramsFor };
 
 export const MICRO_KEYS = [
@@ -34,12 +35,12 @@ export interface MicroResult {
 }
 
 /** Sum micronutrients across a recipe's ingredients. Unmapped ingredients lower coverage. */
-export function microsForIngredients(ingredients: { name: string; quantity: string }[]): MicroResult {
+export function microsForIngredients(ingredients: { name: string; quantity: string; slug?: string }[]): MicroResult {
   const micros = emptyMicros();
   if (!ingredients.length) return { micros, coverage: 1 };
   let resolved = 0;
   for (const ing of ingredients) {
-    const key = ing.name.trim().toLowerCase();
+    const key = tableKey(ing); // the one rule (D5): name first, then the slug, then the raw name
     const entry = NUTRIENT_TABLE[key];
     const grams = gramsFor(key, ing.quantity);
     if (!entry || grams == null) continue;

@@ -27,3 +27,25 @@ export function resolveIngredient(nameOrSlug: string): IngredientSlug | null {
 
 /** The curated name of a slug — today still the key the USDA and unit tables are indexed by. */
 export const ingredientName = (slug: IngredientSlug): string => INGREDIENTS[slug].name;
+
+/**
+ * The key to look an ingredient up by in the USDA and unit tables — THE rule every nutrition lookup
+ * uses (D5 step 4).
+ *
+ * NAME FIRST, slug as the fallback. The first version tried the slug first, and an adversarial review
+ * (2026-10-04) showed why that is wrong: a slug can arrive from outside — a model generating a plan
+ * (the plan schema now carries the field), an imported or synced file — and a slug that disagrees
+ * with the name would then decide the nutrition while the allergen check, which reads the name, saw a
+ * different food. With the name first, a supplied slug can never contradict what the user sees and
+ * what the allergen matcher reads. Nothing is lost for the library: every recipe's name resolves to
+ * its own slug (check:ingredients asserts they agree), and the slug still carries a recipe the day a
+ * curated name is renamed and the old display name stops resolving — the rename-safety D5 is for.
+ * An ingredient we do not curate (an imported recipe's "za'atar") keeps today's trim-lowercase name,
+ * which misses the tables and lowers coverage, exactly as before. A slug that is not a string (bad
+ * imported data) is ignored rather than crashing every report that reads micronutrients.
+ */
+export function tableKey(ing: { name: string; slug?: unknown }): string {
+  const name = typeof ing.name === "string" ? ing.name : "";
+  const s = resolveIngredient(name) ?? (typeof ing.slug === "string" ? resolveIngredient(ing.slug) : null);
+  return s ? INGREDIENTS[s].name : name.trim().toLowerCase();
+}

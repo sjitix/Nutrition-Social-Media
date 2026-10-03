@@ -493,6 +493,20 @@ function scalePortions(
 // `update_profile` changes persist to the profile; per-day overrides don't. This
 // is the general executor the tool-calling assistant drives — no per-phrase rules,
 // and multiple ops compose ("cheaper and vegetarian and no onions").
+/**
+ * "Did anything the user can see change?" — a deep comparison that ignores ingredient `slug`s.
+ *
+ * A slug is an identity annotation (D5), not content. Plans saved before D5 carry none, and any meal
+ * the engine rebuilds from the library now does, so a plain JSON comparison saw every rebuilt meal as
+ * changed: "Balance Monday" on an untouched, already-balanced pre-D5 day answered "Balanced Monday…"
+ * with planChanged=true, Fix my week counted it as fixed, the preview showed a change, and sync pushed
+ * a write — on every day, once. Found by an adversarial review before D5 shipped.
+ */
+function sameContent(a: unknown, b: unknown): boolean {
+  const dropSlug = (k: string, v: unknown) => (k === "slug" ? undefined : v);
+  return JSON.stringify(a, dropSlug) === JSON.stringify(b, dropSlug);
+}
+
 export function applyOperations(
   profile: UserProfile,
   plan: WeekPlan,
@@ -1123,7 +1137,7 @@ export function applyOperations(
           break;
         }
         const scaled = scaleToTargets(dp.meals, p);
-        const changed = scaled.some((m, i) => JSON.stringify(m) !== JSON.stringify(dp.meals[i]));
+        const changed = scaled.some((m, i) => !sameContent(m, dp.meals[i]));
         if (!changed) {
           notes.push(`${op.day} is already balanced around your targets — nothing to move.`);
           break;
@@ -1224,7 +1238,7 @@ export function applyOperations(
   // Compared, not inferred. `planWasChanged(operations)` asks which tools were NAMED; this asks
   // what actually moved. A swap for a dish we don't have is a no-op, and used to tell the user
   // "Done — I updated your plan."
-  const planChanged = JSON.stringify(curPlan) !== JSON.stringify(plan);
+  const planChanged = !sameContent(curPlan, plan);
   return {
     plan: curPlan,
     profile: profileChanged ? p : profile,

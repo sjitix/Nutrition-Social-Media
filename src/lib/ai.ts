@@ -635,7 +635,25 @@ export async function generatePlan(profile: UserProfile): Promise<WeekPlan> {
   // is the direction the app moves toward (see VISION.md). Set PLAN_ENGINE=llm to force the old
   // model-generated path instead. buildWeek dispatches fresh vs batch on p.planMode.
   if (process.env.PLAN_ENGINE !== "llm") return buildWeek(p);
-  return resolveProvider() === "local" ? localGeneratePlan(p) : claudeGeneratePlan(p);
+  const generated = await (resolveProvider() === "local" ? localGeneratePlan(p) : claudeGeneratePlan(p));
+  return withoutModelSlugs(generated);
+}
+
+/**
+ * Drop every ingredient `slug` from a MODEL-generated plan. A slug is our id for a curated ingredient
+ * (D5); the plan schema now carries the field (optional), so a model writing a plan can emit one — and
+ * a slug the model picked could disagree with the ingredient it named. Lookups resolve the name first,
+ * which already contains that, but a model-chosen slug would still decide the nutrition for a name we
+ * do not curate. Only the engine assigns slugs; a model's are discarded here, at the boundary.
+ */
+function withoutModelSlugs(plan: WeekPlan): WeekPlan {
+  return {
+    ...plan,
+    days: plan.days.map((d) => ({
+      ...d,
+      meals: d.meals.map((m) => ({ ...m, ingredients: m.ingredients.map(({ name, quantity }) => ({ name, quantity })) })),
+    })),
+  };
 }
 
 export async function runAssistant(
