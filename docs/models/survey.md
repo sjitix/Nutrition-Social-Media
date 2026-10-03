@@ -137,6 +137,48 @@ holds 4/10, read-before-write 0/2, **median 50 s per message, p90 102 s, worst 7
 steps). On one 8 GB card the real prompt's length dominates; not a chat brain on this hardware. The
 same run with the read-tool fix is in progress.
 
+## Round 4 — the prompt was the bottleneck, and the ruler stopped separating sizes (2026-10-03 afternoon)
+
+45 hard cases, temperature 0, **0 infra on every row**; a range means repeated identical runs.
+
+| model | prompt | v1 | v2 | v3* | runs |
+|---|---|---|---|---|---|
+| Nemotron-3-Ultra-550B (NVIDIA) | main | 73–82% | 84% | 80–82% | 2 |
+| Nemotron-3-Ultra-550B | read-tool fix (`62c4617`) | 84–87% | **96%** | **93%** | 2 |
+| gpt-oss-20b (local) | main | 80–84% | 80–84% | 78% | 2 |
+| gpt-oss-20b | `62c4617` | 89% | **96%** | 91% | 1 |
+| gpt-oss-20b | `7298a28` (+ verbatim-symptom line) | 82% | 91% | 87% | 1 (repeat running) |
+| v8 (1.5B fine-tune, local) | main | 73% | 80% | 73% | 1 |
+| v8 | `62c4617` | 67% | 76% | 73% | 1 |
+
+\*v3 is stricter and only a proposal (`scripts/models/regrade-hardcases.mjs`): a DO case that should
+change something counts only if the **engine** changed something. v1/v2 count any emitted operation.
+
+**Read:**
+1. **The prompt was the bottleneck.** Fixing it lifted the 550B 84 → 96 (v2) and gpt-oss-20b
+   80–84 → 91–96. The 1.5B fine-tune, trained on the old prompt, does not benefit (flat under v3).
+2. **On this ruler the 20B now ties the 550B**, so it can no longer answer "is a bigger brain worth its
+   seconds". Under v3 the 550B still leads (93 vs 87–91). The instrument for that question is now
+   `scripts/models/convo-eval.mts`: 14 two-turn conversations (follow-through, memory across turns,
+   "wednesday too", decline-then-alternative, a crisis mid-conversation), state carried between turns
+   the way the client carries it.
+3. **Grading the engine's effect rather than the model's operations found three engine bugs**, all
+   now being fixed by v1. A slot-scoped `constrain` was a silent no-op, and the user was told it
+   worked: `per-slot-protein` was "right" for nearly every model while nothing moved. A remembered
+   allergy did not bind the engine. A day-scoped `constrain` dropped `exclude`. The prompt no longer
+   teaches the slot form (`models-exp` `543bcb2`).
+
+**Loop eval, 550B** (26 scenarios, one at a time): main prompt **22/26**, read-before-write 0/2,
+median 22 s per message. With the fix: misses `memory-allergy` (sent `remember` + `constrain` but no
+`exclude`, which is bug 2 above) and `distress-crisis` (no `symptom` op). The crisis case is covered in
+production by v1's C2 pre-scan, which answers before any model runs.
+
+**Other big models, re-checked:** NVIDIA lists 80 models. Of the 10 big ones not yet measured, 8 return
+404 (listed, not served) and DeepSeek-V4.1-Flash and Gemma-4-31B time out at 180 s with a 2,000-token
+budget (`2026-10-03T11-44-15-latency-sweep.json`). **Keyless OVH has blocked this IP on every model**
+(gpt-oss-120b, Llama-3.3-70B, Qwen3.5-397B, Mistral-Small) for 3+ hours after the morning's burst, so
+the anonymous tier is unusable for evaluation; a free OVH key (400 req/min) stays top of the owner's to-do.
+
 ## Where "big and fast" actually lives (researched 2026-10-03, not yet measured)
 
 | provider | free? | what it would unlock |

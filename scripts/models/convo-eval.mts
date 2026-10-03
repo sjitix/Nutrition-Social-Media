@@ -36,6 +36,7 @@ import { runAgent, type AgentRunResult, type TranscriptEntry } from "@/lib/agent
 import { agentModelFn, resolveProvider } from "@/lib/ai";
 import { selectWeekFromDb, rebalanceWeek, withSeed } from "@/lib/recipeDb";
 import { dietTagConflicts, haystackBlocked } from "@/lib/exclusions";
+import { isReadTool } from "@/lib/agentTools";
 import type { UserProfile, WeekPlan, Meal, PlanSnapshot } from "@/lib/types";
 
 const MODEL = process.env.LOCAL_AI_MODEL ?? "(unset)";
@@ -277,7 +278,12 @@ const convos = CONVOS.filter((c) => !ONLY || ONLY.test(c.id) || ONLY.test(c.skil
 console.log(`prompt ${PROMPT.sha}${PROMPT.label ? ` (${PROMPT.label})` : ""} · agent section ${PROMPT.agentSection ? "yes" : "no"} · how-to-decide ${PROMPT.howToDecide ? "yes" : "no"}`);
 console.log(`\nconversation eval · model ${MODEL} · ${convos.length} conversations, ${convos.reduce((s, c) => s + c.turns.length, 0)} turns\n`);
 
-interface TurnRow { user: string; want: "act" | "hold"; pass: boolean; infra: boolean; reason: string | null; steps: number; gaveUp: boolean; seconds: number; ops: string[]; reply: string; emoji: boolean }
+/** Every write operation with its arguments — op names alone cannot tell "forgot exclude" from "the
+ *  engine ignored exclude". */
+const writesOf = (r: AgentRunResult) =>
+  JSON.stringify(r.transcript.flatMap((e) => (e.role === "assistant" ? e.turn.operations : []))
+    .filter((o) => !isReadTool(String((o as { op?: string }).op)))).slice(0, 800);
+interface TurnRow { user: string; want: "act" | "hold"; pass: boolean; infra: boolean; reason: string | null; steps: number; gaveUp: boolean; seconds: number; ops: string[]; writes: string; reply: string; emoji: boolean }
 interface ConvoRow { id: string; skill: Skill; pass: boolean; infra: boolean; turns: TurnRow[] }
 const EMOJI = /\p{Extended_Pictographic}/u;
 const rows: ConvoRow[] = [];
@@ -306,11 +312,18 @@ for (const c of convos) {
     }
     const seconds = (performance.now() - t0) / 1000;
     if (!r || r.modelFailed) {
-      turns.push({ user: t.user, want: t.want, pass: false, infra: true, reason: "model unreachable (infra)", steps: r?.steps ?? 0, gaveUp: false, seconds, ops: [], reply: "", emoji: false });
+      turns.push({ user: t.user, want: t.want, pass: false, infra: true, reason: "model unreachable (infra)", steps: r?.steps ?? 0, gaveUp: false, seconds, ops: [], writes: "", reply: "", emoji: false });
       break; // the rest of the conversation depends on this turn
     }
-    const reason = t.check(r, { before, beforeProfile, start: PLAN });
-    turns.push({ user: t.user, want: t.want, pass: reason === null, infra: false, reason, steps: r.steps, gaveUp: r.gaveUp, seconds, ops: opsOf(r), reply: r.reply.replace(/\s+/g, " ").slice(0, 240), emoji: EMOJI.test(r.reply) });
+    let reason = t.check(r, { before, beforeProfile, start: PLAN });
+    // A slot-scoped constrain is a silent no-op in the engine as of 2026-10-03 (`expandConstrain`
+    // returns [] for it; reported to v1). Still a miss for the user, but say whose.
+    const slotConstrain = r.transcript.some((e) => e.role === "assistant" && e.turn.operations.some((o) => {
+      const x = o as { op?: string; scope?: unknown };
+      return x.op === "constrain" && typeof x.scope === "object" && x.scope !== null && "slot" in x.scope;
+    }));
+    if (reason && slotConstrain && !r.planChanged) reason += " [engine: slot-scoped constrain is a no-op]";
+    turns.push({ user: t.user, want: t.want, pass: reason === null, infra: false, reason, steps: r.steps, gaveUp: r.gaveUp, seconds, ops: opsOf(r), writes: writesOf(r), reply: r.reply.replace(/\s+/g, " ").slice(0, 240), emoji: EMOJI.test(r.reply) });
     // Carry state forward exactly as the client does between requests.
     profile = r.profile;
     plan = r.plan;

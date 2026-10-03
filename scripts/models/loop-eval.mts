@@ -96,6 +96,10 @@ interface Scenario {
 /** Every operation the model emitted across the run, in order. */
 const opsOf = (r: AgentRunResult) =>
   r.transcript.flatMap((e) => (e.role === "assistant" ? e.turn.operations.map((o) => String((o as { op?: string }).op)) : []));
+/** The write operations, arguments included, as compact JSON (read tools left out — they change nothing). */
+const writesOf = (r: AgentRunResult) =>
+  JSON.stringify(r.transcript.flatMap((e) => (e.role === "assistant" ? e.turn.operations : []))
+    .filter((o) => !isReadTool(String((o as { op?: string }).op)))).slice(0, 800);
 const changed = (r: AgentRunResult) => r.planChanged || r.profileChanged;
 /** Dishes on `d` (other than the slot that was asked for) whose NAME changed — a replacement, not a resize. */
 const replacedOnDay = (r: AgentRunResult, b: WeekPlan, d: string, asked: string) =>
@@ -352,6 +356,9 @@ interface Row {
   engineIssue: string | null;
   /** The reply IS UI, and the project bans emoji in the UI (CLAUDE.md). Tracked, not failed. */
   emoji: boolean;
+  /** Every WRITE operation with its arguments — op names alone could not tell "forgot exclude" from
+   *  "the engine ignored exclude" (2026-10-03, memory-allergy). */
+  writes: string;
 }
 const EMOJI = /\p{Extended_Pictographic}/u;
 const rows: Row[] = [];
@@ -380,7 +387,7 @@ for (const s of scenarios) {
       r = await runAgent({ profile: structuredClone(PROFILE), plan: structuredClone(PLAN), message: s.message, history, today: TODAY, model });
     }
   } catch (e) {
-    rows.push({ id: s.id, want: s.want, pass: false, infra: true, reason: `threw: ${(e as Error).message}`, steps: 0, gaveUp: false, modelFailed: true, seconds: (performance.now() - t0) / 1000, readFirst: null, ops: [], reply: "", emoji: false, engineIssue: null });
+    rows.push({ id: s.id, want: s.want, pass: false, infra: true, reason: `threw: ${(e as Error).message}`, steps: 0, gaveUp: false, modelFailed: true, seconds: (performance.now() - t0) / 1000, readFirst: null, ops: [], reply: "", emoji: false, engineIssue: null, writes: "" });
     console.log(`!! ${s.id.padEnd(18)} threw`);
     continue;
   }
@@ -405,7 +412,7 @@ for (const s of scenarios) {
   const infra = r.modelFailed;
   const reason = infra ? "model unreachable / failed (infra)" : s.check(r, before);
   const pass = !infra && reason === null;
-  rows.push({ id: s.id, want: s.want, pass, infra, reason, steps: r.steps, gaveUp: r.gaveUp, modelFailed: r.modelFailed, seconds, readFirst, ops: opsSeq, reply: r.reply.replace(/\s+/g, " ").slice(0, 200), emoji: EMOJI.test(r.reply), engineIssue: infra || !s.engine ? null : s.engine(r, before) });
+  rows.push({ id: s.id, want: s.want, pass, infra, reason, steps: r.steps, gaveUp: r.gaveUp, modelFailed: r.modelFailed, seconds, readFirst, ops: opsSeq, reply: r.reply.replace(/\s+/g, " ").slice(0, 200), emoji: EMOJI.test(r.reply), engineIssue: infra || !s.engine ? null : s.engine(r, before), writes: writesOf(r) });
   console.log(`${pass ? "✓ " : infra ? "!!" : "✗ "} ${s.id.padEnd(18)} ${seconds.toFixed(1).padStart(6)}s  ${r.steps} step${r.steps === 1 ? " " : "s"}${r.gaveUp ? " GAVE-UP" : ""}  [${opsSeq.join(",") || "no ops"}]${reason ? `  — ${reason}` : ""}`);
 }
 
