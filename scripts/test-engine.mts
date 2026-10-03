@@ -30,7 +30,7 @@ import { microsForIngredients } from "@/lib/nutrients";
 import { bulkGroceriesFromWeek, formatBulkQuantity, batchEfficiency } from "@/lib/batchGrocery";
 import { haystackBlocked, dietTagConflicts, parseExclusionTokens, expandExclusion, EXCLUSION_CATEGORIES } from "@/lib/exclusions";
 import { bmr, computeTargets, hydrationTarget, CALORIE_FLOOR, DEFAULT_CALORIE_FLOOR, BODY_LIMITS } from "@/lib/targets";
-import { composeReply, planWasChanged, describeOperations, READ_ONLY_TOOLS } from "@/lib/reply";
+import { composeReply, planWasChanged, describeOperations, READ_ONLY_TOOLS, claimsChange, NOTHING_CHANGED_REPLY } from "@/lib/reply";
 import { SUBSTITUTES } from "@/lib/substitutions";
 import { NUTRIENT_TABLE } from "@/lib/nutrientTable.generated";
 import { UNIT_GRAMS } from "@/lib/unitGrams.generated";
@@ -42,7 +42,7 @@ import {
   findRecipes, inspectRecipe, getPlan, getProfile, getSaved, report, whatIf,
   runReadTool, isReadTool, READ_TOOL_NAMES, MAX_ROWS,
 } from "@/lib/agentTools";
-import { runAgent, MAX_STEPS, type AgentTurn, type ModelFn } from "@/lib/agentLoop";
+import { runAgent, MAX_STEPS, FALSE_CLAIM_NUDGE, type AgentTurn, type ModelFn } from "@/lib/agentLoop";
 
 // ---------------------------------------------------------------- harness
 let pass = 0;
@@ -4446,9 +4446,100 @@ if (violations.size === 0) {
       r.plan.days.every((d) => d.meals.every((m) => !/salmon/i.test(m.name))));
   }
 
+  // A reply may not claim a change the engine did not make (models lane, 2026-10-03). With reasoning
+  // off, a fast model imitated the engine's note style and wrote "Wednesday now has 2000 kcal…" with no
+  // operation at all. The loop gives it ONE more step to send the operation or retract; if it still
+  // claims a change, the user reads an honest line instead.
+  {
+    // The detector, on the models lane's stored turns: every fabrication caught, no honest reply tripped.
+    const FABRICATED = [
+      "Wednesday now has 2000 kcal and 144g protein. Fat comes to 82g against about 65g.",
+      "Done — dinner is now a lighter portion of Chicken & Vegetable Stir-Fry with Rice. Monday still hits 2000 kcal and 150g protein.",
+      "Done — breakfast is off the menu.",
+      "Done — I've made your week breakfast-free.",
+      "Done — I've swapped your B12 meals for fortified options and kept you vegan.",
+      "Done — I've made your breakfast egg-free.",
+      "No eggs, no problem — I’ve swapped them out of tomorrow's breakfast…",
+      "Done — I've raised the protein target for every breakfast to 55 g.",
+    ];
+    const HONEST = [
+      "I'd be glad to help. The plan right now averages about 2000 kcal a day. For weight loss we'd typically create a deficit — but the right number depends on you. Do you have a calorie target in mind, or …",
+      "Your plan currently averages 2000 kcal a day.",
+      "Want me to make Wednesday vegetarian too?",
+      "Here are three vegan options.",
+      "I couldn't use salmon on a vegan week.",
+      "Nothing has changed yet — want me to make breakfast egg-free?",
+    ];
+    const missed = FABRICATED.filter((t) => !claimsChange(t));
+    const tripped = HONEST.filter((t) => claimsChange(t));
+    check("false claim: claimsChange catches every stored fabrication", missed.length === 0, missed.join(" | "));
+    check("false claim: ...and trips on no honest reply (\"right now averages\" is a description)", tripped.length === 0, tripped.join(" | "));
+
+    // composeReply: only a caller that KNOWS nothing changed gets the guard; the legacy routes are untouched.
+    const claim = "Done — I've made your breakfast egg-free.";
+    check("false claim: composeReply replaces an unbacked claim when it knows nothing changed",
+      composeReply({ modelReply: claim, notes: [], planChanged: false, profileChanged: false }) === NOTHING_CHANGED_REPLY);
+    check("false claim: ...never when the engine has notes (the notes are the reply)",
+      composeReply({ modelReply: claim, notes: ["Your breakfasts are egg-free now."], planChanged: false, profileChanged: false }) === "Your breakfasts are egg-free now.");
+    check("false claim: ...never when the profile DID change",
+      composeReply({ modelReply: claim, notes: [], planChanged: false, profileChanged: true }) === claim);
+    check("false claim: ...and never for a caller that cannot tell (profileChanged undefined)",
+      composeReply({ modelReply: claim, notes: [], planChanged: false }) === claim);
+
+    // 1. Claim, then fix it: the nudge reaches the model, the operation runs, the engine speaks.
+    {
+      const p = scripted([
+        turn("Done — I've made your week vegetarian."),
+        turn("", [{ op: "constrain", diet: "vegetarian" } as unknown as PrimitiveOp]),
+        turn("Your week is vegetarian now."),
+      ]);
+      const r = await runAgent({ ...base, model: p.fn });
+      const nudge = r.transcript.find((e) => e.role === "tool" && e.name === "apply" &&
+        (e as { result: { notes: string[] } }).result.notes.includes(FALSE_CLAIM_NUDGE));
+      check("false claim, fixed: the model is told nothing was applied (in the transcript, not to the user)",
+        Boolean(nudge) && !r.reply.includes("Nothing was applied"));
+      check("false claim, fixed: the operation it then sends really runs", r.planChanged === true && r.falseClaimRetried && !r.falseClaimCaught,
+        `steps ${r.steps}, planChanged ${r.planChanged}`);
+      check("false claim, fixed: the reply is the engine's, so it is true",
+        r.notes.length > 0 && r.reply === [...new Set(r.notes.map((n) => n.trim()).filter(Boolean))].join(" "), r.reply.slice(0, 80));
+    }
+    // 2. Claim twice: the user reads the honest line, and the run says it was caught.
+    {
+      const p = scripted([turn("Wednesday now has 2000 kcal and 144g protein.")]); // the same claim, forever
+      const r = await runAgent({ ...base, model: p.fn });
+      check("false claim, repeated: the user reads that nothing changed", r.reply === NOTHING_CHANGED_REPLY, r.reply.slice(0, 80));
+      check("false claim, repeated: one retry only, then stop", r.steps === 2 && p.calls() === 2 && r.falseClaimRetried && r.falseClaimCaught, `steps ${r.steps}`);
+      check("false claim, repeated: the plan is untouched and not reported as changed", r.plan === plan && r.planChanged === false);
+    }
+    // 3. Claim, then retract: the honest retraction is the reply.
+    {
+      const p = scripted([
+        turn("Done — I've made your breakfast egg-free."),
+        turn("Nothing has changed yet — want me to make breakfast egg-free?"),
+      ]);
+      const r = await runAgent({ ...base, model: p.fn });
+      check("false claim, retracted: the model's own honest reply stands",
+        r.reply === "Nothing has changed yet — want me to make breakfast egg-free?" && !r.falseClaimCaught, r.reply);
+    }
+    // 4. An honest answer is never retried — no extra model call, no extra cost.
+    {
+      const p = scripted([turn("Your plan currently averages 2000 kcal a day.")]);
+      const r = await runAgent({ ...base, model: p.fn });
+      check("false claim: an honest no-op answer costs exactly one call", r.steps === 1 && p.calls() === 1 && !r.falseClaimRetried);
+    }
+    // 5. A step cap of 1 leaves no room to retry: the honest line still replaces the claim.
+    {
+      const p = scripted([turn("Done — breakfast is off the menu.")]);
+      const r = await runAgent({ ...base, model: p.fn, maxSteps: 1 });
+      check("false claim: with no step left to retry, the claim is still never shown",
+        r.reply === NOTHING_CHANGED_REPLY && r.steps === 1, r.reply.slice(0, 60));
+    }
+  }
+
   // the loop must not quietly break the contract the rest of the app depends on
   {
-    const p = scripted([turn("All set.")]);
+    // Not "All set.": with nothing changed, that is itself an unbacked claim and gets one retry (below).
+    const p = scripted([turn("Happy to help.")]);
     const r = await runAgent({ ...base, model: p.fn });
     check("loop: a turn with no operations ends immediately", r.steps === 1);
     check("loop: the transcript keeps the user message first", r.transcript[0].role === "user");
