@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import { buildWeek } from "./recipeDb";
-import { AssistantTurnV2Schema, type AssistantTurnV2 } from "./primitives";
+import { AssistantTurnV2Schema, AgentTurnSchema, type AssistantTurnV2 } from "./primitives";
 import { assistantV2SystemPrompt } from "./promptV2";
 import {
   AssistantResponseSchema,
@@ -908,22 +908,28 @@ export function agentModelFn(): import("./agentLoop").ModelFn {
     const p = withTargetDefaults(state.profile);
     const turns = transcriptToTurns(transcript).slice(-16);
 
+    // The loop's own turn shape: primitives PLUS the read tools, and the prompt that teaches the loop.
+    // Read ops reach the loop typed as operations; it routes them by name (isReadTool), never to the engine.
     if (resolveProvider() === "local") {
       return localStructuredChat(
-        AssistantTurnV2Schema,
-        "assistant_turn_v2",
-        [{ role: "system", content: assistantV2SystemPrompt(p, state.plan) }, ...turns],
+        AgentTurnSchema,
+        "agent_turn",
+        [{ role: "system", content: assistantV2SystemPrompt(p, state.plan, { agent: true }) }, ...turns],
         0,
-      ) as Promise<import("./agentLoop").AgentTurn>;
+        // Double cast ON PURPOSE: AgentTurn types operations as PrimitiveOp[], but read ops are not
+        // PrimitiveOps. The loop routes them by name (isReadTool) and never hands them to the engine, so
+        // the runtime is sound; the honest fix is widening AgentTurn's operation type in agentLoop.ts
+        // (v1's, after this lands) — ModelFn itself must not change.
+      ) as unknown as Promise<import("./agentLoop").AgentTurn>;
     }
 
     const client = new Anthropic();
     const response = await client.messages.parse({
       model: CLAUDE_MODEL,
       max_tokens: 2000,
-      system: assistantV2SystemPrompt(p, state.plan),
+      system: assistantV2SystemPrompt(p, state.plan, { agent: true }),
       messages: turns,
-      output_config: { format: zodOutputFormat(AssistantTurnV2Schema) },
+      output_config: { format: zodOutputFormat(AgentTurnSchema) },
     });
     const parsed = response.parsed_output;
     // Throwing is correct here: the loop catches it and reports honestly rather than inventing a turn.

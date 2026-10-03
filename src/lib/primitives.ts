@@ -347,3 +347,36 @@ export const AssistantTurnV2Schema = z.object({
   operations: z.array(PrimitiveOpSchema),
 });
 export type AssistantTurnV2 = z.infer<typeof AssistantTurnV2Schema>;
+
+/**
+ * The agent loop's READ SURFACE as operations (agentTools.ts runs them; results go back to the model
+ * only). Without these in the schema a model physically cannot look anything up — a `find_recipes`
+ * op fails validation — so the loop's seven read tools were unreachable in production. `report` is
+ * already a primitive above (the loop treats it as a read) and is not repeated.
+ */
+const ReadOpOptions = [
+  z.object({
+    op: z.literal("find_recipes"),
+    mealType: slotEnum.optional(),
+    diet: z.enum(["vegetarian", "vegan", "keto", "mediterranean", "gluten_free"]).optional(),
+    minProtein: z.number().optional(),
+    maxCalories: z.number().optional(),
+    maxTime: z.number().optional(),
+    query: z.string().optional(),
+    sort: z.enum(["default", "protein", "calories-low", "time"]).optional(),
+    limit: z.number().int().min(1).max(10).optional(),
+  }),
+  z.object({ op: z.literal("inspect_recipe"), name: z.string() }),
+  z.object({ op: z.literal("get_plan"), day: dayEnum.optional() }),
+  z.object({ op: z.literal("get_profile") }),
+  z.object({ op: z.literal("get_saved") }),
+  z.object({ op: z.literal("what_if"), operations: z.array(PrimitiveOpSchema) }),
+] as const;
+
+/** A turn INSIDE the agent loop: primitives plus the read surface. Only the loop's adapter uses it —
+ *  single-turn routes, training data and the hard-case eval keep AssistantTurnV2Schema unchanged. */
+export const AgentTurnSchema = z.object({
+  thinking: z.string(),
+  reply: z.string(),
+  operations: z.array(z.discriminatedUnion("op", [...PrimitiveOpSchema.options, ...ReadOpOptions])),
+});
