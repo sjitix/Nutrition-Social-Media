@@ -107,34 +107,53 @@ in the main folder (`2fd6f02`). Its WORKPLAN lesson was renumbered 38 → 48 bec
 
 #### PARALLEL LANE — models (written by the models agent only)
 
-**2026-10-03 (late afternoon) — the read-tool fix (`3392461`) and the date line (`4f53468`) are ON
-MAIN; the free-provider search is done (`docs/models/free-providers-2026-10.md`: no free tier gives big
-+ fast + volume at once); making the 550B faster is in progress (survey Round 5).** Live status: `docs/parallel/lane-models.md`. Data and
-decisions: `docs/models/` (README "Decisions on record", then `survey.md` Round 4). Owner to-do:
-`docs/models/OWNER-TODO.md`. Branches: `models` (ships my paths onto main), `models-exp` (the prompt and
-schema work, landed; now equal to main), `models-exp-date` (the date line, landed as `4f53468`; retired).
+**2026-10-03 (night, shut down at 22:30) — RESUME HERE: finish the fair re-measurement, then the
+held-out wording test.** Day record: `docs/worklog/2026-10-03-models.md`. Live status:
+`docs/parallel/lane-models.md`. Data and decisions: `docs/models/` (README "Decisions on record",
+`survey.md` Rounds 4–5, `free-providers-2026-10.md`). Owner to-do: `docs/models/OWNER-TODO.md`.
 
-- **Owner's direction (2026-10-03, twice):** big models first ("like the 550B"); find the biggest FREE
-  model, ~100B+, with an optimal response time; no more effort on training or using 20–30B except as
-  a regression check. Memory: `big-hosted-model-first`.
-- **The conversation eval is the ruler that separates sizes** (`scripts/models/convo-eval.mts`, 14
-  two-turn conversations). 550B: 7/14 → **11/14** with the fix. gpt-oss-20b: 6/14 with either prompt.
-  The single-turn hard cases no longer separate them (both 91–96% v2 with the fix).
-- **The read-tool fix**: 550B hard cases 84 → 96% (v2), loop read-before-write 0/2 → 2/2, worst message
-  325 → 75 s. Gate 680/0 on the landing sha.
-- **Three engine bugs found by grading the engine's effect** (slot constrain a silent no-op that the
-  reply called a success, remembered allergy not enforced, day constrain dropping `exclude`). v1 fixed
-  all three in `98747f6`. One more reported: the symptom note replaces the model's reply, so the offer
-  the prompt asks for is lost unless a nutrient is low.
-- **Free big models today:** Nemotron-Ultra-550B on NVIDIA is the only big model that answers reliably
-  for free, at ~20 s median per message (p90 60–100 s). GLM-5.3 25–90 s per call; K3 slow queue;
-  keyless OVH has blocked this IP. The fast big options (Groq or OVH gpt-oss-120b, Gemini Flash) need a
-  free key: OWNER-TODO. A multi-agent search of every free provider is running (`ww8midxq4`); results
-  go to `docs/models/`.
-- **Methodology:** latency only from the real loop; one rate-limited run at a time; ranges, not single
-  scores; grade the engine's effect, not the model's operations.
-- **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`, this block, the
-  lane file. Does not edit v1's files; asks v1 first. Touches no accounts files.
+- **On main today, from this lane via v1:**
+  - the read-tool fix (`3392461`);
+  - the date line (`4f53468`);
+  - the false-claim guard (`361b2e1`, built from this lane's detector);
+  - `LOCAL_AI_EXTRA_BODY` (`45a0c12`): reasoning off for the 550B as a config line;
+  - three engine fixes this lane found (`98747f6`, `85e684b`).
+- **Owner's direction:** big models first; the biggest free model with an optimal response time; no
+  more 20–30B work. The conversation eval separates sizes: 550B 11–12/14, 20B 6/14.
+- **The speed claim is NOT established.** "~3–4× faster" compared a wall-clock arm with an
+  upstream-seconds arm across different code. An adversarial review caught it; survey Round 5 says so.
+- **Next session, in order:**
+  1. **Fair arms B, C, convo A, convo C.** Same commit, wall clock, direct to NVIDIA, one at a time.
+     Arm A is done: reasoning on, 21/26, median 23.3 s (`2026-10-03T20-23-44-loop-…`). Recipe:
+     `git -C ../NutriFlow-models-exp switch models-exp && git -C ../NutriFlow-models-exp merge origin/main`.
+     Then, from `../NutriFlow-models-exp`, run
+     `npx esbuild ../NutriFlow-models/scripts/models/{loop,convo}-eval.mts --bundle --platform=node --format=esm --tsconfig=tsconfig.json --outfile=<tmp>/X.mjs`.
+     Then, **from `../NutriFlow-models`** (so the scorecards land there), run
+     `AI_PROVIDER=local LOCAL_AI_URL=https://integrate.api.nvidia.com/v1 LOCAL_AI_MODEL=nvidia/nemotron-3-ultra-550b-a55b LOCAL_AI_API_KEY=<main .env.local> node <tmp>/X.mjs`
+     with:
+     - B: `LOCAL_AI_EXTRA_BODY='{"chat_template_kwargs":{"enable_thinking":false}}'`
+     - C: B's setting plus `FAST_FINISH=reply`
+     - label each with `PROMPT_VERSION="fair: …"`.
+  2. **Held-out wording test.** `ONLY='heldout|^rate$|^eat-out-future$'`, main vs branch `models-wording`
+     (eb6e7d0, 2 prompt lines), in setup C, 3 runs each. Send v1 "ready to land" only if the wording
+     fixes the held-out phrasings too.
+  3. **Send v1 the fair numbers.** Change 2 (fast finish in `runAgent`, with v1's reply rule) waits on
+     them.
+- **Open with v1:**
+  - two product bugs (a swap with days Wed–Sun replaced all 7 days; the guard misses a claim paired
+    with `remember`);
+  - a bare day constrain used for "lighter weekend";
+  - D5a parts 2–3 (folder barrels). Switch `scripts/models` imports to `@/lib/assistant` etc. once part 3
+    lands, then tell v1 the shims can go.
+- **Methodology** (learned the hard way today):
+  - latency only from the real loop, on ONE clock across arms;
+  - one rate-limited run at a time;
+  - ranges, not single scores;
+  - grade the engine's effect, not the model's operations;
+  - run a do-nothing stub against any new check (it must score 0 on act checks);
+  - test a wording fix on held-out phrasings.
+- **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`,
+  `docs/worklog/*-models.md`, this block, the lane file. Does not edit v1's files; asks v1 first.
 
 ### >>> V1 LANE — 2026-10-03 ~20:45: TRACK A DONE except the shims — D1–D5, D5a (folders + barrels) and D5b all landed. Next: LOCAL_AI_EXTRA_BODY, the D5a review's findings, then the models lane's fast finish + wording when they say "ready". <<<
 

@@ -7,26 +7,22 @@ Protocol: [`README.md`](README.md). Worktree: `../NutriFlow-models/`, branch `mo
 
 ## Now doing
 
-**2026-10-03 (late afternoon) — the read-tool fix (`3392461`) and the date line (`4f53468`) are ON MAIN;
-now making the 550B faster and finding a big free host.**
+**2026-10-03, 22:30 — SHUT DOWN for the night. Nothing is running.** Resume steps are in `CONTEXT.md`
+(models block) and `docs/worklog/2026-10-03-models.md`.
 
-Owner's direction (twice today): big models first; find the biggest free model with an optimal response
-time; no more effort on 20–30B. Memory: `big-hosted-model-first`.
+On main from this lane (landed by v1): the read-tool fix (`3392461`), the date line (`4f53468`), the
+false-claim guard built from this lane's detector (`361b2e1`), `LOCAL_AI_EXTRA_BODY` (`45a0c12`), and
+three engine fixes (`98747f6`, `85e684b`).
 
-1. **Landed:** the read-tool fix and prompt work (`3392461`, applied by v1 from `models-exp` 543bcb2).
-   v1's engine fixes for the three bugs this lane found (`98747f6`).
-2. **Landed:** the date line (`4f53468`, from `models-exp-date` 3c30e90, now retired). 550B logs "today"
-   3/3 with it, 0/4 without. v1 follows up with the browser's local date instead of UTC.
-   `models-exp` equals main; new prompt experiments branch from there.
-3. **The conversation eval decides model size.** 550B 12/14 (corrected), 20B 6/14 with either prompt.
-4. **Free-provider search (25 agents, verified):** no free tier gives big + fast + volume at once.
-   Report: `docs/models/free-providers-2026-10.md`. The owner's to-do is rewritten and ranked: Vercel AI
-   Gateway's $0 Ling 3.1 Flash (560B) first. GitHub Models is retired; an OVH key is not free by itself.
-5. **Speed, in progress:** the 550B's time is writing, not reading. Hidden reasoning means ~5× the tokens,
-   on a host that writes at 4–62 tok/s. Running now on the 550B: conversation and loop evals with reasoning
-   on vs off, then off plus "fast finish" (skip the loop's last call when the engine's notes are the reply).
-   Both are eval-side only: a proxy injection and a ModelFn wrapper. Any app change would be v1's, after
-   D5a moves `ai.ts` / `promptV2.ts` / `agentLoop.ts` into folders.
+Next, in order:
+1. **The fair re-measurement.** Arms B (reasoning off), C (off + fast finish, reply rule) and conversation
+   arms A and C. Same commit, wall clock, one at a time. Arm A is done: reasoning on, 21/26, median 23.3 s.
+2. **The held-out wording test** for branch `models-wording` (eb6e7d0). It must fix phrasings the
+   wording doesn't quote.
+3. **Fair numbers to v1.** v1 holds fast finish (change 2) until then.
+
+Branches: `models` (ships my paths onto main). `models-exp` equals main, so new experiments start there.
+`models-wording` holds 2 prompt lines, not ready to land. `models-exp-date` is retired (landed).
 
 ## Files I'm editing right now
 
@@ -62,11 +58,18 @@ time; no more effort on 20–30B. Memory: `big-hosted-model-first`.
 
 ## Asks of the other lanes
 
-- **v1, when the numbers are in:** reasoning off for hosts that accept it (one request field in the
-  adapter), and an early stop in `runAgent` when the engine's notes are the reply. Proposals with
-  numbers, not branches.
-- **v1, optional: the v3 ruler** (`scripts/models/regrade-hardcases.mjs`). v1 called it the right ruler;
-  I still owe the proposal with a per-case flag.
+- **v1:**
+  - **Fast finish in `runAgent`, with the reply rule.** Accepted; held for the fair numbers (above).
+    The reply rule withheld 0 skips in both evals.
+  - **Two product bugs, probed and sent 2026-10-03:**
+    - a swap with `days` Wed–Sun replaces all seven days;
+    - the false-claim guard misses a claim paired with `remember` (profileChanged true).
+  - **One row v1 asked for:** a bare day constrain used for "lighter weekend".
+  - **The wording branch.** Offered only after the held-out test.
+  - **D5a part 3** (barrels). This lane switches `scripts/models` imports to `@/lib/assistant` etc.
+    once it lands, then tells v1 the shims can go.
+- **v1, optional:** the v3 ruler (`scripts/models/regrade-hardcases.mjs`). The review found it counts a
+  remember-only reply as "changed"; fix that before proposing.
 
 ## Shipped
 
@@ -85,4 +88,7 @@ time; no more effort on 20–30B. Memory: `big-hosted-model-first`.
 | `26ef88a` · `6e6f38f` · `48b1cd4` · `f61d653` | speed: latency anatomy (writing, not reading, is the cost), proxy `INJECT`, fast-finish, pacing never counted as latency |
 | `d383143` | the date line measured: "today" logged 3/3 with it, 0/4 without |
 | `271d03c` | the verified free-provider search; OWNER-TODO rewritten and ranked |
-| (this) | lane file brought up to date |
+| `909c2aa` … `8160291` | date landed; reasoning on vs off; the guard; the "deciding" runs (claim since withdrawn, see survey Round 5) |
+| `e082ee0` · `b5416fd` · `df4d619` | fast-finish reply mode; the wording A/B; APPEND_SYSTEM |
+| `aa8c83c` · `fe1c5a7` · `ae9aaf9` · `11e4150` | adversarial-review fixes to the harness; held-out paraphrases; the speed claim marked not established |
+| (this) | shutdown: worklog, CONTEXT resume steps, lane file, last scorecards |

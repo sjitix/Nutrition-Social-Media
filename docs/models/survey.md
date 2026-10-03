@@ -256,6 +256,10 @@ reasoning off and skipping the loop's wasted last call (Round 5, below).
 > wall clock for every arm, reasoning on vs off vs off + fast finish (`fair: …` labels in `data/eval-runs`).
 > The review also found three act checks a do-nothing model passed, and fixed them (`aa8c83c`). Older loop
 > scores carry up to 2 free passes, and older conversation scores 1.
+> **Fair arm A, done** (reasoning ON, fast finish off, wall clock, post-review checks,
+> `2026-10-03T20-23-44-loop-…`): **21/26, median 23.3 s per message** (p90 31.7). Two of its misses
+> were invalid JSON on the *finishing* call, after the change had already applied; fast finish skips
+> exactly that call. Arms B and C and the conversation arms were stopped at shutdown.
 
 The owner asked how developers make a big model faster. `scripts/models/latency-anatomy.mts` streamed 16
 real calls (the agent prompt, ~3,000 tokens) to the 550B and split each into its parts
