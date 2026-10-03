@@ -265,4 +265,19 @@ Two eval-side experiments test whether the speed costs quality. Neither changes 
 - **fast finish**, a ModelFn wrapper (`fast-finish.ts`) that skips the loop's last call when the engine's
   notes will be the reply anyway. Local smoke test: 2 → 1.33 model calls per message.
 
-Conversation and loop evals, reasoning on vs off, then off plus fast finish, are running on the 550B.
+**Reasoning on vs off, same code (date-line prompt), 550B:**
+
+| eval | reasoning on | reasoning off |
+|---|---|---|
+| loop (26 scenarios) | **23/25** (1 infra) · median **24.8 s** per message · p90 58 · max 90 | 21/26 · median **14.5 s** · p90 28 · max 56 |
+| conversation (14 × 2 turns) | 11/14 · 0 false claims · median 22.7 s per turn | 11/14 · **2 false claims** · ~4.7 s per call (its per-turn seconds include proxy pacing and are not quoted) |
+
+Reasoning off answers ~40% sooner and halves the worst case, but it is not free. The loop loses 2–3
+scenarios:
+- a scripted allergy it never excluded;
+- "lighter weekend", where the engine re-rolled the days silently (being fixed by v1);
+- the crisis reply written without the `symptom` op (covered by C2).
+
+In conversation it twice claimed changes it never made. v1's guard (`361b2e1`, built from this lane's
+detector) now nudges and then replaces such replies. The deciding run, reasoning off + guard + fast finish,
+is running.
