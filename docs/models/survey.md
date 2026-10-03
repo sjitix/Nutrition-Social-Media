@@ -193,8 +193,10 @@ user would not forgive:
 The 550B's misses are mild:
 - "fish or shellfish?" when the allergy already settled it;
 - "which day is today?" twice, which `models-exp-date` fixes;
-- an offer swallowed by the engine. The symptom note replaces the model's reply, and it ends without a
-  question unless a nutrient is low. Reported to v1.
+- `offer-accept` was a false miss, so read its score as **12/14**. The engine's symptom note made the
+  offer ("I can rebuild your week around vitamin D if you'd like"), and the 550B's "yes please" →
+  boost vitamin D was right; my check only looked for a "?". The check is fixed. v1 also gave the
+  note's other branch (all nutrients adequate) an offer of its own.
 
 **The date line (`models-exp-date`, "Today is Monday (2026-10-05)…").** The plan is keyed by weekday
 names, and the prompt never said which one is today, so even the 550B asked "which day is today?".
@@ -212,13 +214,48 @@ budget (`2026-10-03T11-44-15-latency-sweep.json`). **Keyless OVH has blocked thi
 (gpt-oss-120b, Llama-3.3-70B, Qwen3.5-397B, Mistral-Small) for 3+ hours after the morning's burst, so
 the anonymous tier is unusable for evaluation; a free OVH key (400 req/min) stays top of the owner's to-do.
 
-## Where "big and fast" actually lives (researched 2026-10-03, not yet measured)
+## Where "big and fast" actually lives: the verified search (2026-10-03)
 
-| provider | free? | what it would unlock |
-|---|---|---|
-| **Google AI Studio** | permanent free tier, no card | Gemini Flash family (frontier-class) + Gemma 4, OpenAI-compatible endpoint, ~1,000+ req/day on Flash; Pro left the free tier in Apr 2026 |
-| **Groq** | free, no card | `gpt-oss-120b` and other large open models at hundreds of tok/s; tight daily caps (~1,000 req/day on the 120B) |
-| **Cerebras** | $5 trial with a card since Jul 2026 | `gpt-oss-120b`, GLM, Qwen-3-235B at 2,000+ tok/s |
+A 25-agent search read every free provider's own pricing and rate-limit pages. Full report:
+`free-providers-2026-10.md`. **No provider today gives a big model, ~5 s calls, a free tier AND hundreds
+of calls a day all at once.** The shortlist, as the owner's to-do ranks it:
 
-Keys for the first two are free and in `OWNER-TODO.md`. The moment one lands, the same sweep and the
-same 45-case eval run against it.
+| option | model | why it's on the list | the catch |
+|---|---|---|---|
+| Vercel AI Gateway, $0 model | Ling 3.1 Flash, 560B / 25B active | biggest free model with no token cap; reasoning can be set to "none"; ~8 s est. | rate limit unpublished; possible card check |
+| Mistral free plan | Mistral Large 3, 675B / 41B active | strongest; schema-enforced JSON; ~6 s | ~90 calls a day: evals, not a beta |
+| Groq free | gpt-oss-120b | fastest (~1.5–3 s), strict JSON schema | ~25–40 of our calls a day |
+| OpenRouter + one-time $10 | dots-3-note-preview 280B, Inkling 975B | 1,000 requests a day | preview models can vanish; speed unknown |
+| OVH Public Cloud ($200 new-project credit) | gpt-oss-120b, Qwen3.5-397B | measured 3.4 s, 400 req/min | needs a card |
+
+Corrected beliefs: GitHub Models was retired on 2026-07-30; an OVH key is not free by itself; Groq's free
+tier is token-capped, not "~1,000 requests a day"; Nemotron-3-Super-120B reached end of life on NVIDIA
+this morning (410 Gone).
+
+Until a key lands, the 550B on NVIDIA stays the quality baseline. The speed work runs against it:
+reasoning off and skipping the loop's wasted last call (Round 5, below).
+
+## Round 5 — making the big model faster (2026-10-03, in progress)
+
+The owner asked how developers make a big model faster. `scripts/models/latency-anatomy.mts` streamed 16
+real calls (the agent prompt, ~3,000 tokens) to the 550B and split each into its parts
+(`2026-10-03T13-07-25-anatomy-…ultra-550b.json`):
+
+| request variant | valid calls | seconds per call | output tokens (median) |
+|---|---|---|---|
+| as the app sends it (reasoning on) | 4/4 | 8.1 – 36.3 | 740 |
+| "keep thinking to one sentence" | 4/4 | 9.6 – 53.2 | 277 |
+| reasoning off (`chat_template_kwargs: {enable_thinking: false}`) | 2/4 | 4.3, 31.2 | 139 |
+
+- **Reading the prompt is not the cost.** First token arrives in ~0.7 s (median).
+- **Writing is.** Hidden reasoning makes the 550B write ~5× more tokens than its answer needs.
+- **The free host writes them at 4–62 tok/s**, call to call, which no request setting can fix.
+
+Expected per call at a typical ~30 tok/s: ~25 s with reasoning, ~5 s without.
+
+Two eval-side experiments test whether the speed costs quality. Neither changes app code:
+- **reasoning off**, injected by `pace-proxy.mjs` (`INJECT`);
+- **fast finish**, a ModelFn wrapper (`fast-finish.ts`) that skips the loop's last call when the engine's
+  notes will be the reply anyway. Local smoke test: 2 → 1.33 model calls per message.
+
+Conversation and loop evals, reasoning on vs off, then off plus fast finish, are running on the 550B.

@@ -55,6 +55,7 @@ message (8 at worst), so **per-call latency × steps** is the number a user feel
 
 - `OWNER-TODO.md` — things only the owner can do; this lane never waits on them.
 - `survey.md` — the model survey: what's reachable, parameter counts, measured latency, scores.
+- `free-providers-2026-10.md` — the verified search of every free provider: what is big, fast and free, and what isn't.
 - `read-tool-fix.md` — the read-tool fix (the loop could never use its own look-ups) and its evidence.
 - `eval-variance.md` — how much identical runs swing, and why every score is a range.
 - `hardware-128gb.md` — what a 128 GB machine would and would not buy.
