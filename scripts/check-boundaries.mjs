@@ -89,8 +89,6 @@ const KNOWN_DEBT = {
     "A4 (D4): Explore imports FEED_RECIPES from feed.ts, which carries the whole library. The card projection replaces it.",
   "client-server:src/app/plan/page.tsx->src/lib/recipeDb.ts":
     "A4 (D4) / B2 (D8): the legacy /plan page imports feed.ts the same way. Fixed by the card projection, or retired by the one-app decision.",
-  "client-server:src/app/sage/plan/WeekBoard.tsx->src/lib/recipeDb.ts":
-    "A4 (D4): WeekBoard imports SLOTS from ../demo, and demo.ts builds the fixture week with the engine. SLOTS belongs in a client-safe module.",
   "client-server:src/app/sage/groceries/GroceriesClient.tsx->src/lib/nutrientTable.generated.ts":
     "A4 (D4): found by this gate on its first run. The bulk (meal-prep) grocery list runs in the browser (it is computed from the reader's own week) and needs gramsFor, whose MODULE also holds the 80 kB USDA table. Unverified whether the bundler tree-shakes the table away (gramsFor reads only UNIT_GRAMS) — measure the route's chunks for `fdcId` before fixing. Fix if real: give the unit weights their own module.",
   "client-server:src/app/plan/page.tsx->src/lib/import.ts":

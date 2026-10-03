@@ -478,18 +478,18 @@
       <div class="stat good"><div class="v">Built</div><div class="l">2026-10-03 · 4e3be01</div></div>
       <div class="stat"><div class="v">1.3 s</div><div class="l">78 files, every ship</div></div>
       <div class="stat good"><div class="v">11 / 0</div><div class="l">self-test: seen to fail</div></div>
-      <div class="stat warn"><div class="v">9</div><div class="l">known debts · may only shrink</div></div>
+      <div class="stat warn"><div class="v">6</div><div class="l">known debts left (was 9) · may only shrink</div></div>
       <div class="stat warn"><div class="v">4</div><div class="l">of them unknown until now</div></div>
     </div>
     <div class="tablewrap" style="margin-top:16px">
       <table>
         <thead><tr><th>Debt it found</th><th>Owed to</th></tr></thead>
         <tbody>
-          <tr><td><b>New</b> &middot; the Groceries page ships the whole 80&nbsp;kB USDA table to the browser (<span class="mono">batchGrocery &rarr; nutrients &rarr; table</span>)</td><td class="mono">A4</td></tr>
+          <tr><td><s><b>New</b> &middot; the Groceries page ships the whole USDA table to the browser</s> &mdash; <b>paid</b>: the unit weights got their own file. Groceries 123 &rarr; 113 kB</td><td class="mono">A4 · paid</td></tr>
           <tr><td><b>New</b> &middot; the assistant's read tools (L4) import the Explore feed (L6). Searching the library is engine work; the query moves down</td><td class="mono">A6</td></tr>
           <tr><td><b>New</b> &middot; <span class="mono">conditions</span> and <span class="mono">symptoms</span> (data) import the maths layer for the micronutrient names. Those names are vocabulary and move to L0</td><td class="mono">A6</td></tr>
           <tr><td><b>New</b> &middot; <span class="mono">/plan</span> ships the link importer for one pure converter</td><td class="mono">B2 / A6</td></tr>
-          <tr><td>Explore, <span class="mono">/plan</span> and the Week board each ship the recipe library</td><td class="mono">A4</td></tr>
+          <tr><td>Explore, <span class="mono">/plan</span> and the Week board each ship the recipe library &mdash; <b>Week and Explore paid</b> (129 and 114 kB now); <span class="mono">/plan</span> waits on decision #2</td><td class="mono">A4 / B2</td></tr>
           <tr><td>The theme toggle writes browser storage itself</td><td class="mono">A6</td></tr>
         </tbody>
       </table>

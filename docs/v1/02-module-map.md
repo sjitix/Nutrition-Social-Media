@@ -693,8 +693,8 @@ until its entry is deleted, so the list never claims a problem that is gone.
 |---|---|---|
 | 1 | Explore → `feed.ts` → `recipeDb` (the whole library ships) | A4 |
 | 2 | `/plan` → `feed.ts` → `recipeDb` | A4 / B2 |
-| 3 | `WeekBoard` → `../demo` (for `SLOTS`) → `recipeDb` | A4 |
-| 4 | **`GroceriesClient` → `batchGrocery` → `nutrients` → the 80 kB USDA table** — *new, found on the first run* | A4 |
+| 3 | ~~`WeekBoard` → `../demo` (for `SLOTS`) → `recipeDb`~~ — **PAID 2026-10-03**: `SLOT_LABELS` moved to `@/lib/slots`; `/sage/plan` first-load JS **226 → 129 kB** | A4 |
+| 4 | **`GroceriesClient` → `batchGrocery` → `nutrients` → the USDA table** — *new, found on the first run*. **Verified real by build measurement** (`fdcId` in the route's chunks; 45 kB raw / 11 kB gz), not a module-granularity false positive | A4 |
 | 5 | **`/plan` → `import.ts`** (a pure converter living inside the network adapter) — *new* | B2 / A6 |
 | 6 | **`agentTools` (L4) → `feed` (L6)** — searching the library is engine work, the query moves down — *new* | A6 |
 | 7 | **`conditions`, `symptoms` (L1) → `nutrients` (L2)** — the micronutrient vocabulary is a contract and moves to L0 — *new* | A6 |

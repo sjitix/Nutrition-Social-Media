@@ -29,46 +29,81 @@ message each other are in `docs/parallel/README.md`.
 
 #### PARALLEL LANE — accounts (written by the accounts agent only)
 
-**2026-10-03 — accounts are built up to the keys.** Live status, the plan and the asks:
-`docs/parallel/lane-accounts.md`. Design: **local-first, the account is a mirror** — `storage.ts`'s
-load/save API did not change, so no screen had to; underneath, every save stamps a write time and
-notifies listeners, and a sync layer mirrors each store to one Supabase row per user under RLS.
+**2026-10-03 — accounts are built up to the keys, adversarially reviewed, and the SQL has run.**
+Live status, the plan and the asks: `docs/parallel/lane-accounts.md`. Design: **local-first, the
+account is a mirror** — `storage.ts`'s load/save API did not change, so no screen had to; underneath,
+every real save stamps a write time and notifies listeners, and a sync layer mirrors each store to one
+Supabase row per user under RLS.
 
-- **Works today, no keys:** `/sage/account` — download all your data as one file, bring it back
-  (validated, previewed, backed up first so it can be undone), delete everything in this browser, and
-  a plain-words note on what is kept where.
-- **Built and tested, waiting on keys:** sign-in by email link, sync (newest write wins; visit history
-  and imports unioned; anything a pull would replace is backed up first), sign-out that keeps local
-  data, delete-account. No Supabase SDK — raw REST over `fetch`. `supabase/README.md` has the
-  ten-minute setup, the SQL to run, and an RLS test plan.
-- **Gate for this lane:** `node scripts/test-account.mjs` (94 checks, plain node, no network).
-- **Owner, to switch accounts on:** create a Supabase project, run `supabase/migrations/0001_user_state.sql`,
-  and put `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` in `.env.local` and Vercel. Never
-  the `service_role` key.
-- **Asked of the v1 lane:** mount `<AccountSync/>` in `sage/layout.tsx` (so sync runs on every
-  screen, not only the account page) and add an Account entry to the nav.
+- **Works today, no keys:** `/sage/account` (in the nav) — download all your data as one file, bring
+  it back (validated, previewed, undoable), delete everything in this browser, and a privacy note
+  whose every sentence was checked against the code.
+- **Built and tested, waiting on keys:** sign-in by email link **with PKCE** (only completes in the
+  browser that asked; a link or tokens made by someone else are refused), sync (newest write wins on
+  the server too, via `upsert_state`; history unioned; only edits the account never saw are backed
+  up, last three kept), an account-switch guard, sign-out, delete-account. No Supabase SDK.
+- **A five-lens adversarial review (2026-10-03) found real bugs, all fixed:** login CSRF via URL
+  tokens; one account's data uploading into another's on a shared browser; "Put it back" deleting
+  stores on every device; jsonb key reordering making every sync take a backup; stale writes
+  overwriting newer ones. Lessons 52–55 (shipped as `8190c2b`).
+- **The SQL has now been executed; it never had been.** `node scripts/test-account-sql.mjs` runs
+  both migrations and the RLS plan in real Postgres (PGlite), with Supabase's default grants stubbed
+  in. Its first run found that every signed-in user still held TRUNCATE. RLS does not cover TRUNCATE,
+  so one user could have emptied every account. It was not reachable through the REST API, and it is
+  now closed in 0001. Lesson 56.
+- **Gate for this lane:** `node scripts/test-account.mjs` — **238 checks**, including the real
+  `client.ts` end to end against an in-memory Supabase (RLS, PKCE, conditional writes, jsonb order) ·
+  `node scripts/test-account-sql.mjs --mutate` — **37 checks in real Postgres, 15/15 broken guards
+  caught** · `node scripts/mutate-account.mjs` — 8/8.
+- **Owner, to switch accounts on:** `supabase/README.md` — create a project, run **both** migrations,
+  **configure custom SMTP** (without it only your own organisation receives sign-in emails), then put
+  `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` in `.env.local` and Vercel. Never the
+  `service_role` key.
+- **Asked of the v1 lane (lane file has the detail):** make `AssistantChat` re-read on
+  `PLAN_CHANGED_EVENT` and drop `actions.ts`'s undo snapshot when sync pulls — until then
+  `<AccountSync/>` reloads the tab once when the week or profile comes down. `storage.ts` now owns the
+  theme key, so ThemeSwitch's boundaries debt can be paid.
 
 One-time handoff carried through this lane: the `modelFailed` fix an earlier session left uncommitted
-in the main folder (`2fd6f02`; assistant-v2 answers 503 when the model is unreachable and nothing
-changed). Its WORKPLAN lesson was renumbered 38 → 48 because 38–47 were taken.
+in the main folder (`2fd6f02`). Its WORKPLAN lesson was renumbered 38 → 48 because 38–47 were taken.
 
 #### PARALLEL LANE — models (written by the models agent only)
 
-**2026-10-03 — lane created; model survey + latency/quality sweep starting.** Live status, plan and
-asks: `docs/parallel/lane-models.md`. Research + decisions: `docs/models/`. Owner to-do (so this lane
-never blocks on the owner): `docs/models/OWNER-TODO.md`.
+**2026-10-03 (evening) — searching for the largest free model that is fast enough; a read-tool fix for
+v1 to land.** Live status: `docs/parallel/lane-models.md`. Data + decisions: `docs/models/` (start with
+`survey.md`). Owner to-do: `docs/models/OWNER-TODO.md`. Branches on GitHub: `models` (ships my paths
+onto main) and `models-exp` (experiments in v1-owned files; never merged without v1).
 
-- **The question:** which LLM is the best assistant brain on BOTH quality and response time. Baseline to
-  beat: `gpt-oss-20b` (84% on the 45 hard cases, ~2.8s/call on NVIDIA free). K3 is ruled out for live
-  use (too slow on free, over-acts) — see `docs/v1/03-kimi-decision.md`.
-- **Approach:** survey high-parameter models (NVIDIA NIM free first), measure per-call latency, run the
-  hard-case eval, build the loop-level eval (does the model read before it writes / stop vs burn 8
-  steps). Prototype the over-act prompt fix on branch `models`.
+- **Owner's direction:** 20B is too small; find the biggest free model with a good response time that
+  can do everything. `gpt-oss-20b` is only a control.
+- **Found, confirmed by v1: the agent loop could never use its read tools** (not in the turn schema or
+  the prompt; the prompt never explained the loop). Fix = `models-exp` (3 files, +80/−11), engine gate
+  680/0, check-boundaries clean. On Ultra-550B: read-before-write 0/2 → 2/2, give-ups 1 → 0, worst
+  message 106 s → 47 s. v1's review caught a safety hole in my draft (it steered models off `symptom`,
+  the only path to the crisis guard until C2) — fixed. Final before/after + v8 run, then "ready to land".
+- **Models so far:** Nemotron-Ultra-550B (NVIDIA free) 73–84% depending on run, honest declines, but
+  17–21 s/message and a rate limit that varies through the day; GLM-5.3 82% (v2) given room to think,
+  but 25–90 s/call; local Qwen3-30B 50 s/message on one 8 GB card; **keyless OVHcloud serves
+  gpt-oss-120b in 3.4 s and Llama-3.3-70B in 2.7 s** but locks an IP out after a burst — an OVH key
+  (400/min) is the top owner to-do.
+- **Methodology learned the hard way:** latency only from the real loop (short-prompt sweeps flatter
+  every model 3–10×); reasoning models need a big output budget; free-tier rate limits void parallel
+  runs (evals run one at a time now); the hard-case eval swings ~9 points between identical runs
+  (`docs/models/eval-variance.md`), so read it as a range.
 - **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`, this block, the
-  lane file. **Does not edit** `promptV2.ts` / `ai.ts` / `agentLoop.ts` / `eval-hardcases.mts` (v1's) —
-  runs them, and asks v1 before landing any change to them on `main`. Touches no accounts files.
+  lane file. Does not edit v1's files; asks v1 first. Touches no accounts files.
 
-### >>> V1 LANE — 2026-10-03 (night): Days 1–3 DONE, swap fix LANDED. TRACK A IS A GATE. Next: Day 4 (A4 payload). <<<
+### >>> V1 LANE — 2026-10-03 (late): Days 1–3 DONE, Day 4 DONE for /sage (steps 2–3 in their ship gate). TRACK A IS A GATE. Next: D5 (ingredient ids). <<<
+
+**Day 4 (A4):** `/sage/plan` 226 → **129 kB** (`7efbe9b`), `/sage/groceries` 123 → **113 kB**,
+`/sage/explore` 212 → **114 kB** first-load JS (steps 2–3: if not on `origin/main`, the gate failed).
+Every `/sage` route is free of the library (`approxCost`) and the USDA table (`fdcId`) — **those are
+the markers; `Shakshuka`/`Miso-Glazed Cod` are photographed dishes and legitimately stay.** Explore's
+cards now travel in the HTML (32 → 80 kB gz; net ≈ −26 kB). **Follow-up:** load the modal's
+ingredients+steps lazily. `/plan` still ships everything — owner decision #2. `check:boundaries`:
+6 debts left. The measuring worktree `../NutriFlow-v1-measure` (detached, node_modules junction) can
+be deleted with `git worktree remove ../NutriFlow-v1-measure` — or kept for D5's measurements.
+`build:nutrients` reports **180** ingredients, docs say 182 — not chased yet.
 
 **Day 3 (A3) LANDED `ff93b99`, test:engine 680/0 identical:** the engine is now **`src/lib/plan/`** —
 nine modules + `index.ts` (the public surface, the same 22 names); `recipeDb.ts` is a 10-line
@@ -151,7 +186,9 @@ C4**, every Track E button gets a chat primitive. Reasoning: `02-module-map.md` 
    3 files: `primitives.ts`, `promptV2.ts`, `ai.ts`) when they send "ready to land". Reviewed: the
    safety bullet was fixed in `5336ab1`. Land it in its own commit, between Track A days.
 3. ~~V1 Day 3~~ — done (see above).
-4. **V1 Day 4 — A4, the browser payload boundary.** The target is measured (`01-…md` D4: markers
+4. ~~V1 Day 4~~ — done for `/sage` (see the block above). Next is **D5 — ingredient identity**
+   (`01-…md` D5), then D5a (barrels + folders, coordinated with the lanes) and D5b (the maths proven).
+   *(What follows is the Day 4 brief, kept for the record.)* The target is measured (`01-…md` D4: markers
    `Shakshuka`, `Miso-Glazed Cod`, `fdcId`, `approxCost` in `.next/static/chunks/*.js`; first-load
    `/sage/plan` 216 kB, `/sage/explore` 212 kB). `check:boundaries`' rule-4 debts ARE the work list:
    Explore/`/plan` via `feed.ts` → the card projection; WeekBoard via `../demo` for `SLOTS`;

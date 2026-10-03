@@ -14,6 +14,14 @@
  */
 export const MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack"] as const;
 
+/**
+ * The display names of the slots, in MEAL_TYPES order. Here rather than in `sage/demo.ts` — where it
+ * used to live — for the same reason as the rest of this file, measured again on 2026-10-03: the Week
+ * board imported these four words from demo.ts, demo.ts builds the fixture week with the engine, and
+ * so the whole recipe library (69 kB gzipped) and the USDA table (11 kB) rode along on `/sage/plan`.
+ */
+export const SLOT_LABELS = ["Breakfast", "Lunch", "Dinner", "Snack"] as const;
+
 export const DAYS = [
   "Monday",
   "Tuesday",
