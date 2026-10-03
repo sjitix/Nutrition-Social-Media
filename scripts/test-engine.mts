@@ -2859,6 +2859,85 @@ console.log("--- VIDEO IMPORT (Phase 2: read a recipe from a reel's caption) ---
   check("candidates: an unreachable floor returns nothing rather than near-misses",
     impossibleC.rows.length === 0);
 }
+
+// ---------------------------------------------------------------- SCOPED CHANGES (2026-10-03)
+// "Swap JUST Wednesday's dinner" also replaced Wednesday's breakfast — and often lunch too. The
+// rebalancer's second lever (a protein upgrade) swaps another dish outright when resizing cannot
+// close the gap. Found by the models lane's loop eval, where a 550B model did exactly the right thing
+// and the ENGINE overrode it; reproduced in 24 of 24 probe scenarios.
+//
+// Two behaviours, both deliberate. DEFAULT (no flag): the macro-preservation rule in VISION.md holds —
+// the engine may replace another meal to keep the day on target ("oatmeal, but keep me on my macros",
+// tested in the scenarios above) — and it must SAY so, on both swap paths. SCOPED (keepOtherMeals,
+// the primitive's `only`): the other meals are resized, never replaced, and the upgrade it would have
+// made is OFFERED by name instead.
+console.log("\n--- SCOPED CHANGES (a swap of one slot replaces nothing else) ---");
+{
+  const sp: UserProfile = { ...BASE, proteinGrams: 170 };
+  const sWeek = withSeed(7, () => rebalanceWeek(selectWeekFromDb(sp), sp));
+  const lowDinner = "Chickpea Spinach Curry"; // 23 g protein: leaves a gap resizing cannot close
+  for (const day of ["Monday", "Wednesday"] as const) {
+    const before = sWeek.days.find((d) => d.day === day)!;
+    const res = applyOperations(sp, sWeek, [op({ tool: "swap_meal", day, mealType: "dinner", dish: lowDinner, keepOtherMeals: true })]);
+    const after = res.plan.days.find((d) => d.day === day)!;
+    const others = before.meals.filter((m) => m.type !== "dinner");
+    check(`scoped swap (${day}): every other slot keeps its dish`,
+      others.every((m) => after.meals.some((a) => a.type === m.type && a.name === m.name)),
+      after.meals.map((m) => `${m.type}: ${m.name}`).join(", "));
+    check(`scoped swap (${day}): the dish asked for is in place`,
+      after.meals.some((m) => m.type === "dinner" && m.name === lowDinner));
+    check(`scoped swap (${day}): calories are still held, by resizing`,
+      Math.abs(kcal(after) - sp.targetCalories) <= sp.targetCalories * 0.05, `${kcal(after)} kcal`);
+    check(`scoped swap (${day}): never says it bumped a meal, because it did not`,
+      !res.notes.some((n) => /bumped your/i.test(n)), res.notes.join(" | "));
+    check(`scoped swap (${day}): offers the protein upgrade by name instead of making it`,
+      res.notes.some((n) => /could swap your (breakfast|lunch|snack)/i.test(n)), res.notes.join(" | "));
+    // With an upgrade on offer, "the most these recipes allow" would be a lie: the library CAN do
+    // better, the user chose to keep their meals. The shortfall must be attributed to that choice.
+    check(`scoped swap (${day}): does not blame the library for a shortfall the user chose`,
+      !res.notes.some((n) => /most these recipes allow/i.test(n)) &&
+        res.notes.some((n) => /keeping the other meals you had/i.test(n)), res.notes.join(" | "));
+    check(`scoped swap (${day}): no other day changes`,
+      res.plan.days.filter((d) => d.day !== day).every((d) =>
+        JSON.stringify(d) === JSON.stringify(sWeek.days.find((x) => x.day === d.day))));
+  }
+  // The same rule for the whole-week form ("make every dinner X").
+  const wk = applyOperations(sp, sWeek, [op({ tool: "swap_meal", mealType: "dinner", dish: lowDinner, keepOtherMeals: true })]);
+  const keptEveryOther = (res: typeof wk) => sWeek.days.every((d) => {
+    const a = res.plan.days.find((x) => x.day === d.day)!;
+    return d.meals.filter((m) => m.type !== "dinner").every((m) => a.meals.some((x) => x.type === m.type && x.name === m.name));
+  });
+  check("scoped swap (every day): every breakfast and lunch keeps its dish", keptEveryOther(wk));
+  check("scoped swap (every day): the dish is set on every day",
+    wk.plan.days.every((d) => d.meals.some((m) => m.type === "dinner" && m.name === lowDinner)));
+
+  // DEFAULT, single day: replacing is allowed, but never unannounced.
+  const defDay = applyOperations(sp, sWeek, [op({ tool: "swap_meal", day: "Monday", mealType: "dinner", dish: lowDinner })]);
+  const monBefore = sWeek.days.find((d) => d.day === "Monday")!;
+  const monAfter = defDay.plan.days.find((d) => d.day === "Monday")!;
+  const replacedMon = monAfter.meals.filter((m) => m.type !== "dinner" && !monBefore.meals.some((b) => b.type === m.type && b.name === m.name));
+  check("default swap (one day): every replaced meal is named in the note",
+    replacedMon.every((m) => defDay.notes.some((n) => n.includes(m.name))), defDay.notes.join(" | "));
+  check("default swap (one day): this scenario does exercise the replacement",
+    replacedMon.length > 0, `${replacedMon.length} replaced`);
+  // DEFAULT, whole week: this path used to replace other meals SILENTLY. Now it must say how many.
+  const defWeek = applyOperations(sp, sWeek, [op({ tool: "swap_meal", mealType: "dinner", dish: lowDinner })]);
+  const replacedWeek = sWeek.days.reduce((t, d) => {
+    const a = defWeek.plan.days.find((x) => x.day === d.day)!;
+    return t + a.meals.filter((m) => m.type !== "dinner" && !d.meals.some((b) => b.type === m.type && b.name === m.name)).length;
+  }, 0);
+  check("default swap (every day): replacing other meals is never silent",
+    replacedWeek === 0 || defWeek.notes.some((n) => n.includes(`also changed ${replacedWeek} other meal`)),
+    `${replacedWeek} replaced · ${defWeek.notes.join(" | ")}`);
+
+  // The assistant reaches the scoped form through the primitive's `only` flag.
+  const viaPrimitive = applyPrimitives(sp, sWeek, [{ op: "swap", dish: lowDinner, slot: "dinner", days: ["Wednesday"], only: true } as PrimitiveOp]);
+  const wedBefore = sWeek.days.find((d) => d.day === "Wednesday")!;
+  const wedAfter = viaPrimitive.plan.days.find((d) => d.day === "Wednesday")!;
+  check("primitive swap {only:true} keeps the other meals",
+    wedBefore.meals.filter((m) => m.type !== "dinner").every((m) => wedAfter.meals.some((a) => a.type === m.type && a.name === m.name)),
+    wedAfter.meals.map((m) => `${m.type}: ${m.name}`).join(", "));
+}
 // ---------------------------------------------------------------- 3. fuzz
 console.log("\n--- FUZZ (random op sequences, invariants after each) ---");
 const DAYS_L = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;

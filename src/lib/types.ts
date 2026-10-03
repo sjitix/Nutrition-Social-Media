@@ -198,6 +198,12 @@ export const OperationSchema = z.object({
   // false only when the user signals a treat / "don't care about macros this time".
   // Omitted/null = default (preserve) — keeps the small model's job simple.
   preserveMacros: z.boolean().nullable().optional(),
+  // The user SCOPED the change: "swap JUST Wednesday's dinner", "only lunch", "leave the rest". The
+  // macros are still held, but by RESIZING the other meals only — never by replacing one the user did
+  // not mention. If resizing cannot get there the engine says so and OFFERS the dish change by name.
+  // Omitted/null = the default above, which may replace another meal to hold the targets (and always
+  // says so). Added 2026-10-03: without it, "just dinner" replaced breakfast and lunch as well.
+  keepOtherMeals: z.boolean().nullable().optional(),
 });
 
 export const AssistantTurnSchema = z.object({
