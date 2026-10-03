@@ -45,8 +45,8 @@ const MUTATIONS = [
   {
     name: "a mirror keeps pushing for whoever is signed in now (no pin)",
     file: "src/lib/account/client.ts",
-    from: "  const remote = supabaseRemote(cfg, () => liveSession(cfg, userId));",
-    to: "  const remote = supabaseRemote(cfg, () => liveSession(cfg));",
+    from: "  const remote = supabaseRemote(cfg, (o) => liveSession(cfg, userId, o));",
+    to: "  const remote = supabaseRemote(cfg, (o) => liveSession(cfg, undefined, o));",
   },
   {
     name: "account rows are written without validation",
@@ -158,6 +158,92 @@ const MUTATIONS = [
     from: "      if (!isEmpty(r.value) && r.at !== synced[name]) keepAccountCopy[name] = r.value;",
     to: "      if (!isEmpty(r.value)) keepAccountCopy[name] = r.value;",
   },
+  // Review 2, batch 2: other tabs (scripts/test-account-tabs.mts).
+  {
+    name: "a tab is not reloaded when the browser changes hands in another tab",
+    file: "src/lib/account/client.ts",
+    from: "    if (tabOwner !== null && whose() !== tabOwner) on.reload();",
+    to: "    if (false) on.reload();",
+  },
+  {
+    name: "a tab reloads on every sign-in change elsewhere, even a refreshed token or a sign-out",
+    file: "src/lib/account/client.ts",
+    from: "    if (tabOwner !== null && whose() !== tabOwner) on.reload();",
+    to: "    if (tabOwner !== null) on.reload();",
+  },
+  {
+    name: "a tab is not reloaded when another tab replaces a store its screens hold",
+    file: "src/lib/account/client.ts",
+    from: "    if (names.some((n) => HELD_BY_SCREENS.has(n)) && claimSyncReload()) on.reload();",
+    to: "    if (false) on.reload();",
+  },
+  {
+    name: "with nobody signed in, another tab's edits still reload this one",
+    file: "src/lib/account/client.ts",
+    from: "    if (!currentSession()) return;\n    if (names.some(",
+    to: "    if (names.some(",
+  },
+  // Review 2, batch 3: sign-in and tokens as the real GoTrue and PostgREST behave.
+  {
+    name: "a 401 signs the person out instead of renewing the token and retrying",
+    file: "src/lib/account/supabase.ts",
+    from: "  if (first.status !== 401) return first;",
+    to: "  return first;",
+  },
+  {
+    name: "token expiry is read off the server's clock again",
+    file: "src/lib/account/supabase.ts",
+    from: "    expiresAt: typeof d.expires_in === \"number\" ? nowSec + d.expires_in : d.expires_at ?? nowSec + 3600,",
+    to: "    expiresAt: d.expires_at ?? nowSec + (d.expires_in ?? 3600),",
+  },
+  {
+    name: "an expired first link (422) reads as a transient failure, inviting a retry that cannot work",
+    file: "src/lib/account/supabase.ts",
+    from: "  if (res.status === 422) throw new AccountError(LINK_ERRORS.flow_state_expired, \"auth\");",
+    to: "",
+  },
+  {
+    name: "a transient exchange failure throws the code away (no \"Try again\")",
+    file: "src/lib/account/client.ts",
+    from: "    saveSignInCode(e instanceof AccountError && e.retryable ? code : null);",
+    to: "    saveSignInCode(null);",
+  },
+  {
+    name: "a finished exchange deletes WHATEVER verifier is stored, a newer request's included",
+    file: "src/lib/account/client.ts",
+    from: "  clearPendingSignIn(verifier);\n  saveSessionRaw(s);",
+    to: "  savePendingSignIn(null);\n  saveSessionRaw(s);",
+  },
+  {
+    name: "asking again for the same address replaces the verifier (the first link then fails)",
+    file: "src/lib/account/client.ts",
+    from: "  const reuse = !!pending && pending.email === address && Date.now() - pending.at < REUSE_VERIFIER_MS;",
+    to: "  const reuse = false;",
+  },
+  {
+    name: "a mistyped address is stored as the pending sign-in before it is checked",
+    file: "src/lib/account/client.ts",
+    from: "  if (!looksLikeEmail(address)) throw new AccountError(\"That doesn't look like an email address.\");",
+    to: "",
+  },
+  {
+    name: "a sign-out of a session the server had already ended is reported as a failure",
+    file: "src/lib/account/supabase.ts",
+    from: "    return (res.status === 403 || res.status === 404) && code === \"session_not_found\";",
+    to: "    return false;",
+  },
+  {
+    name: "Supabase's own variable name for the key is ignored",
+    file: "src/lib/account/supabase.ts",
+    from: "    anonKey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,",
+    to: "    anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,",
+  },
+  {
+    name: "a finished sign-in does not mark the tab as showing that account",
+    file: "src/lib/account/client.ts",
+    from: "  setStatus({ state: \"syncing\", email: s.email, userId: s.userId });",
+    to: "",
+  },
 ];
 
 const root = process.argv[2] ?? process.cwd();
@@ -173,17 +259,21 @@ for (const m of MUTATIONS) {
   }
   writeFileSync(path, normalised.replace(m.from, m.to), "utf8");
   let out = "";
+  let crashed = false;
   try {
     out = execFileSync("node", ["scripts/test-account.mjs"], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
   } catch (e) {
     out = String(e.stdout ?? "");
+    // Non-zero exit with no FAIL line: a suite stopped on an uncaught throw. The guard WAS detected,
+    // but the checks after the throw never ran, so say so: that test should catch its error.
+    crashed = !out.split("\n").some((l) => l.startsWith("FAIL"));
   } finally {
     writeFileSync(path, original, "utf8");
   }
   const fails = out.split("\n").filter((l) => l.startsWith("FAIL"));
-  const caught = fails.length > 0;
+  const caught = fails.length > 0 || crashed;
   if (!caught) allCaught = false;
-  console.log(`${caught ? "CAUGHT" : "MISSED"}  ${m.name}`);
+  console.log(`${caught ? (crashed ? "CAUGHT (by a crash: make that test catch its error)" : "CAUGHT") : "MISSED"}  ${m.name}`);
   for (const f of fails.slice(0, 3)) console.log(`          ${f.slice(0, 150)}`);
 }
 console.log(allCaught ? "\nevery mutation was caught" : "\nSOME MUTATIONS WERE NOT CAUGHT");

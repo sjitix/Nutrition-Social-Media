@@ -52,9 +52,16 @@ const INTERNAL = {
   pkce: "nutriflow.pkce",
 } as const;
 
-/** Per-TAB bookkeeping (sessionStorage), so a reload guard cannot outlive the tab. */
+/**
+ * Per-TAB bookkeeping (sessionStorage), so none of it can outlive the tab.
+ * - `syncReload` — when this tab last reloaded itself for sync (see `claimSyncReload`).
+ * - `signInCode` — the one-time code from a sign-in link whose exchange failed for a TRANSIENT reason.
+ *   It stays good for a few minutes, so "Try again" can finish the sign-in. The emailed link was used
+ *   up when it was opened, so opening it again could not.
+ */
 const TAB = {
   syncReload: "nutriflow.syncReload",
+  signInCode: "nutriflow.signInCode",
 } as const;
 
 /** The names of the user-data stores. This list IS the contract with the export file and the server. */
@@ -420,6 +427,50 @@ export function loadPendingSignIn(): PendingSignIn | null {
 export function savePendingSignIn(p: PendingSignIn | null): void {
   if (!p) window.localStorage.removeItem(INTERNAL.pkce);
   else writeKey(INTERNAL.pkce, p);
+}
+/**
+ * Forget the pending sign-in only if it is still the one that was used. A link exchange in flight
+ * must not delete the verifier of a NEWER request made meanwhile, which would leave that request's
+ * link failing as "opened in a different browser" (review 2).
+ */
+export function clearPendingSignIn(verifier: string): void {
+  if (loadPendingSignIn()?.verifier === verifier) window.localStorage.removeItem(INTERNAL.pkce);
+}
+
+/** The one-time code of a sign-in whose exchange failed for a transient reason, kept for "Try again". */
+export function loadSignInCode(): string | null {
+  try {
+    return window.sessionStorage.getItem(TAB.signInCode);
+  } catch {
+    return null;
+  }
+}
+export function saveSignInCode(code: string | null): void {
+  try {
+    if (code) window.sessionStorage.setItem(TAB.signInCode, code);
+    else window.sessionStorage.removeItem(TAB.signInCode);
+  } catch {
+    /* no sessionStorage: "Try again" is simply not offered */
+  }
+}
+
+/**
+ * Be told when ANOTHER TAB writes a user-data store, or clears this browser's storage. As with
+ * `onSignInChangedElsewhere`, the browser fires `storage` only in the other tabs. Returns an
+ * unsubscribe function.
+ */
+export function onStoresChangedElsewhere(fn: (names: StoreName[]) => void): () => void {
+  if (typeof window === "undefined" || typeof window.addEventListener !== "function") return () => {};
+  const byKey = new Map<string, StoreName>(STORE_NAMES.map((n) => [KEYS[n], n]));
+  const handler = (e: StorageEvent) => {
+    if (e.key === null) fn([...STORE_NAMES]);
+    else {
+      const name = byKey.get(e.key);
+      if (name) fn([name]);
+    }
+  };
+  window.addEventListener("storage", handler as EventListener);
+  return () => window.removeEventListener("storage", handler as EventListener);
 }
 
 /**

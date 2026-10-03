@@ -35,7 +35,7 @@ folder.** Each one's work reaches the other only through `origin/main`.
 
 - `src/lib/storage.ts`, `src/lib/savedStore.ts` — the persistence seam
 - `src/lib/account/**` (new), `src/app/sage/account/**` (new — the account page, inside the /sage shell), `supabase/**` (new — SQL schema, RLS)
-- `scripts/test-account.mts` + `scripts/test-account.mjs` (run with `node scripts/test-account.mjs`; no package.json change needed), `scripts/mutate-account.mjs` (the guards' mutation check), and `scripts/test-account-sql.mjs` (the migrations in real Postgres)
+- `scripts/test-account.mts` + `scripts/test-account-tabs.mts` + `scripts/account-tab.mts` + `scripts/account-fakes.ts` + the runner `scripts/test-account.mjs` (run with `node scripts/test-account.mjs`; no package.json change needed), `scripts/mutate-account.mjs` (the guards' mutation check), and `scripts/test-account-sql.mjs` (the migrations in real Postgres)
 - `.env.local.example` — only the account-related lines
 - `docs/parallel/lane-accounts.md`, `docs/worklog/*-accounts.md`
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { onPulled, startSync } from "@/lib/account/client";
+import { onPulled, startSync, watchOtherTabs } from "@/lib/account/client";
 import { claimSyncReload } from "@/lib/storage";
 import { notifyPlanChanged } from "../myPlan";
 
@@ -22,21 +22,33 @@ import { notifyPlanChanged } from "../myPlan";
  * reloads once, and every screen starts from the account's data. `claimSyncReload` makes it at most
  * once per 30 seconds, so it can never loop. When those screens re-read on the event themselves (asked
  * of the v1 lane), this reload can go.
+ *
+ * OTHER TABS (`watchOtherTabs`, review 2). A pull reaches only the tab whose sync made it: another tab
+ * holding the same week finds nothing left to pull and is never told. And when the browser changes
+ * hands in another tab, this tab's screens still hold the previous person's data. Both reload here too.
  */
 const HELD_BY_SCREENS = new Set(["plan", "batchPlan", "profile"]);
+
+const reload = () => {
+  if (typeof window.location.reload === "function") window.location.reload();
+};
 
 export function AccountSync() {
   useEffect(() => {
     const off = onPulled((report) => {
       const touched = [...report.pulled, ...report.merged].some((n) => HELD_BY_SCREENS.has(n));
-      if (touched && claimSyncReload() && typeof window.location.reload === "function") {
-        window.location.reload();
+      if (touched && claimSyncReload()) {
+        reload();
         return;
       }
       notifyPlanChanged();
     });
+    const offTabs = watchOtherTabs({ reload, refresh: notifyPlanChanged });
     void startSync();
-    return off;
+    return () => {
+      off();
+      offTabs();
+    };
   }, []);
   return null;
 }

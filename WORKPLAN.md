@@ -1394,6 +1394,25 @@ Each of these was discovered by doing the work, and each earned its place.
     heredoc through the Bash tool on Windows still collapsed `\\` to `\` (lesson 35, met a third
     time), so write script files with the editor, never through the shell.
 
+59. **A suite must model the world the code runs in, or it cannot even state the bug.** The account
+    suite ran ONE tab against a fake whose tokens never expired and whose links never aged. The second
+    review's remaining bugs lived exactly in what it left out:
+    - **One browser is several programs sharing one storage.** A pull or a sign-in in one tab changed
+      what another tab's screens held. That tab was never told, and it wrote its stale copy back as the
+      newest edit, or wrote one person's profile into the next person's account.
+      `scripts/test-account-tabs.mts` now bundles the real modules once per tab (esbuild `define` gives
+      each its own `window`), over one storage that fires `storage` events in the OTHER tabs only.
+      `watchOtherTabs` reloads a tab whose screens can no longer be trusted.
+    - **A 401 is not a sign-out.** The real PostgREST refuses an access token 30 s past its expiry;
+      GoTrue's `expires_at` is on the server's clock; a first link expires five minutes after the
+      REQUEST. The fake modelled none of this. So treating every 401 as "signed out" passed every
+      test, though it would have signed people out hourly on a slow device clock, and everyone at once
+      when a key changed. Now a refused access token is renewed and the request retried, and only a
+      refused renewal signs out. Expiry is measured on the device's own clock. The one shared fake
+      (`scripts/account-fakes.ts`) models expiry, revocation, the 422 and transient exchange failures.
+    Write the fake from the platform's source, and give the suite as many actors as production has:
+    tabs, devices, and the next person to use the browser.
+
 ---
 
 ## 4. Training track (runs in parallel, never blocked by the above)
