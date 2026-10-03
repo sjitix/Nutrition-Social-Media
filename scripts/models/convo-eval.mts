@@ -43,6 +43,14 @@ import type { UserProfile, WeekPlan, Meal, PlanSnapshot } from "@/lib/types";
 const MODEL = process.env.LOCAL_AI_MODEL ?? "(unset)";
 const ONLY = process.env.ONLY ? new RegExp(process.env.ONLY, "i") : null;
 const LOOP_RETRIES = Number(process.env.LOOP_RETRIES ?? 4);
+/** Behind scripts/models/pace-proxy.mjs, its /stats gives PURE upstream seconds, so the proxy's own
+ *  pacing is never reported as the model's latency (a reasoning-off run on 2026-10-03 showed 76-188 s
+ *  per turn that was mostly a 40 s pacing gap). */
+const PACE_STATS = process.env.PACE_STATS ?? "";
+async function upstreamSeconds(): Promise<number | null> {
+  if (!PACE_STATS) return null;
+  try { return Number((await (await fetch(PACE_STATS)).json()).upstreamSeconds); } catch { return null; }
+}
 
 // The same profile, week and date as loop-eval, so the two scorecards describe the same starting point.
 const PROFILE: UserProfile = {
@@ -314,6 +322,7 @@ for (const c of convos) {
     const before = structuredClone(plan), beforeProfile = structuredClone(profile);
     const go = () => runAgent({ profile: structuredClone(profile), plan: structuredClone(plan), message: t.user, history: [...history], today: TODAY, previous, model });
     let t0 = performance.now();
+    let up0 = await upstreamSeconds();
     let r: AgentRunResult | null = null;
     let sk0 = ff.skipped;
     try {
@@ -322,13 +331,16 @@ for (const c of convos) {
         console.log(`   … ${c.id}: model unreachable, retry ${attempt}/${LOOP_RETRIES} in ${30 * attempt}s`);
         await new Promise((res) => setTimeout(res, 30_000 * attempt));
         t0 = performance.now();
+        up0 = await upstreamSeconds();
         sk0 = ff.skipped;
         r = await go();
       }
     } catch (e) {
       console.log(`   !! ${c.id}: threw ${(e as Error).message}`);
     }
-    const seconds = (performance.now() - t0) / 1000;
+    const wallSeconds = (performance.now() - t0) / 1000;
+    const up1 = await upstreamSeconds();
+    const seconds = up0 != null && up1 != null ? up1 - up0 : wallSeconds;
     if (!r || r.modelFailed) {
       turns.push({ user: t.user, want: t.want, pass: false, infra: true, reason: "model unreachable (infra)", steps: r?.steps ?? 0, gaveUp: false, seconds, ops: [], writes: "", reply: "", emoji: false, modelCalls: 0 });
       break; // the rest of the conversation depends on this turn
