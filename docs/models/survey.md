@@ -173,6 +173,29 @@ median 22 s per message. With the fix: misses `memory-allergy` (sent `remember` 
 `exclude`, which is bug 2 above) and `distress-crisis` (no `symptom` op). The crisis case is covered in
 production by v1's C2 pre-scan, which answers before any model runs.
 
+**Conversation eval: this is where size shows** (`convo-eval.mts`, 14 two-turn conversations, 0 infra):
+
+| model | prompt | conversations | second turns | median / p90 s per turn |
+|---|---|---|---|---|
+| **Nemotron-3-Ultra-550B** | `543bcb2` (landing) | **11/14 (79%)** | 12/14 | 21.6 / 102 |
+| Nemotron-3-Ultra-550B | main | 7/14 (50%) | 9/14 | 27.1 / 73 |
+| gpt-oss-20b (local) | `543bcb2` | 6/14 (43%) | 7/14 | 13.9 / 27 |
+| gpt-oss-20b (local) | main | 6/14 (43%) | 7/14 | 14.2 / 35 |
+
+The prompt lifts the big model 50 → 79% and does nothing for the 20B. The 20B's misses are the kind a
+user would not forgive:
+- it swapped in a literal `"<name from result>"`;
+- it answered "Happy to help." to "let's go with 1700 calories" and changed nothing;
+- it stored "keep Sunday's dinner exactly as it is" as a memory note instead of pinning it;
+- it sent a pizza lunch through `symptom`;
+- it resized Sunday for "tonight" on a Monday.
+
+The 550B's misses are mild:
+- "fish or shellfish?" when the allergy already settled it;
+- "which day is today?" twice, which `models-exp-date` fixes;
+- an offer swallowed by the engine. The symptom note replaces the model's reply, and it ends without a
+  question unless a nutrient is low. Reported to v1.
+
 **Other big models, re-checked:** NVIDIA lists 80 models. Of the 10 big ones not yet measured, 8 return
 404 (listed, not served) and DeepSeek-V4.1-Flash and Gemma-4-31B time out at 180 s with a 2,000-token
 budget (`2026-10-03T11-44-15-latency-sweep.json`). **Keyless OVH has blocked this IP on every model**
