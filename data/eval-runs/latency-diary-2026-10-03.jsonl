@@ -73,3 +73,15 @@
 {"at":"2026-10-03T13:43:21.640Z","model":"z-ai/glm-5.3","ok":true,"status":200,"seconds":134.69,"outTokens":507}
 {"at":"2026-10-03T13:43:21.640Z","model":"openai/gpt-oss-20b","ok":true,"status":200,"seconds":8.98,"outTokens":254}
 {"at":"2026-10-03T13:43:21.640Z","model":"moonshotai/kimi-k3","ok":false,"status":200,"seconds":60.18,"outTokens":33,"err":"empty"}
+{"at":"2026-10-03T13:55:36.341Z","model":"z-ai/glm-5.3","ok":false,"status":0,"seconds":180.01,"err":"timeout 180s"}
+{"at":"2026-10-03T13:55:36.341Z","model":"openai/gpt-oss-20b","ok":true,"status":200,"seconds":7.44,"outTokens":202}
+{"at":"2026-10-03T13:55:36.341Z","model":"moonshotai/kimi-k3","ok":true,"status":200,"seconds":23.14,"outTokens":148}
+{"at":"2026-10-03T14:08:36.347Z","model":"z-ai/glm-5.3","ok":false,"status":0,"seconds":180,"err":"timeout 180s"}
+{"at":"2026-10-03T14:08:36.347Z","model":"openai/gpt-oss-20b","ok":true,"status":200,"seconds":8.78,"outTokens":218}
+{"at":"2026-10-03T14:08:36.347Z","model":"moonshotai/kimi-k3","ok":false,"status":0,"seconds":180,"err":"timeout 180s"}
+{"at":"2026-10-03T14:21:36.361Z","model":"z-ai/glm-5.3","ok":false,"status":0,"seconds":180,"err":"timeout 180s"}
+{"at":"2026-10-03T14:21:36.361Z","model":"openai/gpt-oss-20b","ok":true,"status":200,"seconds":5.2,"outTokens":212}
+{"at":"2026-10-03T14:21:36.361Z","model":"moonshotai/kimi-k3","ok":false,"status":0,"seconds":180,"err":"timeout 180s"}
+{"at":"2026-10-03T14:34:36.369Z","model":"z-ai/glm-5.3","ok":false,"status":0,"seconds":180.01,"err":"timeout 180s"}
+{"at":"2026-10-03T14:34:36.369Z","model":"openai/gpt-oss-20b","ok":true,"status":200,"seconds":6.99,"outTokens":259}
+{"at":"2026-10-03T14:34:36.369Z","model":"moonshotai/kimi-k3","ok":false,"status":0,"seconds":180.01,"err":"timeout 180s"}
