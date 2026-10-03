@@ -102,15 +102,9 @@ const KNOWN_DEBT = {
   // rule 4 — the browser payload (milestone A4 is exactly this list)
   "client-server:src/app/plan/page.tsx->src/lib/recipeDb.ts":
     "A4 (D4) / B2 (D8): the legacy /plan page imports feed.ts the same way. Fixed by the card projection, or retired by the one-app decision.",
-  "client-server:src/app/plan/page.tsx->src/lib/import.ts":
-    "B2 (D8) / A6 (D5a): the legacy /plan page imports importedToMeal, a pure converter that lives inside the network adapter with the SSRF guard. Move the converter out, or retire /plan.",
   // rule 1 — layering (milestone A6 moves these pieces to the layer they belong in)
   "layer:src/lib/assistant/agentTools.ts->src/lib/presentation/feed.ts":
     "A6 (D5a): the assistant's find_recipes uses the Explore feed's filter and sort. Searching the library is engine work: the query moves down to the plan layer, and feed.ts keeps only the card projection.",
-  "layer:src/lib/data/conditions.ts->src/lib/nutrition/nutrients.ts":
-    "A6 (D5a): the micronutrient vocabulary (MICRO_KEYS, MICRO_LABEL, MicroKey) is a contract every layer speaks, not maths. It moves down to L0, and these data tables stop depending on the maths layer.",
-  "layer:src/lib/data/symptoms.ts->src/lib/nutrition/nutrients.ts":
-    "A6 (D5a): the same move as conditions.ts — only the MicroKey type is imported, so it ships nothing, but the dependency still points up.",
   // rule 3 — storage
   "storage-api:src/components/ThemeSwitch.tsx":
     "A6 (D5a): the violet/sage theme toggle stores \"nutriflow-theme\" itself, from before storage.ts's rule. Fix: storage.ts (the accounts lane's file — ask first) owns a `theme` key and exports its name for the pre-hydration boot script.",

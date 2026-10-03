@@ -13,7 +13,7 @@
  * engine has no key for (pregnancy: iodine, choline, DHA; etc.) are noted but cannot be promised —
  * a disclosure built on this must never imply completeness.
  */
-import { MICRO_KEYS, MICRO_LABEL, type MicroKey } from "../nutrition/nutrients";
+import { MICRO_KEYS, MICRO_LABEL, type MicroKey } from "../core/micros";
 import type { UserProfile, UserFact } from "../core/types";
 
 /** A durable condition → the micronutrients a fresh plan should favour. First key is PRIMARY. */

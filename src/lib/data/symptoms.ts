@@ -1,4 +1,4 @@
-import type { MicroKey } from "../nutrition/nutrients";
+import type { MicroKey } from "../core/micros";
 
 /**
  * "I'm always tired." — the symptom → nutrient map.
