@@ -107,7 +107,20 @@ being measured on the 550B, offered to v1 next).
 - **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`, this block, the
   lane file. Does not edit v1's files; asks v1 first. Touches no accounts files.
 
-### >>> V1 LANE — 2026-10-04 (small hours): Days 1–4 DONE, C2 pre-scan DONE, D5 steps 1–3 done (step 3 + engine-binding fixes in their gates). TRACK A IS A GATE. <<<
+### >>> V1 LANE — 2026-10-04: Days 1–5 DONE (D5's last commit in its gate), C2 pre-scan DONE, models lane's read-tool fix LANDED. TRACK A IS A GATE. Next: D5a (barrels + folders). <<<
+
+**Landed since the last update:** `98747f6` (the assistant's words bind the engine — remembered
+allergies enforced, a "but" clause no longer cancels a typed allergy, honest slot note, day-scoped
+exclusions, plural swap matching), `3392461` (models lane's read tools + prompt), `db5ff7d`
+(symptom note always ends with one concrete offer). **D5 steps 3–5 + the review fixes** are in their
+gate: if `src/lib/data/seeds.ts` is still modified-uncommitted, the gate failed — check the ship log.
+**Lookups resolve the NAME first, the slug as fallback** (changed by the D5 review; see
+`docs/v1/06-ingredient-identity.md`). test:engine was **752/0** before the D5 commit's new tests.
+
+**Next: D5a — every module behind its barrel, in folders under `src/lib/`.** It moves files the other
+lanes use: ask both lanes for a date FIRST (lane-v1.md "Asks"), leave a one-line re-export at every
+old path, and never move a file in the same commit as a behaviour change. Then D5b (the maths
+proven exact). **Waiting on the owner:** decisions #7 (swap default) and #8 (crisis guard).
 
 **D5 — ingredient identity** (`docs/v1/06-ingredient-identity.md` is the plan AND the progress log):
 steps 1–2 LANDED `6d5a9cd` (slugs in `scripts/ingredient-map.json`, `src/lib/data/ingredients.generated.ts`
