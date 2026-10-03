@@ -85,7 +85,17 @@ and `test:engine` as the ship gate. The order is chosen so each step is independ
   approximations (sriracha / harissa / buffalo sauce in tsp amounts), but some are the same thing
   named twice — `egg` / `eggs`, `bell-pepper` / `bell-peppers`, `soy-ginger-sauce` /
   `ginger-soy-sauce` — which identity should eventually merge into one slug with aliases.
-- **Next: step 3** — the seeds carry `slug` (a generated rewrite of `data/seeds.ts`).
+- **Step 3 done 2026-10-03 (shipping next).** All **2,296** references in `data/seeds.ts` carry their
+  slug — `{ slug: "greek-yogurt", name: "Greek yogurt", quantity: "200 g" }` — inserted by a script
+  that asserted the count, resolved every name through `resolveIngredient`, and proved the slug fields
+  were the ONLY change. The recipe ingredient type now REQUIRES `slug: IngredientSlug`; a probe with
+  `"brown-rise"` failed `tsc` with "Did you mean 'brown-rice'?". A slug-blind 105-point fingerprint
+  is identical before and after, and `check:ingredients` / `check:recipes` / `check:boundaries` pass.
+- **Step 4, refined before building it:** the lookups go through the resolver, but the generated tables
+  stay keyed by the curated NAME — the resolver maps slug → name → table. Re-keying the tables by slug
+  would rewrite every script that indexes them (`check-recipes`, `export-recipes`, the test suite) for
+  no behavioural gain; the identity guarantee is the same either way, because the one place that
+  decides "which ingredient is this" is the resolver. The table key becomes an internal detail.
 
 ## Decided, and why
 

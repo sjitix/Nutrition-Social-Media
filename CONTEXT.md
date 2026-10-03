@@ -93,7 +93,21 @@ onto main) and `models-exp` (experiments in v1-owned files; never merged without
 - **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`, this block, the
   lane file. Does not edit v1's files; asks v1 first. Touches no accounts files.
 
-### >>> V1 LANE — 2026-10-03 (after midnight): Days 1–4 DONE; the CRISIS PRE-SCAN (C2) done early. TRACK A IS A GATE. Next: D5 (ingredient ids). <<<
+### >>> V1 LANE — 2026-10-04 (small hours): Days 1–4 DONE, C2 pre-scan DONE, D5 steps 1–3 done (step 3 + engine-binding fixes in their gates). TRACK A IS A GATE. <<<
+
+**D5 — ingredient identity** (`docs/v1/06-ingredient-identity.md` is the plan AND the progress log):
+steps 1–2 LANDED `6d5a9cd` (slugs in `scripts/ingredient-map.json`, `src/lib/data/ingredients.generated.ts`
++ `ingredients.ts` `resolveIngredient`, `npm run check:ingredients`). **Step 3** (all 2,296 seed
+references carry a REQUIRED typed `slug`) is verified and ships after the engine-binding fixes — if
+`src/lib/data/seeds.ts` is still modified-but-uncommitted, ship it: slug-blind fingerprint was
+identical, `tsc` clean. **Next: step 4** (lookups through the resolver — tables stay keyed by name,
+see the doc's refinement) and **step 5** (optional `slug` on `Meal.ingredients`, flowing through
+`recipeToMeal`; `types.ts` change is additive — tell the accounts lane, it syncs plans).
+
+**Engine-binding fixes (models lane's findings):** remembered allergy now enforced (`allergensInFact`),
+a "but" clause no longer cancels a typed allergy (`parseExclusionTokens`), slot-scoped constrain says
+"nothing changed", day-scoped constrain keeps exclude/use/cookTime/budget. If not on `origin/main`,
+the gate failed — check `git log` and the ship log.
 
 **C2 pre-scan (safety, pulled forward):** `src/lib/safety.ts` `redFlag` runs on the user's RAW
 message in both assistant routes before any model AND before demo mode; `symptomNote` shares it.
