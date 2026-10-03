@@ -325,7 +325,10 @@ if (resolveProvider() !== "local") {
   console.error("Set AI_PROVIDER=local and LOCAL_AI_URL/LOCAL_AI_MODEL — this eval drives the local adapter.");
   process.exit(1);
 }
-const model = agentModelFn();
+// The date reaches the prompt through the adapter factory where the branch under test supports it
+// (models-exp-date: agentModelFn({ today })); on code without that option the argument is ignored, so
+// the same file measures before and after. The engine gets TODAY via runAgent either way.
+const model = (agentModelFn as (o?: { today?: string }) => ReturnType<typeof agentModelFn>)({ today: TODAY });
 
 // Stamp WHICH prompt this run measured — the prompt is the variable under test, and a scorecard that
 // can't say which one it graded is unreadable a week later. Called through a widened type so this
