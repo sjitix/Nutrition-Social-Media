@@ -68,10 +68,10 @@ never blocks on the owner): `docs/models/OWNER-TODO.md`.
   lane file. **Does not edit** `promptV2.ts` / `ai.ts` / `agentLoop.ts` / `eval-hardcases.mts` (v1's) —
   runs them, and asks v1 before landing any change to them on `main`. Touches no accounts files.
 
-### >>> V1 LANE — 2026-10-03 (evening): Days 1 + 2 DONE. TRACK A IS NOW A GATE. Next: the scoped-swap fix, then Day 3. <<<
+### >>> V1 LANE — 2026-10-03 (night): Days 1 + 2 DONE, swap fix LANDED (`5cab547`). TRACK A IS A GATE. Next: land the models lane's diff, then Day 3. <<<
 
-**State:** `main` pushed (`4e3be01` + docs). `check:boundaries` passes (0 new, **9 known debts**) ·
-`test:engine` **660/0** · `test:ui` **51/0** · `test:api` **60/0** · `tsc` clean. Live lane status:
+**State:** `main` pushed (`5cab547` + docs). `check:boundaries` passes (0 new, **9 known debts**) ·
+`test:engine` **680/0** · `test:ui` **51/0** · `test:api` **60/0** · `tsc` clean. Live lane status:
 `docs/parallel/lane-v1.md`. **Dev server: UP on :3000** (pid 800) — stop it before any `npm run build`.
 
 #### 0. READ THIS FIRST — the owner's ruling, found two weeks late
@@ -126,8 +126,7 @@ C4**, every Track E button gets a chat primitive. Reasoning: `02-module-map.md` 
 - **`eval-hardcases.mts` reports `actedRightV2`** beside v1 (a hold may `remember`/`answer`); v1 kept
   so the 84% baseline stays comparable.
 
-- **Swap fix — in its ship gate** (if it is not on `origin/main`, the gate failed: check `git log`).
-  The FIRST version made every swap resize-only and the engine gate rejected it, rightly — an
+- **Swap fix — LANDED `5cab547`, test:engine 680/0.** The FIRST version made every swap resize-only and the engine gate rejected it, rightly — an
   existing "oatmeal, but keep me on my macros" scenario encodes VISION's owner-written rule that
   edits may replace other meals to hold macros (WORKPLAN **lesson 51**). Shipped version: new
   `Operation.keepOtherMeals` / primitive `swap {only: true}` → resize-only + a named offer;
@@ -141,8 +140,8 @@ C4**, every Track E button gets a chat primitive. Reasoning: `02-module-map.md` 
   `docs/models/`.
 
 **NEXT, in order:**
-1. **Confirm the swap fix landed** (`git log origin/main`), tell the models lane the sha; they then
-   add the `only` line to `promptV2` in `models-exp` (agreed wording in `lane-v1.md`).
+1. ~~Confirm the swap fix landed~~ — done, `5cab547`, and the models lane has the sha; they add the
+   `only` line to `promptV2` in `models-exp` (agreed wording in `lane-v1.md`) before "ready to land".
 2. **Land the models lane's read-tool diff** (`origin/models-exp`, = `d3d0a18`, merged up to date;
    3 files: `primitives.ts`, `promptV2.ts`, `ai.ts`) when they send "ready to land". Reviewed: the
    safety bullet was fixed in `5336ab1`. Land it in its own commit, between Track A days.
