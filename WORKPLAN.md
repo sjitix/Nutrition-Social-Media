@@ -1261,6 +1261,23 @@ Each of these was discovered by doing the work, and each earned its place.
     it is covering nothing.** The fix reports `modelFailed` so callers can tell an unreachable
     model from a finished turn, without discarding work the engine really did.
 
+
+49. **A scripted edit must assert that its anchor matched.** Two edits to `SideNav.tsx` — a new
+    import and a new nav entry — were applied by a `node -e` patch script that printed
+    "Account nav entry added" and changed nothing. `String.replace` returns the input UNCHANGED
+    when the pattern is absent, so a script that prints its own success message asserts nothing at
+    all; the anchor had been mangled by shell quoting on the way in. It was caught only by grepping
+    the RENDERED page afterwards — the label was missing and the href count was wrong — i.e. by
+    checking the output rather than trusting the report.
+    **Every scripted edit either asserts its anchor is present before replacing, or compares the
+    before/after text and fails when they are equal.** Prefer the Edit tool, which refuses when the
+    old string is missing. This is the code-editing form of lessons 5 and 6 (a mutation that never
+    mutated, reported green) and earns its own number because the failure arrives through a tool
+    that said it succeeded. The lesson proved itself twice within a minute: the first version of
+    THIS entry anchored on a newline-joined string, `WORKPLAN.md` is CRLF, and the assertion refused
+    the edit instead of silently writing nothing — and the replacement line then arrived with its
+    escape eaten by the shell, which the memory note about heredocs already warns about.
+
 ---
 
 ## 4. Training track (runs in parallel, never blocked by the above)
