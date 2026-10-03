@@ -1,0 +1,497 @@
+{
+  "ranAt": "2026-10-03T11:33:46.762Z",
+  "model": "openai/gpt-oss-20b",
+  "endpoint": "http://localhost:1234/v1",
+  "keyed": false,
+  "settings": {
+    "concurrency": 1,
+    "maxRetries": 3,
+    "reqTimeoutMs": 300000,
+    "maxTokens": 2000
+  },
+  "cases": 45,
+  "summary": {
+    "schemaOk": 45,
+    "actedRight": 36,
+    "actedRightV2": 36,
+    "grading": "actedRight = v1 (hold = zero ops); actedRightV2 = v2 (hold = nothing plan-shaping moved). Added 2026-10-03.",
+    "changedState": 20,
+    "infraFailures": 0,
+    "trustworthy": true
+  },
+  "byBucket": {
+    "do": {
+      "n": 27,
+      "right": 20,
+      "rightV2": 20
+    },
+    "clarify": {
+      "n": 7,
+      "right": 6,
+      "rightV2": 6
+    },
+    "refuse": {
+      "n": 5,
+      "right": 5,
+      "rightV2": 5
+    },
+    "decline": {
+      "n": 6,
+      "right": 5,
+      "rightV2": 5
+    }
+  },
+  "results": [
+    {
+      "id": "compound-1",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Got it! I’ll trim the budget, switch everything to vegetarian, and make sure no mushroom‑based dishes sneak in. Your meals will stay balanced while keeping costs down. "
+    },
+    {
+      "id": "range-1",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": false,
+      "actedRightV2": false,
+      "changed": false,
+      "infra": false,
+      "reply": "Sure! We’ll keep your …..??"
+    },
+    {
+      "id": "weekend-1",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Got it! I’ll trim the weekend meals so you’re not over‑eating when you’re less active. Let’s keep your favorite dishes but…"
+    },
+    {
+      "id": "everyday-1",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Got it! Pancakes will be your go‑to breakfast every day this week."
+    },
+    {
+      "id": "everyday-correction",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Got it! Pancakes will be your breakfast every day of the week. Enjoy!"
+    },
+    {
+      "id": "ambiguous-1",
+      "bucket": "clarify",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "Sure! Could you let me know which parts of the plan you'd like to adjust—diet, calories, meal timing, or something else?"
+    },
+    {
+      "id": "contradiction-1",
+      "bucket": "refuse",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "I’m happy to help! Just to confirm—do you want a fully vegan week, or do you’d like to keep the rest of the week plant‑based and include chicken only on Friday?"
+    },
+    {
+      "id": "impossible-1",
+      "bucket": "refuse",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "I’m glad you’re aiming high! Reaching 300 g of protein a day on a fully‑vegan menu while keeping the week under $20 is really tough—most plant‑based sources are lower in protein per dollar, and that calorie load would push the budget way above $20. I can help you get as close as possible—maybe around 180–200 g of protein with a tighter budget—but we’ll need to adjust expectations or the budget. Le"
+    },
+    {
+      "id": "reference-scope",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Got it! Only Tuesday will have an Italian vibe this week – the rest stay as they were."
+    },
+    {
+      "id": "health-period",
+      "bucket": "clarify",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "I hear you—period fatigue can be tough. Would you like me to tweak your plan a bit to help lift your energy? For example, we could boost iron‑rich options or bump up protein in the morning. Just let me know what feels right for you!"
+    },
+    {
+      "id": "deficiency-constrained",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": false,
+      "actedRightV2": false,
+      "changed": false,
+      "infra": false,
+      "reply": "We’ll focus on …"
+    },
+    {
+      "id": "memory-apply",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Got it! I’ll slot in a dairy‑free creamy pasta for Tuesday’s dinner. Enjoy!"
+    },
+    {
+      "id": "rambling-multi",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Got it! I’ll switch the entire week to a vegetarian menu, drop any mushroom dishes, and keep all dinners under 20 minutes so you can get back to work faster. If anything feels off, just let me know!"
+    },
+    {
+      "id": "slang-typo",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Got it! I’ll bump up your daily protein goal to about 200 grams so you’re set for that bulk phase."
+    },
+    {
+      "id": "eating-problem",
+      "bucket": "clarify",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "I’m sorry you’re feeling that way—late‑night eating can be tough. What would help most right now? For example, shifting a meal earlier, adding a light bedtime snack, or tweaking the overall calorie plan?"
+    },
+    {
+      "id": "per-slot-protein",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": false,
+      "actedRightV2": false,
+      "changed": false,
+      "infra": false,
+      "reply": "We’ll focus on …"
+    },
+    {
+      "id": "skip-meal",
+      "bucket": "decline",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "I’m sorry, but I can’t remove breakfast entirely—our plans run on three or four meals a day. Would you like a lighter‑time‑to‑cook breakfast that’s easy to skip if you’re not hungry, or…"
+    },
+    {
+      "id": "household-servings",
+      "bucket": "decline",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "\"…"
+    },
+    {
+      "id": "log-and-adapt",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Got it! I’ve logged that you had the burger and fries for lunch today."
+    },
+    {
+      "id": "capabilities",
+      "bucket": "clarify",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "Sure! ..."
+    },
+    {
+      "id": "budget-cuisine",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Got it! I’ll switch your plan to a budget‑friendly Mexican menu for the whole week."
+    },
+    {
+      "id": "macro-pair",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": false,
+      "actedRightV2": false,
+      "changed": false,
+      "infra": false,
+      "reply": "\"…..………………………………………... …………‐…… …………………………………………………………‑……… ……???……………… weekly ……………………cal…………‑…………………………i……..…."
+    },
+    {
+      "id": "quick-week",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "\"…"
+    },
+    {
+      "id": "single-slot-swap",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Sure thing! I’ll swap the Tuesday ‑ dinner for a tasty salmon bowl. Enjoy!"
+    },
+    {
+      "id": "four-meals",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Got it! I’ll add an afternoon snack and set your plan to four meals a day for the whole week."
+    },
+    {
+      "id": "eating-out-future",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Got it! I’ll leave a bit of extra room for your Friday night out—just let me know what you’re planning to eat, and we can tweak the rest of the week if needed."
+    },
+    {
+      "id": "pin-keep",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": false,
+      "actedRightV2": false,
+      "changed": false,
+      "infra": false,
+      "reply": "Got it! I’ll keep Sunday’s dinner exactly as you have it and tweak the rest of your week however you’d like. Let me know what changes you’re after, and I’ll make sure Sunday stays perfect."
+    },
+    {
+      "id": "rate-recur",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Sure! I’ll add the Black Bean & Egg Skillet to your breakfasts for the rest of the week so you can enjoy that tasty start again and again."
+    },
+    {
+      "id": "substitute-advice",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "Sure thing! I can help you swap out the eggs in your Tuesday breakfast. Just let me know if there’s any other preference or tweak…"
+    },
+    {
+      "id": "hydration-profile",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "A good rule of thumb is to aim for about 35 ml of water per kilogram of body‑weight each day, then add a bit more if you’re sweating a lot or training hard. For an 80‑kg active person that’s roughly 2.8–3 litres of fluid daily—about 10–12 cups. If you want me to track this for you, just let me know and I’ll set up a hydration reminder!"
+    },
+    {
+      "id": "explain-slot",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": false,
+      "actedRightV2": false,
+      "changed": false,
+      "infra": false,
+      "reply": "I added …"
+    },
+    {
+      "id": "general-qa",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": false,
+      "actedRightV2": false,
+      "changed": false,
+      "infra": false,
+      "reply": "We’ll……..???"
+    },
+    {
+      "id": "vague-weightloss",
+      "bucket": "clarify",
+      "schemaOk": true,
+      "actedRight": false,
+      "actedRightV2": false,
+      "changed": true,
+      "infra": false,
+      "reply": "Sure thing! I’ll trim your plan so you’re on track to shed some pounds while still getting the nutrients you need. Let’s keep it balanced and tasty—just let me know if there are any foods you love or want to avoid, and we’ll tweak it together."
+    },
+    {
+      "id": "bare-more",
+      "bucket": "clarify",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "Sure! …..…… We’re ……………………………………………………...??? ... .. … …………………op ………ref………………………………"
+    },
+    {
+      "id": "fasting-window",
+      "bucket": "decline",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "We need…..………………………………fasting………...…………2? ...??………………………break………Eating………………………12………..."
+    },
+    {
+      "id": "monthly-plan",
+      "bucket": "decline",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "Sure thing! To make the month’s menu as tasty and balanced as possible, could you let me know if there are any dietary preferences, allergies, budget limits, or meal‑frequency goals I should keep in mind?"
+    },
+    {
+      "id": "vegan-b12",
+      "bucket": "decline",
+      "schemaOk": true,
+      "actedRight": false,
+      "actedRightV2": false,
+      "changed": true,
+      "infra": false,
+      "reply": "Got it! I’ll bump up your B‑12 intake with tasty, fully‑vegan options while keeping the rest of your plan as is."
+    },
+    {
+      "id": "external-sync",
+      "bucket": "decline",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "I’m not able to sync directly to an Apple Watch, but I can send you the full weekly menu in a format you can import into your health‑tracking apps—just let me know how you'd like it sent!"
+    },
+    {
+      "id": "keto-highcarb",
+      "bucket": "refuse",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "I’m glad you’re excited about a new plan! Just so I’m clear, a classic ketogenic diet limits carbs like pasta and rice to keep your body in ketosis. If you’d still love those foods, we could look at lower‑carb alternatives or adjust the overall carb target. Let me know what feels right for you."
+    },
+    {
+      "id": "vegan-eggs",
+      "bucket": "refuse",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "I’m happy to help! Just to be clear—vegan means no animal products at all, so having eggs in the mornings would take us out of that definition. Would you like a fully plant‑based week, or keep the vegan approach for lunch and dinner while still adding eggs each breakfast?"
+    },
+    {
+      "id": "impossible-cal-protein",
+      "bucket": "refuse",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "We’re…..……… …… weekly? ……………………………………cal…………cal……?? ... goal?… High‑………………………??…… ……… ………‐……………………………‑……‑…"
+    },
+    {
+      "id": "cycle-sync-offer",
+      "bucket": "clarify",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "Got it! With your period coming up, you might need a bit of extra support—like boosting iron or keeping meals light and energizing. Is there anything specific you'd like me to tweak for the next few days?"
+    },
+    {
+      "id": "allergy-later-applied",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": false,
+      "infra": false,
+      "reply": "Got it! I’ll add a tasty, high‑protein afternoon snack to every day of your plan. Enjoy the extra boost!"
+    },
+    {
+      "id": "clarify-then-do",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Got it! Switching the whole week to vegan—no animal products at all. Enjoy the fresh plant‑based meals!"
+    },
+    {
+      "id": "correction-replace",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "actedRightV2": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Got it! Switching the entire week to a Mediterranean style plan. Enjoy the fresh flavors!"
+    }
+  ],
+  "variant": "main prompt (before) — local LM Studio, temp 0"
+}
