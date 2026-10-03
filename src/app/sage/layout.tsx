@@ -1,6 +1,7 @@
 import { Fraunces } from "next/font/google";
 import { SageFooter } from "./SageFooter";
 import { SidePanel } from "./SidePanel";
+import { AccountSync } from "./account/AccountSync";
 
 /**
  * The editorial display face.
@@ -45,6 +46,14 @@ const display = Fraunces({
 export default function SageLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className={`${display.variable} theme-sage min-h-screen bg-bgsoft text-plum lg:flex`}>
+      {/*
+        Mounted once for the whole shell, at the accounts lane's request: it renders nothing and
+        exists so account sync runs on every /sage screen rather than only while the account page
+        is open. With no Supabase keys configured it is a no-op, which is what keeps the keyless
+        path and the static Pages export working.
+      */}
+      <AccountSync />
+
       <SidePanel />
 
       {/* ---------- the page ---------- */}

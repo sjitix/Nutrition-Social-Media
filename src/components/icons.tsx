@@ -134,6 +134,13 @@ export const PinIcon = ({ className, filled = false }: IconProps & { filled?: bo
   </svg>
 );
 
+export const PersonIcon = ({ className }: IconProps) => (
+  <svg {...base(className)}>
+    <circle cx="12" cy="8" r="4" />
+    <path d="M4 21v-1a7 7 0 0114 0v1" />
+  </svg>
+);
+
 export const XIcon = ({ className }: IconProps) => (
   <svg {...base(className)}>
     <path d="M18 6L6 18M6 6l12 12" />

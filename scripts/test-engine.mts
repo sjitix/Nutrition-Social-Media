@@ -12,7 +12,7 @@
  * (diet, allergies, exclusions, cook time) are rules, not suggestions — a violation
  * is a bug, and this file is where we find it before a user does.
  */
-import { selectWeekFromDb, rebalanceWeek, applyOperations, RECIPES, recipeMicros, newReport, reportNotes, selectConditionAwareWeek, buildWeek, selectBatchWeek, rebalanceBatchWeek, withSeed, keepDays, freezesWell } from "@/lib/recipeDb";
+import { selectWeekFromDb, rebalanceWeek, applyOperations, RECIPES, recipeMicros, newReport, reportNotes, selectConditionAwareWeek, buildWeek, selectBatchWeek, rebalanceBatchWeek, withSeed, keepDays, freezesWell, previewOperations, swapCandidates } from "@/lib/recipeDb";
 import { conditionBoosts } from "@/lib/conditions";
 import type { UserProfile, Operation, DayPlan, WeekPlan, Meal } from "@/lib/types";
 import { MealSchema, WeekPlanSchema } from "@/lib/types";
@@ -2740,6 +2740,125 @@ console.log("--- VIDEO IMPORT (Phase 2: read a recipe from a reel's caption) ---
 }
 
 
+// ---------------------------------------------------------------- DIRECT MANIPULATION (Track E)
+// previewOperations and swapCandidates back every control in the direct-manipulation layer
+// (docs/v1/05-direct-manipulation.md). They shipped covered only through the HTTP route, which
+// tests the wiring rather than the promise; these test the promise. Both are pure, which is why
+// they belong here rather than in test:api.
+{
+  const dmProfile: UserProfile = { ...BASE };
+  const dmWeek = rebalanceWeek(selectWeekFromDb(dmProfile), dmProfile);
+  const dmDay = dmWeek.days[0].day;
+  const dmSlot = dmWeek.days[0].meals[0].type;
+  const dmDayKcal = dmWeek.days[0].meals.reduce((t, m) => t + m.calories, 0);
+
+  // --- previewOperations: the confirm-before-commit contract ------------------------------------
+  // The whole feature rests on one property: looking must not change anything. A preview that
+  // mutated the plan it was handed would corrupt the week by being DISPLAYED.
+  const planJson = JSON.stringify(dmWeek);
+  const profJson = JSON.stringify(dmProfile);
+  const pv = previewOperations(dmProfile, dmWeek, [{ tool: "regenerate_day", day: dmDay }]);
+  check("preview: does not mutate the plan it was given", JSON.stringify(dmWeek) === planJson);
+  check("preview: does not mutate the profile it was given", JSON.stringify(dmProfile) === profJson);
+  check("preview: reports one row per day", pv.days.length === dmWeek.days.length);
+  check("preview: says whether the plan would change", typeof pv.wouldChangePlan === "boolean");
+  check("preview: carries each day\u2019s calorie target so no caller does the arithmetic",
+    pv.days.every((d) => d.targetKcal > 0));
+
+  // Seeded on purpose: a preview that disagreed with itself between two renders is worse than none.
+  const pvAgain = previewOperations(dmProfile, dmWeek, [{ tool: "regenerate_day", day: dmDay }]);
+  check("preview: is reproducible \u2014 same input, same answer",
+    JSON.stringify(pv.days) === JSON.stringify(pvAgain.days));
+
+  // The delta must describe the CHANGE, not the absolute week; moves must be real moves.
+  const pvDay = pv.days.find((d) => d.day === dmDay);
+  check("preview: the changed day\u2019s delta is the difference it would make",
+    !!pvDay && pvDay.deltaKcal === pvDay.kcal - dmDayKcal);
+  check("preview: every move names a from and a to that differ",
+    pv.moves.every((m) => m.from && m.to && m.from !== m.to));
+
+  // A preview of a refusal must still describe it, because the sheet shows these notes BEFORE
+  // committing \u2014 which is the point of previewing at all.
+  const pvRefuse = previewOperations({ ...dmProfile, diet: "vegan" }, dmWeek, [
+    { tool: "swap_meal", day: dmDay, mealType: dmSlot, dish: "Chicken & Vegetable Stir-Fry with Rice" },
+  ]);
+  check("preview: a refusal is reported in the preview, not discovered after committing",
+    pvRefuse.notes.length > 0);
+
+  // And the simulation must agree with committing the same thing, or the preview lies.
+  const pvRebal = previewOperations(dmProfile, dmWeek, [{ tool: "rebalance_day", day: dmDay }]);
+  const committed = withSeed(0x9e3d, () =>
+    applyOperations(structuredClone(dmProfile), structuredClone(dmWeek), [
+      { tool: "rebalance_day", day: dmDay },
+    ]),
+  );
+  const committedKcal = committed.plan.days
+    .find((d) => d.day === dmDay)!
+    .meals.reduce((t, m) => t + m.calories, 0);
+  check("preview: matches what committing the same operation produces",
+    pvRebal.days.find((d) => d.day === dmDay)!.kcal === committedKcal,
+    `preview ${pvRebal.days.find((d) => d.day === dmDay)!.kcal} vs commit ${committedKcal}`);
+
+  // --- swapCandidates: never offer what the executor would refuse ------------------------------
+  const cands = swapCandidates(dmProfile, dmWeek, dmDay, dmSlot, 6);
+  check("candidates: returns at most the limit asked for", cands.rows.length <= 6);
+  check("candidates: names the dish currently in the slot",
+    cands.current?.name === dmWeek.days[0].meals[0].name);
+  check("candidates: states what the slot aims at",
+    cands.slotTarget.calories > 0 && cands.slotTarget.protein > 0);
+  check("candidates: every row is the right meal type for the slot",
+    cands.rows.every((r) => RECIPES.find((x) => x.name === r.name)?.type === dmSlot));
+  check("candidates: deltas are measured against the dish in the slot",
+    cands.rows.every((r) => r.deltaKcal === r.calories - (cands.current?.calories ?? 0)));
+
+  // I4 forbids repeating a dish within a day, so offering one already there would be offering a
+  // move the executor refuses. Being shown a dish and then told no is worse than not being shown it.
+  const sameDay = new Set(dmWeek.days[0].meals.map((m) => m.name));
+  check("candidates: never offers a dish already on that day (I4)",
+    cands.rows.every((r) => !sameDay.has(r.name)));
+
+  // The hard rules are the engine\u2019s, and the candidate list must inherit every one of them.
+  const veganC = swapCandidates({ ...dmProfile, diet: "vegan" }, dmWeek, dmDay, dmSlot, 12);
+  check("candidates: a vegan is offered only vegan-tagged dishes",
+    veganC.rows.every((r) => RECIPES.find((x) => x.name === r.name)?.dietTags.includes("vegan")),
+    veganC.rows.map((r) => r.name).join(", "));
+
+  const nutC = swapCandidates({ ...dmProfile, allergies: "peanuts" }, dmWeek, dmDay, dmSlot, 12);
+  check("candidates: a peanut allergy is offered nothing containing peanut",
+    nutC.rows.every((r) => {
+      const rec = RECIPES.find((x) => x.name === r.name);
+      return !/peanut/i.test(r.name) && !(rec?.ingredients ?? []).some((i) => /peanut/i.test(i.name));
+    }),
+    nutC.rows.map((r) => r.name).join(", "));
+
+  const quickC = swapCandidates({ ...dmProfile, maxCookTime: 10 }, dmWeek, dmDay, dmSlot, 12);
+  check("candidates: a cook-time limit holds, or is relaxed by the engine\u2019s own fixed steps",
+    quickC.rows.every((r) => r.minutes <= 10 + 15), quickC.rows.map((r) => r.minutes).join(","));
+
+  // A dish rated 1 means "never serve this again" \u2014 the swap list is the one place that would
+  // otherwise hand it straight back.
+  const hated = dmWeek.days[1].meals[0].name;
+  const hatedType = RECIPES.find((r) => r.name === hated)?.type ?? dmSlot;
+  const bannedC = swapCandidates(
+    { ...dmProfile, mealRatings: [{ name: hated, rating: 1 }] }, dmWeek, dmDay, hatedType, 12,
+  );
+  check("candidates: a dish rated 1 is never offered back",
+    bannedC.rows.every((r) => r.name !== hated), hated);
+
+  // The protein floor is a FLOOR: asking for 30 g is not asking to be handed 29.
+  const floorC = swapCandidates(dmProfile, dmWeek, dmDay, dmSlot, 12, 30);
+  check("candidates: a protein floor excludes everything under it",
+    floorC.rows.every((r) => r.protein >= 30), floorC.rows.map((r) => r.protein).join(","));
+  check("candidates: a floor reports whether resizing what is there could reach it",
+    floorC.resizeReaches !== null && typeof floorC.resizeReaches.possible === "boolean");
+  check("candidates: no floor asked for means no resize claim is made",
+    cands.resizeReaches === null);
+
+  // An unreachable floor must come back empty and honest rather than with near-misses.
+  const impossibleC = swapCandidates(dmProfile, dmWeek, dmDay, dmSlot, 12, 500);
+  check("candidates: an unreachable floor returns nothing rather than near-misses",
+    impossibleC.rows.length === 0);
+}
 // ---------------------------------------------------------------- 3. fuzz
 console.log("\n--- FUZZ (random op sequences, invariants after each) ---");
 const DAYS_L = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;

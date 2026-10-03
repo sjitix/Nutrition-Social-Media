@@ -9,6 +9,7 @@ import {
   ClockIcon,
   CompassIcon,
   HomeIcon,
+  PersonIcon,
 } from "@/components/icons";
 
 /**
@@ -28,6 +29,11 @@ const TABS = [
   ["/sage/explore", "Explore", CompassIcon],
   ["/sage/groceries", "Groceries", CartIcon],
   ["/sage/assistant", "Assistant", ChatIcon],
+  // Added at the accounts lane's request (docs/parallel/lane-accounts.md). That lane owns
+  // /sage/account; this nav file is the v1 lane's, so the entry point is added from here rather
+  // than by one agent reaching into the other's territory. MobileNav maps the same array and is a
+  // horizontally scrolling row, so a seventh entry extends the scroll instead of cramping the bar.
+  ["/sage/account", "Account", PersonIcon],
 ] as const;
 
 // Exact match for Home, prefix for the rest, so /sage/plan does not light up Home.
