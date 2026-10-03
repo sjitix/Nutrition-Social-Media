@@ -218,7 +218,8 @@ export function applyRemember(profile: UserProfile, r: RememberOp, today?: strin
 // The uniform `op`-based verbs (so the model speaks ONE vocabulary — every op has an `op`), each
 // mapping to an existing tested engine tool. This keeps the model's surface general while the
 // engine keeps its proven internals.
-// no days = every day. only = the user scoped it ("just dinner"): resize the other meals, never replace them.
+// no days (or all seven) = every day; one or more days = exactly those days. only = the user scoped it
+// ("just dinner"): resize the other meals, never replace them.
 export interface SwapOp { op: "swap"; dish: string; slot?: MealType; days?: Day[]; only?: boolean }
 export interface LogOp { op: "log"; day: Day; slot: MealType; dish: string; calories?: number; protein?: number }
 export interface ReserveOp { op: "reserve"; day: Day; slot: MealType; calories?: number }
@@ -237,13 +238,32 @@ export type VerbOp =
   | SwapOp | LogOp | ReserveOp | ResizeOp | RateOp | PinOp | ReportOp
   | ExplainOp | SubstituteOp | SymptomOp | HydrationOp | UndoOp | AnswerOp;
 
-/** A uniform `op` verb → the existing engine Operation. `answer` maps to nothing (pure reply). */
-export function verbToOperation(o: VerbOp): Operation | null {
+/**
+ * A uniform `op` verb → the existing engine Operation(s). `answer` maps to nothing (pure reply).
+ *
+ * A list, because a swap over SEVERAL days is one engine swap per day. It used to map only a single
+ * day and send every longer list down the every-day path, so "make Wednesday to Sunday's breakfast the
+ * porridge" replaced Monday's and Tuesday's too, under a note saying "every day" — a real 550B turn
+ * (models lane, 2026-10-03). No days, or all seven, is still the one every-day swap and its one note.
+ */
+export function verbToOperations(o: VerbOp): Operation[] {
   switch (o.op) {
     case "swap": {
-      const day = o.days && o.days.length === 1 ? o.days[0] : null; // no/none-single day = every day
-      return { tool: "swap_meal", dish: o.dish, mealType: o.slot ?? null, day, keepOtherMeals: o.only ?? null } as Operation;
+      const swap = (day: Day | null) => ({ tool: "swap_meal", dish: o.dish, mealType: o.slot ?? null, day, keepOtherMeals: o.only ?? null }) as Operation;
+      const days = [...new Set(o.days ?? [])].sort((a, b) => DAYS.indexOf(a) - DAYS.indexOf(b));
+      if (days.length === 0 || DAYS.every((d) => days.includes(d))) return [swap(null)];
+      return days.map(swap);
     }
+    default: {
+      const one = verbToOperation(o);
+      return one ? [one] : [];
+    }
+  }
+}
+
+/** Every verb but `swap`, which can span days and so goes through `verbToOperations`. */
+function verbToOperation(o: Exclude<VerbOp, SwapOp>): Operation | null {
+  switch (o.op) {
     case "log": return { tool: "log_meal", day: o.day, mealType: o.slot, dish: o.dish, loggedCalories: o.calories ?? null, loggedProtein: o.protein ?? null } as Operation;
     case "reserve": return { tool: "eating_out", day: o.day, mealType: o.slot, estimatedCalories: o.calories ?? null } as Operation;
     case "resize": return { tool: "scale_portions", portionChange: o.direction, day: o.day ?? null, mealType: o.slot ?? null } as Operation;
@@ -314,8 +334,7 @@ export function applyPrimitives(
       const honest = slotScopeNote(o);
       if (honest) extraNotes.push(honest);
     } else if (isVerb(o)) {
-      const mapped = verbToOperation(o);
-      if (mapped) flat.push(mapped);
+      flat.push(...verbToOperations(o));
     } else {
       flat.push(o as Operation); // a raw {tool:…} Operation, passed straight through
     }

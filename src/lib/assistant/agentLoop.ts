@@ -42,6 +42,29 @@ export const MAX_STEPS = 8;
 export const FALSE_CLAIM_NUDGE =
   "Nothing was applied: no operation ran, but your reply says something changed. Send the operation now, or tell the user plainly that nothing has changed yet.";
 
+/**
+ * The same nudge when the only thing that ran was a `remember`. A saved memory backs none of the
+ * claims `claimsChange` looks for — they are all about the week — so "Done — I've made your whole
+ * week vegetarian" with only a remember sent was shown to the user as true (models lane, 2026-10-03).
+ * Telling the model "no operation ran" would be false, so this says what did.
+ */
+export const FALSE_CLAIM_NUDGE_MEMORY =
+  "Only a memory was saved: nothing in the plan or the settings changed, but your reply says something did. Send the operation now, or tell the user plainly what you noted and that the plan has not changed yet.";
+
+/** Plain data, keys sorted, so two profiles compare by content: the engine rebuilds objects, and
+ *  key order is not a change (the accounts lane learned the same about Postgres jsonb). */
+const canon = (x: unknown): unknown =>
+  Array.isArray(x) ? x.map(canon)
+  : x && typeof x === "object" ? Object.fromEntries(Object.keys(x as object).sort().map((k) => [k, canon((x as Record<string, unknown>)[k])]))
+  : x;
+const same = (a: unknown, b: unknown) => JSON.stringify(canon(a)) === JSON.stringify(canon(b));
+/** Did the profile change in a way a claim could be about — anything but the memory? */
+const editedApartFromMemory = (a: UserProfile, b: UserProfile) => {
+  const { memory: _a, ...restA } = a;
+  const { memory: _b, ...restB } = b;
+  return !same(restA, restB);
+};
+
 /** One reason-then-act turn: exactly what the v2 model was trained to emit. */
 export interface AgentTurn {
   thinking: string;
@@ -93,6 +116,12 @@ export interface AgentRunResult {
   falseClaimRetried: boolean;
   /** …and still claimed it, so the reply was replaced with an honest one (reply.ts NOTHING_CHANGED_REPLY). */
   falseClaimCaught: boolean;
+  /**
+   * The finishing call was skipped: the last step only wrote, the engine changed something and wrote
+   * notes — which ARE the reply (composeReply) — and the model's turn carried a reply of its own, so it
+   * was not mid-plan. A refusal, a lookup, or an empty reply still goes back to the model.
+   */
+  fastFinished: boolean;
 }
 
 const isRead = (o: PrimitiveOp): boolean => isReadTool(String((o as { op?: string }).op ?? ""));
@@ -143,6 +172,11 @@ export async function runAgent(args: {
   let gaveUp = false;
   let modelFailed = false;
   let falseClaimRetried = false;
+  let fastFinished = false;
+  // What can back a claim the model makes in its own words: a plan change, the engine's notes, a crisis
+  // override, or a real edit to the profile. A memory saved cannot — see FALSE_CLAIM_NUDGE_MEMORY.
+  const profileEdited = () => editedApartFromMemory(args.profile, profile);
+  const memorySaved = () => !same(args.profile.memory ?? [], profile.memory ?? []);
 
   while (steps < maxSteps) {
     steps++;
@@ -165,10 +199,11 @@ export async function runAgent(args: {
     if (ops.length === 0) {
       // The model says it is done. If its reply is the only thing the user will read (the engine is
       // silent) and it claims a change that nothing made, give it one step to make it real or retract.
-      const unbacked = !planChanged && !profileChanged && notes.length === 0 && replyOverride === undefined;
+      const unbacked = !planChanged && !profileEdited() && notes.length === 0 && replyOverride === undefined;
       if (!falseClaimRetried && unbacked && claimsChange(lastReply) && steps < maxSteps) {
         falseClaimRetried = true;
-        transcript.push({ role: "tool", name: "apply", result: { notes: [FALSE_CLAIM_NUDGE], planChanged: false, profileChanged: false } });
+        transcript.push({ role: "tool", name: "apply",
+          result: { notes: [memorySaved() ? FALSE_CLAIM_NUDGE_MEMORY : FALSE_CLAIM_NUDGE], planChanged: false, profileChanged: false } });
         continue;
       }
       break;
@@ -210,6 +245,20 @@ export async function runAgent(args: {
           profileChanged: res.profileChanged,
         },
       });
+
+      // FAST FINISH (the models lane's change 2). After a write the loop calls the model once more so
+      // it can finish — but when the engine wrote notes, composeReply returns the notes and discards
+      // what that call says, so on "make Tuesday vegetarian" it cost a full model call (10–20 s on the
+      // 550B) for nothing the user sees. Skipped when this step ONLY wrote, the engine changed
+      // something, and it wrote notes — and (v1's rule) the model's turn carried a reply of its own: a
+      // model planning writes across steps leaves it empty and must not be cut short. A refusal
+      // (nothing changed) and any step with a lookup still go back to the model. Measured 2026-10-03,
+      // 550B, reasoning off: the reply rule withheld a skip 0 times in 26 loop and 28 conversation
+      // turns, scores unchanged (23/26; 12 vs 11 of 14, run-to-run noise), calls per message 1.39 → 1.29.
+      if (!reads.length && (res.planChanged || res.profileChanged) && res.notes.length > 0 && lastReply.trim()) {
+        fastFinished = true;
+        break;
+      }
     }
 
     if (steps >= maxSteps) gaveUp = true;
@@ -225,7 +274,8 @@ export async function runAgent(args: {
     );
   }
 
-  const reply = composeReply({ modelReply: lastReply, notes, replyOverride, planChanged, profileChanged });
+  // profileChanged here is "changed in a way a claim could be about": a saved memory is not (above).
+  const reply = composeReply({ modelReply: lastReply, notes, replyOverride, planChanged, profileChanged: profileEdited(), memorySaved: memorySaved() });
   return {
     reply,
     plan,
@@ -241,5 +291,6 @@ export async function runAgent(args: {
     notes,
     falseClaimRetried,
     falseClaimCaught: reply !== lastReply.trim() && notes.length === 0 && replyOverride === undefined && claimsChange(lastReply),
+    fastFinished,
   };
 }

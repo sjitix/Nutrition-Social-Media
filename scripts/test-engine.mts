@@ -20,7 +20,7 @@ import { FEED_RECIPES, filterFeed, sortFeed, HIGH_PROTEIN_G, type FeedFilter } f
 import { videoPlatform, extractVideoText } from "@/lib/videoImport";
 import { aisleFor, groupByAisle, AISLE_ORDER } from "@/lib/grocery";
 import { currentStreak, prevDay, isoDay, requestDay } from "@/lib/streak";
-import { expandConstrain, applyRemember, applyPrimitives, memoryContext, AssistantTurnV2Schema, allergensInFact, type PrimitiveOp } from "@/lib/primitives";
+import { expandConstrain, applyRemember, applyPrimitives, memoryContext, AssistantTurnV2Schema, allergensInFact, verbToOperations, type PrimitiveOp, type VerbOp } from "@/lib/primitives";
 import { assistantV2SystemPrompt } from "@/lib/promptV2";
 import { redFlag, CRISIS_REPLY } from "@/lib/safety";
 import { tableKey, INGREDIENTS, resolveIngredient } from "@/lib/data/ingredients";
@@ -30,7 +30,7 @@ import { microsForIngredients } from "@/lib/nutrients";
 import { bulkGroceriesFromWeek, formatBulkQuantity, batchEfficiency } from "@/lib/batchGrocery";
 import { haystackBlocked, dietTagConflicts, parseExclusionTokens, expandExclusion, EXCLUSION_CATEGORIES } from "@/lib/exclusions";
 import { bmr, computeTargets, hydrationTarget, CALORIE_FLOOR, DEFAULT_CALORIE_FLOOR, BODY_LIMITS, bodyStatMessage, referenceWeightKg } from "@/lib/targets";
-import { composeReply, planWasChanged, describeOperations, READ_ONLY_TOOLS, claimsChange, NOTHING_CHANGED_REPLY } from "@/lib/reply";
+import { composeReply, planWasChanged, describeOperations, READ_ONLY_TOOLS, claimsChange, NOTHING_CHANGED_REPLY, NOTED_NOTHING_CHANGED_REPLY } from "@/lib/reply";
 import { SUBSTITUTES } from "@/lib/substitutions";
 import { NUTRIENT_TABLE } from "@/lib/nutrientTable.generated";
 import { UNIT_GRAMS } from "@/lib/unitGrams.generated";
@@ -42,7 +42,7 @@ import {
   findRecipes, inspectRecipe, getPlan, getProfile, getSaved, report, whatIf,
   runReadTool, isReadTool, READ_TOOL_NAMES, MAX_ROWS,
 } from "@/lib/agentTools";
-import { runAgent, MAX_STEPS, FALSE_CLAIM_NUDGE, type AgentTurn, type ModelFn } from "@/lib/agentLoop";
+import { runAgent, MAX_STEPS, FALSE_CLAIM_NUDGE, FALSE_CLAIM_NUDGE_MEMORY, type AgentTurn, type ModelFn } from "@/lib/agentLoop";
 import { localExtraBody } from "@/lib/providers/extraBody";
 
 // ---------------------------------------------------------------- harness
@@ -4538,6 +4538,37 @@ if (violations.size === 0) {
 
 // ---------------------------------------------------------------- AGENT LOOP
 // VISION RULE 2: the loop is deterministic infrastructure and is tested with NO model at all.
+// A swap over SEVERAL days touches exactly those days. It used to map a single day only and send any
+// longer list down the every-day path: a 550B turn sent days Wednesday–Sunday and Monday's and
+// Tuesday's breakfasts were replaced too, under a note saying "every day" (models lane, 2026-10-03).
+{
+  console.log("\n--- SWAP OVER DAYS (a range is those days, not every day) ---");
+  const DISH = "Apple Cinnamon Protein Porridge";
+  const week = freshWeek(BASE);
+  const breakfasts = (w: WeekPlan) => w.days.map((d) => d.meals.find((m) => m.type === "breakfast")?.name ?? "");
+  const before = breakfasts(week);
+  const swap = (days?: string[]) => ({ op: "swap", dish: DISH, slot: "breakfast", ...(days ? { days } : {}) }) as unknown as PrimitiveOp;
+  const WED_SUN = ["Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  const r = withSeed(7, () => applyPrimitives(BASE, week, [swap(WED_SUN)]));
+  const after = breakfasts(r.plan);
+  check("swap over days: Monday's and Tuesday's breakfasts are left alone",
+    after[0] === before[0] && after[1] === before[1], `${before.slice(0, 2).join(" | ")} -> ${after.slice(0, 2).join(" | ")}`);
+  check("swap over days: every named day gets the dish", after.slice(2).every((n) => n === DISH), after.slice(2).join(" | "));
+  check("swap over days: no note says 'every day'", !r.notes.some((n) => /every day/i.test(n)), r.notes.join(" | ").slice(0, 160));
+  const one = withSeed(7, () => applyPrimitives(BASE, week, [swap(["Friday"])]));
+  check("swap over days: a single day still changes that day's breakfast only",
+    breakfasts(one.plan).every((n, i) => (i === 4 ? n === DISH : n === before[i])), breakfasts(one.plan).join(" | "));
+  const all = withSeed(7, () => applyPrimitives(BASE, week, [swap(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"])]));
+  const none = withSeed(7, () => applyPrimitives(BASE, week, [swap()]));
+  check("swap over days: all seven named is the every-day swap, plan and note alike",
+    JSON.stringify(all.plan) === JSON.stringify(none.plan) && all.notes.join("|") === none.notes.join("|"));
+  const ops = verbToOperations({ op: "swap", dish: DISH, days: ["Friday", "Wednesday", "Friday"] } as VerbOp);
+  check("swap over days: one engine swap per distinct day, in week order",
+    ops.length === 2 && ops.every((o) => o.tool === "swap_meal") && ops.map((o) => o.day).join(",") === "Wednesday,Friday", JSON.stringify(ops.map((o) => o.day)));
+  check("swap over days: an empty list is no list (every day)", verbToOperations({ op: "swap", dish: DISH, days: [] } as unknown as VerbOp).map((o) => o.day).join() === "");
+  check("swap over days: answer still maps to nothing", verbToOperations({ op: "answer" } as VerbOp).length === 0);
+}
+
 // Every "provider" below is a scripted function returning canned turns. No GPU, no keys, no
 // fine-tune — so a harness bug can never again be confused with a model weakness.
 {
@@ -4718,6 +4749,91 @@ if (violations.size === 0) {
       const r = await runAgent({ ...base, model: p.fn, maxSteps: 1 });
       check("false claim: with no step left to retry, the claim is still never shown",
         r.reply === NOTHING_CHANGED_REPLY && r.steps === 1, r.reply.slice(0, 60));
+    }
+  }
+
+  // A memory saved backs no claim about the week (models lane, 2026-10-03, reproduced with a scripted
+  // model): ops [remember], reply "Done — I've made your whole week vegetarian." reached the user,
+  // because the memory set profileChanged and the guard took that as backing.
+  {
+    const CLAIM = "Done — I've made your whole week vegetarian.";
+    const remember = { op: "remember", fact: "wants vegetarian" } as unknown as PrimitiveOp;
+    const nudged = (r: { transcript: { role: string; result?: unknown }[] }, text: string) =>
+      r.transcript.some((e) => e.role === "tool" && ((e.result as { notes?: string[] })?.notes ?? []).includes(text));
+    // Their repro: the claim rides on a remember, and the model then says it again.
+    {
+      const p = scripted([turn(CLAIM, [remember]), turn(CLAIM)]);
+      const r = await runAgent({ ...base, model: p.fn });
+      check("memory + claim: the claim is never shown; the line says what was kept", r.reply === NOTED_NOTHING_CHANGED_REPLY, r.reply.slice(0, 80));
+      check("memory + claim: the model is nudged once, told that only a memory was saved",
+        r.falseClaimRetried && r.falseClaimCaught && nudged(r, FALSE_CLAIM_NUDGE_MEMORY) && !nudged(r, FALSE_CLAIM_NUDGE), `steps ${r.steps}`);
+      check("memory + claim: the memory itself is kept, and reported as a profile change",
+        r.profileChanged === true && (r.profile.memory ?? []).some((m) => m.fact === "wants vegetarian"));
+      check("memory + claim: the plan is untouched and not reported as changed",
+        r.planChanged === false && JSON.stringify(r.plan) === JSON.stringify(plan));
+    }
+    // Nudged, the model sends the operation it claimed: it runs, and the engine's notes are the reply.
+    {
+      const p = scripted([turn(CLAIM, [remember]), turn(CLAIM),
+        turn("", [{ op: "constrain", diet: "vegetarian" } as unknown as PrimitiveOp]), turn("Your week is vegetarian now.")]);
+      const r = await runAgent({ ...base, model: p.fn });
+      check("memory + claim, fixed: the operation sent after the nudge really runs",
+        r.planChanged === true && r.falseClaimRetried && !r.falseClaimCaught && r.notes.length > 0, `steps ${r.steps}`);
+    }
+    // An honest confirmation of a memory costs nothing extra and is shown as written.
+    {
+      const OK = "Got it — I'll remember that you're vegetarian.";
+      const p = scripted([turn(OK, [remember]), turn(OK)]);
+      const r = await runAgent({ ...base, model: p.fn });
+      check("memory, honest: the confirmation stands, with no nudge and no extra call",
+        r.reply === OK && !r.falseClaimRetried && p.calls() === 2, `${p.calls()} calls: ${r.reply.slice(0, 60)}`);
+    }
+    check("memory: neither honest line makes a claim of its own",
+      !claimsChange(NOTED_NOTHING_CHANGED_REPLY) && !claimsChange(NOTHING_CHANGED_REPLY));
+    check("memory: composeReply uses the 'noted' line only when a memory was saved",
+      composeReply({ modelReply: CLAIM, notes: [], planChanged: false, profileChanged: false, memorySaved: true }) === NOTED_NOTHING_CHANGED_REPLY &&
+      composeReply({ modelReply: CLAIM, notes: [], planChanged: false, profileChanged: false }) === NOTHING_CHANGED_REPLY);
+  }
+
+  // FAST FINISH (the models lane's change 2, with v1's reply rule). The finishing call is skipped only
+  // when it could not change what the user reads: the step only wrote, the engine changed something
+  // and wrote notes (which ARE the reply), and the model's turn carried a reply of its own.
+  {
+    const veg = { op: "constrain", diet: "vegetarian" } as unknown as PrimitiveOp;
+    const notesReply = (r: { notes: string[] }) => [...new Set(r.notes.map((n) => n.trim()).filter(Boolean))].join(" ");
+    {
+      const p = scripted([turn("Making your week vegetarian.", [veg]), turn("THE FINISHING CALL WAS MADE")]);
+      const r = await runAgent({ ...base, model: p.fn });
+      check("fast finish: a write that changed the plan, with a reply, costs ONE call",
+        r.steps === 1 && p.calls() === 1 && r.fastFinished, `steps ${r.steps}, calls ${p.calls()}`);
+      check("fast finish: ...the reply is the engine's notes, exactly as with the extra call",
+        r.planChanged && r.notes.length > 0 && r.reply === notesReply(r), r.reply.slice(0, 80));
+      check("fast finish: ...and it is a finish, not a give-up", !r.gaveUp && !r.modelFailed);
+    }
+    {
+      const p = scripted([turn("", [veg]), turn("Your week is vegetarian.")]);
+      const r = await runAgent({ ...base, model: p.fn });
+      check("fast finish: an EMPTY reply (the model may be mid-plan) still gets its finishing call",
+        p.calls() === 2 && !r.fastFinished && r.planChanged, `${p.calls()} calls`);
+    }
+    {
+      const nothing = { op: "swap", dish: "Zzq Imaginary Dish That Does Not Exist", slot: "dinner", days: ["Monday"] } as unknown as PrimitiveOp;
+      const p = scripted([turn("Swapping that in.", [nothing]), turn("I couldn't find that dish — want something close?")]);
+      const r = await runAgent({ ...base, model: p.fn });
+      check("fast finish: a refusal (nothing changed) goes back to the model, which can answer it",
+        r.planChanged === false && p.calls() === 2 && !r.fastFinished, `planChanged ${r.planChanged}, ${p.calls()} calls`);
+    }
+    {
+      const look = { op: "find_recipes", diet: "vegetarian", limit: 3 } as unknown as PrimitiveOp;
+      const p = scripted([turn("Here you go.", [look, veg]), turn("Your week is vegetarian.")]);
+      const r = await runAgent({ ...base, model: p.fn });
+      check("fast finish: a step with a lookup keeps its finishing call (the model has results to read)",
+        p.calls() === 2 && !r.fastFinished, `${p.calls()} calls`);
+    }
+    {
+      const p = scripted([turn("Making your week vegetarian.", [veg])]);
+      const r = await runAgent({ ...base, model: p.fn, maxSteps: 1 });
+      check("fast finish: on the last allowed step it is still a finish, not a give-up", r.fastFinished && !r.gaveUp && r.steps === 1);
     }
   }
 
