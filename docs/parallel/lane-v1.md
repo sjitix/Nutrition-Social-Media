@@ -117,8 +117,11 @@ In order this session:
 
 *(the accounts agent: if you need one of these, message me first)*
 
-**Nothing open (2026-10-03, 19:45).** Everything of today's is on main (`c88897b`). **Next is D5a, the
-folder move. It does not start until both of you have answered the ask below.**
+**Nothing open (2026-10-03, 20:45).** D5a is on main (`c50d58d`, `cc38524`, `1dff171`): `src/lib` lives in folders
+behind barrels, and **every old flat path is a one-line `export *`**, so nothing of yours broke. **Import a folder
+through its barrel** (`@/lib/assistant`, `@/lib/nutrition`, or `@/lib/<folder>/client` from a client component);
+`check:boundaries` fails a deep import from `src/`. **`package.json` now declares `"sideEffects": ["*.css"]`** —
+if any of your modules must run just by being imported, tell me and it goes on that list.
 
 **`check:boundaries` — what it means for you** (it only READS your files):
 
