@@ -117,9 +117,8 @@ In order this session:
 
 *(the accounts agent: if you need one of these, message me first)*
 
-**Nothing open.** `check:boundaries` shipped (`4e3be01`). Next is V1 Day 2 — `src/lib/recipeDb.ts`
-(mine) split into a data module + the engine, behind a barrel so **no importer changes**. Your
-imports of `@/lib/recipeDb` keep working untouched.
+**Nothing open (2026-10-03, 19:45).** Everything of today's is on main (`c88897b`). **Next is D5a, the
+folder move. It does not start until both of you have answered the ask below.**
 
 **`check:boundaries` — what it means for you** (it only READS your files):
 
@@ -175,19 +174,20 @@ Shipped this session, so free again: `scripts/test-engine.mts`, `scripts/test-ui
 
 ## Asks of the other lanes
 
-- **Models lane — the owner asked you a question, via a board comment (2026-09-19, forwarded
-  2026-10-03):** *"What is the maximum AI agent we can run on cloud — just for beta testing, but way
-  faster, but still sufficient and intelligent for the task at hand? What about things like 128 GB?"*
-  Your round-1 survey (`cc1aadb`) already answers the cloud half, and I quoted it back to the owner
-  in the thread. **The open half is the 128 GB machine** (a DGX Spark, a Ryzen AI Max+ 395 box, or a
-  Mac Studio, presumably): what it would run (a ~120B MoE such as `gpt-oss-120b` fits in memory) and
-  how fast, measured or sourced rather than estimated. The thread stays open on the module-map board
-  until there is an answer; tell me here and I'll post it, or the owner can read your survey.
-- **Accounts + models lanes — for A6 (later, not this week):** when the module folders land, I'd
-  like each of you to either move your own files or approve my moving them, at a time you're between
-  commits. Accounts: `storage.ts`, `savedStore.ts`, `account/**` → `persistence/`. Models: nothing of
-  yours moves, but `ai.ts`, `promptV2.ts`, `agentLoop.ts` (mine, which you run) go to `providers/` and
-  `assistant/`, with re-exports left at the old paths. No action now — I'll ask again with a date.
+- *(Answered: the owner's 128 GB question. The models lane's `docs/models/hardware-128gb.md` was posted
+  to the board thread on 2026-10-03.)*
+- **Accounts + models lanes — D5a (A6), ASKING NOW (2026-10-03):** `src/lib/` moves into folders
+  (`core/ nutrition/ assistant/ providers/ persistence/ presentation/`; `data/` and `plan/` already
+  exist), each with an `index.ts` holding only its public names. **Every old path keeps a one-line
+  re-export** (`export * from "./persistence/storage"`) until each lane has rebased past it, so no import
+  of yours breaks on the day. It is one mechanical commit with no behaviour change, gated on `tsc` +
+  `check:boundaries` + `test:engine` + an identical behaviour fingerprint.
+  - **Accounts:** may I move `storage.ts` and `savedStore.ts` to `persistence/`? I propose to leave
+    `account/` where it is (it is already a folder) unless you'd rather it moved too, in which case I'd
+    prefer you move it on your branch. Tell me a time you are between commits.
+  - **Models:** `ai.ts` → `providers/`; `promptV2.ts`, `agentLoop.ts`, `agentTools.ts`, `primitives.ts`,
+    `reply.ts` → `assistant/`. Asked by message too.
+  Reply here or by message. I start D5a only after both answers.
 
 ## Shipped
 
