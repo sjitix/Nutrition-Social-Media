@@ -123,6 +123,15 @@ const loggedOn = (r: AgentRunResult, b: WeekPlan, d: string, t: string) =>
       const x = o as { op?: string; day?: string; slot?: string };
       return x.op === "log" && x.day === d && x.slot === t;
     })));
+/** The reply CLAIMS a change ("Done —", "I've made…", "Wednesday now has 2000 kcal…") but no write
+ *  operation ran in the whole message. With reasoning off the 550B did this 2 times in 28 turns
+ *  (0 in 84 with reasoning on), imitating the engine's note style from earlier turns, so it is
+ *  checked on every turn, act or hold. */
+const CLAIM = /^(done|all set)|now (has|lands|averages|comes to)|i(?:'ve| have) (made|swapped|changed|updated|added|lightened|moved|set|replaced|resized)/i;
+const falseClaim = (r: AgentRunResult) =>
+  !r.planChanged && !r.profileChanged &&
+  !r.transcript.some((e) => e.role === "assistant" && e.turn.operations.some((o) => !isReadTool(String((o as { op?: string }).op)))) &&
+  CLAIM.test(r.reply.trim());
 // A hold may still `remember` a fact (that's good nutritionist behaviour); it may not change the PLAN.
 const holdCheck = (r: AgentRunResult) => (r.planChanged ? "changed the plan when it should have held" : null);
 
@@ -375,6 +384,8 @@ interface Row {
   writes: string;
   /** Real model calls this message cost (steps minus any FAST_FINISH skips). */
   modelCalls: number;
+  /** The reply claimed a change when no write ran (see falseClaim). */
+  falseClaim: boolean;
 }
 const EMOJI = /\p{Extended_Pictographic}/u;
 const rows: Row[] = [];
@@ -405,7 +416,7 @@ for (const s of scenarios) {
       r = await runAgent({ profile: structuredClone(PROFILE), plan: structuredClone(PLAN), message: s.message, history, today: TODAY, model });
     }
   } catch (e) {
-    rows.push({ id: s.id, want: s.want, pass: false, infra: true, reason: `threw: ${(e as Error).message}`, steps: 0, gaveUp: false, modelFailed: true, seconds: (performance.now() - t0) / 1000, readFirst: null, ops: [], reply: "", emoji: false, engineIssue: null, writes: "", modelCalls: 0 });
+    rows.push({ id: s.id, want: s.want, pass: false, infra: true, reason: `threw: ${(e as Error).message}`, steps: 0, gaveUp: false, modelFailed: true, seconds: (performance.now() - t0) / 1000, readFirst: null, ops: [], reply: "", emoji: false, engineIssue: null, writes: "", modelCalls: 0, falseClaim: false });
     console.log(`!! ${s.id.padEnd(18)} threw`);
     continue;
   }
@@ -428,9 +439,10 @@ for (const s of scenarios) {
   const readFirst = s.expectRead ? firstRead >= 0 && (firstWrite < 0 || firstRead < firstWrite) : null;
 
   const infra = r.modelFailed;
-  const reason = infra ? "model unreachable / failed (infra)" : s.check(r, before);
+  const claimed = !infra && falseClaim(r);
+  const reason = infra ? "model unreachable / failed (infra)" : claimed ? "claimed a change it did not make" : s.check(r, before);
   const pass = !infra && reason === null;
-  rows.push({ id: s.id, want: s.want, pass, infra, reason, steps: r.steps, gaveUp: r.gaveUp, modelFailed: r.modelFailed, seconds, readFirst, ops: opsSeq, reply: r.reply.replace(/\s+/g, " ").slice(0, 200), emoji: EMOJI.test(r.reply), engineIssue: infra || !s.engine ? null : s.engine(r, before), writes: writesOf(r), modelCalls: r.steps - (ff.skipped - sk0) });
+  rows.push({ id: s.id, want: s.want, pass, infra, reason, steps: r.steps, gaveUp: r.gaveUp, modelFailed: r.modelFailed, seconds, readFirst, ops: opsSeq, reply: r.reply.replace(/\s+/g, " ").slice(0, 200), emoji: EMOJI.test(r.reply), engineIssue: infra || !s.engine ? null : s.engine(r, before), writes: writesOf(r), modelCalls: r.steps - (ff.skipped - sk0), falseClaim: claimed });
   console.log(`${pass ? "✓ " : infra ? "!!" : "✗ "} ${s.id.padEnd(18)} ${seconds.toFixed(1).padStart(6)}s  ${r.steps} step${r.steps === 1 ? " " : "s"}${r.gaveUp ? " GAVE-UP" : ""}  [${opsSeq.join(",") || "no ops"}]${reason ? `  — ${reason}` : ""}`);
 }
 
@@ -451,6 +463,7 @@ const summary = {
   readBeforeWrite: `${readCases.filter((r) => r.readFirst).length}/${readCases.length}`,
   gaveUp: graded.filter((r) => r.gaveUp).length,
   emojiReplies: graded.filter((r) => r.emoji).length,
+  falseClaims: graded.filter((r) => r.falseClaim).length,
   /** Engine assertions that failed — about the engine, NOT this model; never part of passRate. */
   engineIssues: rows.filter((r) => r.engineIssue).map((r) => `${r.id}: ${r.engineIssue}`),
   meanSteps: graded.length ? +(graded.reduce((s, r) => s + r.steps, 0) / graded.length).toFixed(2) : null,
@@ -462,7 +475,7 @@ const summary = {
 };
 
 console.log(`\npass ${summary.pass}/${graded.length} (${summary.passRate}%)  · act ${summary.actPass}  · hold ${summary.holdPass}  · read-before-write ${summary.readBeforeWrite}`);
-console.log(`steps mean ${summary.meanSteps}  · model calls mean ${summary.meanModelCalls}${FAST_FINISH ? " (fast finish)" : ""}  · gave up ${summary.gaveUp}  · emoji replies ${summary.emojiReplies}  · per-message seconds: median ${summary.medianSecondsPerMessage?.toFixed(1)}  p90 ${summary.p90SecondsPerMessage?.toFixed(1)}  max ${summary.maxSecondsPerMessage?.toFixed(1)}`);
+console.log(`steps mean ${summary.meanSteps}  · model calls mean ${summary.meanModelCalls}${FAST_FINISH ? " (fast finish)" : ""}  · gave up ${summary.gaveUp}  · emoji replies ${summary.emojiReplies}  · FALSE CLAIMS ${summary.falseClaims}  · per-message seconds: median ${summary.medianSecondsPerMessage?.toFixed(1)}  p90 ${summary.p90SecondsPerMessage?.toFixed(1)}  max ${summary.maxSecondsPerMessage?.toFixed(1)}`);
 for (const e of summary.engineIssues) console.log(`ENGINE (not the model): ${e}`);
 if (!summary.trustworthy) console.log(`!! ${summary.infraFailures} scenario(s) never reached the model — not counted as misses; re-run before quoting.`);
 
