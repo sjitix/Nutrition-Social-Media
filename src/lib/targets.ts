@@ -73,13 +73,52 @@ export function bodyStatProblems(s: Partial<Record<BodyStat, number>>): BodyStat
   });
 }
 
-/** One sentence naming the range of each stat that is out of it — for the user, not a log. */
+/**
+ * What no adult body measures: outside this, a stat is a typo or the wrong unit ("1.8" for a height,
+ * "0"). Between this and BODY_LIMITS is a REAL body the equation was not validated for: someone 115 cm
+ * tall, 101 years old or 310 kg is not mistaken, and was told their stat "doesn't look right" (D5b
+ * review). They are told the truth instead: this maths was not made for them, and who can do better.
+ */
+const PLAUSIBLE: Record<BodyStat, { min: number; max: number }> = {
+  age: { min: 1, max: 125 },
+  heightCm: { min: 50, max: 280 },
+  weightKg: { min: 15, max: 700 },
+};
+
+const STAT_NAME: Record<BodyStat, string> = { age: "age", heightCm: "height", weightKg: "weight" };
+/** "a", "a and b", "a, b and c". */
+const listOf = (xs: string[]) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
+/** Is this out-of-range stat a real body (rather than a typo)? */
+export const isRealBody = (k: BodyStat, v: number | undefined) =>
+  v != null && Number.isFinite(v) && v >= PLAUSIBLE[k].min && v <= PLAUSIBLE[k].max;
+
+/** What to tell the person about the stats bodyStatProblems found — for the user, not a log. */
 export function bodyStatMessage(problems: BodyStat[], s: Partial<Record<BodyStat, number>>): string {
-  if (problems.includes("age") && Number.isFinite(s.age) && (s.age as number) > 0 && (s.age as number) < BODY_LIMITS.age.min)
+  if (problems.includes("age") && isRealBody("age", s.age) && (s.age as number) < BODY_LIMITS.age.min)
     return "I can only work out targets for adults. Under 18, growth changes the numbers — a GP or a registered dietitian is the right person to set them.";
-  const names: Record<BodyStat, string> = { age: "age", heightCm: "height", weightKg: "weight" };
-  const ranges = problems.map((k) => `${names[k]} ${BODY_LIMITS[k].min}–${BODY_LIMITS[k].max} ${BODY_LIMITS[k].unit}`);
-  return `Your ${problems.map((k) => names[k]).join(", ")} doesn't look right — I can work targets out for ${ranges.join(", ")}.`;
+  const typos = problems.filter((k) => !isRealBody(k, s[k]));
+  const real = problems.filter((k) => isRealBody(k, s[k]));
+  const parts: string[] = [];
+  if (typos.length) {
+    const ranges = typos.map((k) => `${STAT_NAME[k]} ${BODY_LIMITS[k].min}–${BODY_LIMITS[k].max} ${BODY_LIMITS[k].unit}`);
+    parts.push(`Your ${listOf(typos.map((k) => STAT_NAME[k]))} ${typos.length > 1 ? "don't" : "doesn't"} look right — I can work targets out for ${listOf(ranges)}.`);
+  }
+  if (real.length) {
+    const what = real.map((k) => `${k === "age" ? "an age" : `a ${STAT_NAME[k]}`} of ${s[k]} ${BODY_LIMITS[k].unit}`);
+    parts.push(`The equation I use isn't validated for ${listOf(what)}, so I won't guess. A GP or a registered dietitian can set targets that fit you.`);
+  }
+  return parts.join(" ");
+}
+
+/**
+ * The weight a per-kilo figure is OF: body weight, capped at a BMI of 30. Protein and body water both
+ * follow lean mass, not total mass, so per kg of total weight they overstate a larger body's needs (a
+ * 230 kg person was set 460 g of protein; 300 kg was told 8.4 L of fluid a day). Below BMI 30, and
+ * with no height to work from, it is the weight itself.
+ */
+export function referenceWeightKg(weightKg: number, heightCm: number | undefined): number {
+  if (heightCm == null || !Number.isFinite(heightCm) || heightCm <= 0) return weightKg;
+  return Math.min(weightKg, 30 * (heightCm / 100) ** 2);
 }
 
 /** A stat forced into its limits: what the arithmetic below uses, so it can never return NaN or a
@@ -125,8 +164,7 @@ export function computeTargets(raw: TargetInput): Targets {
   // forced to zero and the macros no longer adding up to the calories (D5b). Below BMI 30 this
   // changes nothing.
   const proteinPerKg = input.goal === "lose_weight" ? 2.0 : input.goal === "build_muscle" ? 1.9 : 1.6;
-  const heightM = input.heightCm / 100;
-  const referenceKg = Math.min(input.weightKg, 30 * heightM * heightM);
+  const referenceKg = referenceWeightKg(input.weightKg, input.heightCm);
 
   // Fat at 25% of calories (a sane floor for hormones), carbs take the remainder.
   const fatGrams = Math.round((calories * 0.25) / 9);

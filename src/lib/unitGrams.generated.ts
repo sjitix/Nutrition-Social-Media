@@ -163,7 +163,10 @@ export const UNIT_GRAMS: { default: Record<string, number>; perIngredient: Recor
     },
     "egg whites": {
       "count": 33,
-      "piece": 33
+      "piece": 33,
+      "small": 25,
+      "medium": 29,
+      "large": 33
     },
     "avocado": {
       "count": 200,

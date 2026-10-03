@@ -15,7 +15,20 @@ type Units = Record<string, number | undefined>;
  *  "bell peppers: 2 pieces" weighed 200 g while "2 piece" weighed 238 g (D5b). */
 const TWIN: Record<string, string> = {
   piece: "pieces", pieces: "piece", slice: "slices", slices: "slice", clove: "cloves", cloves: "clove", cup: "cups", cups: "cup",
+  can: "cans", cans: "can", scoop: "scoops", scoops: "scoop",
 };
+/** Spellings that mean exactly one unit the table knows. Only the unambiguous ones: "T", "t" and "c"
+ *  stay unknown (null), because guessing tablespoon against teaspoon is a 3x error either way. */
+const ALIAS: Record<string, string> = {
+  tablespoon: "tbsp", tablespoons: "tbsp", tbs: "tbsp", tbsps: "tbsp",
+  teaspoon: "tsp", teaspoons: "tsp", tsps: "tsp",
+  gram: "g", grams: "g", gr: "g", kilogram: "kg", kilograms: "kg", kgs: "kg",
+  ounce: "oz", ounces: "oz", pound: "lb", pounds: "lb", lbs: "lb",
+  litre: "l", litres: "l", liter: "l", liters: "l", millilitre: "ml", millilitres: "ml", milliliter: "ml", milliliters: "ml",
+};
+/** After a size word, a word like these names a DIFFERENT unit than the item: "1 large head" of
+ *  lettuce is a head, not a large leaf (it weighed 7.8 g). There is no honest weight for it, so null. */
+const CONTAINER_NOUN = /^\s*(heads?|bulbs?|bunch(es)?|cans?|tins?|jars?|packets?|packs?|bags?|boxes|box|cloves?|slices?|stalks?|sprigs?|handfuls?|cups?|pieces?|fillets?|loaf|loaves)\b/i;
 /** A bare number and "a piece" are the same thing: one of the item, whatever the item's natural unit. */
 const COUNT_LIKE = ["count", "piece", "pieces"];
 /** A size word is relative to the item. The default table's 70 g / 150 g made "2 large eggs" 300 g and
@@ -35,7 +48,14 @@ function unitGrams(per: Units, unit: string): number | undefined {
   if (per[unit] != null) return per[unit];
   if (TWIN[unit] && per[TWIN[unit]] != null) return per[TWIN[unit]];
   if (COUNT_LIKE.includes(unit)) for (const u of COUNT_LIKE) if (per[u] != null) return per[u];
-  if (SIZE_RATIO[unit] != null) for (const u of COUNT_LIKE) if (per[u] != null) return per[u]! * SIZE_RATIO[unit];
+  if (SIZE_RATIO[unit] != null) {
+    // When an item's count is a PART of it (a clove of garlic, a leaf of lettuce, a slice of bread), a
+    // size word describes the whole thing, which the table does not weigh: "1 large" garlic is a bulb,
+    // not 1.3 cloves. No honest answer, so none.
+    const part = [per.clove, per.cloves, per.slice, per.slices, per.leaves].find((g) => g != null);
+    const count = per.count ?? per.piece ?? per.pieces;
+    if (count != null) return part != null && part === count ? undefined : count * SIZE_RATIO[unit];
+  }
   const tbsp = per.tbsp ?? (per.tsp != null ? per.tsp * 3 : per.ml != null ? per.ml * 15 : undefined);
   if (tbsp != null) {
     if (unit === "tbsp") return tbsp;
@@ -44,7 +64,7 @@ function unitGrams(per: Units, unit: string): number | undefined {
     if (unit === "ml") return tbsp / 15;
     if (unit === "l") return (tbsp / 15) * 1000;
   }
-  return UNIT_GRAMS.default[unit];
+  return UNIT_GRAMS.default[unit] ?? (TWIN[unit] ? UNIT_GRAMS.default[TWIN[unit]] : undefined);
 }
 
 /** "½" and friends, as typed on recipe sites. */
@@ -63,16 +83,24 @@ export function gramsFor(ingredient: string, quantity: string): number | null {
   const q = quantity
     .trim()
     .replace(/[½⅓⅔¼¾⅛]/g, (c) => ` ${VULGAR[c]}`)
-    .replace(/(\d),(\d{3})(?!\d)/g, "$1$2") // 1,000 g -> 1000 g
+    // 1,000 g -> 1000 g. Only a real thousands lead (1-9, up to three digits): "0,250 l" is a European
+    // decimal, and reading it as 250 l made a quarter litre of milk weigh 257 kg (D5b review).
+    .replace(/\b([1-9]\d{0,2}),(\d{3})(?![\d,])/g, "$1$2")
     .trim();
   // Groups: [1] whole (only before a fraction), [2] number/numerator, [3] denominator, [4] unit.
-  const m = q.match(/^(?:(\d+)\s+(?=\d+\s*\/\s*\d))?(\d+(?:\.\d+)?)(?:\s*\/\s*(\d+))?(?:\s*([a-zA-Z]+(?:-[a-zA-Z]+)*))?(?=$|[\s,;(])/);
+  // After a unit: the end, a space, or the punctuation recipe sites put there ("2 tbsp.", "200g/7oz",
+  // "2 cups)", "1 cup:").
+  const m = q.match(/^(?:(\d+)\s+(?=\d+\s*\/\s*\d))?(\d+(?:\.\d+)?)(?:\s*\/\s*(\d+))?(?:\s*([a-zA-Z]+(?:-[a-zA-Z]+)*))?(?=$|[\s,;(./):])/);
   if (!m) return null;
-  // A number with no unit must stand alone: "2 (400 g) cans" is not two of anything.
-  if (!m[4] && q.slice(m[0].length).trim()) return null;
+  const rest = q.slice(m[0].length);
+  // A number with no unit must stand alone, or be followed by a comma and words ("2, diced"):
+  // "2 (400 g) cans" is not two of anything, and "1.5.2 g" is not a number.
+  if (!m[4] && rest.trim() && !/^\s*,\s*[^\d\s]/.test(rest)) return null;
   const amount = (m[1] ? Number(m[1]) : 0) + (m[3] ? Number(m[2]) / Number(m[3]) : Number(m[2]));
   if (!Number.isFinite(amount) || amount <= 0) return null;
-  const unit = (m[4] ?? "count").toLowerCase();
+  const written = (m[4] ?? "count").toLowerCase();
+  const unit = ALIAS[written] ?? written;
+  if (SIZE_RATIO[unit] != null && CONTAINER_NOUN.test(rest)) return null;
   const key = ingredient.trim().toLowerCase();
   const g = unitGrams(UNIT_GRAMS.perIngredient[key] ?? {}, unit);
   return g == null ? null : amount * g;

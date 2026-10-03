@@ -74,13 +74,18 @@ export default function OnboardingPage() {
   const heightN = posNum(heightCm);
   const weightN = posNum(weightKg);
   // …and inside the adult range the equation is for (BODY_LIMITS): an age of 5 or a weight of 900
-  // is a typo, and computing from it would quietly set nonsense targets.
+  // is a typo, and computing from it would quietly set nonsense targets. Every field that is FILLED is
+  // checked (a 0 or a negative too, which posNum treats as empty), so a disabled button always says why.
+  const filled = (s: string) => (s.trim() === "" ? undefined : Number(s));
   const typedStats = {
-    ...(ageN !== null ? { age: ageN } : {}),
-    ...(heightN !== null ? { heightCm: heightN } : {}),
-    ...(weightN !== null ? { weightKg: weightN } : {}),
+    ...(filled(age) !== undefined ? { age: filled(age) } : {}),
+    ...(filled(heightCm) !== undefined ? { heightCm: filled(heightCm) } : {}),
+    ...(filled(weightKg) !== undefined ? { weightKg: filled(weightKg) } : {}),
   };
   const statProblems = bodyStatProblems(typedStats);
+  // Shown once a stat field is left, never mid-keystroke: typing "34" passes through "3", and an adult
+  // was told to see a GP about it.
+  const [statsLeft, setStatsLeft] = useState(false);
   const bodyStatsComplete =
     ageN !== null && heightN !== null && weightN !== null && !!sex && !!activity && statProblems.length === 0;
 
@@ -275,17 +280,17 @@ export default function OnboardingPage() {
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
               <label className="block">
                 <span className="mb-1 block text-xs font-medium text-mut">Age</span>
-                <input type="number" min={0} value={age} onChange={(e) => setAge(e.target.value)}
+                <input type="number" min={0} value={age} onChange={(e) => setAge(e.target.value)} onBlur={() => setStatsLeft(true)}
                   className="w-full rounded-xl border-2 border-transparent bg-bgsoft px-3 py-2 outline-none focus:border-vio" />
               </label>
               <label className="block">
                 <span className="mb-1 block text-xs font-medium text-mut">Height (cm)</span>
-                <input type="number" min={0} value={heightCm} onChange={(e) => setHeightCm(e.target.value)}
+                <input type="number" min={0} value={heightCm} onChange={(e) => setHeightCm(e.target.value)} onBlur={() => setStatsLeft(true)}
                   className="w-full rounded-xl border-2 border-transparent bg-bgsoft px-3 py-2 outline-none focus:border-vio" />
               </label>
               <label className="block">
                 <span className="mb-1 block text-xs font-medium text-mut">Weight (kg)</span>
-                <input type="number" min={0} value={weightKg} onChange={(e) => setWeightKg(e.target.value)}
+                <input type="number" min={0} value={weightKg} onChange={(e) => setWeightKg(e.target.value)} onBlur={() => setStatsLeft(true)}
                   className="w-full rounded-xl border-2 border-transparent bg-bgsoft px-3 py-2 outline-none focus:border-vio" />
               </label>
               <label className="block">
@@ -312,7 +317,7 @@ export default function OnboardingPage() {
               className="mt-3 rounded-full bg-vio px-4 py-2 text-sm font-bold text-white transition hover:bg-vio-deep disabled:opacity-50">
               {computed ? "Recalculate my targets" : "Calculate my targets"}
             </button>
-            {statProblems.length > 0 && (
+            {statsLeft && statProblems.length > 0 && (
               <p role="status" className="mt-2 text-sm text-mut">{bodyStatMessage(statProblems, typedStats)}</p>
             )}
             {computed && (

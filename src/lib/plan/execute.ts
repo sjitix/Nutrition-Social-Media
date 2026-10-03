@@ -8,7 +8,7 @@
  * is internal to this folder, and check:boundaries fails anything outside the folder that imports it.
  */
 import { DAYS, type DayPlan, type Meal, type Operation, type UserProfile, type WeekPlan, type LockedMeal, type MealRating, type PlanSnapshot } from "../types";
-import { computeTargets, explainTargets, hydrationTarget, explainHydration, CALORIE_FLOOR, DEFAULT_CALORIE_FLOOR, BODY_LIMITS, bodyStatProblems, bodyStatMessage } from "../targets";
+import { computeTargets, explainTargets, hydrationTarget, explainHydration, CALORIE_FLOOR, DEFAULT_CALORIE_FLOOR, BODY_LIMITS, bodyStatProblems, bodyStatMessage, isRealBody, referenceWeightKg } from "../targets";
 import { type Recipe } from "../data/seeds";
 import { wordMatches } from "../exclusions";
 import { RECIPES, baseRecipeOf, scaleRecipeToTarget, toMeal } from "./library";
@@ -1160,7 +1160,11 @@ export function applyOperations(
         // A weight we would not compute targets from is not one to prescribe fluid from, or to keep:
         // -80 kg used to answer "aim for about -2.3 L a day" and store the -80 (D5b).
         if (bodyStatProblems({ weightKg }).length) {
-          notes.push(`${weightKg} kg doesn't look right, so I haven't used it — fluid needs scale with body weight, and I work them out for ${BODY_LIMITS.weightKg.min}–${BODY_LIMITS.weightKg.max} kg.`);
+          notes.push(
+            isRealBody("weightKg", weightKg)
+              ? `The per-kilo rule I use isn't validated at ${weightKg} kg, so I won't guess — a GP or a registered dietitian can give you a fluid target that fits you.`
+              : `${weightKg} kg doesn't look right, so I haven't used it — fluid needs scale with body weight, and I work them out for ${BODY_LIMITS.weightKg.min}–${BODY_LIMITS.weightKg.max} kg.`,
+          );
           break;
         }
         // No stored activity means we don't know it. Assume the least, and say so below — a
@@ -1176,7 +1180,12 @@ export function applyOperations(
           };
           profileChanged = true;
         }
-        let note = explainHydration(hydrationTarget(weightKg, activity), weightKg, activity);
+        // Per kg of a weight capped at BMI 30 when the height is known: body water follows lean mass,
+        // the same reason protein does, so 35 mL per kg of TOTAL weight overstated a larger body's need.
+        const refKg = Math.round(referenceWeightKg(weightKg, p.bodyStats?.heightCm));
+        let note = explainHydration(hydrationTarget(refKg, activity), weightKg, activity);
+        if (refKg < weightKg)
+          note += ` I worked it from ${refKg} kg rather than ${weightKg}: fluid needs follow lean mass, so the per-kilo rule would overstate them.`;
         if (!known) note += " I've assumed you're not training much — tell me how active you are and I'll adjust it.";
         notes.push(note);
         break;

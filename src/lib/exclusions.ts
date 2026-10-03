@@ -16,6 +16,7 @@
  * powder passed a milk allergy, and a pizza base passed a coeliac. Each list now names the foods
  * the sweep found missing; scripts/test-engine.mts holds the cases.
  */
+import { INGREDIENTS } from "./data/ingredients";
 
 // Prepared/compound foods hide allergens their NAME doesn't spell out: pesto carries tree nuts
 // (pine/cashew) AND parmesan; hummus carries tahini (sesame); Caesar dressing carries anchovy (fish)
@@ -114,6 +115,12 @@ const CATEGORY_TERMS: Record<string, string[]> = {
   soya: SOY,
   soybean: SOY,
   sesame: ["sesame", "tahini", "hummus", "halva", "sesame-soy sauce"],
+  tahini: ["sesame", "tahini", "hummus", "halva", "sesame-soy sauce"],
+  // Milk proteins and the clinical name for a milk allergy: each is the dairy allergy under another name.
+  // "casein" blocked no dairy at all, and a typed "whey" still let whey protein powder through.
+  casein: DAIRY,
+  whey: DAIRY,
+  cmpa: DAIRY,
   pork: ["pork", "bacon", "chorizo", "sausage", "ham", "pepperoni", "prosciutto", "salami", "pancetta", "lard", "gammon", "guanciale", "gelatin"],
   // caesar dressing is raw egg yolk + parmesan + anchovy — it hides egg and dairy the way its name
   // hides the anchovy already covered under fish/seafood. Mirror the pesto (nut+dairy) precedent.
@@ -173,29 +180,52 @@ export function expandExclusion(token: string): string[] {
  * a stem of "soy" and "co" in "co-op" as a stem of "cod".
  */
 function termMatchesWord(word: string, term: string): boolean {
-  return wordMatches(word, term) || (word.length >= 3 && wordMatches(term, word));
+  if (wordMatches(word, term)) return true;
+  if (word.length < 3) return false;
+  // The reverse -ies rule needs a real word on the recipe side: "fries" (typed) must not reach the
+  // cooking verb "fry", which blocked 63 stir-fries for a dislike of chips (D5b review).
+  if (word.length < 4 && term === word.slice(0, -1) + "ies") return false;
+  return wordMatches(term, word);
 }
 
 /**
  * A term that also names a food it does NOT mean. Peanut butter, almond butter and cocoa butter are
  * not dairy, and soy or pea protein powder is not whey. The "dairy"/"lactose" categories list the bare
  * word "butter", which would otherwise strip every nut butter from a lactose-intolerant user's plan.
- * The diet path already knew this (VEGAN_EXCEPTIONS); the allergen path did not.
+ * The diet path already knew this (VEGAN_EXCEPTIONS); the allergen path did not. The gluten words get
+ * the diet path's own exceptions too (corn tortillas, chickpea flour, rice noodles are safe for a
+ * coeliac), so a "gluten" allergy no longer removes dishes the library tags gluten_free; and a dislike
+ * of olives no longer bans olive oil, the default cooking fat.
  */
 const TERM_EXCEPTIONS: Record<string, string[]> = {
   butter: ["peanut butter", "almond butter", "cocoa butter", "nut butter", "cashew butter"],
   "protein powder": ["soy protein powder", "pea protein powder", "plant protein powder"],
+  tortilla: ["corn tortilla"],
+  flour: ["chickpea flour", "oat flour", "rice flour", "almond flour", "coconut flour"],
+  noodle: ["rice noodle", "zucchini noodle", "courgette noodle", "glass noodle", "shirataki noodle"],
+  cracker: ["rice cracker"],
+  muffin: ["egg muffin", "muffin tin"],
+  crouton: ["no crouton"],
+  olive: ["olive oil"],
+  olives: ["olive oil"],
+  pepper: ["black pepper", "white pepper"],
+  peppers: ["black pepper", "white pepper"],
+  cherry: ["cherry tomato"],
+  cherries: ["cherry tomato"],
 };
 
 /**
  * "toast" and "wrap" are gluten foods and also cooking verbs: "toast the cumin", "wrap in foil".
  * Read as foods, they blocked nine recipes with no gluten in them for every coeliac. One of these
- * words counts as the food unless it is inflected as a verb ("toasted", "wrapping") or followed by
- * the word a verb takes ("toast the…", "wrap in…"). A recipe that toasts or wraps a gluten food
- * names that food, and the food itself still blocks it.
+ * words counts as the food unless it is inflected as a verb ("toasted", "wrapping"), starts a
+ * sentence (an instruction: "Toast pine nuts.", "Wrap and chill."), or is followed by the word a verb
+ * takes ("toast the…", "wrap in…"). A recipe that toasts or wraps a gluten food names that food, and
+ * the food itself still blocks it.
  */
 const VERB_NOUNS = new Set(["toast", "wrap"]);
-const VERB_FOLLOWERS = new Set(["the", "a", "an", "in", "until", "for", "lightly", "briefly", "gently", "over", "them", "it", "each", "both", "tightly", "up", "under"]);
+const VERB_FOLLOWERS = new Set(["the", "a", "an", "in", "until", "for", "lightly", "briefly", "gently", "over", "them", "it", "each", "both", "tightly", "up", "under", "with", "and", "then", "loosely"]);
+// An instruction has an object after it ("Toast pine nuts"); the bare word alone is the food.
+const SENTENCE_VERB = /(^|[.!?;:]\s*)(?:toast|wrap)(?:s|ed|ing)?\b(?=\s+[a-z])/g;
 
 /** Lowercase, with accents folded ("crème fraîche" -> "creme fraiche") and typographic apostrophes
  *  made plain, so what people type matches what the lists spell. */
@@ -212,6 +242,7 @@ export function haystackBlocked(haystack: string, tokens: string[]): boolean {
   if (!tokens.length) return false;
   const hay = fold(haystack);
   const words = hay.split(/[^a-z]+/).filter(Boolean);
+  let verbWords: string[] | null = null;
   for (const token of tokens) {
     for (const term of expandExclusion(token)) {
       const exceptions = TERM_EXCEPTIONS[term];
@@ -219,8 +250,9 @@ export function haystackBlocked(haystack: string, tokens: string[]): boolean {
       if (term.includes(" ")) {
         if (text.includes(term)) return true; // phrase
       } else if (VERB_NOUNS.has(term)) {
-        for (let i = 0; i < words.length; i++)
-          if ((words[i] === term || words[i] === term + "s") && !VERB_FOLLOWERS.has(words[i + 1] ?? "")) return true;
+        verbWords ??= hay.replace(SENTENCE_VERB, "$1 ").split(/[^a-z]+/).filter(Boolean);
+        for (let i = 0; i < verbWords.length; i++)
+          if ((verbWords[i] === term || verbWords[i] === term + "s") && !VERB_FOLLOWERS.has(verbWords[i + 1] ?? "")) return true;
       } else if ((exceptions ? text.split(/[^a-z]+/) : words).some((w) => termMatchesWord(w, term))) {
         return true;
       }
@@ -229,84 +261,150 @@ export function haystackBlocked(haystack: string, tokens: string[]): boolean {
   return false;
 }
 
-/** Filler that means nothing on its own but wraps what people actually type. */
-const TOKEN_NOISE = /\b(i'?m|i|am|is|are|my|allergic|allergy|allergies|to|the|a|an|any|all|of|no|non|not|never|plus|also|avoid|avoiding|cant|can't|cannot|dont|don't|eat|have|intolerant|intolerance|sensitive|free|severe|severely|mild|mildly|serious|seriously|very|really|extremely|deadly|anaphylactic|anaphylaxis|reaction|reactions|please)\b/g;
+/* ------------------------------------------------------------------------- *
+ * Reading what a person TYPED.
+ *
+ * Three rounds of real failures shaped this (D5b, 2026-10-03). Comma-only splitting turned "allergic
+ * to nuts and shellfish" into one token that matched nothing. Then a sweep found 15 of 17 ordinary
+ * typings losing the allergy ("peanuts.", "I’m allergic…", a line break, "dairy-free"). Then the first
+ * fix for those dropped any clause containing an "allowance" — and a review showed "I can eat
+ * anything without gluten" (41 gluten meals in 5 weeks), "Shellfish - everything else is fine" and
+ * "Neither dairy nor eggs are ok" all losing the allergy that way. So, in order:
+ *   1. fold, join split category names ("shell fish"), strip possessives ("egg's");
+ *   2. split into SEGMENTS at punctuation and " - ", then ITEMS at and/or/nor, then CLAUSES at contrast
+ *      words ("but", "except", "besides", "unless"…);
+ *   3. drop a clause ONLY when it plainly allows a specific food: an allowance phrase, nothing
+ *      restrictive in it, no "everything/anything" (the allowance is about the rest, not this food),
+ *      and no neither/nor/none anywhere in its segment;
+ *   4. from every other clause: the cleaned phrase, plus (allergies only) every allergen word and
+ *      every curated food named in it ("strong mushroom allergy" -> "mushroom");
+ *   5. never a lone non-food word ("cooked" from "onions unless cooked", "white" from "white or brown
+ *      rice", "them" from "I cannot eat them").
+ * Anything unclear is kept, so the failure is an over-block, the direction this file chooses.
+ * ------------------------------------------------------------------------- */
 
-/** Splits a list into items: punctuation, line breaks, and the words people join a list with. */
-const LIST_SEPARATORS = /[,;/\n\r.!?()[\]{}|:&+]|\b(?:and|or|nor|plus|also)\b/;
-/** A contrast word starts a new clause: "nuts but fine with almonds", "fine with almonds but not peanuts". */
-const CONTRAST = /\b(?:but|except|though|although|however|unless|apart from|other than)\b/;
-/** A clause that says a food is ALLOWED: "fine with almonds", "almonds are fine", "I can eat almonds". */
-const ALLOWS = /\b(?:(?:is|are|'s|'re)\s+(?:fine|ok|okay|alright|safe)|(?:fine|ok|okay|alright)\s+with|can\s+(?:have|eat|tolerate)|tolerate|no problem with|not\s+(?:allergic|intolerant|sensitive))\b/;
+/** Category names people split or join ("shell fish", "treenuts"): the form the lists use. */
+const JOINS: [RegExp, string][] = [
+  [/\bshell[\s-]+fish\b/g, "shellfish"],
+  [/\bsea[\s-]+food\b/g, "seafood"],
+  [/\btree[\s-]*nuts?\b/g, "tree nuts"],
+  [/\bpea[\s-]+nuts?\b/g, "peanuts"],
+  [/\bground[\s-]+nuts?\b/g, "groundnuts"],
+  [/\bsoy[a]?[\s-]+beans?\b/g, "soybeans"],
+];
+
+/** Function words and feelings: removed from a phrase so the food in it is what is left. Never a food. */
+const TOKEN_NOISE = /\b(i'?m|i've|i'd|i|am|is|are|was|be|been|my|me|myself|we|our|he|she|his|her|they|their|them|it|its|that|this|those|these|to|the|a|an|any|all|of|in|on|at|for|from|with|for|by|as|so|if|no|non|not|never|none|neither|nor|plus|also|just|only|even|still|really|very|extremely|quite|too|please|thanks|thank|you|allergic|allergy|allergies|intolerant|intolerance|sensitive|sensitivity|avoid|avoiding|avoids|cant|can't|cannot|can|could|dont|don't|doesn't|does|do|did|isn't|aren't|won't|without|contain|contains|containing|eat|eating|eats|have|has|had|get|gets|got|make|makes|made|free|severe|severely|mild|mildly|serious|seriously|strong|bad|badly|deadly|life|threatening|anaphylactic|anaphylaxis|reaction|reactions|react|reacts|sick|ill|hives|rash|swell|swelling|barely|hardly|poorly|tolerate|tolerates|like|likes|love|loves|hate|hates|dislike|dislikes|fan|stand|fond|enjoy|adore|fine|ok|okay|alright|safe|good|great|everything|anything|everyone|whatever|nothing|else|other|others|food|foods|thing|things|stuff|kind|kinds|type|types|products|product|one|ones|son|daughter|kid|kids|child|children|wife|husband|partner|family|disease)\b/g;
+/** Words that are real but are not foods on their own: dropped when a clause leaves nothing else. */
+const LONE_STOP = new Set([
+  "cooked", "raw", "baked", "roasted", "fried", "grilled", "steamed", "boiled", "fresh", "frozen", "canned",
+  "dried", "whole", "black", "white", "green", "red", "brown", "yellow", "purple", "small", "large", "big",
+  "time", "times", "day", "days", "lot", "much", "many", "some", "form", "forms", "amount", "amounts",
+  "trace", "traces", "yes", "yeah",
+]);
+
+const SEGMENT_SPLIT = /[,;\n\r.!?()[\]{}|:]|\s+[-–—]+\s+|^\s*[-–—]+|[-–—]+\s*$/;
+const ITEM_SPLIT = /\b(?:and|or|nor|plus|also)\b|[&+/]/;
+/** A contrast word starts a new clause: "nuts but fine with almonds", "everything except peanuts". */
+const CONTRAST = /\b(?:but|except for|except|with the exception of|besides|excluding|aside from|apart from|other than|save for|though|although|however|unless)\b/;
+/** A clause that says a specific food is ALLOWED: "fine with almonds", "almonds are fine", "I love fish". */
+const ALLOWS = /\b(?:(?:is|are|'s|'re)\s+(?:fine|ok|okay|alright|safe|good)|(?:fine|ok|okay|alright|good)\s+with|can\s+(?:have|eat|tolerate)|no problem with|not\s+(?:allergic|intolerant|sensitive)|love|like|enjoy|adore|(?:eat|have)\b.*\b(?:all the time|every day|daily|regularly|often|no problem))\b/;
 const ALLOWS_ALL = new RegExp(ALLOWS.source, "g");
-/** A clause that RESTRICTS a food. A clause doing both is kept: dropping an allergy is what hurts. */
-const RESTRICTS = /\b(?:allerg\w*|intoleran\w*|sensitive|avoid\w*|no|not|never|cant|can't|cannot|don't|dont|free|anaphyla\w*|react\w*|coeliac|celiac)\b/;
+/** Anything restrictive in the clause keeps it: dropping an allergy is the failure that hurts. */
+const RESTRICTS = /\b(?:allerg\w*|intoleran\w*|sensitiv\w*|avoid\w*|no|not|never|none|nothing|neither|nor|cant|can't|cannot|don't|dont|doesn't|isn't|aren't|won't|without|free|anaphyla\w*|react\w*|coeliac|celiac|barely|hardly|poorly|badly|sick|ill|hives|rash|swell\w*|vomit\w*)\b/;
+/** "everything is fine", "I can eat anything": the allowance is about the REST, not the food beside it. */
+const GLOBAL = /\b(?:everything|anything|whatever|all foods?|all else|all other|any food|the rest)\b/;
+/** neither/nor/none distribute over a whole list ("Neither dairy nor eggs are ok"). */
+const SEGMENT_NEGATION = /\b(?:neither|nor|none)\b/;
 
 /** Words that are allergens or name one (keys, and every single-word term) — what a phrase is mined for. */
 const ALLERGEN_WORDS = [...new Set([...Object.keys(CATEGORY_TERMS), ...Object.values(CATEGORY_TERMS).flat()].filter((t) => !t.includes(" ")))];
 const isAllergenWord = (w: string) => w.length >= 3 && ALLERGEN_WORDS.some((t) => termMatchesWord(w, t));
+/** The curated foods, so a phrase is mined for foods that are not allergen categories ("avocado -
+ *  life threatening", "mushrooms make me sick" blocked nothing). Single-word names match as words,
+ *  multi-word names ("cottage cheese") as phrases. */
+const CURATED = Object.values(INGREDIENTS).map((i) => i.name.toLowerCase());
+const CURATED_WORDS = CURATED.filter((n) => !/[\s-]/.test(n));
+const CURATED_PHRASES = CURATED.filter((n) => /[\s-]/.test(n)).map((n) => n.replace(/-/g, " "));
+const isCuratedWord = (w: string) => w.length >= 3 && CURATED_WORDS.some((n) => termMatchesWord(w, n));
 /** The food a phrase is made OF is the allergen, not the form it comes in: "peanut butter" is a
  *  peanut allergy, not a dairy one; "oat milk" names no allergen. A carrier counts only when no food
- *  word modifies it ("cow's milk" is still milk). */
+ *  word modifies it ("cow's milk" is still milk, and so is the cheese in "cottage cheese"). */
 const CARRIERS = new Set(["butter", "milk", "cream", "flour", "sauce", "oil", "powder", "paste", "dressing", "cheese", "yogurt", "yoghurt", "noodle", "noodles", "bread", "pasta", "tortilla", "tortillas", "wrap", "wraps", "cracker", "crackers"]);
-const PLANT_MODIFIERS = new Set(["coconut", "oat", "oats", "rice", "hemp", "pea", "cocoa", "plant", "vegan", "corn", "chickpea", "olive", "sunflower", "rapeseed", "canola", "vegetable", "cottage", "potato", "lentil", "gluten", "dairy"]);
+const PLANT_MODIFIERS = new Set(["coconut", "oat", "oats", "rice", "hemp", "pea", "cocoa", "plant", "vegan", "chickpea", "olive", "sunflower", "rapeseed", "canola", "lentil", "gluten", "dairy"]);
+/** The category words a DISLIKE is mined for: only the long-standing ones, so a dislike of "shrimp
+ *  paste" or "goat cheese" stays that food, not every shrimp or cheese dish. */
+const DISLIKE_KEYS = ["nut", "nuts", "tree nut", "tree nuts", "dairy", "lactose", "milk", "gluten", "wheat", "shellfish", "fish", "seafood", "soy", "sesame", "pork", "egg", "eggs"];
 
-/**
- * Parse the profile's free-text allergies/dislikes into tokens.
- *
- * People do not type "nuts, shellfish". They type "allergic to nuts and shellfish". The old
- * comma-only split turned that into ONE token that matched no ingredient anywhere, so the user's
- * allergies were silently ignored — the most dangerous possible failure, and a silent one.
- *
- * The same failure hid in every other ordinary way of typing an allergy, found by a property sweep
- * (2026-10-03, D5b): "peanuts." kept its full stop, "I’m allergic…" kept its curly apostrophe, a line
- * break or "or" did not split a list, "severe peanut allergy" left the phrase "severe peanut", and
- * "dairy-free" left "dairy-". Each made a token that matched nothing, with dishes served end to end.
- * So: fold accents and apostrophes, split on every list separator, split each item at a contrast word,
- * drop only a clause that says a food is ALLOWED, and mine a multi-word phrase for the allergens it
- * names ("severe peanut" also yields "peanut").
- *
- * Tokens shorter than 3 characters are dropped: a stray "a" would otherwise match every recipe
- * and empty the entire plan.
- */
-export function parseExclusionTokens(allergies: string, dislikes: string): string[] {
-  const raw = fold([allergies, dislikes].join(","));
-  const out = new Set<string>();
-  for (const piece of raw.split(LIST_SEPARATORS)) {
-    if (!piece) continue;
-    // A CONTRAST word starts a new clause, and EVERY clause is read. The first version kept only the
-    // clause before the contrast word, which made "peanuts but fine with almonds" work and dropped the
-    // allergy in "fine with almonds but allergic to peanuts" — the planner then served peanut dishes
-    // seven times in five weeks (found by the D5b sweep, the same day). Only a clause that ALLOWS a
-    // food, and says nothing restrictive, is dropped; anything unclear is kept, so the failure is an
-    // over-block, the direction this file chooses everywhere.
-    for (const clause of piece.split(CONTRAST)) {
-      if (!clause) continue;
-      if (ALLOWS.test(clause) && !RESTRICTS.test(clause.replace(ALLOWS_ALL, " "))) continue;
-      const cleaned = clause
-        .replace(/-/g, " ") // "dairy-free" -> "dairy free" -> "dairy"
-        .replace(TOKEN_NOISE, " ")
-        .replace(/[^a-z' ]/g, " ")
-        .replace(/(^|[^a-z])'+|'+(?=[^a-z]|$)/g, "$1 ") // quotes around a word, not the one in "cow's"
-        .replace(/\s+/g, " ")
-        .trim();
-      if (cleaned.length >= 3) out.add(cleaned);
-      if (!cleaned.includes(" ")) continue;
-      // A phrase may contain a multi-word category ("tree nuts" inside "all tree nuts raw")…
-      for (const key of Object.keys(CATEGORY_TERMS))
-        if (key.includes(" ") && ` ${cleaned} `.includes(` ${key} `)) out.add(key);
-      // …and the allergens it names: "severe peanut" -> "peanut", "peanuts shellfish" -> both.
-      const words = cleaned.split(" ");
-      words.forEach((w, i) => {
-        if (!isAllergenWord(w)) return;
-        const prev = words[i - 1];
-        if (CARRIERS.has(w) && prev && (isAllergenWord(prev) || PLANT_MODIFIERS.has(prev))) return;
-        out.add(w);
-      });
+function clauseTokens(clause: string, out: Set<string>, allergy: boolean): void {
+  const cleaned = clause
+    .replace(/-/g, " ") // "dairy-free" -> "dairy free" -> "dairy"
+    .replace(TOKEN_NOISE, " ")
+    .replace(/[^a-z' ]/g, " ")
+    .replace(/(^|[^a-z])'+|'+(?=[^a-z]|$)/g, "$1 ") // stray quotes, not the one in "cow's"
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!cleaned) return;
+  const words = cleaned.split(" ");
+  if (words.length > 1 || (cleaned.length >= 3 && !LONE_STOP.has(cleaned))) out.add(cleaned);
+  if (words.length === 1) return;
+  // A phrase may contain a multi-word category ("tree nuts" inside "all tree nuts raw")…
+  for (const key of Object.keys(CATEGORY_TERMS))
+    if (key.includes(" ") && ` ${cleaned} `.includes(` ${key} `)) out.add(key);
+  if (!allergy) {
+    for (const key of DISLIKE_KEYS) if (words.includes(key)) out.add(key);
+    return;
+  }
+  // …the allergens it names ("severe peanut" -> "peanut", "peanuts shellfish" -> both)…
+  words.forEach((w, i) => {
+    if (!isAllergenWord(w) && !isCuratedWord(w)) return;
+    const prev = words[i - 1];
+    if (CARRIERS.has(w) && prev && (isAllergenWord(prev) || PLANT_MODIFIERS.has(prev))) return;
+    out.add(w);
+  });
+  // …and the curated foods spelled as phrases ("bad reaction to cottage cheese").
+  for (const p of CURATED_PHRASES) if (` ${cleaned} `.includes(` ${p} `)) out.add(p);
+}
+
+function textTokens(text: string, out: Set<string>, allergy: boolean): void {
+  let raw = fold(text);
+  for (const [re, to] of JOINS) raw = raw.replace(re, to);
+  for (const segment of raw.split(SEGMENT_SPLIT)) {
+    if (!segment?.trim()) continue;
+    const negated = SEGMENT_NEGATION.test(segment);
+    for (const item of segment.split(ITEM_SPLIT)) {
+      if (!item?.trim()) continue;
+      for (const clause of item.split(CONTRAST)) {
+        if (!clause?.trim()) continue;
+        const allows =
+          !negated && ALLOWS.test(clause) && !GLOBAL.test(clause) && !RESTRICTS.test(clause.replace(ALLOWS_ALL, " "));
+        if (allows) continue;
+        clauseTokens(clause.replace(/\b([a-z]+)'s\b/g, "$1"), out, allergy); // "egg's" -> "egg"
+      }
     }
   }
+}
+
+/**
+ * Parse the profile's free-text allergies and dislikes into tokens (see the section comment above).
+ * The two are read the same way except that only ALLERGIES are mined for every food a phrase names:
+ * an allergy over-blocks on purpose, a dislike of "goat cheese" should not remove every cheese.
+ */
+export function parseExclusionTokens(allergies: string, dislikes: string): string[] {
+  const out = new Set<string>();
+  textTokens(allergies, out, true);
+  // TERM_EXCEPTIONS let a DISLIKE of olives keep olive oil (a dislike of olives removed 203 of 501
+  // recipes). An ALLERGY keeps the over-block: the compound becomes a token of its own.
+  for (const t of [...out]) for (const c of ALLERGY_KEEPS[t] ?? []) out.add(c);
+  textTokens(dislikes, out, false);
   return [...out];
 }
+
+/** Compounds an exception lets a dislike keep, which an allergy must still block. */
+const ALLERGY_KEEPS: Record<string, string[]> = {
+  olive: ["olive oil"], olives: ["olive oil"],
+  pepper: ["black pepper", "white pepper"], peppers: ["black pepper", "white pepper"],
+};
 
 /* ------------------------------------------------------------------------- *
  * Data integrity: does a recipe's dietTags actually agree with its ingredients?
@@ -331,7 +429,10 @@ const GLUTEN_INGREDIENTS = [...GLUTEN_SHARED, "malted", "malt vinegar", "malt ex
  * for an allergy the conservative direction is the correct one.) An ingredient that SAYS it is
  * gluten-free ("gluten-free sausage") is taken at its word.
  */
-const GLUTEN_FREE_EXCEPTIONS = ["corn tortillas", "chickpea flour", "oat flour", "rice noodles", "rice cracker", "gluten-free", "gluten free"];
+const GLUTEN_FREE_EXCEPTIONS = [
+  "corn tortilla", "chickpea flour", "oat flour", "rice flour", "rice noodle", "zucchini noodle", "rice cracker", "egg muffin",
+  "pizza sauce", "gluten-free", "gluten free",
+];
 
 export function ingredientHasGluten(ingredientName: string): boolean {
   const n = ingredientName.trim().toLowerCase();
@@ -350,7 +451,9 @@ const NON_VEGETARIAN = [
 /** Short words that hide inside others ("ham" in "graham", "lard" in "collard"), so whole words only. */
 const NON_VEGETARIAN_WORDS = ["ham", "lamb", "lard", "veal", "duck", "crab", "clam", "squid", "oyster"];
 /** Plant foods that a non-vegetarian word appears in. */
-const VEGETARIAN_EXCEPTIONS = ["oyster mushroom", "lamb's lettuce", "lambs lettuce", "vegan ", "vegetarian ", "plant-based "];
+const VEGETARIAN_EXCEPTIONS = [
+  "oyster mushroom", "lamb's lettuce", "lambs lettuce", "vegan ", "vegetarian ", "plant-based ", "soy chorizo", "duck sauce",
+];
 
 const NON_VEGAN = [
   ...NON_VEGETARIAN,
@@ -371,6 +474,7 @@ const VEGAN_EXCEPTIONS = [
   "peanut butter", "almond butter", "nut butter", "cocoa butter",
   "soy protein powder", "pea protein powder", "plant protein powder",
   "eggplant", "oyster mushroom", "lamb's lettuce", "lambs lettuce", "vegan ", "plant-based ",
+  "veggie", "honeydew", "butternut", "soy chorizo", "duck sauce",
 ];
 
 const hasWord = (name: string, w: string) => new RegExp(`(^|[^a-z])${w}(s|es)?([^a-z]|$)`).test(name);
