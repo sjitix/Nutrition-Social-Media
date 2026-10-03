@@ -348,7 +348,7 @@
       <div class="rail"><div class="num">5</div><span class="tk" style="background:var(--accent-soft);color:var(--t-a)">A5</span></div>
       <div class="bd">
         <h3>Ingredients become a first-class entity</h3>
-        <p class="desc">The <b>182 curated ingredients</b> are keyed by <i>name</i>, and every recipe references one
+        <p class="desc">The <b>180 curated ingredients</b> are keyed by <i>name</i>, and every recipe references one
           as <b>free text</b> with no id. Give each a stable id, have recipes carry it, and add
           <span class="mono">check:ingredients</span> asserting every recipe reference resolves to a real
           FDC-backed entry. The nutrition maths does not change — this is identity, not arithmetic.</p>
@@ -418,6 +418,13 @@
         <p class="desc">The <b>crisis pre-scan</b> on the raw message, before the model sees it. Then: ban
           non-library dish names from replies, strip emoji, and fix the fuzzy swap-match that returned a shrimp
           salad for “burger”.</p>
+        <div class="callout" style="margin:12px 0 0;border-color:#f3c3cf;background:var(--rose-soft)">
+          <b>The safety check is done early, 2026-10-03.</b> The other agent measured the old guard missing a real crisis
+          message &mdash; it only worked if the AI chose the right tool and quoted the person word for word. Now every
+          message is checked on the person's own words <b>before any AI sees it</b>, including on the public site, which was
+          answering crisis messages with a canned demo reply. It catches all 15 test phrasings (and 5 typed with a phone's
+          curly apostrophe). It also fixed a bug where any sentence with the word &ldquo;end&rdquo; &mdash; &ldquo;at the end
+          of the day&rdquo; &mdash; was treated as a crisis. <b>Two questions for you are below, as decision #8.</b></div>
         <div class="par"><b>Parallel · B5</b><span>Per-batch locks, the last of the batch tail.</span></div>
         <div class="meta">
           <div><span class="k">Usable when</span>A crisis phrasing is caught even when the model would have answered it — proven by a test.</div>
@@ -632,6 +639,16 @@ everything ─► D4 release</pre>
             <td><span class="pill open">open</span></td>
             <td>Keep today's default &mdash; it is the vision's written rule &mdash; with every replacement named.</td>
           </tr>
+          <tr>
+            <td><b>The crisis check &mdash; two questions.</b> (a) Five ordinary sentences contain a crisis phrase word for word,
+              like &ldquo;killing myself at the gym every day, I need more calories&rdquo;. They now get the crisis reply instead of
+              help. Keep erring that way? (b) It catches nothing for eating-disorder signals (&ldquo;I make myself throw up after
+              every meal&rdquo;) or hopelessness (&ldquo;I&rsquo;m a burden to everyone&rdquo;). Add them?</td>
+            <td class="mono">D6</td>
+            <td><span class="pill open">open</span></td>
+            <td>(a) Yes, keep erring toward safety, perhaps with one line letting someone who meant food say so. (b) Yes, with an
+              eating-disorder reply and its own helplines, checked by someone qualified before it ships.</td>
+          </tr>
         </tbody>
       </table>
     </div>
@@ -645,7 +662,7 @@ everything ─► D4 release</pre>
 
     <div class="stats" style="grid-template-columns:repeat(auto-fit,minmax(152px,1fr));display:grid;gap:12px;margin-top:18px">
       <div class="step"><div class="n" style="width:auto;padding:0 8px">501</div><p><b>recipes</b> in the library today</p></div>
-      <div class="step"><div class="n" style="width:auto;padding:0 8px">182</div><p><b>curated ingredients</b> holding all of them up</p></div>
+      <div class="step"><div class="n" style="width:auto;padding:0 8px">180</div><p><b>curated ingredients</b> holding all of them up</p></div>
       <div class="step"><div class="n" style="width:auto;padding:0 8px">0</div><p><b>ingredient ids</b> — recipes point at free text</p></div>
       <div class="step"><div class="n" style="width:auto;padding:0 8px">0</div><p><b>prices or products</b> of any kind</p></div>
     </div>
@@ -666,7 +683,7 @@ everything ─► D4 release</pre>
           <tr>
             <td><b>Expand the library</b></td>
             <td><span class="pill open">needs a number</span></td>
-            <td>Proposed <b>182 → 400 ingredients, 501 → 900 recipes</b>, judged by the export's Gaps sheet — any diet/slot cell under seven forces a week to repeat a dish. "A lot" with no number has no gate.</td>
+            <td>Proposed <b>180 → 400 ingredients, 501 → 900 recipes</b>, judged by the export's Gaps sheet — any diet/slot cell under seven forces a week to repeat a dish. "A lot" with no number has no gate.</td>
           </tr>
           <tr>
             <td><b>An ingredients database</b></td>

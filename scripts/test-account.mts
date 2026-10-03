@@ -64,9 +64,9 @@ import {
   buildExport, parseExport, applyImport, describeData, exportFilename, EXPORT_FORMAT, PORTABLE_STORES,
 } from "@/lib/account/portable";
 import { checkStore } from "@/lib/account/validate";
-import { planSync, unionStore, canonical, type Side } from "@/lib/account/merge";
+import { planSync, unionStore, canonical, nextStamp, type Side } from "@/lib/account/merge";
 import {
-  syncNow, createMirror, localSide, partitionBySize, pushOrIsolate, MAX_STORE_BYTES,
+  syncNow, createMirror, localSide, partitionBySize, pushOrIsolate, MAX_STORE_BYTES, storeBytes,
   type LocalAccess, type Remote, type RemoteRow, type PushResult,
 } from "@/lib/account/sync";
 import {
@@ -367,6 +367,17 @@ const summary = (v: unknown) => (v as WeekPlan | null)?.weekSummary;
   const merged = unionStore("imports", full, [{ name: "NEWEST", sourceUrl: "n", importedAt: 9999 }]) as { name: string }[];
   check("rule 3: the newest import from another device survives a FULL local history",
     merged.length === 24 && merged[0].name === "NEWEST", merged.slice(0, 2).map((m) => m.name).join());
+
+  // CLOCKS (lesson 57; reproduced first: a slow clock lost edits silently, a fast one locked stores).
+  check("nextStamp: a write takes the clock's time…", nextStamp(1000, 400) === 1000 && nextStamp(1000, undefined) === 1000);
+  check("nextStamp: …but is never stamped earlier than the value it replaces, whatever the clock says",
+    nextStamp(1000, 5000) === 5001 && nextStamp(1000, 1000) === 1001);
+  const pastFast = planSync({ visits: v(["2026-10-02"], 9) }, { visits: v(["2026-10-03"], 5000) }, 77).actions[0];
+  check("clocks: a union is stamped later than BOTH copies, so the account takes it even when one came from a clock running ahead",
+    pastFast.kind === "merge" && pastFast.at === 5001, json(pastFast));
+  const olderSuperset = planSync({ visits: v(["2026-10-02", "2026-10-01"], 5) }, { visits: v(["2026-10-01"], 9) }, 7).actions[0];
+  check("clocks: a device holding the whole union under an OLDER stamp writes it stamped past the account's (a push would be skipped forever)",
+    olderSuperset.kind === "merge" && olderSuperset.at === 10, json(olderSuperset));
   const dup = unionStore("imports", [{ name: "x-old", sourceUrl: "x", importedAt: 1 }], [{ name: "x-new", sourceUrl: "x", importedAt: 2 }]) as { name: string }[];
   check("rule 3: the same link imported twice keeps the more recent entry", dup.length === 1 && dup[0].name === "x-new");
 }
@@ -519,6 +530,23 @@ await (async () => {
   check("engine: …and the device still holds its data", json(d.read("saved")) === json(["Shakshuka"]));
 })();
 
+// Clocks, through the whole engine: one device's clock runs a day fast (lesson 57).
+await (async () => {
+  const DAY = 86_400_000;
+  const server = new FakeServer();
+  const fast = new FakeDevice();
+  const phone = new FakeDevice();
+  fast.edit("visits", ["2026-10-03"], 1_000 + DAY);
+  await syncNow(fast, server, 2_000 + DAY);
+  phone.edit("visits", ["2026-10-02"], 3_000);
+  await syncNow(phone, server, 4_000);
+  const again = await syncNow(phone, server, 5_000);
+  check("clocks: a merged store reaches the account when another device's clock runs a day fast",
+    json(server.rows.get("visits")?.value) === json(["2026-10-03", "2026-10-02"]), json(server.rows.get("visits")));
+  check("clocks: …and the next sync has nothing left to do (it re-sent forever before)",
+    again.pushed.length + again.merged.length + again.pulled.length + again.skipped.length === 0, json(again));
+})();
+
 // ---- the live mirror, with a hand-cranked clock ---------------------------------------------------
 await (async () => {
   const pending: (() => void)[] = [];
@@ -586,6 +614,15 @@ await (async () => {
   ]);
   check("size guard: an oversized store is held back", split.tooLarge.join() === "chat");
   check("size guard: everything else still goes, including a cleared store", split.ok.map((r) => r.name).join() === "plan,saved");
+
+  // Bytes, as the server counts them. `.length` counts UTF-16 units, so it under-reads every
+  // non-Latin script, by 3x in Japanese (measured in real Postgres; see MAX_STORE_BYTES).
+  check("storeBytes counts UTF-8: a, é, 日 and U+20000 weigh 1, 2, 3 and 4 bytes (plus the JSON quotes)",
+    storeBytes("a") === 3 && storeBytes("é") === 4 && storeBytes("日") === 5 && storeBytes("\u{20000}") === 6);
+  const japanese = "日".repeat(Math.ceil(MAX_STORE_BYTES / 2)); // 450k characters, 1.35 MB
+  const byBytes = partitionBySize([{ name: "chat", value: [{ role: "user", text: japanese }], at: 1 }]);
+  check("size guard: a Japanese chat under the cap in characters but over it in bytes stays local (else it is refused on every edit)",
+    byBytes.tooLarge.join() === "chat", `${japanese.length} chars, ${storeBytes(japanese)} bytes`);
 
   const server = new FakeServer();
   const d = new FakeDevice();
@@ -947,10 +984,18 @@ class FakeSupabase {
 const settle = () => new Promise((r) => setTimeout(r, 20));
 const realNow = Date.now;
 let clockOffset = 0;
+/** How far the clock of the device being used right now is off true time (the clock-skew checks). */
+let deviceSkew = 0;
+const setClock = () => { Date.now = () => realNow() + clockOffset + deviceSkew; };
 /** Move this process's clock forward, for the "come back to the tab later" checks. */
 function advanceClock(ms: number) {
   clockOffset += ms;
-  Date.now = () => realNow() + clockOffset;
+  setClock();
+}
+/** Act as a device whose clock is `ms` off true time, until the next call. */
+function skewClock(ms: number) {
+  deviceSkew = ms;
+  setClock();
 }
 
 await (async () => {
@@ -1269,6 +1314,70 @@ await (async () => {
     storage.loadPlan()?.weekSummary === "week PHONE-NEWER" && storage.loadSaved().includes("Shakshuka"),
     json({ plan: storage.loadPlan()?.weekSummary, saved: storage.loadSaved() }));
   check("second device: onPulled listeners are told what came down", heard.length === 1 && heard[0].includes("plan"));
+  await signOut();
+
+  // ---- clocks: devices whose clocks are wrong (lesson 57; each reproduced before the fix) ----
+  const HOUR = 3_600_000;
+
+  // The write paths themselves: each stamps past a value that came from a clock running ahead.
+  fakeWindow.localStorage = new MemoryStorage();
+  const ahead = Date.now() + 10 * HOUR;
+  storage.writeStore("plan", week("FROM-A-FAST-CLOCK"), { at: ahead, silent: true });
+  storage.savePlan(week("EDITED-HERE"));
+  check("clocks: a local edit is stamped later than the copy it replaces, even one from a clock running ahead",
+    storage.loadStoreMeta().plan === ahead + 1, json(storage.loadStoreMeta()));
+  storage.writeStore("imports", [{ name: "Fast", sourceUrl: "https://example.com/fast", servings: 1, ingredients: [], steps: [], importedAt: ahead }], { at: ahead, silent: true });
+  const imported = storage.rememberImport({ name: "Now", sourceUrl: "https://example.com/now", servings: 1, ingredients: [], steps: [] } as never);
+  check("clocks: a recipe imported now is stamped later than every import this device has seen",
+    (imported[0] as { importedAt?: number }).importedAt === ahead + 1, json(imported.map((x) => (x as { importedAt?: number }).importedAt)));
+  storage.takeBackup("before a test restore");
+  storage.writeStore("plan", week("PULLED-FROM-A-FAST-CLOCK"), { at: ahead + 50, silent: true });
+  storage.restoreBackup();
+  check("clocks: \"Put it back\" is stamped later than the copy it replaces (else the next sync pulls that copy back over it)",
+    storage.loadPlan()?.weekSummary === "week EDITED-HERE" && storage.loadStoreMeta().plan === ahead + 51, json(storage.loadStoreMeta()));
+
+  // A phone whose clock runs 2 h slow (a dual boot does this), used AFTER it synced. Its edit was
+  // stamped older than the week it had just pulled, and the next sync pulled that week back over it,
+  // with no backup: the edit also looked older than the last agreement.
+  fakeWindow.localStorage = new MemoryStorage();
+  await signIn("gus@example.com");
+  await startSync();
+  storage.savePlan(week("GUS-LAPTOP"));
+  await leaveAndReturn();
+  await signOut();
+  fakeWindow.localStorage = new MemoryStorage();
+  skewClock(-2 * HOUR);
+  await signIn("gus@example.com");
+  await startSync();
+  storage.savePlan(week("GUS-PHONE"));
+  await leaveAndReturn();
+  check("clocks: an edit on a phone whose clock runs 2 h slow reaches the account",
+    summary(sb.table("uid-gus").get("plan")?.value) === "week GUS-PHONE", summary(sb.table("uid-gus").get("plan")?.value));
+  fakeWindow.dispatch("online");
+  await settle();
+  await settle();
+  check("clocks: …and survives the phone's next full sync, with nothing to back up (it was pulled back over, silently)",
+    storage.loadPlan()?.weekSummary === "week GUS-PHONE" && storage.loadBackups().length === 0,
+    json({ plan: storage.loadPlan()?.weekSummary, backups: storage.loadBackups().length }));
+  await signOut();
+
+  // A laptop whose clock runs a day FAST writes once, then a correct phone edits. The fast stamp
+  // locked the store: every later edit was skipped by the server and reverted by the next sync.
+  fakeWindow.localStorage = new MemoryStorage();
+  skewClock(24 * HOUR);
+  await signIn("hal@example.com");
+  await startSync();
+  storage.savePlan(week("HAL-FAST"));
+  await leaveAndReturn();
+  await signOut();
+  fakeWindow.localStorage = new MemoryStorage();
+  skewClock(0);
+  await signIn("hal@example.com");
+  await startSync();
+  storage.savePlan(week("HAL-PHONE"));
+  await leaveAndReturn();
+  check("clocks: after a device a day fast wrote, a correct device's later edit still reaches the account",
+    summary(sb.table("uid-hal").get("plan")?.value) === "week HAL-PHONE", summary(sb.table("uid-hal").get("plan")?.value));
   await signOut();
 
   Date.now = realNow;

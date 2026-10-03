@@ -51,10 +51,19 @@ Supabase row per user under RLS.
   in. Its first run found that every signed-in user still held TRUNCATE. RLS does not cover TRUNCATE,
   so one user could have emptied every account. It was not reachable through the REST API, and it is
   now closed in 0001. Lesson 56.
-- **Gate for this lane:** `node scripts/test-account.mjs` — **238 checks**, including the real
-  `client.ts` end to end against an in-memory Supabase (RLS, PKCE, conditional writes, jsonb order) ·
-  `node scripts/test-account-sql.mjs --mutate` — **37 checks in real Postgres, 15/15 broken guards
-  caught** · `node scripts/mutate-account.mjs` — 8/8.
+- **Clock skew between devices lost edits silently, and is fixed (lesson 57).** Each write was
+  stamped with its device's own clock, and the stamps were compared raw. All of these were reproduced
+  against the real engine:
+  - a phone 2 h slow had an edit it made AFTER syncing pulled back over, with no backup;
+  - a device a day fast locked a store against every other device for a day;
+  - merged stores never settled;
+  - "Put it back" lost the restored copy.
+  Now every write is stamped later than what it replaces (`nextStamp`, the logical-clock rule), so raw
+  clocks decide only true conflicts, where the backup applies.
+- **Gate for this lane:** `node scripts/test-account.mjs` — **252 checks**, including the real
+  `client.ts` end to end against an in-memory Supabase (RLS, PKCE, conditional writes, jsonb order,
+  skewed device clocks) · `node scripts/test-account-sql.mjs --mutate` — **37 checks in real
+  Postgres, 15/15 broken guards caught** · `node scripts/mutate-account.mjs` — **14/14**.
 - **Owner, to switch accounts on:** `supabase/README.md` — create a project, run **both** migrations,
   **configure custom SMTP** (without it only your own organisation receives sign-in emails), then put
   `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` in `.env.local` and Vercel. Never the
@@ -93,7 +102,28 @@ onto main) and `models-exp` (experiments in v1-owned files; never merged without
 - **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`, this block, the
   lane file. Does not edit v1's files; asks v1 first. Touches no accounts files.
 
-### >>> V1 LANE — 2026-10-03 (late): Days 1–3 DONE, Day 4 DONE for /sage (steps 2–3 in their ship gate). TRACK A IS A GATE. Next: D5 (ingredient ids). <<<
+### >>> V1 LANE — 2026-10-04 (small hours): Days 1–4 DONE, C2 pre-scan DONE, D5 steps 1–3 done (step 3 + engine-binding fixes in their gates). TRACK A IS A GATE. <<<
+
+**D5 — ingredient identity** (`docs/v1/06-ingredient-identity.md` is the plan AND the progress log):
+steps 1–2 LANDED `6d5a9cd` (slugs in `scripts/ingredient-map.json`, `src/lib/data/ingredients.generated.ts`
++ `ingredients.ts` `resolveIngredient`, `npm run check:ingredients`). **Step 3** (all 2,296 seed
+references carry a REQUIRED typed `slug`) is verified and ships after the engine-binding fixes — if
+`src/lib/data/seeds.ts` is still modified-but-uncommitted, ship it: slug-blind fingerprint was
+identical, `tsc` clean. **Next: step 4** (lookups through the resolver — tables stay keyed by name,
+see the doc's refinement) and **step 5** (optional `slug` on `Meal.ingredients`, flowing through
+`recipeToMeal`; `types.ts` change is additive — tell the accounts lane, it syncs plans).
+
+**Engine-binding fixes (models lane's findings):** remembered allergy now enforced (`allergensInFact`),
+a "but" clause no longer cancels a typed allergy (`parseExclusionTokens`), slot-scoped constrain says
+"nothing changed", day-scoped constrain keeps exclude/use/cookTime/budget. If not on `origin/main`,
+the gate failed — check `git log` and the ship log.
+
+**C2 pre-scan (safety, pulled forward):** `src/lib/safety.ts` `redFlag` runs on the user's RAW
+message in both assistant routes before any model AND before demo mode; `symptomNote` shares it.
+**LANDED `0152d9a`, test:engine 722/0** (42 new red-flag checks). **Owner decision #8** is open (which way
+it errs on 5 food lines; whether to add eating-disorder/hopelessness phrasings — `01-…md` §5).
+**`test:api` has 18 new pre-scan checks NOT yet run as a suite** (LM Studio was busy with the models
+lane; the same checks passed as a direct probe) — run `npm run test:api` when LM Studio is free.
 
 **Day 4 (A4):** `/sage/plan` 226 → **129 kB** (`7efbe9b`), `/sage/groceries` 123 → **113 kB**,
 `/sage/explore` 212 → **114 kB** first-load JS (steps 2–3: if not on `origin/main`, the gate failed).
@@ -103,7 +133,7 @@ cards now travel in the HTML (32 → 80 kB gz; net ≈ −26 kB). **Follow-up:**
 ingredients+steps lazily. `/plan` still ships everything — owner decision #2. `check:boundaries`:
 6 debts left. The measuring worktree `../NutriFlow-v1-measure` (detached, node_modules junction) can
 be deleted with `git worktree remove ../NutriFlow-v1-measure` — or kept for D5's measurements.
-`build:nutrients` reports **180** ingredients, docs say 182 — not chased yet.
+The ingredient count is **180** (verified against `build:nutrients`: 180 curated, 180 resolved, 153 exact); the docs said 182 and are corrected.
 
 **Day 3 (A3) LANDED `ff93b99`, test:engine 680/0 identical:** the engine is now **`src/lib/plan/`** —
 nine modules + `index.ts` (the public surface, the same 22 names); `recipeDb.ts` is a 10-line
@@ -111,7 +141,7 @@ barrel. A 105-point fingerprint identical before/after. **New engine code goes i
 `check:boundaries` rule 2 now enforces the `plan/` index.
 
 **State:** `main` pushed (`5cab547` + docs). `check:boundaries` passes (0 new, **9 known debts**) ·
-`test:engine` **680/0** · `test:ui` **51/0** · `test:api` **60/0** · `tsc` clean. Live lane status:
+`test:engine` **722/0** · `test:ui` **51/0** · `test:api` 60/0 last full run (18 new pre-scan checks not yet run as a suite) · `tsc` clean. Live lane status:
 `docs/parallel/lane-v1.md`. **Dev server: UP on :3000** (pid 800) — stop it before any `npm run build`.
 
 #### 0. READ THIS FIRST — the owner's ruling, found two weeks late
@@ -188,6 +218,13 @@ C4**, every Track E button gets a chat primitive. Reasoning: `02-module-map.md` 
 3. ~~V1 Day 3~~ — done (see above).
 4. ~~V1 Day 4~~ — done for `/sage` (see the block above). Next is **D5 — ingredient identity**
    (`01-…md` D5), then D5a (barrels + folders, coordinated with the lanes) and D5b (the maths proven).
+   **D5 brief, measured 2026-10-03 from the engine itself:** 501 recipes carry **2,296** ingredient
+   references (the schedule's "~3,000" is an estimate — correct it), naming **179 distinct**
+   ingredients, all of which resolve to the **180**-entry curated map (`scripts/ingredient-map.json`
+   → `nutrientTable.generated.ts`; one curated entry is unused). **103** references only resolve after
+   case/whitespace normalisation — that fragility is what an id removes. The rewrite of
+   `src/lib/data/seeds.ts` must be scripted with asserted anchors, and fingerprinted before/after like
+   D2/D3 (`RECIPES` must not change by a byte except the new id field).
    *(What follows is the Day 4 brief, kept for the record.)* The target is measured (`01-…md` D4: markers
    `Shakshuka`, `Miso-Glazed Cod`, `fdcId`, `approxCost` in `.next/static/chunks/*.js`; first-load
    `/sage/plan` 216 kB, `/sage/explore` 212 kB). `check:boundaries`' rule-4 debts ARE the work list:
@@ -349,7 +386,7 @@ touching a board.
    ahead sits beside it in a collapsed block. A log that mixes the two is a record of intentions.
 2. *V1 schedule* — **expand the library a lot; think about an ingredients database and wiring it to
    real retailer products (Lidl)**. Worked up as `01-…md` **§8** and recorded in VISION. The facts
-   that reframed it: 501 recipes stand on only **182 curated ingredients**, a recipe references one
+   that reframed it: 501 recipes stand on only **180 curated ingredients** (182 was quoted until 2026-10-03; `build:nutrients` counts 180), a recipe references one
    as **free text with no id**, and **no price/product layer exists** (`approxCost` is 1–3 and never
    exceeds 3, so `budget: high` == `medium`). Outcome: **ingredient identity is now day 5** (the
    schedule grew 12 → 13 days), the retailer layer is recommended for immediately **after** V1, and

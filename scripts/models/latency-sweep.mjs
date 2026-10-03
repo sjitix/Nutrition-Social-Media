@@ -26,6 +26,9 @@ const ONLY = process.env.ONLY ? new RegExp(process.env.ONLY, "i") : null;
 const AUTH = KEY ? { Authorization: `Bearer ${KEY}` } : {};
 // Space the probes of one model at least this far apart (OVH anonymous: 2 req/min per model per IP).
 const GAP_MS = Number(process.env.GAP_MS ?? 1500);
+// 400 is enough for a plain model's 2-3 sentences; a reasoning model spends it thinking and returns
+// nothing (GLM, K3), so raise it for those rather than recording the truncation as "unusable".
+const MAX_TOKENS = Number(process.env.MAX_TOKENS ?? 400);
 
 // Not chat models, or not useful as an assistant brain.
 const EXCLUDE = /embed|guard|safety|reward|parse|translate|retriever|vision|vlm|omni|code|coder|codestral|codegemma|diffusion|recurrentgemma|chatqa|topic-control|content-safety|gemma-2b|sea-lion|zamba|minitron|granite-3\.0-3b/i;
@@ -52,7 +55,7 @@ async function probe(model) {
       signal: ac.signal,
       headers: { "Content-Type": "application/json", ...AUTH },
       body: JSON.stringify({
-        model, temperature: 0.3, max_tokens: 400,
+        model, temperature: 0.3, max_tokens: MAX_TOKENS,
         messages: [{ role: "system", content: SYSTEM }, { role: "user", content: USER }],
       }),
     });

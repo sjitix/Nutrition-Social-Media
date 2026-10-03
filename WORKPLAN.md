@@ -1355,6 +1355,26 @@ Each of these was discovered by doing the work, and each earned its place.
     one statement, so a migration file needs `exec`. `node scripts/test-account-sql.mjs --mutate`
     removes fifteen guards in turn and catches all fifteen.
 
+57. **Never decide what is NEWER by comparing two devices' clocks raw — stamp every write later than
+    what it replaces.** Sync stamped each write with the device's own `Date.now()`, and both the merge
+    rules and the server (`upsert_state`: a store only moves forward in time) compared those stamps
+    across devices. The design comment allowed that skew "can mis-order two edits made within
+    seconds". Clocks disagree by hours, though: after a Windows/Linux dual boot, or on a phone whose
+    time was set by hand. Reproduced against the real engine, ordinary use then failed silently:
+    - A phone two hours slow edited AFTER it synced. The edit was stamped older than the week it had
+      just pulled, so the next sync pulled that week back over it with no backup (the edit also looked
+      older than the last agreement), and the mirror dropped it from its queue as already sent.
+    - A laptop a day fast locked a store against every other device for a day.
+    - A merged store never settled.
+    - "Put it back" on a slow device lost the restored copy.
+    The fix is the logical-clock rule in one pure function, `nextStamp(now, prev)`: a write is stamped
+    now, or just after the value it replaces if that is later. Every stamp another device compares
+    goes through it: `write()`, restore, `importedAt` and merges. Raw clocks then decide only true
+    conflicts (two devices editing before either saw the other's write), where the backup is the net.
+    Found by tracing the code against a question asked of a review, and reproduced before any fix was
+    written. One `Date.now()` that bypassed `write()`, in `restoreBackup`, turned up only on a search
+    for every raw clock read, so after a fix like this, search for every place the old pattern lives.
+
 ---
 
 ## 4. Training track (runs in parallel, never blocked by the above)

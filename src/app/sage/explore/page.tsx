@@ -23,7 +23,9 @@ export default function SageExplorePage() {
         </button>
       </div>
 
-      <ExploreClient />
+      {/* The cards are built HERE, on the server, and handed over as data. ExploreClient used to import
+          them itself, which put the recipe engine and the USDA table in the browser bundle (V1 A4). */}
+      <ExploreClient items={FEED_RECIPES} />
     </div>
   );
 }

@@ -50,6 +50,10 @@ const CATEGORY_TERMS: Record<string, string[]> = {
   eggs: ["egg", "eggs", "caesar dressing"],
 };
 
+/** The category words above ("nuts", "dairy", "gluten"…) — so other code can recognise an allergen
+ *  word without a second copy of the list drifting from this one. */
+export const EXCLUSION_CATEGORIES: readonly string[] = Object.keys(CATEGORY_TERMS);
+
 /** Suffixes that still mean "the same food/verb": almond->almonds, bake->baked/baking. */
 export function wordMatches(word: string, term: string): boolean {
   if (word === term) return true;
@@ -133,7 +137,14 @@ const TOKEN_NOISE = /\b(i'?m|i|am|is|are|allergic|allergy|allergies|to|the|a|an|
 export function parseExclusionTokens(allergies: string, dislikes: string): string[] {
   const raw = [allergies, dislikes].join(",").toLowerCase();
   const out = new Set<string>();
-  for (const chunk of raw.split(/[,;/]| and | & |\+/)) {
+  for (const piece of raw.split(/[,;/]| and | & |\+/)) {
+    // A CONTRAST word ends the clause: "peanuts but fine with almonds" used to become ONE phrase
+    // token, "peanuts but fine almonds", which matches no ingredient — so peanut butter passed an
+    // allergy the user had typed (found 2026-10-03 while making remembered allergies binding). The
+    // exception itself is dropped, so an excepted food may be over-blocked; that is the failure
+    // direction this file chooses everywhere (see CATEGORY_TERMS), the alternative being an allergen
+    // on someone's plate.
+    const chunk = piece.split(/\b(?:but|except|though|although|however|unless|apart from|other than)\b/)[0];
     const cleaned = chunk.replace(TOKEN_NOISE, " ").replace(/\s+/g, " ").trim();
     if (cleaned.length >= 3) out.add(cleaned);
     // A multi-word phrase may still contain a known category ("tree nuts" inside "tree nuts raw").

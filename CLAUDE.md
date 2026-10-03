@@ -98,8 +98,21 @@ disabled) — good for showing the UI without any AI.
 - `src/lib/nutrients.ts` — micronutrient maths, `gramsFor` unit conversion, coverage reporting.
 - `src/lib/exclusions.ts` — allergen/diet matching. Word-aware, in both directions. Read the
   header before touching it; the comments record real allergen exposures this code has caused.
+- **`src/lib/safety.ts` — `redFlag`: crisis / medical-emergency detection on the user's RAW words.**
+  Both assistant routes call it on the latest message **before any model and before demo mode**, and
+  return its reply as the whole answer (no model call, no plan change, no edit-log line); the `symptom`
+  tool calls the same function. Do not move this check behind a model: the old guard fired only when
+  a model chose the `symptom` tool AND quoted the user verbatim, and both failed on a measured crisis
+  message. Which way it errs is owner decision #8 (`docs/v1/01-…md` §5).
 - `src/lib/targets.ts` — Mifflin-St Jeor, hydration. `src/lib/substitutions.ts`,
   `src/lib/symptoms.ts` — curated data for those tools.
+- `src/lib/units.ts` + `unitGrams.generated.ts` — `gramsFor` and the unit weights, **kept apart from
+  the USDA table** so browser code that only converts units does not download it (A4). Both generated
+  files come from `npm run build:nutrients -- --emit`.
+- `src/lib/feedFilter.ts` — the feed's card type and the pure `filterFeed`/`sortFeed`, **client-safe**.
+  `src/lib/feed.ts` builds `FEED_RECIPES` from the engine and is SERVER-only; it re-exports
+  `feedFilter`, so server code may import either. A client component imports `feedFilter` and gets its
+  cards as a prop (see `sage/explore/page.tsx`) — `check:boundaries` rule 4 fails the other way.
 - `src/lib/feed.ts` — the library as filterable cards. `filterFeed`/`sortFeed` are pure and
   tested; call them rather than writing new filter logic.
 - `src/lib/grocery.ts` — aisle categoriser, pure and tested.
@@ -129,7 +142,9 @@ disabled) — good for showing the UI without any AI.
   had to change. Owned by the accounts lane (`docs/parallel/`).
 - `src/lib/account/` — **accounts: local-first, the account is a mirror.** `portable.ts` (the export
   file), `validate.ts` (ONE zod-free check per store, for files AND rows pulled from the account),
-  `merge.ts` (the pure sync rules — key-order-blind, because Postgres jsonb reorders keys), `sync.ts`
+  `merge.ts` (the pure sync rules — key-order-blind, because Postgres jsonb reorders keys; and every
+  write is stamped later than what it replaces, `nextStamp`, because device clocks disagree by hours —
+  lesson 57), `sync.ts`
   (`syncNow` + the debounced mirror, both ends injected), `supabase.ts` (raw REST to Supabase — **no
   SDK**; sign-in is **PKCE**, never tokens from a URL), `client.ts` (browser glue: the session, the one
   running sync pinned to its account, the account-switch guard, status). With no
@@ -279,6 +294,7 @@ disabled) — good for showing the UI without any AI.
 ```bash
 npm run test:engine     # THE gate. Scenarios + adversarial + invariants + fuzz. Never push red.
 npm run check:recipes   # every ingredient priced, every dish plausible, Atwater holds
+npm run check:ingredients # every recipe ingredient resolves to a curated slug + USDA food (D5)
 npm run check:boundaries # the module map enforced: layers, client payload, storage keys, cycles, emoji
                          # (~1 s; ship.mjs runs it on any src/ change; `-- --self-test` proves it fails)
 npm run check:data      # gates the training data

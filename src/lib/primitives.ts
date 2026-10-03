@@ -12,6 +12,61 @@ import { z } from "zod";
 import type { Operation, UserProfile, UserFact, WeekPlan, PlanSnapshot } from "./types";
 import { DAYS, MEAL_TYPES } from "./types";
 import { applyOperations } from "./recipeDb";
+import { parseExclusionTokens, EXCLUSION_CATEGORIES } from "./exclusions";
+import { INGREDIENTS } from "./data/ingredients";
+
+/** What counts as a FOOD word below: an allergen category, or any word of a curated ingredient. */
+const CATEGORIES = new Set(EXCLUSION_CATEGORIES);
+const CURATED_NAMES = new Set(Object.values(INGREDIENTS).map((i) => i.name.toLowerCase()));
+const FOOD_WORDS = new Set(
+  [...CURATED_NAMES].flatMap((n) => n.split(/[^a-z]+/)).filter((w) => w.length >= 3),
+);
+const isFood = (w: string) =>
+  CATEGORIES.has(w) || FOOD_WORDS.has(w) || FOOD_WORDS.has(w.replace(/(es|s)$/, ""));
+/** A phrase we recognise whole: an allergen category ("tree nuts") or a curated name ("peanut butter"). */
+const knownPhrase = (t: string) => CATEGORIES.has(t) || CURATED_NAMES.has(t) || CURATED_NAMES.has(t.replace(/s$/, ""));
+
+/**
+ * The allergens in a REMEMBERED allergy fact, which is conversation, not a form field: "heads up,
+ * I'm allergic to peanuts", "I have a severe peanut allergy", "lactose intolerant". Parsing the whole
+ * sentence as an allergy list stored "heads up" as an allergen and kept "severe peanut" as one phrase
+ * that blocked nothing. So: take the phrase after ("allergic to X") or before ("X allergy") the cue;
+ * split it with the exclusion parser (lists, contrast clauses, noise, categories); and add each FOOD
+ * word of a multi-word phrase on its own ("severe peanut" also yields "peanut"). With no cue at all,
+ * keep only tokens that name a food. An allergen we do not stock ("lupin") is still kept when the cue
+ * names it, so it is enforced the day a recipe with it arrives.
+ */
+export function allergensInFact(fact: string): string[] {
+  const text = fact.toLowerCase().replace(/[‘’]/g, "'");
+  const out = new Set<string>();
+  // Coeliac disease is a gluten rule whatever words surround it.
+  if (/\bc(?:o)?eliac\b/.test(text)) out.add("gluten");
+  // Both sides of the cue. AFTER it is an explicit list ("allergic to X", "allergy, also eggs");
+  // BEFORE it is often an adjective ("severe allergy to …"), so when an AFTER list exists, words
+  // before the cue count only if they name a food ("shellfish allergy, also eggs" keeps both).
+  const after = text.match(/\b(?:allerg(?:ic|y|ies)|intoleran(?:t|ce))[\s,]+(?:to\s+)?([^.;:!?]+)/);
+  const before = text.match(/([^.,;:!?]*?)\s*\b(?:allerg(?:y|ies)|intoleran(?:t|ce))\b/);
+  const afterTokens = after?.[1] ? parseExclusionTokens(after[1], "") : [];
+  const beforeTokens = before?.[1]?.trim() ? parseExclusionTokens(before[1], "") : [];
+  const fromCue = afterTokens.length
+    ? [...afterTokens, ...beforeTokens.filter((t) => t.split(/\s+/).some(isFood))]
+    : beforeTokens;
+  // A cue whose phrase yields nothing ("I don't do dairy, allergy" — the allergen sits before the
+  // comma) falls back to the whole sentence, read for food words only.
+  const cue = fromCue.length > 0;
+  const tokens = cue ? fromCue : parseExclusionTokens(text, "");
+  for (const t of tokens) {
+    if (!t.includes(" ")) {
+      if (cue || isFood(t)) out.add(t); // an explicitly named allergen we do not stock ("lupin") is kept
+      continue;
+    }
+    if (knownPhrase(t)) { out.add(t); continue; } // "tree nuts", "peanut butter"
+    const foods = t.split(/\s+/).filter(isFood); // "severe peanut" -> "peanut"; "my son has nut" -> "nut"
+    if (foods.length) foods.forEach((f) => out.add(f));
+    else if (cue) out.add(t); // an unknown multi-word allergen the user named: keep it whole
+  }
+  return [...out];
+}
 
 export type Day = (typeof DAYS)[number];
 export type MealType = (typeof MEAL_TYPES)[number];
@@ -76,12 +131,17 @@ export function expandConstrain(c: ConstrainOp): Operation[] {
   }
 
   if (isDayScope(scope)) {
-    // A day range / weekday-weekend → one per-day rebuild each, carrying only day-supported fields.
+    // A day range / weekday-weekend → one per-day rebuild each. exclude / use / maxCookTime / budget
+    // used to be DROPPED here although regenerate_day honours them — so "no peanuts on Monday"
+    // rebuilt Monday without excluding peanuts, and only chance kept them out (found by the models
+    // lane, 2026-10-03). mealsPerDay stays week-only: a day cannot have a different number of meals.
     return scope.days.map(
       (day) =>
         ({
           tool: "regenerate_day", day,
           diet: c.diet ?? null, cuisine: c.cuisine ?? null,
+          excludeFoods: c.exclude ?? [], useIngredients: c.use ?? [],
+          maxCookTime: c.maxCookTime ?? null, budget: c.budget ?? null,
           targetCalories: t.calories ?? null, targetProtein: t.protein ?? null,
           targetFiber: t.fiber ?? null, boostNutrient: c.boostNutrient ?? null,
           preserveMacros: c.preserveMacros ?? null,
@@ -89,8 +149,18 @@ export function expandConstrain(c: ConstrainOp): Operation[] {
     );
   }
 
-  // slot scope — per-slot targeting; built in the next step.
+  // Slot scope ("more protein at breakfast") is NOT built yet. It used to return nothing at all, so
+  // the turn changed nothing, the engine said nothing, and the user read the model's "I've bumped your
+  // breakfast protein". `slotScopeNote` (applied in applyPrimitives) now says the truth instead.
   return [];
+}
+
+/** The honest answer to a slot-scoped constrain, until per-slot targeting exists (milestone C4). */
+export function slotScopeNote(c: ConstrainOp): string | null {
+  const scope = c.scope ?? "week";
+  if (scope === "week" || isDayScope(scope)) return null;
+  const slot = scope.slot;
+  return `I can't change just your ${slot} that way yet, so nothing changed. I can swap your ${slot} for a dish that fits (for example a higher-protein one), or make it bigger or smaller — tell me which.`;
 }
 
 /** Apply a `remember` to the profile's memory: dedupe on the fact text, stamp the day if given. */
@@ -172,13 +242,32 @@ export function applyPrimitives(
   let p = profile;
   let remembered = false;
   const flat: Operation[] = [];
+  const extraNotes: string[] = [];
   for (const o of ops) {
     if (isRemember(o)) {
       const next = applyRemember(p, o, today);
       remembered = remembered || next !== p;
       p = next;
+      // A remembered ALLERGY must bind the ENGINE, not just the assistant's memory. It used to write
+      // only profile.memory, so the selector never saw it: "heads up, I'm allergic to peanuts" was
+      // remembered, and two peanut dishes stayed in the week unless the model ALSO sent an exclude
+      // (found by the models lane; a 550B model did exactly that). Now the allergen joins
+      // profile.allergies — the field the exclusion matcher reads — and the week is re-solved, which
+      // keeps every dish that still passes and replaces only the ones that no longer do.
+      if (o.kind === "allergy") {
+        const tokens = allergensInFact(o.fact);
+        const have = new Set(parseExclusionTokens(p.allergies ?? "", ""));
+        const fresh = tokens.filter((t) => !have.has(t));
+        if (fresh.length) {
+          p = { ...p, allergies: [p.allergies, ...fresh].filter((s) => s && s.trim()).join(", ") };
+          flat.push({ tool: "update_profile" } as Operation);
+          extraNotes.push(`I've added ${fresh.join(", ")} to your allergies, so nothing containing ${fresh.length === 1 ? "it" : "them"} will be planned.`);
+        }
+      }
     } else if (isConstrain(o)) {
       flat.push(...expandConstrain(o));
+      const honest = slotScopeNote(o);
+      if (honest) extraNotes.push(honest);
     } else if (isVerb(o)) {
       const mapped = verbToOperation(o);
       if (mapped) flat.push(mapped);
@@ -191,7 +280,9 @@ export function applyPrimitives(
   const res = applyOperations(p, plan, flat, previous);
   // applyOperations returns the (memory-carrying) profile either way; force profileChanged if a
   // remember happened so the caller persists the new memory even on a plan-only-unchanged turn.
-  return { ...res, profileChanged: res.profileChanged || remembered };
+  // The notes written here are ENGINE notes like any other, so composeReply shows them as the truth
+  // rather than letting the model's prose claim a change that did not happen.
+  return { ...res, notes: [...extraNotes, ...res.notes], profileChanged: res.profileChanged || remembered };
 }
 
 /** Render the memory as a compact context line for the model's system prompt each turn. */

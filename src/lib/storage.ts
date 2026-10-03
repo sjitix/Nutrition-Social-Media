@@ -1,6 +1,6 @@
 import type { ChatMessage, UserProfile, WeekPlan } from "./types";
 import type { ImportedRecipe } from "./import";
-import { canonical } from "./account/merge";
+import { canonical, nextStamp } from "./account/merge";
 
 // Client-side persistence. The browser copy is ALWAYS the working copy every screen reads,
 // synchronously. Accounts (src/lib/account/) mirror it to a hosted database underneath — local-first,
@@ -23,8 +23,10 @@ const KEYS = {
 /**
  * Bookkeeping keys. NOT user data: never exported, never synced, never shown as "your data".
  *
- * - `meta`    — when each store was last written on this device (ms since epoch). Sync compares it
- *               with the account's copy to decide which side is newer.
+ * - `meta`    — the write time of each store's current value (ms since epoch): this device's clock
+ *               for its own edits, but never earlier than the value replaced (merge.ts `nextStamp`),
+ *               or the account's time for a value that came from there. Sync compares it with the
+ *               account's copy to decide which side is newer.
  * - `synced`  — for each store, the write time this device and the account last AGREED on (after a
  *               push or a pull). A store whose `meta` is newer than its `synced` holds an edit the
  *               account has never seen — the only kind of local data a sync must back up before
@@ -154,7 +156,9 @@ function write(name: StoreName, value: unknown, opts: { at?: number; silent?: bo
       }
     }
   }
-  const at = opts.at ?? Date.now();
+  // Never earlier than the value being replaced, whatever this device's clock says: an edit made
+  // after a sync must beat what the sync brought, or the next sync undoes it (merge.ts, CLOCKS).
+  const at = opts.at ?? nextStamp(Date.now(), loadStoreMeta()[name]);
   if (clearing) window.localStorage.removeItem(KEYS[name]);
   else writeKey(KEYS[name], value);
   stamp(name, at);
@@ -200,8 +204,16 @@ export const saveChat = (m: ChatMessage[]) => write("chat", m);
 // list happened to lead (src/lib/account/merge.ts).
 export const loadImports = () => read<ImportedRecipe[]>("imports") ?? [];
 export function rememberImport(r: ImportedRecipe): ImportedRecipe[] {
-  const rest = loadImports().filter((x) => x.sourceUrl !== r.sourceUrl);
-  const next = [{ ...r, importedAt: Date.now() } as ImportedRecipe, ...rest].slice(0, IMPORTS_CAP);
+  const prev = loadImports();
+  const rest = prev.filter((x) => x.sourceUrl !== r.sourceUrl);
+  // Later than every import this device has seen, on any clock: on a device whose clock runs slow,
+  // the recipe just imported would otherwise rank below older ones in the merged history, and fall
+  // off the end of a full one.
+  const newest = prev.reduce<number | undefined>((m, x) => {
+    const t = (x as { importedAt?: unknown }).importedAt;
+    return typeof t === "number" && (m === undefined || t > m) ? t : m;
+  }, undefined);
+  const next = [{ ...r, importedAt: nextStamp(Date.now(), newest) } as ImportedRecipe, ...rest].slice(0, IMPORTS_CAP);
   write("imports", next);
   return next;
 }
@@ -324,8 +336,11 @@ export function restoreBackup(id?: number): boolean {
   for (const n of STORE_NAMES) {
     if (n in b.data && b.data[n] !== null && b.data[n] !== undefined) {
       // Announced, freshly stamped, and FORCED even when equal: putting a copy back is a decision.
+      // Stamped later than the value it replaces, on any clock: on a device whose clock runs slow, a
+      // restore stamped earlier than the copy it replaces would be pulled straight back over by the
+      // next sync, with no backup left, since this one is discarded below (merge.ts, CLOCKS).
       const value = b.data[n];
-      const at = Date.now();
+      const at = nextStamp(Date.now(), loadStoreMeta()[n]);
       writeKey(KEYS[n], value);
       stamp(n, at);
       for (const fn of listeners) fn({ name: n, value, at });

@@ -75,15 +75,29 @@ export interface SyncReport {
 }
 
 /**
- * The most a single store may weigh when sent to the account. The database refuses anything over
- * 1 MB per store (supabase/migrations: user_state_value_size); this sits safely under it, measured on
- * the JSON text. A week plan is ~30 kB, so in practice only an enormous chat history could reach it.
+ * The most a single store may weigh when sent to the account, in UTF-8 bytes (`storeBytes`). The
+ * database refuses a store whose jsonb is 1 MB or more (supabase/migrations: user_state_value_size);
+ * this sits safely under it. A week plan is ~30 kB, so in practice only an enormous chat history,
+ * which nothing caps, could reach it.
  *
- * WHY IT IS CHECKED HERE, BEFORE SENDING: rows go up in one batch, and a batch the database refuses is
- * refused WHOLE. Without this, one oversized store would block every other store from syncing,
- * forever, while the status said "offline".
+ * WHY IT IS CHECKED HERE, BEFORE SENDING: an oversized store would otherwise be uploaded only to be
+ * refused, and then uploaded again on every later edit, because an edit retries a held store. Once
+ * `pushOrIsolate` existed it could no longer block the other stores, but it would still cost an upload
+ * of up to a megabyte per chat message.
+ *
+ * WHY BYTES, NOT `.length`: `.length` counts UTF-16 units, and the server counts bytes. Measured in
+ * real Postgres, a chat's stored jsonb is within 3% of its UTF-8 size in English, Arabic and Japanese
+ * alike, but 1.8× its `.length` in Arabic and 2.9× in Japanese. So `.length` waved a non-Latin chat
+ * through, and the server then refused it. Number-heavy JSON costs more as jsonb (a plan-shaped store
+ * is 1.44× its text), but those stores are small. One that crossed the line anyway would still be
+ * refused and held by `pushOrIsolate`.
  */
 export const MAX_STORE_BYTES = 900_000;
+
+/** A store's size as the server will count it, near enough: its JSON, in UTF-8 bytes. */
+export function storeBytes(value: unknown): number {
+  return new TextEncoder().encode(JSON.stringify(value)).length;
+}
 
 /** An error that says the server REFUSED this request (duck-typed: sync.ts imports no adapter). */
 function isRefusal(e: unknown): boolean {
@@ -125,7 +139,7 @@ export function partitionBySize(rows: RemoteRow[]): { ok: RemoteRow[]; tooLarge:
   const ok: RemoteRow[] = [];
   const tooLarge: StoreName[] = [];
   for (const r of rows) {
-    if (r.value !== null && r.value !== undefined && JSON.stringify(r.value).length > MAX_STORE_BYTES) tooLarge.push(r.name);
+    if (r.value !== null && r.value !== undefined && storeBytes(r.value) > MAX_STORE_BYTES) tooLarge.push(r.name);
     else ok.push(r);
   }
   return { ok, tooLarge };
