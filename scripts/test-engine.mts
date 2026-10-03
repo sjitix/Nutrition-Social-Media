@@ -20,7 +20,7 @@ import { FEED_RECIPES, filterFeed, sortFeed, HIGH_PROTEIN_G, type FeedFilter } f
 import { videoPlatform, extractVideoText } from "@/lib/videoImport";
 import { aisleFor, groupByAisle, AISLE_ORDER } from "@/lib/grocery";
 import { currentStreak, prevDay, isoDay } from "@/lib/streak";
-import { expandConstrain, applyRemember, applyPrimitives, memoryContext, AssistantTurnV2Schema, type PrimitiveOp } from "@/lib/primitives";
+import { expandConstrain, applyRemember, applyPrimitives, memoryContext, AssistantTurnV2Schema, allergensInFact, type PrimitiveOp } from "@/lib/primitives";
 import { assistantV2SystemPrompt } from "@/lib/promptV2";
 import { redFlag, CRISIS_REPLY } from "@/lib/safety";
 import { validateExample, validateBatch, type TrainingExample } from "@/lib/dataValidate";
@@ -3003,6 +3003,89 @@ console.log("\n--- SAFETY PRE-SCAN (red flags on the user's own words) ---");
   const notCrisis = applyOperations(BASE, sWeek, [op({ tool: "symptom_check", symptom: "tired at the end of the day" } as Partial<Operation>)]);
   check("red flag: the symptom tool no longer reads 'end of the day' as a crisis",
     notCrisis.replyOverride !== CRISIS_REPLY, notCrisis.notes.join(" | "));
+}
+// ---------------------------------------------------------------- THE ASSISTANT'S WORDS BIND THE ENGINE (2026-10-03)
+// Three findings from the models lane, all in the primitives the model speaks: a REMEMBERED allergy
+// bound nothing; a slot-scoped constrain did nothing and said nothing; a day-scoped constrain dropped
+// its exclusions. Plus one found while fixing the first: a contrast clause in an allergy list
+// ("peanuts but fine with almonds") became one phrase that blocked nothing.
+console.log("\n--- THE ASSISTANT'S WORDS BIND THE ENGINE ---");
+{
+  // Allergen extraction from a fact that is conversation, not a form field.
+  const AF: [string, string[]][] = [
+    ["heads up, I'm allergic to peanuts", ["peanuts"]],
+    ["peanut allergy", ["peanut"]],
+    ["I have a severe peanut allergy", ["peanut"]],
+    ["allergic to peanuts and shellfish", ["peanuts", "shellfish"]],
+    ["allergic to peanuts but fine with almonds", ["peanuts"]],
+    ["severe allergy to tree nuts", ["tree nuts", "nuts"]],
+    ["lactose intolerant", ["lactose"]],
+    ["allergic to lupin", ["lupin"]],
+    ["my son has a nut allergy", ["nut"]],
+    ["I'm coeliac", ["gluten"]],
+    ["I don’t do dairy, allergy", ["dairy"]],
+    ["shellfish allergy, also eggs", ["eggs", "shellfish"]],
+  ];
+  for (const [fact, want] of AF) {
+    const got = allergensInFact(fact);
+    check(`allergen extraction: "${fact}"`, JSON.stringify([...got].sort()) === JSON.stringify([...want].sort()), JSON.stringify(got));
+  }
+  // The contrast fix is in the shared parser, so it also protects the allergies a user TYPES.
+  const typed = parseExclusionTokens("peanuts but fine with almonds", "");
+  check("allergy field: a 'but' clause no longer cancels the allergy", haystackBlocked("peanut butter", typed), JSON.stringify(typed));
+  check("allergy field: ...and the excepted food is not blocked", !haystackBlocked("almonds", typed));
+
+  // A seeded week that REALLY has peanut dishes — Monday breakfast and Friday dinner — so the results
+  // below cannot come from chance. The precondition is asserted, not assumed.
+  const pnut = (d: DayPlan) => d.meals.filter((m) => m.ingredients.some((i) => /peanut/i.test(i.name)));
+  const aw = withSeed(20, () => rebalanceWeek(selectWeekFromDb(BASE), BASE));
+  const monday = aw.days.find((d) => d.day === "Monday")!;
+  const friday = aw.days.find((d) => d.day === "Friday")!;
+  check("precondition: the seeded week has a peanut dish on Monday AND on Friday",
+    pnut(monday).length > 0 && pnut(friday).length > 0, aw.days.flatMap(pnut).map((m) => m.name).join(", "));
+
+  // (2) A remembered allergy is ENFORCED, whether or not the model also sends an exclude.
+  const rem = applyPrimitives(BASE, aw, [{ op: "remember", fact: "heads up, I'm allergic to peanuts", kind: "allergy" } as PrimitiveOp]);
+  check("remembered allergy: no peanut dish left anywhere in the week (I2)", rem.plan.days.every((d) => pnut(d).length === 0),
+    rem.plan.days.flatMap(pnut).map((m) => m.name).join(", "));
+  check("remembered allergy: it is written to the profile's allergies", /peanut/.test(rem.profile.allergies ?? ""), rem.profile.allergies);
+  check("remembered allergy: 'heads up' is not stored as an allergen", !/heads/.test(rem.profile.allergies ?? ""), rem.profile.allergies);
+  check("remembered allergy: the user is told", rem.notes.some((n) => /added peanuts to your allergies/.test(n)), rem.notes[0]);
+  check("remembered allergy: also kept in memory", (rem.profile.memory ?? []).some((f) => /peanuts/.test(f.fact)));
+  const again = applyPrimitives(rem.profile, rem.plan, [{ op: "remember", fact: "allergic to peanuts", kind: "allergy" } as PrimitiveOp]);
+  check("remembered allergy: remembering it twice adds nothing and announces nothing",
+    again.profile.allergies === rem.profile.allergies && !again.notes.some((n) => /added .* to your allergies/.test(n)), again.profile.allergies);
+
+  // (1) A slot-scoped constrain is not built yet — so it must change nothing AND say so.
+  const slot = applyPrimitives(BASE, aw, [{ op: "constrain", scope: { slot: "breakfast" }, targets: { protein: 40 } } as PrimitiveOp]);
+  check("slot-scoped constrain: changes nothing", slot.planChanged === false);
+  check("slot-scoped constrain: says nothing changed, so the model cannot claim it did",
+    slot.notes.some((n) => /breakfast/.test(n) && /nothing changed/.test(n)), slot.notes.join(" | "));
+
+  // (3) A day-scoped constrain carries its exclusion and its cook time to the day it names.
+  const dayEx = applyPrimitives(BASE, aw, [{ op: "constrain", scope: { days: ["Monday"] }, exclude: ["peanuts"] } as PrimitiveOp]);
+  check("day-scoped exclude: Monday no longer has a peanut dish", pnut(dayEx.plan.days.find((d) => d.day === "Monday")!).length === 0);
+  check("day-scoped exclude: Friday is untouched — the exclusion was scoped to Monday",
+    JSON.stringify(dayEx.plan.days.find((d) => d.day === "Friday")) === JSON.stringify(friday));
+  const dayQuick = applyPrimitives(BASE, aw, [{ op: "constrain", scope: { days: ["Tuesday"] }, maxCookTime: 15 } as PrimitiveOp]);
+  const tue = dayQuick.plan.days.find((d) => d.day === "Tuesday")!;
+  check("day-scoped cook time: every Tuesday meal fits 15 min (+ the engine's 5-min tolerance)",
+    tue.meals.every((m) => m.timeMinutes <= 20), tue.meals.map((m) => m.timeMinutes).join(","));
+
+  // Found by the gate on THIS change: once a lactose intolerance binds, the only pancake left is
+  // singular-named ("Chickpea Flour Pancake"), and the swap matcher's plain substring test could not
+  // see "pancakes" in it — so "pancakes every day" answered "I don't have anything like pancakes".
+  // The matcher now also accepts an inflection of a whole word; nothing that matched before changed.
+  const lac = applyPrimitives(BASE, freshWeek(BASE), [
+    { op: "remember", fact: "lactose intolerant", kind: "allergy" },
+    { op: "swap", dish: "pancakes", slot: "breakfast" },
+  ] as PrimitiveOp[]);
+  const bfasts = lac.plan.days.map((d) => d.meals.find((m) => m.type === "breakfast")!);
+  check("a plural request finds a singular-named dish ('pancakes' -> a Pancake)",
+    bfasts.every((m) => /pancake/i.test(m.name)), [...new Set(bfasts.map((m) => m.name))].join(", "));
+  check("...and the binding intolerance keeps it dairy-free",
+    bfasts.every((m) => !m.ingredients.some((i) => /milk|cheese|yogurt|butter|cream|ricotta/i.test(i.name))),
+    [...new Set(bfasts.map((m) => m.name))].join(", "));
 }
 // ---------------------------------------------------------------- 3. fuzz
 console.log("\n--- FUZZ (random op sequences, invariants after each) ---");

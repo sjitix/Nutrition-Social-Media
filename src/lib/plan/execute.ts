@@ -10,6 +10,7 @@
 import { DAYS, type DayPlan, type Meal, type Operation, type UserProfile, type WeekPlan, type LockedMeal, type MealRating, type PlanSnapshot } from "../types";
 import { computeTargets, explainTargets, hydrationTarget, explainHydration, CALORIE_FLOOR, DEFAULT_CALORIE_FLOOR } from "../targets";
 import { type Recipe } from "../data/seeds";
+import { wordMatches } from "../exclusions";
 import { RECIPES, baseRecipeOf, scaleRecipeToTarget, toMeal } from "./library";
 import { bannedForUser, blockedByExclusions, budgetCap, exclusionTokens, fiberOn, keepMacros, localSplit, mergeDislikes, normalizeCuisine, passesDiet } from "./rules";
 import { SCALE_LO, clampScale, dayTargetMacros, macroDistance, rebalanceDay, rebalanceWeek, recipeMacros, scaleRecipeByFactor, scaleToTargets, slotShare, slotTargetMacros, slotsUpTo } from "./rebalance";
@@ -54,8 +55,14 @@ function findRecipeForSwap(
   for (const r of RECIPES) {
     if (!eligible(r)) continue;
     const hay = `${r.name} ${r.description} ${r.ingredients.map((i) => i.name).join(" ")}`.toLowerCase();
+    const hayWords = hay.split(/[^a-z]+/).filter((h) => h.length >= 3);
     let kw = 0;
-    for (const w of words) if (hay.includes(w)) kw++;
+    // A substring hit, OR the asked word is an inflection of a whole word in the dish: "pancakes"
+    // must find "Chickpea Flour Pancake". Substring alone missed it, and it surfaced the day a remembered
+    // lactose intolerance became binding: the only pancake left was singular-named, so "pancakes every
+    // day" answered "I don't have anything like pancakes". This only ADDS matches — every request that
+    // matched before still matches the same way. (The wider fuzzy-match rewrite is D6's.)
+    for (const w of words) if (hay.includes(w) || hayWords.some((h) => wordMatches(w, h))) kw++;
     if (kw > 0) scored.push({ r, kw });
   }
   if (scored.length === 0) return null;
@@ -652,6 +659,11 @@ export function applyOperations(
         if (op.targetCalories && op.targetCalories > 0) tp.targetCalories = op.targetCalories;
         if (op.targetProtein && op.targetProtein > 0) tp.proteinGrams = op.targetProtein;
         if (op.excludeFoods?.length) tp.dislikes = mergeDislikes(tp.dislikes, op.excludeFoods);
+        // Per-day cook time and budget ("quick dinners on weekdays", "cheaper on Friday"): the
+        // day-scoped constrain now passes them, so the day honours them too. Not persisted, like the
+        // other per-day overrides above.
+        if (op.maxCookTime && op.maxCookTime > 0) tp.maxCookTime = op.maxCookTime;
+        if (op.budget) tp.budget = op.budget;
         const rep = newReport();
         const newDay = selectDay(tp, op.day, curPlan, normalizeCuisine(op.cuisine ?? null), fiberOn(op), op.useIngredients, op.boostNutrient ?? undefined, rep);
         notes.push(...reportNotes(rep, tp));
