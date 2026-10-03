@@ -1,0 +1,12 @@
+{"at":"2026-10-03T09:55:14.077Z","model":"nvidia/nemotron-3-ultra-550b-a55b","ok":true,"status":200,"seconds":7.56,"outTokens":226}
+{"at":"2026-10-03T09:55:14.077Z","model":"z-ai/glm-5.3","ok":false,"status":200,"seconds":21.38,"outTokens":400,"err":"empty"}
+{"at":"2026-10-03T09:55:14.077Z","model":"openai/gpt-oss-20b","ok":true,"status":200,"seconds":4.41,"outTokens":166}
+{"at":"2026-10-03T09:55:14.077Z","model":"moonshotai/kimi-k3","ok":false,"status":200,"seconds":108.04,"outTokens":33,"err":"empty"}
+{"at":"2026-10-03T10:07:02.259Z","model":"nvidia/nemotron-3-ultra-550b-a55b","ok":false,"status":429,"seconds":0.06,"outTokens":null,"err":"{\"status\":429,\"title\":\"Too Many Requests\"}"}
+{"at":"2026-10-03T10:07:02.259Z","model":"z-ai/glm-5.3","ok":true,"status":200,"seconds":55.7,"outTokens":400}
+{"at":"2026-10-03T10:07:02.259Z","model":"openai/gpt-oss-20b","ok":true,"status":200,"seconds":5.23,"outTokens":150}
+{"at":"2026-10-03T10:07:02.259Z","model":"moonshotai/kimi-k3","ok":true,"status":200,"seconds":63.51,"outTokens":164}
+{"at":"2026-10-03T10:10:37.112Z","model":"nvidia/nemotron-3-ultra-550b-a55b","ok":true,"status":200,"seconds":13.97,"outTokens":230}
+{"at":"2026-10-03T10:10:37.112Z","model":"z-ai/glm-5.3","ok":true,"status":200,"seconds":25.89,"outTokens":405}
+{"at":"2026-10-03T10:10:37.112Z","model":"openai/gpt-oss-20b","ok":true,"status":200,"seconds":4.21,"outTokens":233}
+{"at":"2026-10-03T10:10:37.112Z","model":"moonshotai/kimi-k3","ok":true,"status":200,"seconds":95.79,"outTokens":160}

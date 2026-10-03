@@ -1,0 +1,243 @@
+{
+  "kind": "loop-eval",
+  "ranAt": "2026-10-03T09:55:33.510Z",
+  "model": "nvidia/nemotron-3-ultra-550b-a55b",
+  "endpoint": "https://integrate.api.nvidia.com/v1",
+  "maxSteps": 8,
+  "summary": {
+    "scenarios": 14,
+    "infraFailures": 0,
+    "trustworthy": true,
+    "pass": 11,
+    "passRate": 79,
+    "actPass": "5/8",
+    "holdPass": "6/6",
+    "readBeforeWrite": "2/2",
+    "gaveUp": 0,
+    "meanSteps": 1.86,
+    "medianSecondsPerMessage": 17.6034528,
+    "p90SecondsPerMessage": 31.717445,
+    "maxSecondsPerMessage": 47.1138017
+  },
+  "rows": [
+    {
+      "id": "day-vegetarian",
+      "want": "act",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 31.717445,
+      "readFirst": null,
+      "ops": [
+        "constrain"
+      ],
+      "reply": "Tuesday now has 2000 kcal and 146g protein. Fat comes to 82g against about 65g."
+    },
+    {
+      "id": "every-day-swap",
+      "want": "act",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 3,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 18.947731700000006,
+      "readFirst": null,
+      "ops": [
+        "find_recipes",
+        "swap"
+      ],
+      "reply": "Set Cottage Cheese Pancakes with Blueberries as your breakfast every day. Your week now averages 1999 kcal and 150g protein."
+    },
+    {
+      "id": "single-slot",
+      "want": "act",
+      "pass": false,
+      "infra": false,
+      "reason": "changed more than Wednesday dinner",
+      "steps": 3,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 47.1138017,
+      "readFirst": null,
+      "ops": [
+        "find_recipes",
+        "swap"
+      ],
+      "reply": "Wednesday now has 2000 kcal and 150g protein. Fat comes to 80g against about 65g. I bumped your breakfast to Greek Yogurt Bark with Almonds to make room."
+    },
+    {
+      "id": "targets",
+      "want": "act",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 15.2142592,
+      "readFirst": null,
+      "ops": [
+        "constrain"
+      ],
+      "reply": "Your week now averages 1800 kcal and 160g protein."
+    },
+    {
+      "id": "exclude",
+      "want": "act",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 11.043747000000003,
+      "readFirst": null,
+      "ops": [
+        "remember",
+        "constrain"
+      ],
+      "reply": "Your week now averages 2000 kcal and 151g protein."
+    },
+    {
+      "id": "memory-allergy",
+      "want": "act",
+      "pass": false,
+      "infra": false,
+      "reason": "peanuts despite the allergy: Peanut Butter Banana Shake Bowl, Peanut Tofu Bites",
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 14.452915899999992,
+      "readFirst": null,
+      "ops": [
+        "constrain"
+      ],
+      "reply": "Your week now averages 1999 kcal and 155g protein."
+    },
+    {
+      "id": "find-then-place",
+      "want": "act",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 3,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 18.919141399999994,
+      "readFirst": true,
+      "ops": [
+        "find_recipes",
+        "swap"
+      ],
+      "reply": "Thursday now has 2000 kcal and 150g protein. Fat comes to 80g against about 65g. I bumped your breakfast to Matcha Chia Protein Pudding to make room."
+    },
+    {
+      "id": "weekend-lighter",
+      "want": "act",
+      "pass": false,
+      "infra": false,
+      "reason": "weekend not lighter (Sat 2000→2000, Sun 2000→2000)",
+      "steps": 1,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 17.6034528,
+      "readFirst": null,
+      "ops": [],
+      "reply": "Got it — I can dial back the weekend days. How much lighter would you like Saturday and Sunday? For example, around 1700 kcal, 1800 kcal, or a different target?"
+    },
+    {
+      "id": "lookup-question",
+      "want": "hold",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 14.188289799999998,
+      "readFirst": true,
+      "ops": [
+        "inspect_recipe"
+      ],
+      "reply": "Monday's dinner is **Chicken & Vegetable Stir-Fry with Rice** — a quick 20-minute Asian-style stir-fry. Here's what's in it: **Ingredients:** - 160 g chicken breast - 70 g brown rice (dry weight) - 16"
+    },
+    {
+      "id": "general-qa",
+      "want": "hold",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 17.791398600000015,
+      "readFirst": null,
+      "ops": [
+        "answer"
+      ],
+      "reply": "Happy to help."
+    },
+    {
+      "id": "emotional",
+      "want": "hold",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 1,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 16.223421499999997,
+      "readFirst": null,
+      "ops": [],
+      "reply": "I'm sorry you're feeling drained — that's really tough. Want me to lean the next few days toward iron-rich meals to help with energy, or would you prefer lighter, quicker meals so there's less cooking"
+    },
+    {
+      "id": "vague-goal",
+      "want": "hold",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 1,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 10.461446400000016,
+      "readFirst": null,
+      "ops": [],
+      "reply": "I'd love to help. To give you a plan that actually works, I need a bit more: what daily calorie target would you like to aim for, or roughly how many pounds/kilos you'd like to lose per week? (If you'"
+    },
+    {
+      "id": "contradiction",
+      "want": "hold",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 1,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 7.679620800000004,
+      "readFirst": null,
+      "ops": [],
+      "reply": "Those two clash — vegan means no chicken at all. Want a fully vegan week, or a non-vegan week with chicken on Friday?"
+    },
+    {
+      "id": "unsupported",
+      "want": "hold",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 1,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 20.194841799999995,
+      "readFirst": null,
+      "ops": [],
+      "reply": "I can't set up fasting windows or remove breakfast entirely — plans run on 3 or 4 meals a day. Want a light, quick breakfast you can have at noon, or should I shift those calories into a bigger lunch "
+    }
+  ],
+  "variant": "models-exp prototype v1 (read tools in AgentTurnSchema + agent-mode prompt + HOW TO DECIDE)"
+}

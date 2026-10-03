@@ -1,0 +1,445 @@
+{
+  "ranAt": "2026-10-03T10:13:20.030Z",
+  "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
+  "endpoint": "https://integrate.api.nvidia.com/v1",
+  "keyed": true,
+  "settings": {
+    "concurrency": 2,
+    "maxRetries": 6,
+    "reqTimeoutMs": 600000,
+    "maxTokens": 2000
+  },
+  "cases": 45,
+  "summary": {
+    "schemaOk": 20,
+    "actedRight": 16,
+    "changedState": 10,
+    "infraFailures": 0,
+    "trustworthy": true
+  },
+  "byBucket": {
+    "do": {
+      "n": 27,
+      "right": 9
+    },
+    "clarify": {
+      "n": 7,
+      "right": 2
+    },
+    "refuse": {
+      "n": 5,
+      "right": 3
+    },
+    "decline": {
+      "n": 6,
+      "right": 2
+    }
+  },
+  "results": [
+    {
+      "id": "compound-1",
+      "bucket": "do",
+      "schemaOk": false,
+      "actedRight": false,
+      "changed": false,
+      "infra": false,
+      "reply": "Here's a thinking process: 1. **Analyze User Input:** - User says: \"make it cheaper, vegetarian, and no mushrooms\" - Context: We have a current 7-day plan with specific meals, calories, protein, etc. The profile says: diet=none, budget=medium diet: vegetarian exclude: mushrooms"
+    },
+    {
+      "id": "range-1",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Done! Monday through Wednesday are now vegetarian, and Thursday–Sunday stay exactly as they were. Let me know if you'd like any tweaks to the meals, nutrients, or cook times."
+    },
+    {
+      "id": "weekend-1",
+      "bucket": "do",
+      "schemaOk": false,
+      "actedRight": false,
+      "changed": false,
+      "infra": false,
+      "reply": "Here's a thinking process: 1. **Analyze User Input:** User says \"lighter meals on the weekend, i'm less active then\" 2. **Identify Intent:** They want to adjust the weekend meals (Saturday & Sunday) to be lighter given lower activity levels. 3. **Check Constraints & Context:** - Current plan has Saturday & Sunday with 2000 kcal/day, protein 147g and 150g respectively. - Meals are listed with calor"
+    },
+    {
+      "id": "everyday-1",
+      "bucket": "do",
+      "schemaOk": false,
+      "actedRight": false,
+      "changed": false,
+      "infra": false,
+      "reply": "{ \"thinking\": \"User wants pancakes for breakfast every day. This is a straightforward dish replacement across all breakfasts. I'll use the `swap` primitive with dish 'pancakes' and slot 'breakfast', omitting days to apply it to the entire week. The engine will re-s"
+    },
+    {
+      "id": "everyday-correction",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "changed": true,
+      "infra": false,
+      "reply": "You got it — pancakes for breakfast every day starting now. Hope they make your mornings better!"
+    },
+    {
+      "id": "ambiguous-1",
+      "bucket": "clarify",
+      "schemaOk": true,
+      "actedRight": true,
+      "changed": false,
+      "infra": false,
+      "reply": "I'd love to help you change something! What would you like to adjust—diet type, meals, timing, budget, or something else? Let me know the specifics and I’ll update your plan."
+    },
+    {
+      "id": "contradiction-1",
+      "bucket": "refuse",
+      "schemaOk": true,
+      "actedRight": true,
+      "changed": false,
+      "infra": false,
+      "reply": "Those two clash — vegan means no chicken. Want a fully vegan week, or a non-vegan week with chicken on Friday?"
+    },
+    {
+      "id": "impossible-1",
+      "bucket": "refuse",
+      "schemaOk": false,
+      "actedRight": false,
+      "changed": false,
+      "infra": false,
+      "reply": "Here's a thinking process: 1. **Analyze User Input:** - Goal: 300g protein per day - Diet: fully vegan - Budget: $20 per week (that's ~$2.86/day, extremely tight) - Context: They're asking me to set up/modify a plan 2. **Check Constraints & Feasibility:** - 300g protein/day vegan is very high but possible with supplements/fortified foods, though expensive. - $20/week = ~$2.86/day. This is far belo"
+    },
+    {
+      "id": "reference-scope",
+      "bucket": "do",
+      "schemaOk": false,
+      "actedRight": false,
+      "changed": false,
+      "infra": false,
+      "reply": "Here's a thinking process: 1. **Analyze User Input:** - User says: \"actually just tuesday, put the rest back\" - Context: Previous turn was \"make the week italian\". Now they want to revert only Tuesday to non-Italian, and keep the rest Italian? Or \"put the rest back\" means revert the whole week to original, but keep Tuesday changed? Wait, \"actually just tuesday, put the rest back\" likely means: onl"
+    },
+    {
+      "id": "health-period",
+      "bucket": "clarify",
+      "schemaOk": false,
+      "actedRight": false,
+      "changed": false,
+      "infra": false,
+      "reply": "Here's a thinking process: 1. **Analyze User Input:** - User says: \"i'm on my period and feeling really drained\" - Context: They're interacting with NutriFlow, a personal nutritionist AI. - The input is about a physiological state (period) and a feeling (drained/low energy). 2. **Determine Intent/Need:** - They're likely seeking nutritional support, adjustments, empathy, or suggestions to combat p"
+    },
+    {
+      "id": "deficiency-constrained",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Got it — I've noted your doctor's note about low iron and kept your vegetarian diet. I'm adjusting the plan to boost iron across the week. Let me know if you feel any better or have other preferences!"
+    },
+    {
+      "id": "memory-apply",
+      "bucket": "do",
+      "schemaOk": false,
+      "actedRight": false,
+      "changed": false,
+      "infra": false,
+      "reply": "{ "
+    },
+    {
+      "id": "rambling-multi",
+      "bucket": "do",
+      "schemaOk": false,
+      "actedRight": false,
+      "changed": false,
+      "infra": false,
+      "reply": "Here's a thinking process: 1. **Analyze User Input:** - User says: \"ok so i'm super stressed and working late all week, i think i went vegetarian recently, oh and i really can't stand mushrooms — can you make my dinners quick at least\" - Key points: - Stressed, working late all week - Recently went vegetarian (diet preference/change) - Really can't stand mushrooms (exclusion) - Wants dinners to be"
+    },
+    {
+      "id": "slang-typo",
+      "bucket": "do",
+      "schemaOk": false,
+      "actedRight": false,
+      "changed": false,
+      "infra": false,
+      "reply": "Here deepellsellsellsellsellsellsellsellsellsellsellsellsellsellsells userellsellsellsellsellsellsellsellsellsellsellsells ellsellsellsellellsellsellsellsellsellsellsellsellsellsellsellsellsellsellsellsellsellsellsellsellsellsellsellsellsellsellsellsellsells overtellsellsellsellsellsellsellsellsellsellsellsellsellsellsellsellsellsellsellsellsellsellsellsellsellsellsellsellsellsellsellsellsellsells"
+    },
+    {
+      "id": "eating-problem",
+      "bucket": "clarify",
+      "schemaOk": false,
+      "actedRight": false,
+      "changed": false,
+      "infra": false,
+      "reply": "Here's a thinking process: 1. **Analyze User Input:** - User says: \"i've been binge eating late at night and i feel awful about it\" - This is a statement about behavior + emotion, not a direct request to modify the meal plan. - However, as NutriFlow's assistant, I should acknowledge, empathize, and potentially connect it to the plan if relevant. - The user might want help with timing, structure, o"
+    },
+    {
+      "id": "per-slot-protein",
+      "bucket": "do",
+      "schemaOk": false,
+      "actedRight": false,
+      "changed": false,
+      "infra": false,
+      "reply": "Here's a thinking process: 1. **Analyze User Input:** - User says: \"i need more protein specifically at breakfast, the rest is fine\" - This is a clear, specific request: increase protein at breakfast, keep everything else as is. 2. **Determine Intent & Feasibility:** - The user wants to modify the existing plan to have more protein at breakfast. - The current plan has breakfast items with varying "
+    },
+    {
+      "id": "skip-meal",
+      "bucket": "decline",
+      "schemaOk": true,
+      "actedRight": true,
+      "changed": false,
+      "infra": false,
+      "reply": "I can't remove breakfast entirely yet — our plans run on 3 or 4 meals a day. Would you like a light, quick breakfast instead, or should I shift those calories into your lunch and dinner?"
+    },
+    {
+      "id": "household-servings",
+      "bucket": "decline",
+      "schemaOk": false,
+      "actedRight": false,
+      "changed": false,
+      "infra": false,
+      "reply": "Here's a thinking process: 1. **Analyze User Input:** - User says: \"i'm cooking for me and my girlfriend, make the portions for two\" - Context: We have a current weekly plan with specific meals, calories, macros, cook times per day. The plan is currently for one person (2000 kcal/day, specific protein grams per day). - Goal: Adjust portions for two people. 2. **Identify What's Needed:** - The syst"
+    },
+    {
+      "id": "log-and-adapt",
+      "bucket": "do",
+      "schemaOk": false,
+      "actedRight": false,
+      "changed": false,
+      "infra": false,
+      "reply": "Here's a thinking process: 1. **Analyze User Input:** User says \"welp i already smashed a big burger and fries for lunch today\" 2. **Identify Intent/Context:** - This sounds like they're reporting a meal they already ate (\"log\" operation maybe?). - They might be adjusting their plan for today, or just sharing. - The system has a `log` primitive: `{op:\"log\", day, slot, dish, calories?, protein?}`. "
+    },
+    {
+      "id": "capabilities",
+      "bucket": "clarify",
+      "schemaOk": false,
+      "actedRight": false,
+      "changed": false,
+      "infra": false,
+      "reply": "Here's a thinking process: 1. **Analyze User Input:** The user asks \"what can you actually do?\" - this is a meta-question about my capabilities within the defined system (NutriFlow assistant). 2. **Identify My Role/Constraints:** I'm a NutriFlow assistant with specific operations (constrain, remember, swap, log, reserve, resize, rate, pin/unpin, report, explain, substitute, symptom, hydration, und"
+    },
+    {
+      "id": "budget-cuisine",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Done! I've shifted the whole week to Mexican-inspired, budget-friendly meals. Expect tasty tacos, beans, rice, and spices while keeping it under budget. Let me know if you'd like any tweaks—maybe lighter breakfasts, specific spice levels, or extra quick dinners!"
+    },
+    {
+      "id": "macro-pair",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Got it! I've set your daily targets to 1800 calories and 160g protein. The plan will be rebalanced to meet these goals while keeping meals satisfying and varied. Let me know if you'd like any other tweaks—maybe adjust protein distribution across meals, swap a dish, or fine-tune the budget!"
+    },
+    {
+      "id": "quick-week",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Got it — I'm setting all your meals to under 15 minutes of cook time this week. The engine will reshuffle the plan to keep you close to your calorie and protein goals while making everything quick and doable. Let me know if you have any must-have meals, cuisines, or exclusions you'd like kept!"
+    },
+    {
+      "id": "single-slot-swap",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Done — Tuesday's dinner is now a salmon bowl. Let me know if you'd like to adjust anything else!"
+    },
+    {
+      "id": "four-meals",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Got it — your week will now run on 4 meals a day, with an afternoon snack added automatically. Hope that keeps you satisfied and energized! Want to put any preference on what that snack looks like?"
+    },
+    {
+      "id": "eating-out-future",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": false,
+      "changed": false,
+      "infra": false,
+      "reply": "I can definitely lighten Friday’s dinner for you. How many calories would you like to save for your reservation—e.g., 200 kcal, 300 kcal, or a specific target?"
+    },
+    {
+      "id": "pin-keep",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": false,
+      "changed": false,
+      "infra": false,
+      "reply": "Got it! Sunday dinner (Beef Keema with Peas) is locked in and won't change. What would you like to adjust for the rest of the week? I can swap meals, tweak macros, change diet preferences, adjust budgets, or quicken cook times—just let me know what you'd like, and I'll keep that Sunday dinner exactly as-is."
+    },
+    {
+      "id": "rate-recur",
+      "bucket": "do",
+      "schemaOk": false,
+      "actedRight": false,
+      "changed": false,
+      "infra": false,
+      "reply": "Here's a thinking process: 1. **Analyze User Input:** User says \"monday's breakfast was so good, can i have it more often\" 2. **Identify Intent:** They want to have Monday's breakfast more often. Likely means they want to repeat that breakfast dish more frequently, perhaps throughout the week or more often than once a week. 3. **Check Context/Profile:** - Current plan shows Monday breakfast: \"Berr"
+    },
+    {
+      "id": "substitute-advice",
+      "bucket": "do",
+      "schemaOk": false,
+      "actedRight": false,
+      "changed": false,
+      "infra": false,
+      "reply": "{ \"thinking\": \"User wants an egg substitute eggs in tomorrow's breakfast. I need to know which day \" "
+    },
+    {
+      "id": "hydration-profile",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": true,
+      "changed": true,
+      "infra": false,
+      "reply": "Thanks for sharing! I've noted your weight and activity level — the system will generate a personalized hydration goal for you based on that."
+    },
+    {
+      "id": "explain-slot",
+      "bucket": "do",
+      "schemaOk": true,
+      "actedRight": false,
+      "changed": false,
+      "infra": false,
+      "reply": "Actually, Monday's breakfast is Berry Protein Waffles, not oatmeal. If you'd prefer oatmeal instead, I can swap that in for you—just say the word! Or were you thinking of a different day?"
+    },
+    {
+      "id": "general-qa",
+      "bucket": "do",
+      "schemaOk": false,
+      "actedRight": false,
+      "changed": false,
+      "infra": false,
+      "reply": "{ \"thinking\": \""
+    },
+    {
+      "id": "vague-weightloss",
+      "bucket": "clarify",
+      "schemaOk": false,
+      "actedRight": false,
+      "changed": false,
+      "infra": false,
+      "reply": "{ \"thinking\": \"The user wants to lose weight. I need to check if there are any weight-loss-related changes needed in the plan. Looking at the current weekly plan, it's already at ~2000 kcal/day. Weight loss would typically require a calorie deficit, but I, the system says I should NEVER compute or state a calorie/macro/nutrient number myself. The engine does ALL the math (, 2013, (1, 10), (2, 9), "
+    },
+    {
+      "id": "bare-more",
+      "bucket": "clarify",
+      "schemaOk": true,
+      "actedRight": true,
+      "changed": false,
+      "infra": false,
+      "reply": "I'd love to give you more! Could you clarify what you're looking for? For example: more meal variety, modifications to your current plan (like diet changes, budget, cook time, or nutrient focuses), a different weekly structure, or something specific? Let me know and I'll get right on it."
+    },
+    {
+      "id": "fasting-window",
+      "bucket": "decline",
+      "schemaOk": false,
+      "actedRight": false,
+      "changed": false,
+      "infra": false,
+      "reply": "Here's a thinking process: 1. **Analyze User Input:** - User says: \"set me up for 16:8 fasting, no food before noon\" - This is about changing the eating window to 16:8 intermittent fasting, meaning fasting for 16 hours, eating within 8 hours, and specifically \"no food before noon\". - Current plan structure: The system has a weekly plan with breakfast, lunch, dinner for each day. Breakfast is curre"
+    },
+    {
+      "id": "monthly-plan",
+      "bucket": "decline",
+      "schemaOk": true,
+      "actedRight": true,
+      "changed": false,
+      "infra": false,
+      "reply": "I'd be happy to map out a month for you! To make sure it fits your lifestyle, could you confirm: (1) you're happy with the current profile (medium budget, no diet restrictions, about 2000 kcal per day), or would you like any diet/budget changes? (2) Do you want a straight 30‑day plan that repeats the weekly pattern, or any special weeks (e.g., a vegetarian week, a quick‑dinner focus)?"
+    },
+    {
+      "id": "vegan-b12",
+      "bucket": "decline",
+      "schemaOk": true,
+      "actedRight": false,
+      "changed": true,
+      "infra": false,
+      "reply": "Low B12 on a vegan diet is common but easily addressed with fortified foods! I’ve updated your plan to focus on vegan B12 sources like fortified plant milks, nutritional yeast, and B12-fortified cereals. This should help support your levels while keeping everything fully plant-based. Let me know if you’d like specific meal ideas or want to adjust anything else!"
+    },
+    {
+      "id": "external-sync",
+      "bucket": "decline",
+      "schemaOk": false,
+      "actedRight": false,
+      "changed": false,
+      "infra": false,
+      "reply": "Here's a thinking process: 1. **Analyze User Input:** User asks \"can you sync all this to my apple watch?\" 2. **Identify Role/Constraints:** I am NutriFlow's assistant. I output a specific JSON structure with `thinking`, `reply`, and `operations`. I don't have actual integration with Apple Watch or any external syncing capability beyond the defined primitives. The primitives don't include any Appl"
+    },
+    {
+      "id": "keto-highcarb",
+      "bucket": "refuse",
+      "schemaOk": true,
+      "actedRight": true,
+      "changed": false,
+      "infra": false,
+      "reply": "Keto and daily pasta/rice clash because keto keeps carbs very low to maintain ketosis, while pasta and rice are high-carb staples. I can't set keto with those every day, but I can do keto with low-carb alternatives (like shirataki noodles or cauliflower rice), or adjust your diet goal. What would you prefer?"
+    },
+    {
+      "id": "vegan-eggs",
+      "bucket": "refuse",
+      "schemaOk": true,
+      "actedRight": true,
+      "changed": false,
+      "infra": false,
+      "reply": "I can't make the week fully vegan and add eggs every morning—those two clash. I can instead make your week fully vegan (no eggs) or a lacto‑ovo vegetarian week with eggs every morning. Which would you prefer?"
+    },
+    {
+      "id": "impossible-cal-protein",
+      "bucket": "refuse",
+      "schemaOk": false,
+      "actedRight": false,
+      "changed": false,
+      "infra": false,
+      "reply": "Here's a thinking process: 1. **Analyze User Input:** - User says: \"i want 250g of protein a day on 1200 calories\" - This is a direct request for a specific protein target (250g/day) at a specific calorie level (1200 kcal/day). 2. **Check Against System Constraints/Capabilities:** - I am NutriFlow's assistant. I must NOT compute or state calorie/macro/nutrient numbers myself. The engine does all m"
+    },
+    {
+      "id": "cycle-sync-offer",
+      "bucket": "clarify",
+      "schemaOk": false,
+      "actedRight": false,
+      "changed": false,
+      "infra": false,
+      "reply": "Here's input is \"my period starts in a couple days\". 2. Analyze the user's intent: The user is mentioning their period starting soon. This is likely a request for information about managing periods, symptoms, or related health topics. It is"
+    },
+    {
+      "id": "allergy-later-applied",
+      "bucket": "do",
+      "schemaOk": false,
+      "actedRight": false,
+      "changed": false,
+      "infra": false,
+      "reply": "Here's a thinking process: 1. **Analyze User Input**: User says \"add a high-protein snack in the afternoons\" 2. **Identify Context**: - Current plan is a weekly meal plan with breakfast, lunch, dinner for each day. - User has an allergy to peanuts (already noted/remembered). - Now wants a high-protein snack in the afternoons. - Need to figure out how to add this. The system uses primitives: `const"
+    },
+    {
+      "id": "clarify-then-do",
+      "bucket": "do",
+      "schemaOk": false,
+      "actedRight": false,
+      "changed": false,
+      "infra": false,
+      "reply": "Here's a thinking process: 1. **Analyze User Input:** User says \"make the whole thing vegan\" 2. **Identify Core Request:** They want the entire week's meal plan to become vegan. 3. **Check Current State:** Current profile: diet=none, budget=medium, ~2000 kcal/day, dislikes=none. Current plan has meat/animal products (chicken, salmon, eggs, dairy, etc.) every day. 4. **Determine Feasibility/Constra"
+    },
+    {
+      "id": "correction-replace",
+      "bucket": "do",
+      "schemaOk": false,
+      "actedRight": false,
+      "changed": false,
+      "infra": false,
+      "reply": "Here's a thinking process: 1. **Analyze User Input:** User says \"wait no, i meant mediterranean\". This is a correction/change from the previous \"keto\" instruction. The system was just set to keto, and now they want Mediterranean instead. 2. **Identify Context:** - Current state: The plan was just changed to keto (based on the previous turn's output: \"Done — your week's keto now.\"). - User now want"
+    }
+  ]
+}

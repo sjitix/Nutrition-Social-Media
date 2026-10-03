@@ -34,6 +34,51 @@ is 15 s on a good draw and over 2 minutes on a bad one. **The free NVIDIA tier c
 fast" at the same time.** It is still the right place to measure *quality* of big models for free —
 the hard-case evals for Ultra-550B, GLM-5.3 and Lightning are running.
 
+### Hard-case scores (45 cases, engine-verified, single turn)
+
+| model | actedRight | do | clarify | refuse | decline | trustworthy | scorecard |
+|---|---|---|---|---|---|---|---|
+| gpt-oss-20b *(control; Sept, LM Studio)* | 84% | 24/27 | 6/7 | 5/5 | 3/6 | yes | — |
+| **Nemotron-3-Ultra-550B** | **82%** | 23/27 | 4/7 | 5/5 | **5/6** | **yes (0 infra)** | `2026-10-03T09-48-24-…ultra-550b….json` |
+| Kimi K3 *(2026-10-02)* | ≤78% best case | — | 1/6 | — | ≤4/6 | no (8 infra) | `2026-10-02T22-13-09-moonshotai-kimi-k3.json` |
+| GLM-5.3 | 69% | 22/27 | 2/7 | 4/5 | 3/6 | yes (0 infra) — but **schemaOk 35/45** | `2026-10-03T10-00-28-z-ai-glm-5.3.json` |
+
+| Nemotron-3.5-Lightning-30B | 36% | — | — | — | — | yes — but **schemaOk 44%** | `2026-10-03T10-13-20-nvidia-nemotron-3.5-lightning-30b-a3b.json` |
+
+**Nemotron-3.5-Lightning is ruled out:** its chain of thought leaks into the reply (the sweep showed
+"Here's a thinking process: 1. Analyze…"), so most replies never parse.
+
+**GLM-5.3 is not yet fairly measured:** 10 of 45 replies didn't parse (a reasoning model that sometimes
+spent the budget before writing the JSON, or leaked its `{"thinking"…}` into the text). Where it did
+answer, its tone was among the warmest. Needs a format fix (larger output budget / JSON mode) before its
+judgement can be compared — on the to-do, behind the models that format cleanly.
+
+**Read:** 27× the parameters does not buy a higher score on this eval. The 550B model is clearly more
+*honest* (it declined 5 of 6 unsupported requests instead of faking them — the small model's worst
+habit), but it over-acts on feelings (`health-period`, `eating-problem`, `cycle-sync-offer`) the way K3
+did. Several of its misses are **the prompt's fault, not the model's**: it answered the quinoa question
+and "why oatmeal on Monday" correctly but without the `answer`/`explain` op the contract expects, and
+it asked "which day is today?" before logging a meal because **the prompt never tells the model the
+date**. The prompt fix being prototyped on `models-exp` targets exactly these.
+
+## Round 2 — local, on the desktop (LM Studio, 1× RTX 2070 8 GB + RAM offload)
+
+| model | params | median / best per call | notes |
+|---|---|---|---|
+| `qwen/qwen3-30b-a3b-2507` | 30B MoE (3B active) | **8.5 s / 6.5 s** (3/3) | on ONE card with RAM offload — the CLAUDE.md 4-GPU target; free, no queue, no rate limit |
+| `meta/llama-3.3-70b` | 70B dense | ~0.58 tok/s (memory `local-70b-inference-speed`) | unusable for chat on this hardware |
+
+Scorecard: `2026-10-03T10-13-11-latency-sweep.json`. **The local 30B is as fast per call as the cloud
+20B** and has no queue lottery — a real candidate; its loop eval (before/after the read-tool fix) is
+running.
+
+## Latency diary (all day, one probe per model per 10 min)
+
+`data/eval-runs/latency-diary-<date>.jsonl`. First readings: Ultra-550B 7.6 s but also a **429** (my
+own concurrent evals pushed the account's rate limit — free-tier headroom is thin); **K3 63 s**, far
+better than the ~250 s measured in September, so its free queue has improved. The diary's output cap
+was raised 400 → 2000 after reasoning models (GLM, K3) returned empty content at 400.
+
 ## Where "big and fast" actually lives (researched 2026-10-03, not yet measured)
 
 | provider | free? | what it would unlock |

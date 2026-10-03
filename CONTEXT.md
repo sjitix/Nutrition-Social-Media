@@ -68,13 +68,41 @@ never blocks on the owner): `docs/models/OWNER-TODO.md`.
   lane file. **Does not edit** `promptV2.ts` / `ai.ts` / `agentLoop.ts` / `eval-hardcases.mts` (v1's) —
   runs them, and asks v1 before landing any change to them on `main`. Touches no accounts files.
 
-### >>> V1 LANE — 2026-10-03 (later): test debt PAID, accounts' asks DONE. Next: Day 1, `check:boundaries`. <<<
+### >>> V1 LANE — 2026-10-03 (afternoon): Day 1 DONE (`check:boundaries`). TRACK A IS NOW A GATE. Next: Day 2. <<<
 
-**State:** `main` clean and pushed (`8c0ee66`). `test:engine` **660/0** · `test:ui` **51/0** (new) ·
-`test:api` **60/0** with LM Studio up · `tsc` clean. Live lane status: `docs/parallel/lane-v1.md`.
+**State:** `main` pushed (`4e3be01` + docs). `check:boundaries` passes (0 new, **9 known debts**) ·
+`test:engine` **660/0** · `test:ui` **51/0** · `test:api` **60/0** · `tsc` clean. Live lane status:
+`docs/parallel/lane-v1.md`. **Dev server: UP on :3000** (pid 800) — stop it before any `npm run build`.
+
+#### 0. READ THIS FIRST — the owner's ruling, found two weeks late
+
+**Seven owner comments on the module-map board (2026-09-19) sat unread until today.** All answered,
+resolved, applied (`558dd15`). The one that changes everything: ***"modularise first, then build on
+that architecture."*** So **Track A is a GATE on all v1 feature work**: D2 split `recipeDb` (data
+out) → D3 (executor out) → D4 payload boundary → D5 ingredient ids → **D5a / A6** every module behind
+an `index.ts` in its folder (now committed, was "optional") → **D5b / A7** the maths proven exact.
+**Fixes are allowed; new features wait** (the Track E `[free]` list waits too). Also added: **D9a /
+C4**, every Track E button gets a chat primitive. Reasoning: `02-module-map.md` §0 and §5.
+**WORKPLAN lesson 50: read all three boards' comment threads at the START of every session.**
 
 #### 1. WHERE THE V1 LANE IS
 
+- **D1 done — `npm run check:boundaries`** (`4e3be01`): six rules + rule 0 (every `src/lib` file
+  placed in a layer), TypeScript-compiler parsing, transpile-first for the client-payload rule, a
+  shrink-only `KNOWN_DEBT` list, `--self-test` 11/0, and **`ship.mjs` runs it on any `src/` change**.
+  It found **four debts nobody knew**: Groceries ships the 80 kB USDA table; `agentTools` (L4) imports
+  `feed` (L6); `conditions`/`symptoms` (L1) import `nutrients` (L2); `/plan` ships `import.ts`. Full
+  table: `02-module-map.md` §9. **When you pay a debt, delete its `KNOWN_DEBT` entry — the gate fails
+  until you do.**
+- **Models lane found a bug in v1's files:** the agent loop's read tools are unreachable in
+  production — `PrimitiveOpSchema`/`AssistantTurnV2Schema` and `promptV2` never name them, so
+  read-before-write is 0/2 in their loop eval. They are prototyping the fix on `models-exp`
+  (adds `AgentTurnSchema`, keeps `ModelFn` and `AssistantTurnV2Schema` unchanged) and will send a
+  measured diff. **Land it between Track A days, never in a commit that also moves files.** Second,
+  queued: nothing tells the model **today's date**.
+- **Lanes talk via `SendMessage` too now** (owner's instruction): message before touching a shared
+  file and wait; message after shipping anything another lane depends on. Session names rotate —
+  identify by first line ("v1 lane here"). Models lane this run: `nutrition-social-media-main-9b`.
 - **Track E test debt — paid.** 24 engine tests for `previewOperations` / `swapCandidates` (a preview
   never mutates its input and agrees with committing; a candidate list never offers what the executor
   would refuse). New `npm run test:ui` covers `parseCommand` (yesterday's two bugs now have regression
@@ -92,7 +120,9 @@ never blocks on the owner): `docs/models/OWNER-TODO.md`.
   v1's; answer its asks when they come (likely first: the over-act prompt fix). Tell it when any of
   those, the assistant routes or the primitives' contract change.
 
-**NEXT: V1 Day 1 — `npm run check:boundaries`** (`docs/v1/01-…md`, spec in `02-module-map.md` §9).
+**NEXT: V1 Day 2 — A2, split `recipeDb.ts` part 1: the 501 seeds out of the engine**, behind a
+barrel so no call site changes. Gate: `test:engine` **660/0 identical**, `check:boundaries` 0 new.
+Run `npm run check:boundaries` before AND after — a split that points a dependency upward fails it.
 
 #### 2. TRACK E IS COMPLETE — what the app can now do with NO model
 
@@ -127,10 +157,11 @@ window, stops when the remote has touched a file you are about to commit, aborts
 rather than resolving blindly, verifies the commit holds exactly the named paths, and confirms the
 push. Documented in `CLAUDE.md`.
 
-#### 4. MACHINE STATE AT SHUTDOWN
+#### 4. MACHINE STATE
 
-- **Dev server: DOWN.** `.next` holds a **PRODUCTION** build — **delete `.next` or rebuild before
-  `npm run dev`**, or every page serves blank with `Cannot find module './611.js'`.
+- **Dev server: UP on :3000 as of 2026-10-03 afternoon** (started for `test:api`). Stop it before any
+  `npm run build` — they share `.next`, and a production build under a running dev server serves
+  every page blank with `Cannot find module './611.js'`.
 - **LM Studio: UP**, serving 14 models including `openai/gpt-oss-20b` (what `.env.local` selects),
   `meta/llama-3.3-70b`, `qwen/qwen3-30b-a3b-2507` and the v4–v11 fine-tunes. `.env.local` is
   `AI_PROVIDER=local`, `LOCAL_AI_MODEL=openai/gpt-oss-20b`.

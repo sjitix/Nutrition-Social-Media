@@ -170,8 +170,8 @@
       the schedule ahead.</p>
     <div class="stamp">
       <b><i>source</i> docs/worklog/</b>
-      <b><i>synced</i> 2026-10-03</b>
-      <b><i>commit</i> f370aa7</b>
+      <b><i>synced</i> 2026-10-03, afternoon</b>
+      <b><i>commit</i> 4e3be01+</b>
     </div>
   </header>
 
@@ -190,9 +190,9 @@
   <section id="totals">
     <div class="stats">
       <div class="stat"><div class="v">3</div><div class="l">days logged</div></div>
-      <div class="stat"><div class="v">3</div><div class="l">milestones done</div></div>
-      <div class="stat"><div class="v">13</div><div class="l">days to V1</div></div>
-      <div class="stat"><div class="v">4</div><div class="l">open deferrals</div></div>
+      <div class="stat"><div class="v">4</div><div class="l">milestones done</div></div>
+      <div class="stat"><div class="v">15</div><div class="l">days to V1</div></div>
+      <div class="stat"><div class="v">5</div><div class="l">open deferrals</div></div>
     </div>
   </section>
 
@@ -202,6 +202,53 @@
     <p class="lede">Only days that actually happened, each with its date, appended at the end of every work-day.
       Nothing planned appears here — the schedule ahead is in its own collapsed block below.</p>
     <div class="tl" style="margin-top:20px">
+
+      <article class="entry" id="d-2026-10-03-pm">
+        <div class="box">
+          <div class="ehead">
+            <span class="date">2026-10-03 &middot; afternoon</span>
+            <span class="pill done">solved &middot; done</span>
+          </div>
+          <h3>Day 1 done &mdash; and seven of your comments, answered two weeks late</h3>
+          <p class="sub">You asked whether you had left comments I hadn't read. You had: seven, on the module map, from
+            2026-09-19. One was a ruling that changed the plan.</p>
+          <div class="blocks">
+            <div class="blk">
+              <h4>What moved</h4>
+              <ul>
+                <li><b>Your ruling applied:</b> architecture is now a <b>gate on all feature work</b>. It was not done
+                  &mdash; no barrel file anywhere, <span class="mono">recipeDb.ts</span> at 11,061 lines. Three days added:
+                  <b>5a</b> every module in its folder, <b>5b</b> the maths proven exact, <b>9a</b> the assistant's
+                  vocabulary grown.</li>
+                <li><b>Every thread answered and resolved</b>, both boards republished. The 128&nbsp;GB question went to
+                  the models lane and came back measured: it would buy privacy, not intelligence.</li>
+                <li><b>The test debt paid</b> earlier in the day: 24 engine tests and a new <span class="mono">test:ui</span> suite (51).</li>
+                <li><b><span class="mono">check:boundaries</span> built</b> &mdash; the module map, enforced on every ship,
+                  and seen to fail.</li>
+              </ul>
+            </div>
+            <div class="blk found">
+              <h4>What the gate found that nobody knew</h4>
+              <ul>
+                <li>The Groceries page ships the whole <b>80&nbsp;kB USDA table</b> to the browser.</li>
+                <li>The assistant's read tools import a screen module (layer 4 reaching layer 6).</li>
+                <li>Two data files import the maths layer just for the micronutrient names.</li>
+                <li><span class="mono">/plan</span> ships the link importer for one small converter.</li>
+                <li>And from measuring the maths: the recipe check passes, but <b>nothing ran it automatically</b>.</li>
+              </ul>
+            </div>
+            <div class="blk">
+              <h4>What got in the way</h4>
+              <ul>
+                <li><b>The comments themselves.</b> Plain comments notify nobody, and the session-start routine read the
+                  documents but not the boards. Now reading every board is step one of every session (lesson 50).</li>
+                <li><b>The gate's first version cried wolf</b> on an export filename. Narrowed to the real key convention.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="gate">GATE &middot; check:boundaries 0 new / 9 known debts &middot; self-test 11/0 &middot; test:engine 660/0 &middot; test:ui 51/0 &middot; test:api 60/0 &middot; tsc clean<br>PUSHED &middot; 24de555 &middot; 8c0ee66 &middot; 558dd15 &middot; 08ee43f &middot; 4e3be01</div>
+        </div>
+      </article>
 
       <article class="entry" id="d-2026-10-03">
         <div class="box">
@@ -348,30 +395,22 @@
   <section id="upcoming-sec">
     <div class="shead"><span class="eyebrow">Not history yet</span><span class="rule"></span></div>
     <details class="upcoming" id="upcoming">
-      <summary>Upcoming — the schedule ahead<span class="c">13 days · collapsed</span></summary>
+      <summary>Upcoming — the schedule ahead<span class="c">15 days · collapsed</span></summary>
       <div class="up-body">
         <div class="up-row">
-          <div class="w">Day 1</div>
+          <div class="w">Days 2–5b</div>
           <div>
-            <h4>A1 — freeze the contracts</h4>
-            <p>Build <span class="mono">npm run check:boundaries</span> so the module map becomes enforced truth
-              rather than a document. Parallel: this log gets its second entry.</p>
-            <div class="gate" style="margin-top:9px;padding-top:9px">GATE · check:boundaries + tsc</div>
-          </div>
-        </div>
-        <div class="up-row">
-          <div class="w">Days 2–4</div>
-          <div>
-            <h4>Split recipeDb, then the payload boundary</h4>
-            <p>Data out of engine, then the executor, each behind a barrel that leaves every call site untouched.
-              Then stop shipping 501 recipes to the browser. <b>Day 5</b> gives ingredients a stable identity, which is what lets a price or a retailer product hang off one at all.</p>
-            <div class="gate" style="margin-top:9px;padding-top:9px">GATE · test:engine, identical count · then npm run build, first-load JS compared</div>
+            <h4>Track A — the architecture, as a gate on everything else</h4>
+            <p>Split <span class="mono">recipeDb</span> (data out, then the executor), stop shipping the library to
+              the browser, give ingredients stable ids, put every module behind its barrel in its folder, and prove the
+              maths exact. <b>No new feature starts until this is done</b> &mdash; your ruling on the module map.</p>
+            <div class="gate" style="margin-top:9px;padding-top:9px">GATE · check:boundaries · test:engine, identical count · npm run build, first-load JS compared</div>
           </div>
         </div>
         <div class="up-row">
           <div class="w">Days 6–13</div>
           <div>
-            <h4>Safety, logging, one app, the assistant that speaks first, release</h4>
+            <h4>Safety, logging, one app, the assistant that speaks first, its vocabulary grown (9a), release</h4>
             <p>The crisis pre-scan is the one hard ordering constraint: nothing public gets a live model before
               it lands.</p>
           </div>
@@ -388,10 +427,11 @@
     <h2>Open deferrals</h2>
     <p class="lede">Every deferral names a destination and a reason. “Later” is not a destination.</p>
     <div class="defers" style="margin-top:16px">
-      <div class="defer"><div><b>Re-run the K3 hard-case eval</b> — needs the owner's <span class="mono">nvapi-</span> key. It is the input to the pre-committed decision rule, and nothing else is blocked on it.</div><span class="to">next session</span></div>
-      <div class="defer"><div><b>The four-GPU inference experiment</b> — free, and it is what actually decides the local-inference question.</div><span class="to">at the desktop</span></div>
-      <div class="defer"><div><b><span class="mono">npm run log:day</span> scaffolder and a rendered page</b> — deliberately waiting. A scaffolder that pre-fills the wrong fields is worse than none, so the format should survive a week of real use.</div><span class="to">backlog</span></div>
-      <div class="defer"><div><b>Everything in the 12-day schedule</b> — starts at Day 1.</div><span class="to">day 1</span></div>
+      <div class="defer"><div><b>Land the models lane's read-tool fix</b> — the agent loop's read tools are unreachable in production (neither the turn schema nor the prompt names them). A fix, so the Track A gate allows it; it lands between Track A days, never in the same commit as a move.</div><span class="to">when it arrives</span></div>
+      <div class="defer"><div><b>Tell the model today's date</b> — "I ate a burger for lunch today" makes even a 550B model ask which day it is. Found by the models lane.</div><span class="to">after the read-tool fix</span></div>
+      <div class="defer"><div><b>A real-phone pass on the sheet and the drag</b> — sub-500px is still unverified by the headless tool.</div><span class="to">day 12</span></div>
+      <div class="defer"><div><b>The Track E free list</b> (shopping-list diff, skip a meal, &ldquo;20 minutes tonight&rdquo;, weekly review&hellip;) and <b><span class="mono">RecipeModal</span> onto the shared sheet</b> &mdash; features, so they wait for Track A.</div><span class="to">after day 5b</span></div>
+      <div class="defer"><div><b><span class="mono">npm run log:day</span> scaffolder</b> — deliberately waiting. A scaffolder that pre-fills the wrong fields is worse than none, so the format should survive a week of real use.</div><span class="to">backlog</span></div>
     </div>
   </section>
 

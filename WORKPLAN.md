@@ -1278,6 +1278,17 @@ Each of these was discovered by doing the work, and each earned its place.
     the edit instead of silently writing nothing — and the replacement line then arrived with its
     escape eaten by the shell, which the memory note about heredocs already warns about.
 
+50. **Read every board's comment threads at the START of a session, not only when told to.** On
+    2026-09-19 the owner left seven comments on the module-map board — minutes after the two other
+    boards' comments had been read and answered — and nothing looked at that board again for two
+    weeks. Plain comments notify nobody; the session-start ritual read the four documents but not
+    the boards. One of the seven was a RULING ("make sure everything is modularised before we build
+    on it"), and Track E, a full feature day, was built in the gap on the old structure. It surfaced
+    only because the owner asked "did I leave comments you haven't reviewed?". **The boards are an
+    input channel, so they are read like one:** `ArtifactComments` `read` on all three URLs in
+    `docs/v1/boards/README.md` is step one of every session, before choosing what to work on. A
+    direction the owner gave and nobody read is worse than none — work proceeds confidently against it.
+
 ---
 
 ## 4. Training track (runs in parallel, never blocked by the above)
