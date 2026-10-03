@@ -57,6 +57,32 @@ Two functions:
 - **`delete_my_account()`** (0001) — a signed-in user deletes themselves; every row of theirs goes with
   them by cascade. The sign-in provider's own audit log of past sign-ins is kept for its retention period.
 
+**Grants.** A new Supabase project grants every privilege on a new `public` table to both API roles.
+0001 takes all of it back: signed-in users then hold exactly `select`, `insert`, `update` and `delete`,
+the four verbs the policies govern, and anonymous visitors hold nothing. `truncate` especially must
+never stay granted: RLS does not apply to it, so one signed-in user could empty every account. The REST
+API has no `truncate`, so this was never reachable from a browser, but it is closed in the schema
+anyway, and the check below makes sure of it.
+
+## Before there is a project: run the SQL locally
+
+```bash
+node scripts/test-account-sql.mjs            # both migrations + the plan below, in real Postgres
+node scripts/test-account-sql.mjs --mutate   # ...then breaks each guard in turn: a check must fail
+```
+
+This needs no project and no keys. It runs both migrations, each twice to prove they are idempotent, in
+**PGlite**, the actual Postgres engine compiled to WebAssembly. It then runs every row of the plan
+below plus exact grant checks. Supabase's own pieces are stubbed the way Supabase defines them,
+**including its default grants**. Without those, "anon gets nothing" would pass whether or not the
+migration revoked anything, which is how the `truncate` gap above stayed hidden until the stub had them.
+`--mutate` removes fifteen guards one at a time (each policy, each revoke, the cascade, the size limit,
+the forward-only rule) and fails if any removal goes unnoticed. PGlite installs itself once into the OS
+temp folder; `package.json` does not change.
+
+Not covered locally, and left to the live run: whether the `postgres` role may delete from
+`auth.users` on a hosted project (the stub's is a superuser), PostgREST's routing, and sign-in itself.
+
 ## The RLS test plan — run it once after applying the migrations
 
 RLS is the only thing between one user and another's data, so it is verified, not assumed. In the SQL
@@ -68,7 +94,9 @@ editor, impersonate two users (or sign in as two accounts in two browsers) and c
 | 2 | user A | insert a row with `user_id` = A | ok |
 | 3 | user A | insert a row with `user_id` = **B** | **rejected** (`with check`) |
 | 4 | user B | `select * from user_state` | only B's rows — none of A's |
-| 5 | user B | `update user_state set value = '1' where user_id = A` | 0 rows changed |
+| 5 | user B | `update user_state set value = '1'` (**no `where`**), then `rollback` | 1 row changed (B's own); A's untouched |
+| 5b | user B | `delete from user_state` (**no `where`**), then `rollback` | 1 row deleted (B's own); A's untouched |
+| 5c | user B | `truncate user_state` | permission denied |
 | 6 | user A | insert `key = 'somethingElse'` | **rejected** (check constraint) |
 | 7 | user A | `select upsert_state('[{"key":"saved","value":["x"],"updated_at":"2030-01-01T00:00:00Z"}]')` | `{}` (written) — and the row belongs to A |
 | 8 | user A | the same call again with `"updated_at":"2020-01-01T00:00:00Z"` | `{saved}` (skipped: older than the stored row) |
@@ -82,3 +110,9 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub": "<user A uuid>", "role": "authenticated"}';
 select * from public.user_state;   -- then run each row of the table above
 ```
+
+**Rows 5 and 5b have no `where` on purpose.** A statement that reads a column (`where user_id = …`)
+also gets the SELECT policy applied, and that policy alone hides A's row. So with a `where`, "0 rows
+changed" holds even with the UPDATE or DELETE policy deleted, and the check proves nothing. With no
+`where`, only the policy under test stands between B and A's row. The local check confirmed both
+behaviours: the `where` form passed with each policy removed, and the bare form failed.

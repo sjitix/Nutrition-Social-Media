@@ -7,45 +7,64 @@
 
 ## Now doing
 
-**2026-10-03 — A1–A4 built and shipped; keys pending.** The account page (`/sage/account`), export /
-import / delete-my-data, the sync rules and engine, the SQL schema with RLS, and the Supabase client
-(sign-in by email link, sync, sign-out, delete account) are all in. Without keys, the page says
-accounts are off and offers the file instead. **Next:** hardening the client, and the two asks below.
+**2026-10-03: accounts reviewed and hardened, and the SQL executed; keys still pending.** A five-lens
+review (data loss, security, the real Supabase API, React/UI, integration; every finding checked by two
+skeptics) found real bugs in the A1–A4 code. All are fixed and shipped as `8190c2b`:
+- PKCE sign-in and the account-switch guard;
+- key-order-blind sync;
+- conditional server writes (migration 0002);
+- restore without deletions, and targeted backups;
+- an honest privacy note.
+
+Then the SQL ran for the first time, in PGlite with Supabase's default grants. It found that signed-in
+users still held TRUNCATE, which is now closed in 0001. **Next:**
+- the review's final synthesis;
+- measure the store-size cap in UTF-8 bytes (it counts UTF-16 units, while the server counts bytes);
+- then wait on the owner's Supabase project for a live run.
 
 ## Files I'm editing right now
 
-*(the v1 agent: if you need one of these, message me first)*
+*(the other lanes: if you need one of these, message me first)*
 
-- `src/lib/storage.ts`, `src/lib/account/**`, `src/app/sage/account/**`, `scripts/test-account.*`,
+- `src/lib/storage.ts`, `src/lib/savedStore.ts`, `src/lib/account/**`, `src/app/sage/account/**`,
+  `scripts/test-account.*`, `scripts/test-account-sql.mjs`, `scripts/mutate-account.mjs`,
   `supabase/**` — all mine; nothing of yours.
 
-## Heads-up for the other lane
+## Heads-up for the other lanes
 
-- **`storage.ts` changed underneath, NOT in shape.** Every `load*`/`save*` you call is identical. New
-  beside them: `STORE_NAMES`, `readStore`/`writeStore`, `onStoreChange`, `loadStoreMeta`,
-  `takeBackup`/`restoreBackup`/`loadBackup`/`discardBackup`, `loadSessionRaw`/`saveSessionRaw`. Every
-  save now also stamps a write time and notifies listeners — that is how sync sees your edits, with no
-  change on your side. **If you add a new persisted thing, add it as a store in `KEYS` in storage.ts
-  (message me) so it syncs and exports; a key named anywhere else would be invisible to accounts.**
-- **`clearAll()` is now silent** (it no longer notifies), so clearing a browser can never empty an account.
-- **`modelFailed` fix landed** (`2fd6f02`, engine 636/0). Those assistant files are yours again.
-  Re-run `test:api` with LM Studio up — the `assistant offline` tests should now see 503.
-- **`/sage/account` exists** (new folder, no file of yours touched). Not linked from the nav yet — see Asks.
-- **A privacy finding in your files, for you and the owner (not changed by me):** both assistant
-  routes append every turn — the user's message and the whole agent transcript — to
-  `data/edit-log*.jsonl` on the server, unconditionally (best-effort; it likely fails silently on
-  Vercel's read-only filesystem, but logs on any writable host). The account page now says the server
-  *may* keep a log of each conversation, which is the truth today. Before a public V1 this probably
-  wants an owner decision: keep it opt-in, keep it dev-only, or keep it and say so at the chat box.
+- **`storage.ts` — what changed underneath, still NOT in shape.** Every `load*`/`save*` you call is
+  identical, but two behaviours are new and you may notice them:
+  - **A save that changes nothing is now a no-op** — no write time, no event, no sync. Re-saving the
+    same content (in any key order), or saving `[]`/`null` over a store that doesn't exist, does
+    nothing. This was needed because screens re-save what they loaded (GroceriesClient's persist
+    effect, AssistantChat after every turn), and with sync that made a stale copy the "newest edit".
+  - **`rememberImport` stamps each entry with `importedAt`**, so two devices' histories merge by recency.
+  New beside the old API (all accounts-only): `STORE_NAMES`, `readStore`/`writeStore`, `onStoreChange`,
+  `loadStoreMeta`, `loadSyncedAt`/`markSynced`, `takeBackup`/`loadBackups`/`restoreBackup(id)`/
+  `discardBackup(id)`, owner/session/PKCE helpers, `onSignInChangedElsewhere`, `claimSyncReload`.
+  **If you add a new persisted thing, add it as a store in `KEYS` (message me) so it syncs and exports.**
+- **The theme key now lives in `storage.ts`** for ThemeSwitch's boundaries debt (rule 3):
+  `THEME_STORAGE_KEY` (still `"nutriflow-theme"`, so nobody loses their choice), `loadTheme()`,
+  `saveTheme("sage" | "violet")`. The boot script can interpolate `THEME_STORAGE_KEY`. Yours to switch
+  over whenever suits; then delete the KNOWN_DEBT entry.
+- **`<AccountSync/>` reloads the tab once** (at most once per 30 s, per tab) when sync brings the week,
+  the meal-prep week or the profile DOWN from the account. Reason, and how to retire it: Ask 1 below.
+- **`/sage/account` copy now says what a plan action sends** (profile + week to the server, and to the
+  model provider when one is on) and what operators and the sign-in provider can see. If you change
+  what a route sends or logs, tell me and I'll keep the note true.
+- **For the models lane:** the server-side conversation log (`data/edit-log*.jsonl`) is still an open
+  owner decision (raised in CONTEXT by v1). If it is gated or removed, I'll update the privacy note and
+  say so here — those transcripts are your potential training/eval data.
 
-## Asks of the other lane
+## Asks of the other lanes
 
-1. **Mount `<AccountSync />` once in `src/app/sage/layout.tsx`** (one import + one element, it renders
-   nothing): `import { AccountSync } from "./account/AccountSync";` then `<AccountSync />` inside the
-   shell. Without it, sync only runs while the account page is open. With no keys it is a no-op.
-2. **Add an "Account" entry to the nav** (`SideNav.tsx` `TABS`, and `MobileNav`) pointing at
-   `/sage/account`, with an SVG icon (a person outline fits). Or tell me to do it and I will, in one
-   small commit, after you say the files are free.
+1. **v1 — make `AssistantChat` re-read on `PLAN_CHANGED_EVENT`, and drop `actions.ts`'s undo snapshot
+   when a sync pulls.** Both hold a copy of the week/profile from before a pull; the next turn or undo
+   writes that stale copy back, and it wins as the newest edit (review finding, reproduced). Until both
+   re-read, `<AccountSync/>` reloads the tab when a pull touches `plan`/`batchPlan`/`profile` — tell me
+   when they do and I'll remove the reload. (A dedicated "stores were pulled" event would let
+   `actions.ts` tell a pull from a local action: say if you want one and I'll add it to `client.ts`.)
+2. *(done — thank you)* `<AccountSync/>` mounted in the layout, Account in the nav.
 
 ---
 
@@ -84,6 +103,12 @@ each key to their row in the database and pulls it back on another device. Conse
 | A5 | **The entry points:** an account control in the SidePanel footer, "keep it in your account" after onboarding (v1-owned files — asked first) | yes | a stranger finds sign-in without being told |
 | A6 | **Account deletion server-side** and a privacy note that tells the truth about what is stored | yes | "delete my account" removes every row, verified |
 
+**Status (2026-10-03):** A1–A3 done. A4 code-complete and tested end to end against an in-memory
+Supabase (238 checks), then hardened by an adversarial review (PKCE, the account-switch guard,
+conditional writes in migration 0002); the live run waits on the owner's project. A5 done — the v1 lane
+mounted `<AccountSync/>` and added the nav entry. A6 done — `delete_my_account()` plus a privacy note
+whose claims were each checked against the code (and corrected twice by the review).
+
 ## Shipped
 
 | sha | what |
@@ -91,3 +116,6 @@ each key to their row in the database and pulls it back on another device. Conse
 | `301a2a8` | the parallel-lanes protocol, `ship --onto` |
 | `2fd6f02` | one-time handoff: the `modelFailed` fix (not accounts work) |
 | `eac9bb8` | A1–A4: storage bookkeeping, export/import/delete, sync rules + engine, SQL + RLS, the REST client, `/sage/account` — `node scripts/test-account.mjs` 94/0 |
+| `91501d5` | docs: A1–A4 recorded — what works without keys, what waits on them, and two asks |
+| `8190c2b` | the adversarial review's fixes: PKCE, the account-switch guard and per-account pin, key-order-blind sync, `upsert_state` (0002), restore without deletions, rows validated on pull, the privacy note — 238/0, 8/8 mutations caught, engine 680/0 |
+| *(next)* | the SQL executed in real Postgres (`test-account-sql.mjs`, 37/0, 15/15 mutations); TRUNCATE revoked from signed-in users; test plan rows 5/5b/5c; lessons 52–56 |

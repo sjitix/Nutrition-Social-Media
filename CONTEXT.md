@@ -29,28 +29,43 @@ message each other are in `docs/parallel/README.md`.
 
 #### PARALLEL LANE — accounts (written by the accounts agent only)
 
-**2026-10-03 — accounts are built up to the keys.** Live status, the plan and the asks:
-`docs/parallel/lane-accounts.md`. Design: **local-first, the account is a mirror** — `storage.ts`'s
-load/save API did not change, so no screen had to; underneath, every save stamps a write time and
-notifies listeners, and a sync layer mirrors each store to one Supabase row per user under RLS.
+**2026-10-03 — accounts are built up to the keys, adversarially reviewed, and the SQL has run.**
+Live status, the plan and the asks: `docs/parallel/lane-accounts.md`. Design: **local-first, the
+account is a mirror** — `storage.ts`'s load/save API did not change, so no screen had to; underneath,
+every real save stamps a write time and notifies listeners, and a sync layer mirrors each store to one
+Supabase row per user under RLS.
 
-- **Works today, no keys:** `/sage/account` — download all your data as one file, bring it back
-  (validated, previewed, backed up first so it can be undone), delete everything in this browser, and
-  a plain-words note on what is kept where.
-- **Built and tested, waiting on keys:** sign-in by email link, sync (newest write wins; visit history
-  and imports unioned; anything a pull would replace is backed up first), sign-out that keeps local
-  data, delete-account. No Supabase SDK — raw REST over `fetch`. `supabase/README.md` has the
-  ten-minute setup, the SQL to run, and an RLS test plan.
-- **Gate for this lane:** `node scripts/test-account.mjs` (94 checks, plain node, no network).
-- **Owner, to switch accounts on:** create a Supabase project, run `supabase/migrations/0001_user_state.sql`,
-  and put `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` in `.env.local` and Vercel. Never
-  the `service_role` key.
-- **Asked of the v1 lane:** mount `<AccountSync/>` in `sage/layout.tsx` (so sync runs on every
-  screen, not only the account page) and add an Account entry to the nav.
+- **Works today, no keys:** `/sage/account` (in the nav) — download all your data as one file, bring
+  it back (validated, previewed, undoable), delete everything in this browser, and a privacy note
+  whose every sentence was checked against the code.
+- **Built and tested, waiting on keys:** sign-in by email link **with PKCE** (only completes in the
+  browser that asked; a link or tokens made by someone else are refused), sync (newest write wins on
+  the server too, via `upsert_state`; history unioned; only edits the account never saw are backed
+  up, last three kept), an account-switch guard, sign-out, delete-account. No Supabase SDK.
+- **A five-lens adversarial review (2026-10-03) found real bugs, all fixed:** login CSRF via URL
+  tokens; one account's data uploading into another's on a shared browser; "Put it back" deleting
+  stores on every device; jsonb key reordering making every sync take a backup; stale writes
+  overwriting newer ones. Lessons 52–55 (shipped as `8190c2b`).
+- **The SQL has now been executed; it never had been.** `node scripts/test-account-sql.mjs` runs
+  both migrations and the RLS plan in real Postgres (PGlite), with Supabase's default grants stubbed
+  in. Its first run found that every signed-in user still held TRUNCATE. RLS does not cover TRUNCATE,
+  so one user could have emptied every account. It was not reachable through the REST API, and it is
+  now closed in 0001. Lesson 56.
+- **Gate for this lane:** `node scripts/test-account.mjs` — **238 checks**, including the real
+  `client.ts` end to end against an in-memory Supabase (RLS, PKCE, conditional writes, jsonb order) ·
+  `node scripts/test-account-sql.mjs --mutate` — **37 checks in real Postgres, 15/15 broken guards
+  caught** · `node scripts/mutate-account.mjs` — 8/8.
+- **Owner, to switch accounts on:** `supabase/README.md` — create a project, run **both** migrations,
+  **configure custom SMTP** (without it only your own organisation receives sign-in emails), then put
+  `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` in `.env.local` and Vercel. Never the
+  `service_role` key.
+- **Asked of the v1 lane (lane file has the detail):** make `AssistantChat` re-read on
+  `PLAN_CHANGED_EVENT` and drop `actions.ts`'s undo snapshot when sync pulls — until then
+  `<AccountSync/>` reloads the tab once when the week or profile comes down. `storage.ts` now owns the
+  theme key, so ThemeSwitch's boundaries debt can be paid.
 
 One-time handoff carried through this lane: the `modelFailed` fix an earlier session left uncommitted
-in the main folder (`2fd6f02`; assistant-v2 answers 503 when the model is unreachable and nothing
-changed). Its WORKPLAN lesson was renumbered 38 → 48 because 38–47 were taken.
+in the main folder (`2fd6f02`). Its WORKPLAN lesson was renumbered 38 → 48 because 38–47 were taken.
 
 #### PARALLEL LANE — models (written by the models agent only)
 
