@@ -160,6 +160,7 @@ blocking, so none of them silently becomes the reason V1 slipped.
 | 4 | **Condition-aware generation** — ask or auto-apply | **D8** | ASK (what VISION says) |
 | 5 | **`public/week-designs.html`** — document or delete (undecided across three handoffs) | **D13** | Delete: it serves invented dish data from a product whose claim is that its numbers are real |
 | 6 | **Retailer products inside V1, or straight after it?** And what the library target number is (§8) | **D5** | Ingredient *identity* in V1; the Lidl-style product layer as the first thing after it. Library target 400 ingredients / 900 recipes |
+| 7 | **When you swap one meal, may the app replace your OTHER meals to keep your macros?** Today: yes, and it now always says which ("I bumped your breakfast to X"); "just"/"only" turns it off and it offers instead. The alternative default: never replace unasked — resize only and offer the swap. (Raised 2026-10-03, VISION.md constraint layer 2.) | **D9a** (C4 grows the vocabulary around it) | Keep today's default (it is VISION's written rule), with every replacement named |
 
 ---
 

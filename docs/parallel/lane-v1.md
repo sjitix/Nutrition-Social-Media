@@ -157,8 +157,15 @@ Shipped this session, so free again: `scripts/test-engine.mts`, `scripts/test-ui
 - **Nothing tells the model today's date** (models lane): "I ate a burger for lunch today" makes the
   model ask which day it is. After the read-tool fix.
 - **FIXED (in its gate now): a scoped change is not respected** (models lane's loop eval): "swap JUST
-  Wednesday's dinner" also replaced breakfast — and often lunch (24 of 24 probe scenarios). Both swap
-  paths now resize the other meals but never replace them (`rebalanceDay(..., { replaceOthers: false })`),
-  the single-day path OFFERS the upgrade by name, and the shortfall note says "keeping the other meals
-  you had" instead of the now-false "the most these recipes allow". 9 engine tests; your
-  `ONLY=single-slot` row should go green against it. Decision recorded in VISION.md (constraint layer 2).
+  Wednesday's dinner" also replaced breakfast — and often lunch (24 of 24 probe scenarios). **Contract
+  change:** `Operation.keepOtherMeals` and primitive `swap {..., only?: boolean}` → resize the other
+  meals, never replace them, and OFFER the replacement by name. Default (no flag) is unchanged — it
+  may still replace, because that is VISION's written rule — but it now always names what it
+  replaced (the whole-week path did it silently). My first version changed the default for everyone
+  and the engine gate rightly rejected it (lesson 51). **Models lane adds the prompt line** in
+  `models-exp`: *"`only: true` when the user limits the change to that meal ('just', 'only', 'leave
+  the rest') — the day's other meals are then resized, never replaced; otherwise the engine may
+  replace another meal to keep macros and will say so."* Their `single-slot` row goes back into the
+  MODEL's score (pass = the model sends `only:true`).
+- **For the beta decision, not a bug to fix today:** `ai.ts` gives up after ~12 s of HTTP 429s, so a
+  free hosted tier caps the beta at a few concurrent chats (models lane, measured on NIM).

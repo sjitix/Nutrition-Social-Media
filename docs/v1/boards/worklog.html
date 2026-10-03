@@ -231,9 +231,12 @@
                 <li>&ldquo;Swap <b>just</b> Wednesday's dinner&rdquo; also replaced Wednesday's breakfast &mdash; often lunch
                   too. Reproduced in <b>24 of 24</b> scenarios. The engine chased the protein target by swapping meals you
                   never mentioned.</li>
-                <li><b>Fixed the same evening:</b> a change to one meal may resize the others, never replace them, and
-                  it <i>offers</i> the upgrade by name &mdash; &ldquo;I could swap your breakfast to X, just say so.&rdquo;
-                  After the fix: <b>0 of 24</b>. Your scope now outranks macro fit; that is written into the vision.</li>
+                <li><b>Fixed the same evening, at the second attempt.</b> My first fix stopped <i>every</i> swap from
+                  replacing other meals &mdash; and the tests rejected it, rightly: your vision says a swap may rebalance
+                  other meals to keep your macros. The real gap was that you had no way to say &ldquo;just&rdquo;. Now
+                  &ldquo;just&rdquo; or &ldquo;only&rdquo; keeps the rest and <i>offers</i> the change instead, and the
+                  default never replaces anything without naming it (it had been silently changing up to 11 meals a week).</li>
+                <li><b>A question for you</b> (on the schedule board): should a plain swap replace other meals at all?</li>
                 <li><b>A safety hole caught in review:</b> the other agent's prompt change would have stopped models
                   reporting symptoms to the crisis guard. Fixed before it landed, with tests.</li>
               </ul>

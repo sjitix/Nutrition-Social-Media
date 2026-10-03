@@ -495,15 +495,19 @@ growing set of simultaneous constraints.** Planned layers, in order of when we a
    by the deterministic macro engine, not the model (see "The app replaces a nutritionist —
    the macro-preservation engine").
 
-   **But the user's SCOPE outranks macro fit** (decided 2026-10-03). When the user changes one
-   thing — "swap just Wednesday's dinner" — the engine may *resize* the rest of the day to hold
-   the targets, but it may not *replace* a meal the user did not mention. If resizing cannot get
-   there, it says so honestly and **offers** the dish change by name ("I could swap your breakfast
-   to X — just say so"); it does not make it. A nutritionist who quietly changes your breakfast
-   because you asked about dinner is not respecting you, however good the numbers look. Replacing
-   other meals stays right where the user asked for a re-solve: "balance Tuesday", Fix my week,
-   and "I ate something else, sort out the rest of my day". Found when the engine replaced
-   breakfast and lunch for a one-meal swap in 24 of 24 probe scenarios (models lane's loop eval).
+   **Two refinements (2026-10-03), found when a one-meal swap replaced breakfast and lunch too:**
+   - **When the user limits the change, the limit holds.** "Swap *just* Wednesday's dinner",
+     "only lunch", "leave the rest": the engine resizes the rest of the day but replaces nothing
+     else, and if resizing cannot hold the targets it says so and **offers** the dish change by
+     name ("I could swap your breakfast to X — just say so"). The assistant expresses this with
+     `swap {…, only: true}` (engine: `keepOtherMeals`).
+   - **Replacing a meal the user did not mention is never silent.** The default above still may
+     replace other meals to hold the targets (the macro-preservation rule) — but every replacement
+     is named in the reply. The whole-week swap path used to replace up to 11 meals with no mention.
+
+   **Open for the owner:** should a *plain* swap — no "just", no "keep my macros" — replace other
+   meals by default, or resize only and offer? Today's default is this section's original rule
+   (replace, and say so). The flag works either way; the choice is about which surprise is worse.
 3. **Conversational adaptation (later — the big one):** an AI assistant the user talks
    to. The user says something in plain language — e.g. *"I don't want onions this
    week"* — and the assistant **adapts the whole plan** to that instruction **while

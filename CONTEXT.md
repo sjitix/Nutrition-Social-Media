@@ -126,16 +126,23 @@ C4**, every Track E button gets a chat primitive. Reasoning: `02-module-map.md` 
 - **`eval-hardcases.mts` reports `actedRightV2`** beside v1 (a hold may `remember`/`answer`); v1 kept
   so the 84% baseline stays comparable.
 
-- **Scoped-swap fix — written, in its ship gate** (if it is not on `origin/main`, the gate failed:
-  check `git log`): both swap paths call `rebalanceDay(..., { replaceOthers: false })` — resize the
-  other meals, never replace them; the single-day path OFFERS the upgrade by name; `achievementNote`
-  gained `keptByChoice` so the shortfall is not blamed on the library. 9 tests in a new SCOPED CHANGES
-  block of `test-engine.mts`. **Decision in VISION.md** (constraint layer 2): the user's scope
-  outranks macro fit. `ship.mjs` also re-fetches after the gate now (`35a1265`).
+- **Swap fix — in its ship gate** (if it is not on `origin/main`, the gate failed: check `git log`).
+  The FIRST version made every swap resize-only and the engine gate rejected it, rightly — an
+  existing "oatmeal, but keep me on my macros" scenario encodes VISION's owner-written rule that
+  edits may replace other meals to hold macros (WORKPLAN **lesson 51**). Shipped version: new
+  `Operation.keepOtherMeals` / primitive `swap {only: true}` → resize-only + a named offer;
+  the default still may replace, but **never silently** (the whole-week path had replaced 11 meals
+  unannounced). `achievementNote` gained `keptByChoice`. ~15 tests in a SCOPED CHANGES block.
+  **Owner decision #7 raised** (`01-…md` §5): should a PLAIN swap replace other meals at all?
+- **Models lane finding for the beta decision:** `ai.ts`'s `localStructuredChat` gives up after
+  ~12 s of HTTP 429s (3 attempts, 2 s / 4 s back-off), so on a free hosted tier a handful of
+  concurrent users get "assistant offline". Not acted on — it decides the beta's provider plan (a
+  queue/longer back-off, or a second provider for overflow). They are documenting numbers in
+  `docs/models/`.
 
 **NEXT, in order:**
-1. **Confirm the scoped-swap fix landed** (`git log origin/main`), then tell the models lane the sha so
-   they run `ONLY=single-slot` against it.
+1. **Confirm the swap fix landed** (`git log origin/main`), tell the models lane the sha; they then
+   add the `only` line to `promptV2` in `models-exp` (agreed wording in `lane-v1.md`).
 2. **Land the models lane's read-tool diff** (`origin/models-exp`, = `d3d0a18`, merged up to date;
    3 files: `primitives.ts`, `promptV2.ts`, `ai.ts`) when they send "ready to land". Reviewed: the
    safety bullet was fixed in `5336ab1`. Land it in its own commit, between Track A days.
