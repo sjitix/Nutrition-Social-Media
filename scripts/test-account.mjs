@@ -20,11 +20,17 @@ const cache = (name) => resolve("node_modules/.cache", name);
 const common = { bundle: true, platform: "node", format: "esm", tsconfig: "tsconfig.json", logLevel: "error" };
 
 await build({ ...common, entryPoints: ["scripts/test-account.mts"], outfile: cache("test-account.mjs") });
-for (const tab of ["A", "B", "C", "D", "E", "F", "P"]) {
+// One bundle per PAGE LOAD, named after it, bound to its tab's window. A reload is a fresh module
+// instance on the SAME window (so the same sessionStorage): G2 is tab G after a reload.
+const PAGES = {
+  A: "A", B: "B", C: "C", D: "D", E: "E", F: "F", G: "G", G2: "G", H: "H", K: "K", K2: "K",
+  L: "L", L2: "L", L3: "L", L4: "L", M: "M", N: "N", P: "P",
+};
+for (const [page, tab] of Object.entries(PAGES)) {
   await build({
     ...common,
     entryPoints: ["scripts/account-tab.mts"],
-    outfile: cache(`account-tab-${tab}.mjs`),
+    outfile: cache(`account-tab-${page}.mjs`),
     define: {
       window: `globalThis.__TAB_${tab}.window`,
       document: `globalThis.__TAB_${tab}.document`,

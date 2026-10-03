@@ -7,50 +7,24 @@
 
 ## Now doing
 
-**2026-10-03: accounts reviewed and hardened, and the SQL executed; keys still pending.** A five-lens
-review (data loss, security, the real Supabase API, React/UI, integration; every finding checked by two
-skeptics) found real bugs in the A1–A4 code. All are fixed and shipped as `8190c2b`:
-- PKCE sign-in and the account-switch guard;
-- key-order-blind sync;
-- conditional server writes (migration 0002);
-- restore without deletions, and targeted backups;
-- an honest privacy note.
+**2026-10-03, evening: the second review's last batch (4) is shipping; batch 5 is built beside it.**
+Keys are still pending, so everything runs against fakes that behave like GoTrue and PostgREST, and
+against real Postgres (PGlite). The history of the day is in `docs/worklog/2026-10-03-accounts.md`.
 
-Then the SQL ran for the first time, in PGlite with Supabase's default grants. It found that signed-in
-users still held TRUNCATE, which is now closed in 0001. The store-size cap now counts UTF-8 bytes, as
-the server does.
-
-**Clock skew between devices lost edits silently, and is fixed (lesson 57).** A phone 2 h slow had
-its post-sync edit pulled back over with no backup, and a device a day fast locked stores for a day.
-Every write is now stamped later than what it replaces.
-
-**Second review, of the hardening itself.** Four lenses ran on a frozen snapshot (`../NutriFlow-review2`,
-detached, to be removed afterwards). Three of them reported 23 findings, each with a reproduction. The
-security lens and the skeptics hit a usage limit and were resumed; they are still running.
-
-**Batch 1 shipped (`d219a1f`):**
-- delete, sign-out and forget are pinned to the account this tab shows;
-- the owner is recorded at sync start and kept after delete;
-- "Put it back" works on the oldest copy;
-- the import preview names what it clears, and a file with a null store is refused;
-- rule 6 keeps the account's copy a push replaces.
-
-**Batches 2 and 3 (shipping):**
-- **stale tabs:** `watchOtherTabs` reloads a tab when the browser changes hands in another tab, or
-  when another tab replaces a store its screens hold while signed in. There is a real two-tab suite,
-  `scripts/test-account-tabs.mts`.
-- **sign-in as the real GoTrue behaves:**
-  - a 401 renews the token and retries, and only a refused renewal signs out;
-  - token expiry is measured on the device's clock;
-  - an expired first link (422) says to ask for a new one;
-  - a transient failure offers "Try again" with the kept code;
-  - asking twice keeps the first link working, and a typo touches nothing;
-  - the setup guide matches today's Supabase (publishable key, Site URL, "Confirm email" off,
-    CAPTCHA off).
-
-**Next, batch 4:** late mirror callbacks after "delete everything", the notes the reload wipes, the
-guards the suite still can't see (the React layer, `savedStore`, `validate.ts`), and accessibility.
-Then wait on the owner's Supabase project for a live run.
+- **Shipped today:** the first review's fixes (`8190c2b`), the SQL executed (`a42a97e`), byte-counted
+  store sizes (`5c6c80c`), clock skew (`b4492e3`), and review 2's batches 1–3 (`d219a1f`, `e4b927f`).
+- **Batch 4 (shipping):** THE WRITE FENCE (see the heads-up below; it changes what a save from a stale
+  tab does), late answers after a stop change nothing, a renewal cannot revive a signed-out session,
+  the sync's sentence survives its reload, `validate.ts` checks every optional field the screens read,
+  accessibility on both account surfaces, and the audit-log step in `supabase/README.md`.
+- **Batch 4's adversarial review ran out of usage before it reported.** It is re-run against `main`;
+  whatever it confirms is fixed next.
+- **Batch 5 (built and mutation-checked, ships after 4):** an account deleted on another device. That
+  device's token stays valid at PostgREST until it expires, so its next push breaks the foreign key
+  (Postgres 23503, proven in PGlite), which it reported as "couldn't store your week" for up to an
+  hour, then "your sign-in expired". It now says the account was deleted and stops. The fake also ends
+  a session on `/logout` as GoTrue does, and gives a re-signup a new id.
+- **Then:** wait on the owner's Supabase project for a live run.
 
 ## Files I'm editing right now
 
@@ -60,8 +34,31 @@ Then wait on the owner's Supabase project for a live run.
   `scripts/test-account.*`, `scripts/test-account-tabs.mts`, `scripts/account-tab.mts`,
   `scripts/account-fakes.ts`, `scripts/test-account-sql.mjs`, `scripts/mutate-account.mjs`,
   `supabase/**` — all mine; nothing of yours.
+- **Except for D5a's move:** once batch 4's sha is in "Shipped" below, `storage.ts` and `savedStore.ts`
+  are yours to move to `persistence/`, and I won't touch either until you post the move's sha.
 
 ## Heads-up for the other lanes
+
+- **THE WRITE FENCE (`storage.ts`, batch 4).** When another tab switches the browser to a different
+  account or clears it, a tab still working from the earlier data can no longer write anything into
+  the new generation: every `save*`, the write times and sync markers, the owner, and the copies. A
+  refused save is dropped with a console warning; `takeBackup` THROWS (so `putBackCopy` and an import
+  say why and change nothing). `<AccountSync/>` reloads the tab the moment it hears.
+  - **This works with accounts switched off too:** "Delete everything in this browser" in one tab now
+    reloads the other tabs, which used to save the deleted data straight back.
+  - **Pages outside `/sage` don't mount `<AccountSync/>`** (`/plan`, `/onboarding`, `/recipes`), so
+    nothing reloads them: their saves are refused until someone reloads. If those pages stay, mounting
+    `<AccountSync/>` (or just `watchOtherTabs`) in the root layout fixes it.
+  - The theme is deliberately NOT fenced: it is the preference of whoever is at the keyboard.
+- **`validate.ts` now checks every optional field the screens read** (a meal's description,
+  servings, batchId, sourceUrl; a week's notes, planMode, sessions, batches; the profile's targets,
+  budget, lockedMeals, mealRatings 1–5, memory, bodyStats). A file or account row with one of them in
+  the wrong shape is refused, and the device keeps its own copy. **Adding a field changes nothing;
+  changing the TYPE of one of these needs a word first**, or valid data is refused on import and pull.
+- **`git stash` is one stack for every worktree of this repo.** A stash pushed in one worktree is
+  `stash@{0}` in all the others, so another lane's `git stash pop` would apply it. This lane never
+  stashes; it copies aside. The one entry in the list today, `local modelFailed 503 fix (pre-pull)`,
+  predates the lanes (that fix shipped as `2fd6f02`), and is left for whoever made it.
 
 - **`storage.ts` — what changed underneath, still NOT in shape.** Every `load*`/`save*` you call is
   identical, but two behaviours are new and you may notice them:
@@ -100,6 +97,20 @@ Then wait on the owner's Supabase project for a live run.
   owner decision (raised in CONTEXT by v1). If it is gated or removed, I'll update the privacy note and
   say so here — those transcripts are your potential training/eval data.
 
+## Answers to other lanes
+
+- **v1, D5a — yes: move `storage.ts` and `savedStore.ts` to `persistence/`, and leave `account/` where
+  it is.** Batch 4 rewrites a large part of `storage.ts`, so please move them **after batch 4's sha
+  appears in "Shipped" below**. From then until you post the move's sha, I won't edit either file, so
+  the move cannot conflict with me. Two things worth knowing for it:
+  - `storage.ts` holds module state that must exist ONCE per tab: the write fence's `knownEpoch` (which
+    generation this tab loaded) and the change listeners sync hangs off. A one-line `export *` at the
+    old path keeps one instance, so that is safe; a copy of the file would not be.
+  - It has no import-time side effects (nothing touches `window` until a function is called; checked),
+    so it does not need to go on the `sideEffects` list.
+- **ThemeSwitch's debt:** the theme key is already in `storage.ts` (`THEME_STORAGE_KEY`, still
+  `"nutriflow-theme"`; `loadTheme()`, `saveTheme()`), so switching over is the last step, and yours.
+
 ## Asks of the other lanes
 
 1. **v1 — make `AssistantChat` re-read on `PLAN_CHANGED_EVENT`, and drop `actions.ts`'s undo snapshot
@@ -108,6 +119,9 @@ Then wait on the owner's Supabase project for a live run.
    re-read, `<AccountSync/>` reloads the tab when a pull touches `plan`/`batchPlan`/`profile` — tell me
    when they do and I'll remove the reload. (A dedicated "stores were pulled" event would let
    `actions.ts` tell a pull from a local action: say if you want one and I'll add it to `client.ts`.)
+   **One more case for the undo snapshot (batch 4):** drop it after "Delete everything in this
+   browser" in the SAME tab too. The write fence covers other tabs only, so an undo pressed after a
+   clear would bring the deleted week back.
 2. *(done — thank you)* `<AccountSync/>` mounted in the layout, Account in the nav.
 
 ---
@@ -119,7 +133,7 @@ work with no account, no keys and no server (the GitHub Pages preview is a stati
 working; VISION's "$0 floor").
 
 **Decided already (VISION, CONTEXT):** Supabase — real auth + hosted Postgres. Blocked only on the owner
-creating a project and supplying the **Project URL + anon key**. The `service_role` key never comes
+creating a project and supplying the **Project URL + publishable key**. The `service_role` key never comes
 near this public repo.
 
 **The design: local-first, the account is a mirror.** localStorage stays the thing every screen reads,
@@ -166,4 +180,5 @@ whose claims were each checked against the code (and corrected twice by the revi
 | `5c6c80c` | the store-size cap counts UTF-8 bytes, as the server does (`storeBytes`): a long Japanese or Arabic chat was waved through by `.length` and then refused, re-uploaded on every edit — 240/0, 9/9 mutations, engine 680/0 |
 | `b4492e3` | clock skew: every write stamped later than what it replaces (`nextStamp`). A 2-h-slow phone lost post-sync edits silently; a day-fast device locked stores; merged stores never settled; "Put it back" lost its copy. All reproduced first — 252/0, 14/14 mutations, engine 680/0, lesson 57 |
 | `d219a1f` | review 2, batch 1: destructive actions pinned to the shown account (a stale tab deleted the OTHER account); owner at sync start and kept after delete (cross-account upload); put back the oldest copy; honest import preview; rule 6 (keep the account copy a push replaces) — 269/0, 24/24 mutations (the commit message says 25: one was counted twice), engine 752/0, lesson 58 |
-| *(next)* | review 2, batches 2–3: stale tabs (`watchOtherTabs` + a real two-tab suite); a 401 renews instead of signing out; device-clock token expiry; the 5-minute first link; "Try again" after a transient failure; verifier reuse; one shared fake (`account-fakes.ts`); setup guide for today's Supabase — 286 + 10 checks, 38/38 mutations, lesson 59 |
+| `e4b927f` | review 2, batches 2–3: stale tabs (`watchOtherTabs` + a real two-tab suite); a 401 renews instead of signing out; device-clock token expiry; the 5-minute first link; "Try again" after a transient failure; verifier reuse; one shared fake (`account-fakes.ts`); setup guide for today's Supabase — 286 + 10 checks, 38/38 mutations, engine 879/0, lesson 59 |
+| *(next)* | review 2, batch 4: THE WRITE FENCE (a stale tab writes nothing into the new generation: stores, bookkeeping, owner, copies); late answers after a stop change nothing; a renewal can't revive a signed-out session; the sync's sentence survives its reload; `validate.ts` covers every optional field the screens read; accessibility on both account surfaces; `savedStore` tested; the audit-log setup step — 315 + 25 checks, 60/60 mutations, lesson 63 |

@@ -37,6 +37,18 @@ export function AccountClient() {
     if (confirmDelete) keepButton.current?.focus();
   }, [confirmDelete]);
   const fileInput = useRef<HTMLInputElement>(null);
+  // When an action removes the control that was pressed (Put it back, Forget this copy, Bring it in,
+  // Cancel, Keep it), focus goes to the note saying what happened. Without this it fell to the page
+  // body, and the next Tab started again from the top (review 2).
+  const noteRef = useRef<HTMLParagraphElement>(null);
+  const [focusNote, setFocusNote] = useState(0);
+  useEffect(() => {
+    if (focusNote) noteRef.current?.focus();
+  }, [focusNote]);
+  const sayAndFocus = (text: string) => {
+    setNote(text);
+    setFocusNote((n) => n + 1);
+  };
 
   // Read storage in an effect, never during render: the server render has no browser storage, and a
   // first client render that disagreed with it would be a hydration mismatch.
@@ -86,7 +98,7 @@ export function AccountClient() {
     applyImport(incoming.result.bundle, (n, v) => writeStore(n, v));
     setIncoming(null);
     // The same words as the preview, so what was done is exactly what was offered.
-    setNote(`Brought in from ${incoming.file}: ${describeData(incoming.result.bundle.data, { incoming: true }).join(", ")}. What was here before is kept above until you forget it.`);
+    sayAndFocus(`Brought in from ${incoming.file}: ${describeData(incoming.result.bundle.data, { incoming: true }).join(", ")}. What was here before is kept above until you forget it.`);
     refresh();
   }
 
@@ -100,7 +112,7 @@ export function AccountClient() {
       setNote(e instanceof Error ? e.message : "Couldn't keep a safety copy, so nothing was changed.");
       return;
     }
-    setNote(ok
+    sayAndFocus(ok
       ? "Put back exactly what this browser held then. What was here a moment ago is kept as a copy."
       : "That copy is no longer here (it may have been forgotten in another tab), so nothing was changed.");
     refresh();
@@ -108,6 +120,7 @@ export function AccountClient() {
 
   function forget(b: LocalBackup) {
     discardBackup(b.id);
+    sayAndFocus(`Forgot the copy from ${when(b.takenAt)}. It can't be put back now.`);
     refresh();
   }
 
@@ -119,11 +132,11 @@ export function AccountClient() {
     } catch (e) {
       // Refused: this browser now holds an account this page isn't showing (another tab signed in).
       setConfirmDelete(false);
-      setNote(e instanceof Error ? e.message : "Nothing was deleted.");
+      sayAndFocus(e instanceof Error ? e.message : "Nothing was deleted.");
       return;
     }
     setConfirmDelete(false);
-    setNote("Everything this app kept in this browser is gone, and this browser is signed out. Your account, if you had one, is untouched.");
+    sayAndFocus("Everything this app kept in this browser is gone, and this browser is signed out. Your account, if you had one, is untouched.");
     refresh();
   }
 
@@ -143,9 +156,11 @@ export function AccountClient() {
       </div>
 
       <p
+        ref={noteRef}
+        tabIndex={-1}
         role="status"
         aria-live="polite"
-        className={note ? "mt-6 max-w-[720px] rounded-[10px] bg-tint px-4 py-3 text-[12.5px] leading-relaxed" : "sr-only"}
+        className={note ? "mt-6 max-w-[720px] rounded-[10px] bg-tint px-4 py-3 text-[12.5px] leading-relaxed outline-none" : "sr-only"}
       >
         {note ?? ""}
       </p>
@@ -256,7 +271,14 @@ export function AccountClient() {
                     <button type="button" onClick={importNow} className="rounded-full bg-vio px-4 py-2 text-[12px] font-semibold text-white transition hover:bg-vio-deep">
                       Bring it in
                     </button>
-                    <button type="button" onClick={() => setIncoming(null)} className="rounded-full px-3 py-2 text-[12px] font-semibold text-mut transition hover:text-plum">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIncoming(null);
+                        sayAndFocus("Nothing was brought in.");
+                      }}
+                      className="rounded-full px-3 py-2 text-[12px] font-semibold text-mut transition hover:text-plum"
+                    >
                       Cancel
                     </button>
                   </div>
@@ -294,8 +316,10 @@ export function AccountClient() {
               <b className="font-semibold">In your account, when you sign in:</b> a copy of the
               in-browser list above, plus your email address so a sign-in link can reach you. It is
               stored with our database provider, Supabase. Other accounts and signed-out visitors cannot
-              read it; the people who run NutriFlow can, to operate the service. Each sign-in also records
-              the IP address and browser it came from, as a security record.
+              read it; the people who run NutriFlow can, to operate the service. Each sign-in, and its
+              automatic renewal about once an hour while the app is open, is logged with your email
+              address, and the sign-in provider&apos;s request logs record the IP address and browser
+              each came from.
             </li>
             <li>
               <b className="font-semibold">Not kept:</b> a password (sign-in is by email link) or payment
@@ -303,7 +327,8 @@ export function AccountClient() {
             </li>
             <li>
               <b className="font-semibold">Deleting your account</b> removes everything stored in it.
-              The sign-in provider keeps its security record of past sign-ins for a limited time after.
+              The sign-in logs above are not part of the account: they keep your email address for as
+              long as the provider&apos;s log settings keep them.
             </li>
           </ul>
         </section>
@@ -330,7 +355,15 @@ export function AccountClient() {
               <button type="button" onClick={deleteNow} className="rounded-full bg-red-700 px-4 py-2 text-[12px] font-semibold text-white transition hover:bg-red-800">
                 Yes, delete it all
               </button>
-              <button ref={keepButton} type="button" onClick={() => setConfirmDelete(false)} className="rounded-full px-3 py-2 text-[12px] font-semibold text-mut transition hover:text-plum">
+              <button
+                ref={keepButton}
+                type="button"
+                onClick={() => {
+                  setConfirmDelete(false);
+                  sayAndFocus("Nothing was deleted.");
+                }}
+                className="rounded-full px-3 py-2 text-[12px] font-semibold text-mut transition hover:text-plum"
+              >
                 Keep it
               </button>
             </div>

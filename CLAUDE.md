@@ -161,7 +161,10 @@ nothing (measured: without it, 3–7 kB per route) — a module that must run on
   lists drifted apart silently until an audit caught it — and since accounts, **a key named anywhere
   else is also invisible to sync and export**. Every save stamps a write time and notifies
   `onStoreChange` listeners; that is the whole seam sync hangs off, and why its load/save API never
-  had to change. Owned by the accounts lane (`docs/parallel/`).
+  had to change. **THE WRITE FENCE:** once another tab switches the browser to a different account or
+  clears it, a tab still working from the earlier data can write nothing (stores, write times, the
+  owner, the copies): its saves are dropped with a console warning, `takeBackup` throws, and
+  `<AccountSync/>` reloads it (lesson 63). Owned by the accounts lane (`docs/parallel/`).
 - `src/lib/account/` — **accounts: local-first, the account is a mirror.** `portable.ts` (the export
   file), `validate.ts` (ONE zod-free check per store, for files AND rows pulled from the account),
   `merge.ts` (the pure sync rules — key-order-blind, because Postgres jsonb reorders keys; and every
@@ -176,7 +179,7 @@ nothing (measured: without it, 3–7 kB per route) — a module that must run on
   network: two suites, one tab (`test-account.mts`) and several tabs of one browser
   (`test-account-tabs.mts`, the real modules bundled once per tab), over ONE shared fake Supabase
   (`scripts/account-fakes.ts`). `node scripts/mutate-account.mjs` proves each guard's test can fail
-  (lessons 52–55, 59).
+  (lessons 52–55, 59, 63).
   **The SQL itself is executed** by `node scripts/test-account-sql.mjs`: real Postgres (PGlite, in
   WebAssembly) with Supabase's default grants stubbed in, so no project is needed (lesson 56).
 - `src/lib/savedStore.ts` — a three-method async interface (`list`/`add`/`remove`) over saved
@@ -327,7 +330,7 @@ npm run check:boundaries # the module map enforced: layers, client payload, stor
 npm run check:data      # gates the training data
 npm run test:api        # HTTP route integration tests
 node scripts/test-account.mjs  # accounts: export file, sync, REST client, client.ts end to end vs a fake Supabase, and across tabs — no network
-node scripts/mutate-account.mjs  # accounts: removes each guard in turn and proves a test goes red
+node scripts/mutate-account.mjs [--only "text"]  # accounts: removes each guard in turn and proves a test goes red
 node scripts/test-account-sql.mjs [--mutate]  # accounts: the migrations + RLS plan in real Postgres (PGlite; installs once to the OS temp dir)
 npm run export:recipes  # library -> NutriFlow-recipes.xls, incl. a coverage/gaps report
 npm run build:nutrients # regenerate the USDA table (needs --emit to write)

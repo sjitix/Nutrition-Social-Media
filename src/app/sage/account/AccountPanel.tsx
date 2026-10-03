@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  accountConfig, canRetrySignIn, completeSignInFromUrl, deleteAccount, onAccountStatus, onPulled, openedFromSignInLink,
-  retrySignIn, sendSignInLink, signOut, startSync, type AccountStatus,
+  accountConfig, accountStatus, canRetrySignIn, completeSignInFromUrl, deleteAccount, onAccountStatus, onPulled,
+  openedFromSignInLink, retrySignIn, sendSignInLink, signOut, startSync, type AccountStatus,
 } from "@/lib/account/client";
 import { notifyPlanChanged } from "../myPlan";
 
@@ -31,6 +31,9 @@ export function AccountPanel({ onChange }: { onChange: () => void }) {
   // A sign-in whose exchange failed for a transient reason can be finished from here: the emailed link
   // was used up when it was opened, so opening it again could not.
   const [canRetry, setCanRetry] = useState(false);
+  // What the panel itself has to say, when the account has nothing to: "Signed out." Cleared by the
+  // next change of status, so it never outlives the moment it describes.
+  const [said, setSaid] = useState<string | null>(null);
   // Where keyboard focus goes when a confirm step opens or a message replaces the control that had it,
   // so a screen-reader user hears the question instead of focus falling to the page body.
   const keepButton = useRef<HTMLButtonElement>(null);
@@ -41,10 +44,25 @@ export function AccountPanel({ onChange }: { onChange: () => void }) {
   useEffect(() => {
     if (sent) sentNote.current?.focus();
   }, [sent]);
+  // ...and once a step closes, or the control that was pressed is gone: back to the control that
+  // opened the step, or to the note that says what happened. Focus used to fall to the page body, so
+  // the next Tab started again from the top of the page (review 2, ui-tests-8).
+  const [focusOn, setFocusOn] = useState<"note" | "delete" | "signOut" | null>(null);
+  const statusNote = useRef<HTMLParagraphElement>(null);
+  const deleteButton = useRef<HTMLButtonElement>(null);
+  const signOutButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!focusOn) return;
+    ({ note: statusNote, delete: deleteButton, signOut: signOutButton })[focusOn].current?.focus();
+    setFocusOn(null);
+  }, [focusOn]);
 
   useEffect(() => {
     setConfigured(accountConfig() !== null);
-    const offStatus = onAccountStatus(setStatus);
+    const offStatus = onAccountStatus((s) => {
+      setStatus(s);
+      setSaid(null);
+    });
     // This page shows what is stored, so it re-reads whenever data comes down from the account; the
     // other screens hear the same pull through notifyPlanChanged.
     const offPulled = onPulled(() => {
@@ -99,27 +117,46 @@ export function AccountPanel({ onChange }: { onChange: () => void }) {
     }
   }
 
-  async function run(fn: () => Promise<void>) {
+  /** Sign out or delete. Done: focus goes to the note saying so. Failed: back to the control pressed. */
+  async function run(fn: () => Promise<void>, failedFocus: "delete" | "signOut", after?: () => void) {
     setBusy(true);
     setError(null);
+    let failed = false;
     try {
       await fn();
+      after?.();
       onChange();
     } catch (e) {
+      failed = true;
       setError(e instanceof Error ? e.message : "That didn't go through.");
     } finally {
       setBusy(false);
       setConfirmDelete(false);
+      setFocusOn(failed ? failedFocus : "note");
     }
   }
 
   const signedIn = !["off", "signed-out"].includes(status.state);
+  const note = status.message || said || "";
 
   return (
     <section className="rounded-[12px] bg-panel p-5 text-white lg:col-span-2" aria-labelledby="account-h">
       <h2 id="account-h" className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/60">
         Your account
       </h2>
+
+      {/* ONE live region, in the page from the start, signed in or out: a role="status" node mounted
+          together with its text is announced unreliably, and the panel used to have one per view, each
+          gone with its view (review 2, ui-tests-8). Offline and error states always carry a message, so
+          they are announced here; the routine "Syncing…" / "saved" line beside the email is not. */}
+      <p
+        ref={statusNote}
+        tabIndex={-1}
+        role="status"
+        className={note ? "mt-3 max-w-[70ch] rounded-[10px] bg-white/10 px-4 py-3 text-[12.5px] leading-relaxed outline-none" : "sr-only"}
+      >
+        {note}
+      </p>
 
       {configured === false && (
         <p className="mt-2 max-w-[70ch] text-[13px] leading-relaxed text-white/85">
@@ -137,11 +174,6 @@ export function AccountPanel({ onChange }: { onChange: () => void }) {
             newer one, that wins and this browser&apos;s is kept as a copy on this page. If this browser
             holds another account&apos;s data, it is set aside rather than added to yours.
           </p>
-          {status.message && (
-            <p role="status" className="mt-3 max-w-[70ch] rounded-[10px] bg-white/10 px-4 py-3 text-[12.5px] leading-relaxed">
-              {status.message}
-            </p>
-          )}
           {signingIn ? (
             <p role="status" className="mt-4 rounded-[10px] bg-white/10 px-4 py-3 text-[12.5px] leading-relaxed">
               Signing you in…
@@ -189,20 +221,24 @@ export function AccountPanel({ onChange }: { onChange: () => void }) {
             Signed in as <b className="font-semibold text-white">{status.email || "your account"}</b>.{" "}
             <SyncLine status={status} />
           </p>
-          {status.message && (
-            <p role="status" className="mt-2 max-w-[70ch] text-[12px] leading-relaxed text-white/65">{status.message}</p>
-          )}
           <div className="mt-4 flex flex-wrap gap-2">
             <button
+              ref={signOutButton}
               type="button"
               disabled={busy}
-              onClick={() => void run(signOut)}
+              onClick={() =>
+                void run(signOut, "signOut", () => {
+                  // Nothing to report from the account (everything had gone up): still say it happened.
+                  if (!accountStatus().message) setSaid("Signed out. Everything is still in this browser.");
+                })
+              }
               className="rounded-full bg-white/12 px-4 py-2 text-[12px] font-semibold transition hover:bg-white/20 disabled:opacity-50"
             >
               Sign out
             </button>
             {!confirmDelete ? (
               <button
+                ref={deleteButton}
                 type="button"
                 disabled={busy}
                 onClick={() => setConfirmDelete(true)}
@@ -211,17 +247,26 @@ export function AccountPanel({ onChange }: { onChange: () => void }) {
                 Delete my account
               </button>
             ) : (
-              <span className="flex flex-wrap items-center gap-2 rounded-full bg-white/10 py-1 pl-4 pr-1 text-[12px]">
-                Delete the account and everything stored in it?
+              // A labelled group, so focus landing on "Keep it" reads the question too, not just the button.
+              <span role="group" aria-labelledby="delete-account-q" className="flex flex-wrap items-center gap-2 rounded-full bg-white/10 py-1 pl-4 pr-1 text-[12px]">
+                <span id="delete-account-q">Delete the account and everything stored in it?</span>
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() => void run(deleteAccount)}
+                  onClick={() => void run(deleteAccount, "delete")}
                   className="rounded-full bg-white px-3 py-1.5 font-semibold text-red-700 transition hover:bg-cream"
                 >
                   Yes, delete it
                 </button>
-                <button ref={keepButton} type="button" onClick={() => setConfirmDelete(false)} className="px-2 py-1.5 font-semibold text-white/70 hover:text-white">
+                <button
+                  ref={keepButton}
+                  type="button"
+                  onClick={() => {
+                    setConfirmDelete(false);
+                    setFocusOn("delete");
+                  }}
+                  className="px-2 py-1.5 font-semibold text-white/70 hover:text-white"
+                >
                   Keep it
                 </button>
               </span>

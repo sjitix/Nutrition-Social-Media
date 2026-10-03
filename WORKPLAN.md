@@ -1448,6 +1448,26 @@ Each of these was discovered by doing the work, and each earned its place.
     the gate reads, not only the files being committed. After every ship, run `git status` and
     `git stash list` and expect both to be clean.**
 
+63. **A mutation that survives is a map to the gap, not a line to delete — and a fence must cover
+    every write, not the one that motivated it.** The accounts lane's write fence (`storage.ts`, review
+    2 batch 4) stops a tab working from the data a browser held before another tab switched accounts
+    from writing it into the new person's storage. Three of its mutations survived the suite. Deleting
+    them would have looked like tidying. Asking why each survived found three real defects:
+    - **A race test that never produced its race.** `signOut` waits for the push in flight before it
+      stops anything, so the re-sync the guard exists for always started while the tab was still
+      current. Only a stop that does NOT wait (another tab signing out) reaches the guard.
+    - **A safety copy taken before the fenced restore.** In a stale tab it could push the previous
+      person's set-aside data out of the three copies kept, and then restore nothing.
+    - **An owner record written by a stale tab's late sync.** The previous account was recorded as the
+      owner of the new person's data, so that person's next sign-in here would have uploaded it.
+    The fix was to list every persistent write a stale tab can make (stores, write times, sync markers,
+    the owner, the copies), fence each one, and test the INVARIANT, not the path: after any act of a
+    stale tab, the whole storage is byte-identical. **When a guard's mutation survives, first produce
+    the order or path that makes the guard necessary; then enumerate every write of the same kind.**
+    And re-read your own fix the same way: moving the fence's read pin into `readKey` put it outside
+    that function's `try`, so a browser with storage blocked crashed on every load. That was found
+    only by re-reading the change.
+
 ---
 
 ## 4. Training track (runs in parallel, never blocked by the above)

@@ -220,6 +220,10 @@ export async function syncNow(local: LocalAccess, remote: Remote, opts: SyncOpti
     const res = await pushOrIsolate(remote, ok);
     report.refused = res.refused;
     report.skipped = res.skipped;
+    // Checked again after the push, not only after the pull: a push still in flight when this browser
+    // was cleared, signed out or switched account must not write its bookkeeping into the browser
+    // that was just emptied (review 2).
+    if (o.stillCurrent && !o.stillCurrent()) return { ...report, cancelled: true };
   }
   const heldBack = new Set<StoreName>([...tooLarge, ...report.refused, ...report.skipped]);
   for (const r of ok) if (!heldBack.has(r.name)) local.markSynced(r.name, r.at);
