@@ -134,9 +134,12 @@ held-out wording test.** Day record: `docs/worklog/2026-10-03-models.md`. Live s
      - B: `LOCAL_AI_EXTRA_BODY='{"chat_template_kwargs":{"enable_thinking":false}}'`
      - C: B's setting plus `FAST_FINISH=reply`
      - label each with `PROMPT_VERSION="fair: …"`.
-  2. **Held-out wording test.** `ONLY='heldout|^rate$|^eat-out-future$'`, main vs branch `models-wording`
-     (eb6e7d0, 2 prompt lines), in setup C, 3 runs each. Send v1 "ready to land" only if the wording
-     fixes the held-out phrasings too.
+  2. **Held-out wording test.** `ONLY='heldout|^rate$|^eat-out-future$|^weekend-lighter$'`, main vs
+     branch `models-wording` (cf89758, 3 prompt lines: rate, reserve, and "lighter on <days>" = resize,
+     never an empty constrain, which v1 asked for), in setup C, 3 runs each. Send v1 "ready to land",
+     as the merge-base diff of promptV2.ts, only if the wording fixes the held-out phrasings too.
+  - **v1's fixes for this lane's two product bugs** (multi-day swap; guard + memory) are on v1's branch
+    `wip/v1-handoff-2026-10-03` (de1a102). They are NOT on main until v1's full suite runs.
   3. **Send v1 the fair numbers.** Change 2 (fast finish in `runAgent`, with v1's reply rule) waits on
      them.
 - **Open with v1:**

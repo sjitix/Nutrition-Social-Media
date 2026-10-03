@@ -17,8 +17,8 @@ three engine fixes (`98747f6`, `85e684b`).
 Next, in order:
 1. **The fair re-measurement.** Arms B (reasoning off), C (off + fast finish, reply rule) and conversation
    arms A and C. Same commit, wall clock, one at a time. Arm A is done: reasoning on, 21/26, median 23.3 s.
-2. **The held-out wording test** for branch `models-wording` (eb6e7d0). It must fix phrasings the
-   wording doesn't quote.
+2. **The held-out wording test** for branch `models-wording` (cf89758, 3 lines: rate, reserve,
+   "lighter on <days>" = resize). It must fix phrasings the wording doesn't quote, plus `weekend-lighter`.
 3. **Fair numbers to v1.** v1 holds fast finish (change 2) until then.
 
 Branches: `models` (ships my paths onto main). `models-exp` equals main, so new experiments start there.
