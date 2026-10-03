@@ -36,6 +36,12 @@ for (const r of RECIPES) {
     }
     used.add(slug);
     if (i.name !== INGREDIENTS[slug].name) normalised++;
+    // The NAME and the SLUG must name the same ingredient. Lookups resolve by name first and fall back
+    // to the slug (data/ingredients.ts tableKey), so a recipe whose two disagree would get its
+    // nutrition from one food while its slug claims another (D5 review, 2026-10-04).
+    const carried = (i as { slug?: string }).slug;
+    if (!carried) problems.push(`${r.name}: "${i.name}" carries no slug`);
+    else if (carried !== slug) problems.push(`${r.name}: "${i.name}" resolves to ${slug} but carries slug ${carried}`);
   }
 }
 

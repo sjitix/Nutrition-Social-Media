@@ -635,7 +635,25 @@ export async function generatePlan(profile: UserProfile): Promise<WeekPlan> {
   // is the direction the app moves toward (see VISION.md). Set PLAN_ENGINE=llm to force the old
   // model-generated path instead. buildWeek dispatches fresh vs batch on p.planMode.
   if (process.env.PLAN_ENGINE !== "llm") return buildWeek(p);
-  return resolveProvider() === "local" ? localGeneratePlan(p) : claudeGeneratePlan(p);
+  const generated = await (resolveProvider() === "local" ? localGeneratePlan(p) : claudeGeneratePlan(p));
+  return withoutModelSlugs(generated);
+}
+
+/**
+ * Drop every ingredient `slug` from a MODEL-generated plan. A slug is our id for a curated ingredient
+ * (D5); the plan schema now carries the field (optional), so a model writing a plan can emit one — and
+ * a slug the model picked could disagree with the ingredient it named. Lookups resolve the name first,
+ * which already contains that, but a model-chosen slug would still decide the nutrition for a name we
+ * do not curate. Only the engine assigns slugs; a model's are discarded here, at the boundary.
+ */
+function withoutModelSlugs(plan: WeekPlan): WeekPlan {
+  return {
+    ...plan,
+    days: plan.days.map((d) => ({
+      ...d,
+      meals: d.meals.map((m) => ({ ...m, ingredients: m.ingredients.map(({ name, quantity }) => ({ name, quantity })) })),
+    })),
+  };
 }
 
 export async function runAssistant(
@@ -903,7 +921,9 @@ function transcriptToTurns(transcript: import("./agentLoop").TranscriptEntry[]):
  * not from the state the turn began with. After a write the week has changed, and a prompt built
  * from the starting state would have the model reasoning about a week that no longer exists.
  */
-export function agentModelFn(): import("./agentLoop").ModelFn {
+export function agentModelFn(opts: { today?: string } = {}): import("./agentLoop").ModelFn {
+  // `today` (ISO date) reaches the prompt through the factory, so ModelFn's shape stays unchanged.
+  const promptOpts = { agent: true, today: opts.today };
   return async (transcript, _step, state) => {
     const p = withTargetDefaults(state.profile);
     const turns = transcriptToTurns(transcript).slice(-16);
@@ -914,7 +934,7 @@ export function agentModelFn(): import("./agentLoop").ModelFn {
       return localStructuredChat(
         AgentTurnSchema,
         "agent_turn",
-        [{ role: "system", content: assistantV2SystemPrompt(p, state.plan, { agent: true }) }, ...turns],
+        [{ role: "system", content: assistantV2SystemPrompt(p, state.plan, promptOpts) }, ...turns],
         0,
         // Double cast ON PURPOSE: AgentTurn types operations as PrimitiveOp[], but read ops are not
         // PrimitiveOps. The loop routes them by name (isReadTool) and never hands them to the engine, so
@@ -927,7 +947,7 @@ export function agentModelFn(): import("./agentLoop").ModelFn {
     const response = await client.messages.parse({
       model: CLAUDE_MODEL,
       max_tokens: 2000,
-      system: assistantV2SystemPrompt(p, state.plan, { agent: true }),
+      system: assistantV2SystemPrompt(p, state.plan, promptOpts),
       messages: turns,
       output_config: { format: zodOutputFormat(AgentTurnSchema) },
     });

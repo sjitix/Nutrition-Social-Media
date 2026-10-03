@@ -1,0 +1,58 @@
+# Every gate, on every push to main and every pull request — V1 milestone D5b.
+#
+# ship.mjs already runs the right gates before a push, but only for the paths a ship names, and only
+# when someone uses it. This runs ALL of them against what actually landed, so a data change, a
+# boundary break or a red engine test is visible on GitHub (where the work is read) even if it got
+# there another way. `check:recipes` had passed for months while nothing ran it; that is the gap this
+# closes. No secrets: every gate here runs with no model and no network.
+name: Gates
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: gates-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fast:
+    name: Types, boundaries, data, UI
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: TypeScript
+        run: npx tsc --noEmit
+      - name: Module boundaries (and the gate's own self-test)
+        run: |
+          node scripts/check-boundaries.mjs
+          node scripts/check-boundaries.mjs --self-test
+      - name: Recipe data — priced, weighable, plausible, Atwater
+        run: npm run check:recipes
+      - name: Ingredient identity — every reference resolves to a curated slug + USDA food
+        run: npm run check:ingredients
+      - name: Presentation-layer pure functions
+        run: npm run test:ui
+
+  engine:
+    name: Engine suite
+    runs-on: ubuntu-latest
+    # Locally the full suite takes ~25 minutes, most of it the fuzzer.
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: test:engine — scenarios, adversarial, invariants, fuzz
+        run: npm run test:engine

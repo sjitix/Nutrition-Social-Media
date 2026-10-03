@@ -30,7 +30,22 @@ LOOP RULES:
  * calls the model again after every action). Single-turn callers — training data, the hard-case eval —
  * get the prompt without it, so they never see tools they cannot use.
  */
-export function assistantV2SystemPrompt(profile: UserProfile, plan: WeekPlan, opts: { agent?: boolean } = {}): string {
+/**
+ * "Today is Monday…" — the plan is keyed by weekday names, so without this a model cannot place "I ate
+ * a burger for lunch today" or "dinner out tomorrow"; even a 550B model asked "which day is today?".
+ * `today` is an ISO date (YYYY-MM-DD); anything else yields no line rather than a wrong one.
+ */
+function todayLine(today?: string): string {
+  if (!today || !/^\d{4}-\d{2}-\d{2}$/.test(today)) return "";
+  const d = new Date(`${today}T12:00:00Z`);
+  if (Number.isNaN(d.getTime())) return "";
+  const names = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const wd = names[d.getUTCDay()];
+  const next = names[(d.getUTCDay() + 1) % 7];
+  return `Today is ${wd} (${today}). "Today", "tonight" and "this morning" mean ${wd}; "tomorrow" means ${next}.\n`;
+}
+
+export function assistantV2SystemPrompt(profile: UserProfile, plan: WeekPlan, opts: { agent?: boolean; today?: string } = {}): string {
   const n = plan.days.length || 1;
   const dayTotal = (d: WeekPlan["days"][number], k: "calories" | "proteinGrams") =>
     d.meals.reduce((s, m) => s + m[k], 0);
@@ -73,7 +88,7 @@ PRIMITIVES (each has an "op"; include only the fields you mean):
 - resize {op:"resize", direction:"much_smaller"|"smaller"|"bigger"|"much_bigger", day?, slot?}. rate {op:"rate", rating:1-5, dish? | day?+slot?}. pin/unpin {op:"pin"|"unpin", day, slot}.
 - report (weekly review). explain {op:"explain", day, slot}. substitute {op:"substitute", ingredient, day?, slot?}. symptom {op:"symptom", text} — you NEVER diagnose or name a nutrient; just pass their words. hydration {op:"hydration", weightKg?, activity?}. undo. answer (no change).
 ${opts.agent ? AGENT_SECTION : ""}${mem ? "\n" + mem + "\n" : ""}
-Weekly averages: ${avgKcal} kcal, ${avgP} g protein per day.
+${todayLine(opts.today)}Weekly averages: ${avgKcal} kcal, ${avgP} g protein per day.
 Current plan:
 ${planText}
 Profile: diet=${profile.diet}, budget=${profile.budget}, ~${profile.targetCalories} kcal/day, dislikes=${profile.dislikes || "none"}.

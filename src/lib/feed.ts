@@ -17,8 +17,11 @@ export * from "./feedFilter";
 
 // Every library recipe as a feed card, MINUS treat-only dishes (a discovery feed shouldn't push
 // burgers and pizza at someone — those stay reachable only when asked for by name, the cheat flow).
+// Cards carry NO ingredient slugs: they are display and search data, no client code reads a slug, and
+// across 495 cards they added ~44–53 kB to Explore's HTML — found by the D5 review, after A4 had just
+// paid to shrink that page. A card added to a plan without slugs is fine: lookups resolve by name first.
 export const FEED_RECIPES: FeedItem[] = RECIPES.filter((r) => !r.treatOnly).map((r) => ({
-  meal: recipeToMeal(r),
+  meal: { ...recipeToMeal(r), ingredients: r.ingredients.map(({ name, quantity }) => ({ name, quantity })) },
   image: imageForMeal(r.name),
   gradient: gradientForMeal(r.name),
   dietTags: r.dietTags,

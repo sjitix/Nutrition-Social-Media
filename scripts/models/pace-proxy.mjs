@@ -25,7 +25,8 @@ import { dirname, join } from "node:path";
 
 const UPSTREAM = (process.env.UPSTREAM ?? "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1").replace(/\/$/, "");
 const PORT = Number(process.env.PORT ?? 8787);
-let gapMs = Number(process.env.GAP_MS ?? 35000);
+const BASE_GAP_MS = Number(process.env.GAP_MS ?? 35000);
+let gapMs = BASE_GAP_MS;
 const MAX_TRIES = Number(process.env.MAX_TRIES ?? 8);
 const LOG = process.env.LOG ?? join(process.cwd(), "data", "eval-runs", `pace-proxy-${new Date().toISOString().slice(0, 10)}.jsonl`);
 mkdirSync(dirname(LOG), { recursive: true });
@@ -70,7 +71,12 @@ async function forward(method, path, headers, body) {
       continue;
     }
     if (status !== 200) stats.failed++;
-    else stats.upstreamSeconds += seconds; // only real answers count as model time
+    else {
+      stats.upstreamSeconds += seconds; // only real answers count as model time
+      // Relax after a success. Without this a few 429s ratcheted the gap to 40 s for the rest of a run
+      // (2026-10-03), and an eval that times wall-clock instead of /stats measured our pacing, not the model.
+      gapMs = Math.max(BASE_GAP_MS, gapMs - 5000);
+    }
     return { status, text, contentType, seconds };
   }
   stats.failed++;

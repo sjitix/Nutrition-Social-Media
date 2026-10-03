@@ -174,6 +174,13 @@ export function symptomNote(plan: WeekPlan, p: UserProfile, reported: string): {
       parts.push(`No food that fits your ${p.diet !== "none" ? p.diet + " " : ""}rules carries enough ${listPhrase(stuck.map((k) => MICRO_LABEL[k]))} — that's worth raising with a doctor or dietitian rather than something I can fix with recipes.`);
   } else if (fine.length) {
     parts.push(`In your current week they all look adequate — ${listPhrase(fine)} — so your food probably isn't the explanation. That's a reason to see a doctor, not to ignore it.`);
+    // A CONCRETE offer, so a "yes please" has one thing to accept. This note is the whole reply on a
+    // feelings message (engine notes outrank the model's prose), so the model's own offer never reached
+    // the user, and the next turn had to guess what "yes" meant — a 550B guessed vitamin D for
+    // "run down and tired" (models lane's conversation eval). ONE nutrient, and only one that the
+    // user's rules can actually reach, so accepting it maps to a single boost that can succeed.
+    const lean = hit.nutrients.find((k) => nutrientReachable(p, k));
+    if (lean) parts.push(`If you'd still like, I can lean your week further toward ${MICRO_LABEL[lean]} — just say so.`);
   }
   if (unmeasured.length) parts.push(`(I can't measure ${listPhrase(unmeasured)} reliably from these ingredients.)`);
   return { text: parts.join(" "), override: false };

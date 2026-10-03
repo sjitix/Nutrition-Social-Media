@@ -23,6 +23,7 @@ import { currentStreak, prevDay, isoDay } from "@/lib/streak";
 import { expandConstrain, applyRemember, applyPrimitives, memoryContext, AssistantTurnV2Schema, allergensInFact, type PrimitiveOp } from "@/lib/primitives";
 import { assistantV2SystemPrompt } from "@/lib/promptV2";
 import { redFlag, CRISIS_REPLY } from "@/lib/safety";
+import { tableKey } from "@/lib/data/ingredients";
 import { validateExample, validateBatch, type TrainingExample } from "@/lib/dataValidate";
 import { generateExamples } from "@/lib/genV2";
 import { microsForIngredients } from "@/lib/nutrients";
@@ -1444,6 +1445,20 @@ console.log("--- SYMPTOM CHECK (never diagnose, never dose, always the doctor) -
 
   // Word order and filler must not defeat a match.
   check("symptom_check matches an unordered phrase", /brittle hair or nails/i.test(sym("my nails are brittle and my hair is thinning").notes.join(" ")));
+
+  // The note is the WHOLE reply on a feelings message, so it must end with something a "yes please"
+  // can accept. When the associated nutrients all look adequate it used to end on "see a doctor" and
+  // offer nothing — the next turn had to guess (models lane's conversation eval, 2026-10-04).
+  {
+    const adequate = sym("my nails are brittle").notes.join(" ");
+    if (/look adequate/.test(adequate)) {
+      const offered = adequate.match(/lean your week further toward ([a-z0-9 ]+?) —/i);
+      check("symptom_check: when nothing is low it still offers ONE concrete nutrient to lean toward", !!offered, adequate.slice(-140));
+      check("symptom_check: ...and that offer still sends them to a doctor first", /see a doctor/i.test(adequate));
+    } else {
+      check("symptom_check: (fixture) brittle nails reads as adequate on this plan, so the offer is exercised", false, adequate.slice(-140));
+    }
+  }
 
   // RED FLAGS. These are the tests that actually matter.
   const chest = sym("i have chest pain").notes.join(" ");
@@ -3086,6 +3101,39 @@ console.log("\n--- THE ASSISTANT'S WORDS BIND THE ENGINE ---");
   check("...and the binding intolerance keeps it dairy-free",
     bfasts.every((m) => !m.ingredients.some((i) => /milk|cheese|yogurt|butter|cream|ricotta/i.test(i.name))),
     [...new Set(bfasts.map((m) => m.name))].join(", "));
+}
+// ---------------------------------------------------------------- INGREDIENT IDENTITY (D5, 2026-10-04)
+// Every library ingredient carries a slug; lookups resolve the NAME first and fall back to the slug.
+// The cases below are the D5 adversarial review's findings, each pinned so it cannot come back.
+console.log("\n--- INGREDIENT IDENTITY (D5) ---");
+{
+  // Every library meal carries slugs that agree with its names.
+  const wk = freshWeek(BASE);
+  const ings = wk.days.flatMap((d) => d.meals.flatMap((m) => m.ingredients));
+  check("identity: every library meal ingredient carries a slug",
+    ings.every((i) => typeof (i as { slug?: string }).slug === "string"), `${ings.filter((i) => !(i as { slug?: string }).slug).length} without`);
+
+  // Name first: a supplied slug can never contradict a curated name.
+  check("identity: a curated name wins over a contradicting slug", tableKey({ name: "Firm tofu", slug: "chicken-breast" }) === "firm tofu");
+  check("identity: the slug carries a name that no longer resolves (rename-safety)",
+    tableKey({ name: "Greek Yoghurt (renamed)", slug: "greek-yogurt" }) === "greek yogurt");
+  check("identity: an uncurated name with no slug keeps today's lowercase key", tableKey({ name: "  Za'atar " }) === "za'atar");
+  let threw = false;
+  try { tableKey({ name: "rice", slug: 42 as unknown as string }); } catch { threw = true; }
+  check("identity: a non-string slug (bad imported data) is ignored, not a crash", !threw);
+
+  // A plan saved BEFORE D5 has no slugs. A no-op rebalance must not be reported as a change just
+  // because the rebuilt meals gained them (it said "Balanced Monday…", planChanged=true, on 7/7 days).
+  const week = applyOperations(BASE, selectWeekFromDb(BASE), [op({ tool: "regenerate_week" })]).plan;
+  const preD5 = JSON.parse(JSON.stringify(week, (k, v) => (k === "slug" ? undefined : v))) as WeekPlan;
+  const disagreements = preD5.days.filter((d) =>
+    applyOperations(BASE, preD5, [op({ tool: "rebalance_day", day: d.day })]).planChanged !==
+    applyOperations(BASE, week, [op({ tool: "rebalance_day", day: d.day })]).planChanged).length;
+  check("identity: a pre-D5 plan's no-op rebalance is not reported as a change", disagreements === 0, `${disagreements}/7 days disagree`);
+
+  // Slugs stay out of what does not need them: Explore's cards and the model's inspect_recipe.
+  check("identity: Explore cards carry no slugs (they cost ~50 kB of HTML for nothing)",
+    FEED_RECIPES.every((f) => f.meal.ingredients.every((i) => !("slug" in i))));
 }
 // ---------------------------------------------------------------- 3. fuzz
 console.log("\n--- FUZZ (random op sequences, invariants after each) ---");

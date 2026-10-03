@@ -20,8 +20,9 @@
  * What it guarantees, in order:
  *   1. The remote is fetched and divergence is reported BEFORE any work is done — and if the remote
  *      changed a file you are about to commit, it STOPS, because that is where a merge loses work.
- *   2. The gate runs (check:boundaries whenever src/ is touched; then test:engine when src/lib is
- *      touched, else tsc) and a failure stops everything.
+ *   2. The gate runs (check:boundaries whenever src/ is touched; check:recipes + check:ingredients
+ *      when the engine or the ingredient data is touched; then test:engine when src/lib is touched,
+ *      else tsc) and a failure stops everything.
  *   3. The commit contains EXACTLY the paths asked for — verified against the commit afterwards, so
  *      a file swept in or dropped out is reported rather than discovered later.
  *   4. ONLY THEN the remote is fetched AGAIN — a 25-minute gate is long enough for another lane to
@@ -152,15 +153,26 @@ const touchesEngine = dirty.some((l) => porcelainPath(l).includes("src/lib/"));
 // predates the gate (a lane that has not rebased past it yet), rather than failing on a missing file.
 const touchesCode = dirty.some((l) => /^(src\/|scripts\/check-boundaries\.mjs$)/.test(porcelainPath(l)));
 const hasBoundaries = existsSync("scripts/check-boundaries.mjs");
+// The DATA gates (V1 D5b): every ingredient priced and weighable, every dish plausible, Atwater holds,
+// every reference resolves to a curated slug. check:recipes had passed for months while NOTHING ran
+// it — a data change could reach main without it. Now any change to the engine or the ingredient
+// data runs both, in seconds, before the long engine suite.
+const touchesData = touchesEngine || dirty.some((l) => /^scripts\/(ingredient-map|food-units)\.json$/.test(porcelainPath(l)));
+const hasDataGates = existsSync("scripts/check-recipes.mts") && existsSync("scripts/check-ingredients.mts");
 if (skipGate) {
   console.log("ship: --no-gate given; skipping the gate (docs-only changes).");
 } else {
   console.log(
     `\nship: running the gate — ${touchesCode && hasBoundaries ? "check:boundaries, then " : ""}` +
+      `${touchesData && hasDataGates ? "check:recipes + check:ingredients, then " : ""}` +
       `${touchesEngine ? "npm run test:engine (src/lib changed)" : "tsc"}…`,
   );
   try {
     if (touchesCode && hasBoundaries) run("node", ["scripts/check-boundaries.mjs"]);
+    if (touchesData && hasDataGates) {
+      run("npm", ["run", "check:recipes"]);
+      run("npm", ["run", "check:ingredients"]);
+    }
     if (touchesEngine) run("npm", ["run", "test:engine"]);
     else run("npx", ["tsc", "--noEmit"]);
   } catch {

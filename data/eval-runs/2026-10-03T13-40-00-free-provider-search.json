@@ -1,0 +1,228 @@
+{
+  "shortlist": [
+    {
+      "rank": 1,
+      "provider": "Vercel AI Gateway (free tier, $0 model)",
+      "model": "inclusionai/ling-3.1-flash (alias ling-3.1-flash-free)",
+      "totalParams": "560B MoE, 25B active (Vercel's own catalog)",
+      "access": "free-key-no-card (low confidence: the official FAQ lists a 403 customer_verification_required, 'team must add a valid payment method before using free credits')",
+      "baseUrl": "https://ai-gateway.vercel.sh/v1",
+      "ownerAction": "Create an AI Gateway API key in the existing Vercel team (ntrux already deploys there), or use OIDC from the deployment. Do NOT buy credits: any purchase ends the monthly free credit for good. Be ready for a card prompt.",
+      "freeLimits": "$0 input/$0 output, so the monthly credit is not consumed. The per-model free-tier rate limit is undisclosed ('Limits can change... contact Vercel'). RPM/RPD are unknown until we hit a 429.",
+      "expectedSecondsPerCall": "~8 s (estimate). The gateway's public p50 is 2.7 s to first response and 79 tok/s, so ~2.7 + 400/79 ≈ 7.8 s with reasoning 'none'. p95 is 7.2 s latency, so up to ~12 s. Misses the 5 s target but stays under the 10 s cutoff at p50.",
+      "jsonSupport": "No response_format. Gets JSON from prompt-instructed output, or by forcing a tool call with tools + tool_choice so the arguments act as the schema. temperature is supported.",
+      "qualityNote": "The biggest free model with live measured latency, and 25B active per token is far more than gpt-oss-120b's ~5B. Agentic JSON quality has not been evaluated; run the conversation eval first.",
+      "risk": "Undisclosed free rate limit could be far below 300-1,500/day. The card prompt is possible. Free models can be withdrawn. No native schema enforcement."
+    },
+    {
+      "rank": 2,
+      "provider": "OpenRouter (:free)",
+      "model": "dots-studio/dots-3-note-preview:free",
+      "totalParams": "280B MoE, 16B active",
+      "access": "free-key-no-card at 50 RPD; 1,000 RPD needs a one-time $10 credit purchase, which needs a payment method",
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "ownerAction": "Create an OpenRouter account and key, then make a one-time $10 purchase (lifetime credit, not a subscription) to raise the cap from 50 to 1,000 RPD",
+      "freeLimits": "20 RPM and 1,000 RPD with the $10 top-up (50 RPD without). Per account, shared across ALL :free models, and failed requests count.",
+      "expectedSecondsPerCall": "Unverified: OpenRouter publishes latency as null. The upstream is AtlasCloud fp8, not NVIDIA, so it should avoid the NIM queue (inference).",
+      "jsonSupport": "response_format + structured_outputs listed (json_schema)",
+      "qualityNote": "Big, non-NVIDIA upstream, and real json_schema. The best paper fit among the :free models.",
+      "risk": "It is a 'preview' and could disappear without notice. 20 RPM shared by all testers is ~7-10 agent turns/min. 1,000 RPD covers only the low half of the target."
+    },
+    {
+      "rank": 3,
+      "provider": "Mistral La Plateforme (Free plan)",
+      "model": "Mistral Large 3 (mistral-large-latest)",
+      "totalParams": "675B MoE, 41B active (official announcement)",
+      "access": "free-key-no-card (official quickstart says no credit card; phone verification is claimed by third parties, unverified)",
+      "baseUrl": "https://api.mistral.ai/v1",
+      "ownerAction": "Create a Mistral account, activate Studio, create a key. Opt out of training on data if the setting exists; that free-plan data use is unverified on official pages.",
+      "freeLimits": "$10/month of API credit shared across Studio/API/Vibe. At $0.50/$1.50 per M, that is about 2,700 calls/month (~90/day), up to ~300/day only if prompt caching hits. RPS/TPM are visible only in the Admin Panel.",
+      "expectedSecondsPerCall": "~6 s (Artificial Analysis first-party: 1.06 s TTFT, 79 tok/s, so 1.06 + 400/79 ≈ 6.1 s)",
+      "jsonSupport": "JSON mode + custom structured outputs (schema-enforced), per the official docs",
+      "qualityNote": "The strongest model on this list by active parameters (41B), with schema-enforced output and near-target latency.",
+      "risk": "~90 calls/day is well below the beta's volume, and usage hard-stops when the credit runs out. Free-plan training on inputs is a concern for health data."
+    },
+    {
+      "rank": 4,
+      "provider": "OpenRouter (:free)",
+      "model": "nvidia/nemotron-3-super-120b-a12b:free",
+      "totalParams": "120B hybrid MoE, 12B active",
+      "access": "free-key-no-card at 50 RPD; 1,000 RPD needs a one-time $10 purchase",
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "ownerAction": "Same OpenRouter key + $10 top-up as rank 2. The same account covers ranks 2, 4 and 5.",
+      "freeLimits": "Shared 20 RPM / 1,000 RPD (with $10)",
+      "expectedSecondsPerCall": "Unverified. The only provider is 'Nvidia', so it probably shares the NIM free queue we measured at 17-22 s per agent message on Ultra. Uptime 99.94% over 30 min.",
+      "jsonSupport": "response_format + structured_outputs (json_schema), tools, tool_choice, temperature, seed",
+      "qualityNote": "Over 100B, with the best JSON feature set of the :free models",
+      "risk": "Likely to inherit NIM's queue lottery. We can preview this with our existing NIM key (see testableNow)."
+    },
+    {
+      "rank": 5,
+      "provider": "OpenRouter (:free)",
+      "model": "thinkingmachines/inkling:free",
+      "totalParams": "975B MoE, 41B active",
+      "access": "free-key-no-card at 50 RPD; 1,000 RPD needs a one-time $10 purchase",
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "ownerAction": "Same OpenRouter key + $10 top-up",
+      "freeLimits": "Shared 20 RPM / 1,000 RPD",
+      "expectedSecondsPerCall": "Unverified (latency null). Served first-party at nvfp4, uptime 99.5%.",
+      "jsonSupport": "No response_format; tool_choice unsupported. Prompt-instructed JSON only.",
+      "qualityNote": "The largest free model anywhere in this sweep",
+      "risk": "No schema enforcement and no forced tool call, so the JSON repair path has to carry it. Speed unknown."
+    },
+    {
+      "rank": 6,
+      "provider": "Vercel AI Gateway (free tier, $0 model)",
+      "model": "inclusionai/ling-3.0-flash-sante (-sante-free)",
+      "totalParams": "124B MoE, ~5.1B active; health/medicine-tuned",
+      "access": "free-key-no-card (same card-verification caveat as rank 1)",
+      "baseUrl": "https://ai-gateway.vercel.sh/v1",
+      "ownerAction": "Same Vercel AI Gateway key as rank 1",
+      "freeLimits": "$0/$0; per-model free rate limit undisclosed",
+      "expectedSecondsPerCall": "~3 s (estimate). Gateway p50 is 0.85 s at 207 tok/s, so ~0.85 + 400/207 ≈ 2.8 s; p95 ~4-6 s.",
+      "jsonSupport": "No response_format; tools/tool_choice (forced tool call) or prompt JSON",
+      "qualityNote": "The ONLY free big-by-total model that meets the 5 s target, and it is domain-tuned for health. But 5.1B active means it may reason like a small model.",
+      "risk": "Big in name only; quality unverified. Use as a fast fallback or for the cheaper step of a turn, never unevaluated."
+    },
+    {
+      "rank": 7,
+      "provider": "OVHcloud AI Endpoints (keyed, PAID pay-as-you-go)",
+      "model": "gpt-oss-120b (also Qwen3.5-397B-A17B)",
+      "totalParams": "117B MoE ~5.1B active (Qwen3.5: 397B / 17B active)",
+      "access": "paid-only (a Public Cloud project needs a payment method; keyless is free but 2 req/min/IP/model)",
+      "baseUrl": "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1",
+      "ownerAction": "Public Cloud project with a payment method, then a key. Cost: gpt-oss-120b ≈ EUR 0.0007/call ≈ EUR 0.3-1.1/day; Qwen3.5-397B ≈ EUR 1.6-8/day.",
+      "freeLimits": "Free only keyless: 2 req/min per IP per model (and it 3h-blocked our IP after a burst). Keyed: 400 req/min per project per model, billed per token.",
+      "expectedSecondsPerCall": "gpt-oss-120b ~3.4 s (our measurement); Qwen3.5-397B unmeasured, reasoning model so likely slower",
+      "jsonSupport": "JSON mode, json_schema structured outputs, function calling (docs); Qwen3.5 page lists json_object and json_schema",
+      "qualityNote": "Measured fast, json_schema, ample rate limit. The cheapest reliable way to hit every constraint except 'free'.",
+      "risk": "Not free (this corrects the earlier belief). gpt-oss-120b's agentic policy-following is weaker (tau2 ~65.8%, sweep figure)."
+    },
+    {
+      "rank": 8,
+      "provider": "Groq (free plan; Developer tier is paid)",
+      "model": "openai/gpt-oss-120b",
+      "totalParams": "~120B MoE, ~5B active",
+      "access": "free-key-no-card (the no-card claim is from third parties only); Developer tier needs a card",
+      "baseUrl": "https://api.groq.com/openai/v1",
+      "ownerAction": "Create a Groq console key (email/Google). For beta volume, the Developer tier with a card (~$0.15/$0.60 per M, ~$1-6/day).",
+      "freeLimits": "Free: 30 RPM, 1K RPD, 8K TPM, 200K TPD. At our prompt size that is ~1 call/min and ~25-40 calls/day for the whole org.",
+      "expectedSecondsPerCall": "~1.5-3 s (estimate from ~500 tok/s on Groq's models page; unmeasured)",
+      "jsonSupport": "json_schema strict (constrained decoding), best-effort json_schema, json_object",
+      "qualityNote": "Fastest strict-schema option for gpt-oss-120b",
+      "risk": "The free tier only works for dev/eval: token caps kill the beta. Fits fully only on paid Developer."
+    },
+    {
+      "rank": 9,
+      "provider": "Cerebras (trial)",
+      "model": "gpt-oss-120b",
+      "totalParams": "~117B MoE",
+      "access": "trial-credits (card required; $5 credit expires after 30 days; no renewing free tier)",
+      "baseUrl": "https://api.cerebras.ai/v1 (prior knowledge)",
+      "ownerAction": "Account + verified payment method",
+      "freeLimits": "5 RPM, 30K uncached TPM, 1M TPD (~150 calls/day), 65k context on the trial; stops when the $5 runs out or 30 days pass",
+      "expectedSecondsPerCall": "<2 s (docs claim ~3,000 tok/s; unmeasured)",
+      "jsonSupport": "json_schema strict + json_object (schema ≤5,000 chars, no oneOf/allOf, do not combine with tools)",
+      "qualityNote": "Fastest option, good for a one-off latency/quality benchmark",
+      "risk": "Card, 30-day expiry, 5 RPM. Not a beta brain."
+    },
+    {
+      "rank": 10,
+      "provider": "NVIDIA NIM free (current)",
+      "model": "nemotron-3-ultra-550b (baseline we already run)",
+      "totalParams": "550B MoE, 55B active",
+      "access": "free-key-no-card (key already held)",
+      "baseUrl": "https://integrate.api.nvidia.com/v1",
+      "ownerAction": "None; already in hand",
+      "freeLimits": "Account rate limits; queue lottery",
+      "expectedSecondsPerCall": "17-22 s median per agent message (our measurement), so DISQUALIFIED for chat by the >10 s rule",
+      "jsonSupport": "Prompt-instructed / tools (OpenRouter's mirror lists no response_format)",
+      "qualityNote": "Good quality; listed only as the baseline every other option must beat",
+      "risk": "Too slow; the queue is unpredictable"
+    }
+  ],
+  "testableNowWithoutOwner": [
+    "NVIDIA NIM with the key we already hold: time nvidia/nemotron-3-super-120b-a12b at a ~6k-token prompt with response_format json_schema. OpenRouter's :free endpoint for this model is served by 'Nvidia', so the timing previews OpenRouter rank 4 before anyone buys the $10 top-up. It may 404 like most big NIM models on free accounts (unverified).",
+    "OVH keyless (no account), only if the 3h IP block has cleared (the last probe got 429 in 0.12 s): at most 3 timed calls, >=30 s apart, one model at a time, to gpt-oss-120b and Qwen3.5-397B-A17B with a real 6k-token NutriFlow prompt and json_schema. This measures Qwen3.5-397B's unmeasured latency. Never loop: 2 req/min/IP/model.",
+    "Vercel AI Gateway public metrics, keyless GET (https://ai-gateway.vercel.sh/v1/models/inclusionai/ling-3.1-flash/endpoints and .../ling-3.0-flash-sante/endpoints): re-read p50/p95 latency and throughput at different times of day to see whether the 2.7 s / 0.85 s figures hold. These are metrics only, not chat calls.",
+    "OpenRouter public catalog, keyless GET (https://openrouter.ai/api/v1/models/{id}/endpoints): watch uptime and whether dots-3-note-preview:free or inkling:free disappear, which preview models do. Chat calls return 401 without a key.",
+    "LLM7 keyless (undocumented, may vanish): at most 3 spaced calls to DeepSeek-V4-Flash-0731 with our real prompt, as a quality spot-check of a 284B model only. Not a beta option (100K tokens/day on a free token; dirty JSON seen).",
+    "Code-side, no provider needed: a 'forced tool call as JSON schema' path (tools + tool_choice) in the local provider of src/lib/ai.ts. Vercel's Ling models and Inkling have no response_format, so this decides whether ranks 1 and 6 are usable. Proposal only; this run edits nothing."
+  ],
+  "rejected": [
+    {
+      "what": "GitHub Models (any model, PAT)",
+      "why": "Retired. Closed to new customers 2026-06-16 and shut down for everyone 2026-07-30; the inference API no longer exists (docs.github.com/en/github-models/use-github-models/prototyping-with-ai-models, github.blog changelog 2026-07-01 and 2026-06-16)."
+    },
+    {
+      "what": "Google AI Studio free tier (Gemini 3.x Flash, 2.5 Pro/Flash, Gemma 4)",
+      "why": "Parameter counts undisclosed, so 'big' cannot be verified. 3.8 Flash is ~20 RPD (third-party). Reasoning cannot be disabled on Gemini 3 (13-22 s TTFT per Artificial Analysis). 2.5 models are closed to new users. Free-tier content is used to improve Google products. Gemma 4 is ~31B. 3.5 Flash-Lite (~500 RPD) is at most a non-big fallback."
+    },
+    {
+      "what": "NVIDIA NIM Nemotron-3-Ultra-550B, and its OpenRouter :free mirror",
+      "why": "17-22 s per agent message (measured) breaks the >10 s rule. The OpenRouter mirror has the same 'Nvidia' provider and no response_format."
+    },
+    {
+      "what": "NIM GLM-5.3, Kimi K3, DeepSeek-V4.1-Flash, Gemma-4-31B",
+      "why": "Already measured: 25-90 s per call, slow queue, or timeouts."
+    },
+    {
+      "what": "Groq free tier as the beta brain",
+      "why": "8K TPM / 200K TPD gives ~1 call/min and ~25-40 calls/day at a 5-7k prompt (console.groq.com/docs/rate-limits). llama-3.3-70b-versatile is not in the free table. Keep Groq as the paid (Developer) option."
+    },
+    {
+      "what": "Cerebras as 'free'",
+      "why": "Needs a verified payment method. The $5 credit expires in 30 days and nothing renews free. 5 RPM, ~150 calls/day. zai-glm-4.7 is no longer in the shared catalog (inference-docs.cerebras.ai/support/rate-limits)."
+    },
+    {
+      "what": "SambaNova Cloud",
+      "why": "Free tier is 20 RPD per model (docs.sambanova.ai/docs/en/models/rate-limits). The plans page says a payment method and bought credits are needed even to start."
+    },
+    {
+      "what": "Cloudflare Workers AI",
+      "why": "10k neurons/day gives ~29-71 of our calls/day. Kimi/GLM/DeepSeek V4 need a paid billing method (developers.cloudflare.com/workers-ai/platform/pricing/). The sweep's 'free, no card' was wrong."
+    },
+    {
+      "what": "LLM7.io",
+      "why": "100K tokens/24h on the free token gives ~15-20 calls/day. Keyless access is undocumented. json_object only, with dirty output in probes. Quotas 'may be reduced without notice' (docs.llm7.io/limits.md)."
+    },
+    {
+      "what": "Hugging Face Inference Providers",
+      "why": "$0.10/month credit gives ~80-235 gpt-oss-120b calls per MONTH (huggingface.co/docs/inference-providers/pricing). Useful only as a paid router."
+    },
+    {
+      "what": "Nebius Token Factory",
+      "why": "$1 / 30-day trial, bank card required for billing (docs.tokenfactory.nebius.com/other-capabilities/billing-new). Used up in about a day."
+    },
+    {
+      "what": "OVHcloud 'free account key at 400 req/min'",
+      "why": "Corrected: keyed use needs a Public Cloud project with a payment method and is billed per token. Only keyless 2 req/min/IP/model is free, and that blocked our IP for 3h+. Kept in the shortlist as the cheapest paid option, not as free."
+    },
+    {
+      "what": "OpenRouter free tier WITHOUT the $10 top-up",
+      "why": "50 requests/day per account across all :free models (openrouter.ai/docs/api/reference/limits)."
+    },
+    {
+      "what": "OpenRouter gpt-oss-120b / llama-3.3-70b :free",
+      "why": "No :free variant exists in the current catalog (openrouter.ai/api/v1/models)."
+    },
+    {
+      "what": "Small or off-target :free models (nemotron-3.5-lightning 30B, north-mini-code 30B, qwen3.8-27b, gemma-4, poolside laguna-s-2.1, apodex-1.1-mini, inkling-small, ling-3.0-flash-sante on OpenRouter)",
+      "why": "Below the 70B bar, size undisclosed, coding-specialised, or no schema. Inkling-small and Sante are big by total but have 12B/5.1B active."
+    },
+    {
+      "what": "Together AI, Fireworks, DeepInfra, Chutes, DeepSeek platform (sweep only, unverified)",
+      "why": "No standing free tier: Together needs a $5 minimum purchase; Fireworks is 10 RPM without payment; DeepInfra needs a card/prepay; Chutes and DeepSeek are paid plans (cheap)."
+    },
+    {
+      "what": "Novita, Hyperbolic, Scaleway, Alibaba Model Studio, Cohere trial, Z.ai free GLM-Flash (sweep only)",
+      "why": "Free models are ≤9B (Novita) or below 70B (GLM-4.x-Flash), or the free part is one-time credit (Hyperbolic ~$1, Scaleway 1M tokens ≈150 calls, Alibaba 1M tokens per model for 90 days). Cohere is 1,000 calls/month and trial keys are non-commercial. Alibaba's quota is still useful for an eval burst."
+    },
+    {
+      "what": "Lambda Inference API",
+      "why": "Winding down per lambda.ai/inference."
+    }
+  ],
+  "recommendation": "No provider verified on 2026-10-03 offers all four things together: a big model, ~5 s calls, a free tier, and 300-1,500 calls a day. Every free tier that is big and fast is capped at roughly 20-150 calls a day (Groq, Cerebras, Cloudflare, SambaNova, Google, LLM7, Mistral). The only free options without a token cap are $0 models whose rate limits are not published, or OpenRouter, which needs a one-time $10 purchase.\n\nSuggested path:\n1) Today, with no new key: time Nemotron-3-Super-120B on our existing NIM key (it previews OpenRouter's :free endpoint, which is NVIDIA-hosted). If the OVH IP block has cleared, make at most 3 spaced keyless calls to Qwen3.5-397B to get its first latency figure.\n2) The owner creates a Vercel AI Gateway key in the existing ntrux team (and buys nothing). Evaluate Ling 3.1 Flash (560B/25B active, ~8 s estimated) as the free primary and Ling Sante (~3 s, but 5B active) as the fast fallback. Get JSON through a forced tool call, then measure the real 429 ceiling.\n3) If the owner accepts a one-time $10 on OpenRouter, the same key gives 1,000 RPD at 20 RPM across dots-3-note-preview (280B, json_schema), Nemotron-3-Super (json_schema) and Inkling (975B). Time each once.\n4) If the beta must reliably hit ≤5 s at volume with schema-enforced JSON, the honest answer is a few euros a month, not free. OVH gpt-oss-120b (measured 3.4 s, json_schema, ~EUR 10-33/month) or Groq Developer gpt-oss-120b (strict json_schema, ~1.5-3 s). Mistral Large 3 (675B/41B, ~6 s, schema output) is the quality pick if paid.\n\nKeep NIM Ultra only as the quality baseline.",
+  "markdownReport": "# Choosing NutriFlow's assistant model: free big-model options (verified 2026-10-03)\n\n## Bottom line\n\n**No provider verified today meets all four requirements together:**\n\n- a model of 70B or more;\n- calls of 5 s or less;\n- a free tier;\n- 300-1,500 calls a day.\n\nThe free tiers split into three groups:\n\n- **Hard daily caps.** Most free tiers are capped at roughly 20-150 of our 5-7k-token calls a day.\n- **Unpublished limits.** Two are $0-per-token with undisclosed rate limits: Vercel AI Gateway's Ling models.\n- **Needs $10.** OpenRouter's :free models need a one-time $10 purchase to reach 1,000 requests/day.\n\nThe most promising free route is **Vercel AI Gateway: Ling 3.1 Flash (560B MoE, 25B active)**, with Ling Sante as a fast fallback. Next is **OpenRouter :free plus the $10 top-up**: dots-3-note-preview, Nemotron-3-Super or Inkling.\n\nIf the beta must reliably hit 5 s or less with schema-enforced JSON, the realistic answer is **a few euros a month**:\n\n- OVH gpt-oss-120b: 3.4 s measured, about EUR 10-33 a month.\n- Groq Developer gpt-oss-120b.\n\nThroughout, \"big\" means total parameters. Active parameters per token are listed too, because they predict agentic quality better: gpt-oss-120b has about 5B active, Ling 3.1 Flash 25B, and Mistral Large 3 and Inkling 41B each.\n\n## Ranking\n\nExpected seconds are for a call with about 5k tokens in and 400 out. \"Est.\" means the figure is derived from published latency and throughput rather than timed by us.\n\n| # | Provider / model | Total (active) | Access | Free limits | s/call | JSON | Owner effort |\n|---|---|---|---|---|---|---|---|\n| 1 | Vercel AI Gateway, `inclusionai/ling-3.1-flash` | 560B (25B) | Key in the existing Vercel team; a card prompt is possible | $0/token; **rate limit undisclosed** | **~8 (est.)**: p50 2.7 s + 400/79 tok/s; p95 up to ~12 | No response_format: forced tool call or prompt JSON | Low (team exists) |\n| 2 | OpenRouter `dots-3-note-preview:free` | 280B (16B) | Key; $10 one-time for 1,000 RPD | 20 RPM, 1,000 RPD, shared across all :free models | Unverified (AtlasCloud upstream) | json_schema | Key + $10 |\n| 3 | Mistral Large 3 (Free plan) | 675B (41B) | Key; no card (official) | $10/month credit, about 90 calls/day | ~6 (AA: 1.06 s TTFT, 79 tok/s) | Schema-enforced structured output | Email (+ phone?) |\n| 4 | OpenRouter `nemotron-3-super-120b-a12b:free` | 120B (12B) | Key + $10 | Shared 20 RPM / 1,000 RPD | Unverified; NVIDIA-hosted, so likely the NIM queue | json_schema | Key + $10 |\n| 5 | OpenRouter `thinkingmachines/inkling:free` | 975B (41B) | Key + $10 | Shared | Unverified | Prompt-only (no tool_choice) | Key + $10 |\n| 6 | Vercel `ling-3.0-flash-sante` | 124B (5.1B), health-tuned | As #1 | $0; undisclosed | **~3 (est.)**: 0.85 s + 400/207 | Forced tool call or prompt | As #1 |\n| 7 | OVH `gpt-oss-120b` / `Qwen3.5-397B-A17B` (paid) | 117B (5B) / 397B (17B) | Payment method | Keyless 2 req/min/IP/model only | **3.4 (measured)** / unmeasured | json_schema | Card; ~EUR 0.3-1.1/day (Qwen ~EUR 1.6-8) |\n| 8 | Groq `gpt-oss-120b` | ~120B (5B) | Key (free); card for Developer | Free: 8K TPM, 200K TPD, so ~30 calls/day | ~1.5-3 (est.) | **Strict** json_schema | Email; card to scale (~$1-6/day) |\n| 9 | Cerebras `gpt-oss-120b` | ~117B | Card; $5 credit for 30 days | 5 RPM, 1M TPD (~150 calls/day) | <2 (est.) | Strict json_schema | Card |\n| 10 | NIM Nemotron-3-Ultra (current baseline) | 550B (55B) | Key held | Account limits | **17-22 (measured): disqualified** | Prompt/tools | None |\n\n### How the speed estimates were derived\n- **Ling models:** the Vercel gateway's own public per-endpoint metrics for the last hour, read with keyless GETs on `/v1/models/{id}/endpoints`:\n  - Ling 3.1 Flash: p50 2.7 s, p95 7.2 s, 79 tok/s, uptime 99.999%.\n  - Ling Sante: p50 0.85 s, p95 2.0 s, 207 tok/s.\n- **Mistral Large 3:** Artificial Analysis provider page.\n- **Groq and Cerebras:** vendor-claimed throughput.\n- **OVH gpt-oss-120b:** our own earlier measurement.\n- **OpenRouter :free:** no speed data. OpenRouter publishes latency as null, and chat calls return 401 without a key.\n\n## Can we test it today without a new key?\n\n1. **NIM, with the key we already hold.** Time `nvidia/nemotron-3-super-120b-a12b` at about 6k tokens with json_schema.\n   - OpenRouter's :free endpoint for it is NVIDIA-hosted, so this previews rank 4 before anyone spends $10.\n   - It may 404, as most big NIM models do on free accounts.\n2. **OVH keyless.** Only if the IP block has lifted; the last probe returned 429 in 0.12 s.\n   - At most 3 calls, 30 s or more apart, to Qwen3.5-397B. Its latency is the one unmeasured OVH figure.\n3. **Vercel and OpenRouter public metrics and catalogs** (keyless GETs).\n   - Re-read the Ling latency at other times of day.\n   - Watch for the preview :free models disappearing.\n4. **LLM7 keyless (undocumented).** At most 3 spaced calls to DeepSeek-V4-Flash, as a quality spot-check only.\n5. **Code-side prep (proposal, nothing edited).** A \"forced tool call as schema\" path in `src/lib/ai.ts`'s local provider.\n   - Ranks 1 and 6 have no `response_format`, so this decides whether they are usable.\n\n## Corrections to what we believed\n\n**OVH \"free account key at 400 req/min\" is not free.**\n- Keyed use needs a Public Cloud project with a payment method, billed per token.\n- Only keyless 2 req/min/IP/model costs nothing.\n- If the owner already holds an OVH key, check the console for charges.\n- Source: [OVH capabilities](https://docs.ovhcloud.com/en/guides/public-cloud/ai-machine-learning/ai-endpoints-capabilities), [catalog](https://www.ovhcloud.com/en/public-cloud/ai-endpoints/catalog/)\n\n**Groq free does not fit our volume.**\n- gpt-oss-120b is 30 RPM, 1K RPD, 8K TPM and 200K TPD, which is about 1 call/min and about 30/day at our prompt size.\n- Llama-3.3-70B is no longer in the free table.\n- Source: [rate limits](https://console.groq.com/docs/rate-limits), [models](https://console.groq.com/docs/models), [structured outputs](https://console.groq.com/docs/structured-outputs)\n\n**Cerebras needs a card.**\n- The $5 credit expires after 30 days.\n- The shared catalog now holds only gpt-oss-120b and qwen-3.8-27b.\n- Source: [rate limits](https://inference-docs.cerebras.ai/support/rate-limits), [models](https://inference-docs.cerebras.ai/models/overview), [structured outputs](https://inference-docs.cerebras.ai/capabilities/structured-outputs)\n\n**SambaNova's free tier is 20 requests/day per model.** The plans page also asks for a payment method.\n- Source: [rate limits](https://docs.sambanova.ai/docs/en/models/rate-limits), [plans](https://cloud.sambanova.ai/plans)\n\n**GitHub Models is retired**, as of 2026-07-30.\n- Source: [docs](https://docs.github.com/en/github-models/use-github-models/prototyping-with-ai-models), [changelog](https://github.blog/changelog/2026-07-01-github-models-is-being-fully-retired-on-july-30-2026/)\n\n**OpenRouter :free:**\n- 20 RPM.\n- 50 RPD, or 1,000 RPD after $10 or more in lifetime purchases.\n- Per account and shared across all :free models; failed requests count.\n- No gpt-oss-120b or Llama-70B :free variant exists.\n- Source: [limits](https://openrouter.ai/docs/api/reference/limits), [catalog](https://openrouter.ai/api/v1/models)\n\n**Cloudflare:** the big Kimi, GLM and DeepSeek V4 models need paid billing, and the free 10k neurons/day is about 29-71 calls.\n- Source: [pricing](https://developers.cloudflare.com/workers-ai/platform/pricing/), [JSON mode](https://developers.cloudflare.com/workers-ai/features/json-mode/)\n\n**Google AI Studio:**\n- Gemini 3.x reasoning cannot be disabled.\n- 3.8 Flash is about 20 RPD (third-party figure).\n- 2.5 models are closed to new users.\n- Parameter counts are undisclosed.\n- Source: [OpenAI compat](https://ai.google.dev/gemini-api/docs/openai), [changelog](https://ai.google.dev/gemini-api/docs/changelog), [rate limits](https://ai.google.dev/gemini-api/docs/rate-limits)\n\n**Mistral:** the free tier is now a $10/month credit, according to a third-party source; the old \"1B tokens\" figure is stale. No card is needed, per the official docs.\n- Source: [pricing](https://mistral.ai/pricing), [quickstart](https://docs.mistral.ai/getting-started/quickstarts/studio/activate-and-generate-api-key), [Mistral 3](https://mistral.ai/news/mistral-3)\n\n**Vercel AI Gateway:**\n- Only 3 $0 chat models are on the official free filter.\n- gpt-oss-120b and Nemotron are priced, not free.\n- The FAQ lists a `customer_verification_required` error that can demand a card.\n- Source: [pricing](https://vercel.com/docs/ai-gateway/pricing), [rate limits](https://vercel.com/docs/ai-gateway/rate-limits), [FAQ](https://vercel.com/docs/ai-gateway/faq), [free filter](https://vercel.com/ai-gateway/models?freeTier=true)\n\n## Rejected\n- **GitHub Models:** retired.\n- **Google AI Studio:** size unknown, about 20 RPD, slow thinking, trains on free-tier data.\n- **NIM Ultra and the other NIM big models:** 17-90 s or timeouts.\n- **Groq free:** token caps.\n- **Cerebras:** card, 30-day credit.\n- **SambaNova:** 20 RPD.\n- **Cloudflare:** about 44 calls/day.\n- **LLM7:** 100K tokens/day, dirty JSON, undocumented keyless access.\n- **Hugging Face:** $0.10/month.\n- **Nebius:** $1 trial, card required.\n- **OpenRouter without $10:** 50 RPD.\n- **Small or off-target :free models.**\n- **Sweep-only, unverified:** Together, Fireworks, DeepInfra, Chutes and DeepSeek are paid. Novita's free models are ≤9B. Hyperbolic, Scaleway and Alibaba offer one-time credits only. Cohere is 1,000 calls/month and non-commercial. Z.ai's free GLM-Flash is below 70B. Lambda is winding down.\n\n## Risks to keep in view\n- **Data handling.** Free tiers at Google and Mistral (reportedly) may use inputs for training. OpenRouter's free-endpoint logging is unverified. Testers' health data is involved.\n- **Preview models can vanish.** dots-3-note-preview and the Ling \"free\" aliases may disappear without notice. Keep the provider abstraction's fallback chain populated.\n- **Confidence.** Medium for the Vercel and OpenRouter rows: their rate limits and speeds are unpublished or estimated. High for the corrections above, which come from official pages.\n"
+}

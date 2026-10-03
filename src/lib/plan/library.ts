@@ -11,6 +11,7 @@ import { type Meal } from "../types";
 import { NUTRIENT_TABLE } from "../nutrientTable.generated";
 import { microsForIngredients, gramsFor } from "../nutrients";
 import { SEED_RECIPES, type Recipe, type RecipeSeed } from "../data/seeds";
+import { tableKey } from "../data/ingredients";
 
 /** Public Recipe -> Meal, for surfaces (the browse feed) that show library recipes as plan-ready. */
 export const recipeToMeal = (r: Recipe): Meal => toMeal(r);
@@ -48,7 +49,7 @@ function deriveMacros(r: RecipeSeed): Recipe {
   const servings = Math.max(1, r.servings ?? 1);
   let cal = 0, protein = 0, carbs = 0, fat = 0, fiber = 0;
   for (const i of r.ingredients) {
-    const key = i.name.trim().toLowerCase();
+    const key = tableKey(i); // the one rule (D5): name first, the slug if the name stops resolving
     const per = NUTRIENT_TABLE[key]?.per100g;
     const grams = gramsFor(key, i.quantity);
     if (!per || !grams) continue;

@@ -146,7 +146,9 @@ export function inspectRecipe(name: string) {
     cuisine: recipe.cuisine,
     mainProtein: recipe.mainProtein,
     servings: recipe.servings ?? 1,
-    ingredients: recipe.ingredients,
+    // Names and quantities only — no slugs. A model shown "peanut-butter" may echo it into
+    // exclude:[…], and the exclusion matcher reads words, so a slug there blocks nothing (D5 review).
+    ingredients: recipe.ingredients.map(({ name, quantity }) => ({ name, quantity })),
     steps: recipe.steps,
     // Coverage is reported so a nutrient claim can be withheld when the ingredient list is thin —
     // the same honesty rule `explain_meal` follows.

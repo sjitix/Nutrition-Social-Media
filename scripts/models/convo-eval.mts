@@ -37,11 +37,20 @@ import { agentModelFn, resolveProvider } from "@/lib/ai";
 import { selectWeekFromDb, rebalanceWeek, withSeed } from "@/lib/recipeDb";
 import { dietTagConflicts, haystackBlocked } from "@/lib/exclusions";
 import { isReadTool } from "@/lib/agentTools";
+import { withFastFinish } from "./fast-finish";
 import type { UserProfile, WeekPlan, Meal, PlanSnapshot } from "@/lib/types";
 
 const MODEL = process.env.LOCAL_AI_MODEL ?? "(unset)";
 const ONLY = process.env.ONLY ? new RegExp(process.env.ONLY, "i") : null;
 const LOOP_RETRIES = Number(process.env.LOOP_RETRIES ?? 4);
+/** Behind scripts/models/pace-proxy.mjs, its /stats gives PURE upstream seconds, so the proxy's own
+ *  pacing is never reported as the model's latency (a reasoning-off run on 2026-10-03 showed 76-188 s
+ *  per turn that was mostly a 40 s pacing gap). */
+const PACE_STATS = process.env.PACE_STATS ?? "";
+async function upstreamSeconds(): Promise<number | null> {
+  if (!PACE_STATS) return null;
+  try { return Number((await (await fetch(PACE_STATS)).json()).upstreamSeconds); } catch { return null; }
+}
 
 // The same profile, week and date as loop-eval, so the two scorecards describe the same starting point.
 const PROFILE: UserProfile = {
@@ -278,7 +287,10 @@ if (resolveProvider() !== "local") {
   console.error("Set AI_PROVIDER=local and LOCAL_AI_URL/LOCAL_AI_MODEL — this eval drives the local adapter.");
   process.exit(1);
 }
-const model = (agentModelFn as (o?: { today?: string }) => ReturnType<typeof agentModelFn>)({ today: TODAY });
+const baseModel = (agentModelFn as (o?: { today?: string }) => ReturnType<typeof agentModelFn>)({ today: TODAY });
+// FAST_FINISH=1: skip the loop's last call when the engine's notes will be the reply anyway (see fast-finish.ts).
+const FAST_FINISH = process.env.FAST_FINISH === "1";
+const { fn: model, stats: ff } = withFastFinish(baseModel, FAST_FINISH);
 const promptText = (assistantV2SystemPrompt as (p: UserProfile, w: WeekPlan, o?: { agent?: boolean }) => string)(PROFILE, PLAN, { agent: true });
 const PROMPT = {
   sha: createHash("sha256").update(promptText).digest("hex").slice(0, 12),
@@ -295,7 +307,7 @@ console.log(`\nconversation eval · model ${MODEL} · ${convos.length} conversat
 const writesOf = (r: AgentRunResult) =>
   JSON.stringify(r.transcript.flatMap((e) => (e.role === "assistant" ? e.turn.operations : []))
     .filter((o) => !isReadTool(String((o as { op?: string }).op)))).slice(0, 800);
-interface TurnRow { user: string; want: "act" | "hold"; pass: boolean; infra: boolean; reason: string | null; steps: number; gaveUp: boolean; seconds: number; ops: string[]; writes: string; reply: string; emoji: boolean }
+interface TurnRow { user: string; want: "act" | "hold"; pass: boolean; infra: boolean; reason: string | null; steps: number; gaveUp: boolean; seconds: number; ops: string[]; writes: string; reply: string; emoji: boolean; modelCalls: number }
 interface ConvoRow { id: string; skill: Skill; pass: boolean; infra: boolean; turns: TurnRow[] }
 const EMOJI = /\p{Extended_Pictographic}/u;
 const rows: ConvoRow[] = [];
@@ -310,21 +322,27 @@ for (const c of convos) {
     const before = structuredClone(plan), beforeProfile = structuredClone(profile);
     const go = () => runAgent({ profile: structuredClone(profile), plan: structuredClone(plan), message: t.user, history: [...history], today: TODAY, previous, model });
     let t0 = performance.now();
+    let up0 = await upstreamSeconds();
     let r: AgentRunResult | null = null;
+    let sk0 = ff.skipped;
     try {
       r = await go();
       for (let attempt = 1; r.modelFailed && attempt <= LOOP_RETRIES; attempt++) {
         console.log(`   … ${c.id}: model unreachable, retry ${attempt}/${LOOP_RETRIES} in ${30 * attempt}s`);
         await new Promise((res) => setTimeout(res, 30_000 * attempt));
         t0 = performance.now();
+        up0 = await upstreamSeconds();
+        sk0 = ff.skipped;
         r = await go();
       }
     } catch (e) {
       console.log(`   !! ${c.id}: threw ${(e as Error).message}`);
     }
-    const seconds = (performance.now() - t0) / 1000;
+    const wallSeconds = (performance.now() - t0) / 1000;
+    const up1 = await upstreamSeconds();
+    const seconds = up0 != null && up1 != null ? up1 - up0 : wallSeconds;
     if (!r || r.modelFailed) {
-      turns.push({ user: t.user, want: t.want, pass: false, infra: true, reason: "model unreachable (infra)", steps: r?.steps ?? 0, gaveUp: false, seconds, ops: [], writes: "", reply: "", emoji: false });
+      turns.push({ user: t.user, want: t.want, pass: false, infra: true, reason: "model unreachable (infra)", steps: r?.steps ?? 0, gaveUp: false, seconds, ops: [], writes: "", reply: "", emoji: false, modelCalls: 0 });
       break; // the rest of the conversation depends on this turn
     }
     let reason = t.check(r, { before, beforeProfile, start: PLAN });
@@ -335,7 +353,7 @@ for (const c of convos) {
       return x.op === "constrain" && typeof x.scope === "object" && x.scope !== null && "slot" in x.scope;
     }));
     if (reason && slotConstrain && !r.planChanged) reason += " [engine: slot-scoped constrain is a no-op]";
-    turns.push({ user: t.user, want: t.want, pass: reason === null, infra: false, reason, steps: r.steps, gaveUp: r.gaveUp, seconds, ops: opsOf(r), writes: writesOf(r), reply: r.reply.replace(/\s+/g, " ").slice(0, 600), emoji: EMOJI.test(r.reply) });
+    turns.push({ user: t.user, want: t.want, pass: reason === null, infra: false, reason, steps: r.steps, gaveUp: r.gaveUp, seconds, ops: opsOf(r), writes: writesOf(r), reply: r.reply.replace(/\s+/g, " ").slice(0, 600), emoji: EMOJI.test(r.reply), modelCalls: r.steps - (ff.skipped - sk0) });
     // Carry state forward exactly as the client does between requests.
     profile = r.profile;
     plan = r.plan;
@@ -373,13 +391,15 @@ const summary = {
   bySkill,
   gaveUp: gradedTurns.filter((t) => t.gaveUp).length,
   emojiReplies: gradedTurns.filter((t) => t.emoji).length,
+  meanModelCallsPerTurn: gradedTurns.length ? +(gradedTurns.reduce((s, t) => s + t.modelCalls, 0) / gradedTurns.length).toFixed(2) : null,
+  fastFinish: FAST_FINISH,
   medianSecondsPerTurn: q(0.5),
   p90SecondsPerTurn: q(0.9),
   maxSecondsPerTurn: secs.length ? +secs[secs.length - 1].toFixed(1) : null,
 };
 console.log(`\npass ${summary.pass}/${graded.length} conversations (${summary.passRate}%)  · turns ${summary.turnsPassed}  · second turns ${summary.secondTurnsPassed}`);
 console.log(`by skill ${Object.entries(bySkill).map(([k, v]) => `${k} ${v}`).join("  · ")}`);
-console.log(`gave up ${summary.gaveUp}  · emoji replies ${summary.emojiReplies}  · per-turn seconds: median ${summary.medianSecondsPerTurn}  p90 ${summary.p90SecondsPerTurn}  max ${summary.maxSecondsPerTurn}`);
+console.log(`gave up ${summary.gaveUp}  · model calls per turn ${summary.meanModelCallsPerTurn}${FAST_FINISH ? " (fast finish)" : ""}  · emoji replies ${summary.emojiReplies}  · per-turn seconds: median ${summary.medianSecondsPerTurn}  p90 ${summary.p90SecondsPerTurn}  max ${summary.maxSecondsPerTurn}`);
 if (!summary.trustworthy) console.log(`!! ${summary.infraFailures} conversation(s) never finished reaching the model — not counted; re-run before quoting.`);
 
 const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);

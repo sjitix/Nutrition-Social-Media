@@ -1,0 +1,71 @@
+{
+  "kind": "loop-eval",
+  "ranAt": "2026-10-03T13:10:02.418Z",
+  "model": "nvidia/nemotron-3-ultra-550b-a55b",
+  "endpoint": "https://integrate.api.nvidia.com/v1",
+  "maxSteps": 8,
+  "prompt": {
+    "sha": "6c0016f97ea1",
+    "agentSection": true,
+    "howToDecide": true,
+    "label": "date-98ff026"
+  },
+  "summary": {
+    "scenarios": 2,
+    "infraFailures": 0,
+    "trustworthy": true,
+    "pass": 2,
+    "passRate": 100,
+    "actPass": "2/2",
+    "holdPass": "0/0",
+    "readBeforeWrite": "0/0",
+    "gaveUp": 0,
+    "emojiReplies": 0,
+    "engineIssues": [],
+    "meanSteps": 2,
+    "medianSecondsPerMessage": 33.4213002,
+    "p90SecondsPerMessage": 33.4213002,
+    "maxSecondsPerMessage": 33.4213002
+  },
+  "rows": [
+    {
+      "id": "eat-out-future",
+      "want": "act",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 33.4213002,
+      "readFirst": null,
+      "ops": [
+        "reserve"
+      ],
+      "reply": "I've set aside 800 kcal for Friday dinner — about 40% of your day — and made the other meals lighter. That 800 is a typical restaurant main, not a measured number. Tell me what you actually ate and I'",
+      "emoji": false,
+      "engineIssue": null,
+      "writes": "[{\"op\":\"reserve\",\"day\":\"Friday\",\"slot\":\"dinner\"}]"
+    },
+    {
+      "id": "log-today",
+      "want": "act",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 25.55780099999999,
+      "readFirst": null,
+      "ops": [
+        "log"
+      ],
+      "reply": "Logged Cheeseburger & Fries (769 kcal) for lunch. I re-solved the rest of Monday: it now lands at 2000 kcal and 156g protein.",
+      "emoji": false,
+      "engineIssue": null,
+      "writes": "[{\"op\":\"log\",\"day\":\"Monday\",\"slot\":\"lunch\",\"dish\":\"burger and fries\"}]"
+    }
+  ],
+  "variant": "models-exp-date 98ff026 (date line) — repeat for the date measurement, ONLY eat-out-future|log-today"
+}

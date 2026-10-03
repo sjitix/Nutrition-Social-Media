@@ -1,0 +1,69 @@
+{
+  "kind": "loop-eval",
+  "ranAt": "2026-10-03T13:14:46.590Z",
+  "model": "nvidia/nemotron-3-ultra-550b-a55b",
+  "endpoint": "https://integrate.api.nvidia.com/v1",
+  "maxSteps": 8,
+  "prompt": {
+    "sha": "6c0016f97ea1",
+    "agentSection": true,
+    "howToDecide": true,
+    "label": "exp-419dce5"
+  },
+  "summary": {
+    "scenarios": 2,
+    "infraFailures": 0,
+    "trustworthy": true,
+    "pass": 0,
+    "passRate": 0,
+    "actPass": "0/2",
+    "holdPass": "0/0",
+    "readBeforeWrite": "0/0",
+    "gaveUp": 0,
+    "emojiReplies": 0,
+    "engineIssues": [],
+    "meanSteps": 1.5,
+    "medianSecondsPerMessage": 18.83436450000001,
+    "p90SecondsPerMessage": 18.83436450000001,
+    "maxSecondsPerMessage": 18.83436450000001
+  },
+  "rows": [
+    {
+      "id": "eat-out-future",
+      "want": "act",
+      "pass": false,
+      "infra": false,
+      "reason": "Friday dinner not reserved (\"Turkey & Bean Chilli\")",
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 18.83436450000001,
+      "readFirst": null,
+      "ops": [
+        "resize"
+      ],
+      "reply": "Made Friday dinner smaller. Friday now comes to 1935 kcal against your 2000 kcal target.",
+      "emoji": false,
+      "engineIssue": null,
+      "writes": "[{\"op\":\"resize\",\"direction\":\"smaller\",\"day\":\"Friday\",\"slot\":\"dinner\"}]"
+    },
+    {
+      "id": "log-today",
+      "want": "act",
+      "pass": false,
+      "infra": false,
+      "reason": "Monday lunch not logged (\"Chicken Shawarma Bowl with Tahini\")",
+      "steps": 1,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 11.744502200000003,
+      "readFirst": null,
+      "ops": [],
+      "reply": "Got it — I'll log that burger and fries for lunch. Which day was this (Monday through Sunday)?",
+      "emoji": false,
+      "engineIssue": null,
+      "writes": "[]"
+    }
+  ],
+  "variant": "models-exp 419dce5 (no date line) — repeat for the date measurement, ONLY eat-out-future|log-today"
+}

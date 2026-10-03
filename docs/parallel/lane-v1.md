@@ -23,7 +23,15 @@ before demo mode. **Models lane:** a red-flag message now never reaches your mod
 routes; response `{ reply, planChanged: false, plan, profile, safety }`, no `steps`. Your
 `distress-crisis` / `symptom-plain` loop rows call `runAgent` directly, not the route, so they still
 measure the model's own behaviour — keep them.
-Next: D5 — ingredient identity.
+**D5 (ingredient identity) is done — and it changes one shared shape, ADDITIVELY.**
+**Accounts lane, please read:** `IngredientSchema` in `src/lib/types.ts` gains an **optional**
+`slug: string`. A library meal's ingredients now carry it (`{ slug, name, quantity }`); plans stored or
+synced BEFORE this have none and still parse (tested). If your sync/merge code compares meals or
+ingredients field by field, a slug appearing on a freshly regenerated plan is expected, not a conflict.
+Nothing else in the plan shape changed.
+**Models lane:** `remember{kind:"allergy"}` is now ENFORCED by the engine; a slot-scoped `constrain`
+returns a "nothing changed" note; a day-scoped `constrain` keeps exclude/use/maxCookTime/budget.
+Next: D5a (barrels + folders) — I will ask both of you for a date before moving any file you use.
 
 Seven comments the owner left on the module-map board on 2026-09-19 had never been read. One is a
 **ruling that affects both of you**: *modularise first, then build on that architecture*. So, from

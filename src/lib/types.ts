@@ -9,6 +9,11 @@ import { MEAL_TYPES, DAYS } from "./slots";
 export const IngredientSchema = z.object({
   name: z.string(),
   quantity: z.string(),
+  // The curated ingredient's permanent id (V1 D5, docs/v1/06-ingredient-identity.md). OPTIONAL on a
+  // meal: a library recipe always carries it, but an imported recipe or a logged "burger and chips"
+  // has only a name — and every plan already stored in a browser or synced to an account has none.
+  // Lookups use it when present (data/ingredients.ts `tableKey`) and fall back to the name.
+  slug: z.string().optional(),
 });
 
 export const MealSchema = z.object({

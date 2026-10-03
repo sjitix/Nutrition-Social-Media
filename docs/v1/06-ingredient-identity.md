@@ -91,6 +91,41 @@ and `test:engine` as the ship gate. The order is chosen so each step is independ
   were the ONLY change. The recipe ingredient type now REQUIRES `slug: IngredientSlug`; a probe with
   `"brown-rise"` failed `tsc` with "Did you mean 'brown-rice'?". A slug-blind 105-point fingerprint
   is identical before and after, and `check:ingredients` / `check:recipes` / `check:boundaries` pass.
+- **Steps 4–5 done 2026-10-04.** `tableKey(ing)` in `data/ingredients.ts` is the one lookup rule (slug
+  first, then name, then today's trim-lowercase fallback for an ingredient we do not curate);
+  `deriveMacros` and `microsForIngredients` use it. `IngredientSchema` gains an OPTIONAL `slug`, so a
+  library meal carries it through `recipeToMeal`, it survives a stored-plan parse, and a plan saved
+  before D5 (no slugs) still parses. Micronutrients are identical with or without the slug; the
+  slug-blind fingerprint is identical across steps 3–5. **D5 is done.** What it leaves for later is
+  in "Not in D5" below, plus the curation list `check:ingredients` prints.
+- **Adversarial review before shipping (a 13-agent workflow, 2026-10-04) — 6 findings confirmed, 1
+  refuted, all fixed in the same commit:**
+  1. *(medium)* **A plan saved before D5 was reported as changed by a no-op.** `rebalance_day` and the
+     executor's `planChanged` compared plans with `JSON.stringify`; any meal the engine rebuilt now
+     gains slugs, so "Balance Monday" on an untouched pre-D5 day said "Balanced Monday…" with
+     `planChanged: true` — Fix my week counted it, the preview showed a change, sync pushed a write.
+     **Fix:** `sameContent()` compares ignoring `slug` (an identity annotation, not content).
+  2. *(low)* **A supplied slug could override the name.** The design said "slug first"; but a slug can
+     arrive from outside (the LLM plan path now sees the field in its schema; an imported file), and
+     one that disagreed with the name would decide the nutrition while the allergen check read the
+     name. **Fix — the design changed:** `tableKey` resolves **name first, slug as the fallback.**
+     Nothing is lost for the library (every name resolves to its own slug, now asserted by
+     `check:ingredients`), and rename-safety holds (a renamed curated name stops resolving, the slug
+     carries the recipe). **And at the boundary:** `generatePlan` strips every slug from a
+     MODEL-generated plan (`withoutModelSlugs` in `ai.ts`), so only the engine ever assigns one — which
+     closes the last case, an uncurated name carrying a valid model-chosen slug (the models lane agreed
+     to it landing before their date branch).
+  3. *(low)* **A non-string slug** (bad imported/synced data) crashed `tableKey` and every report that
+     reads micronutrients. **Fix:** ignored.
+  4. *(low)* **Slugs rode along in all 495 Explore cards** (+44–53 kB of HTML, read by no client code —
+     right after A4 paid to shrink that page). **Fix:** the feed's cards carry name + quantity only.
+  5. *(low)* **`inspect_recipe` showed the model slugs**, and a slug echoed into `exclude` ("peanut-butter")
+     matches no word. **Fix:** model-facing ingredient output carries name + quantity only.
+  6. *(low)* **Nothing checked that a reference's name and slug agree.** **Fix:** `check:ingredients`
+     fails a reference that carries no slug or a slug its name does not resolve to.
+  *Refuted:* "a hyphenated non-library name now resolves" — true mechanically, harmless in effect.
+  *Noted, not fixed:* the legacy `/plan` bundle grew ~51 kB (it already ships the whole engine — a
+  listed `check:boundaries` debt, owner decision #2).
 - **Step 4, refined before building it:** the lookups go through the resolver, but the generated tables
   stay keyed by the curated NAME — the resolver maps slug → name → table. Re-keying the tables by slug
   would rewrite every script that indexes them (`check-recipes`, `export-recipes`, the test suite) for
