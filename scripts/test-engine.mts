@@ -1445,6 +1445,20 @@ console.log("--- SYMPTOM CHECK (never diagnose, never dose, always the doctor) -
   // Word order and filler must not defeat a match.
   check("symptom_check matches an unordered phrase", /brittle hair or nails/i.test(sym("my nails are brittle and my hair is thinning").notes.join(" ")));
 
+  // The note is the WHOLE reply on a feelings message, so it must end with something a "yes please"
+  // can accept. When the associated nutrients all look adequate it used to end on "see a doctor" and
+  // offer nothing — the next turn had to guess (models lane's conversation eval, 2026-10-04).
+  {
+    const adequate = sym("my nails are brittle").notes.join(" ");
+    if (/look adequate/.test(adequate)) {
+      const offered = adequate.match(/lean your week further toward ([a-z0-9 ]+?) —/i);
+      check("symptom_check: when nothing is low it still offers ONE concrete nutrient to lean toward", !!offered, adequate.slice(-140));
+      check("symptom_check: ...and that offer still sends them to a doctor first", /see a doctor/i.test(adequate));
+    } else {
+      check("symptom_check: (fixture) brittle nails reads as adequate on this plan, so the offer is exercised", false, adequate.slice(-140));
+    }
+  }
+
   // RED FLAGS. These are the tests that actually matter.
   const chest = sym("i have chest pain").notes.join(" ");
   check("chest pain is never answered with food", /doctor or urgent care/i.test(chest) && !/vitamin|iron|magnesium/i.test(chest), chest.slice(0, 60));
