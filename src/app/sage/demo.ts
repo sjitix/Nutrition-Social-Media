@@ -48,7 +48,9 @@ export const DEMO: UserProfile = {
   lockedMeals: [{ day: "Monday", mealType: "lunch", name: "Chicken & Egg Poke Bowl" }],
 };
 
-export const SLOTS = ["Breakfast", "Lunch", "Dinner", "Snack"] as const;
+// The labels live in the client-safe @/lib/slots now (a client component importing them from here
+// shipped the engine). Re-exported under the old name so the server pages that use it are unchanged.
+export { SLOT_LABELS as SLOTS } from "@/lib/slots";
 
 /**
  * Computed ONCE at module load, not per call.
