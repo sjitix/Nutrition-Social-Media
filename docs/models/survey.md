@@ -102,6 +102,38 @@ local Qwen3-30B was 8.5 s per call in the sweep but 27–102 s per *message* in 
 system prompt carries the whole week (thousands of tokens) and reading it dominates on one 8 GB card.
 Only per-message seconds from `loop-eval` count as response time.
 
+## Round 3 — OVHcloud AI Endpoints, keyless (found 2026-10-03)
+
+A real European cloud with an **anonymous free tier — no key, no signup**: 2 requests/min per IP per
+model (400/min with a key). It serves the biggest open models any free tier offers today:
+`Qwen3.5-397B-A17B`, `gpt-oss-120b`, `Meta-Llama-3.3-70B-Instruct`, `Qwen2.5-VL-72B`,
+`Qwen3.6/3.8-27B`, `Mistral-Small-3.2-24B`. Single calls, short prompt
+(`2026-10-03T10-39-37-latency-sweep.json`):
+
+| model | params | per call |
+|---|---|---|
+| Mistral-Small-3.2-24B | 24B dense | 1.7 s |
+| **Llama-3.3-70B** | 70B dense | **2.7 s** |
+| **gpt-oss-120b** | 117B MoE | **3.4 s** |
+| Qwen3.8-27B | 27B dense | 5.2 s |
+| **Qwen3.5-397B-A17B** | 397B MoE | rate-limited before it answered |
+
+**These are the fastest big models measured all day** — 120B in 3.4 s is ~5× quicker per call than the
+550B on NVIDIA. But the anonymous tier **punishes a burst for far longer than "2/min"**: after the
+six-model sweep this IP got `429` on every attempt for 8+ minutes, even paced 45–95 s apart
+(`pace-proxy-2026-10-03.jsonl`). So keyless OVH is good for occasional calls, not for a 45-case eval or
+a beta. **With a free OVH account key the limit is 400/min** — on the owner's to-do. The pacing proxy
+(`scripts/models/pace-proxy.mjs`) is ready for it: one call at a time, rate-limit answers (OVH returns
+them as HTTP 200 with an error body, which both evals would otherwise grade as a bad model reply)
+retried rather than passed on, and pure upstream seconds exposed so pacing never counts as latency.
+
+## Round 2b — local Qwen3-30B, through the real loop
+
+`2026-10-03T10-52-40-loop-qwen-qwen3-30b-a3b-2507.json` (main's prompt, 26 scenarios): **13/26 (50%)**,
+holds 4/10, read-before-write 0/2, **median 50 s per message, p90 102 s, worst 796 s** (looped 8
+steps). On one 8 GB card the real prompt's length dominates; not a chat brain on this hardware. The
+same run with the read-tool fix is in progress.
+
 ## Where "big and fast" actually lives (researched 2026-10-03, not yet measured)
 
 | provider | free? | what it would unlock |

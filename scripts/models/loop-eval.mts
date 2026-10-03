@@ -34,6 +34,13 @@ const MODEL = process.env.LOCAL_AI_MODEL ?? "(unset)";
 const ONLY = process.env.ONLY ? new RegExp(process.env.ONLY, "i") : null;
 /** Re-runs of a scenario that never reached the model (infra), with 30 s × attempt back-off. */
 const LOOP_RETRIES = Number(process.env.LOOP_RETRIES ?? 4);
+/** When the model sits behind scripts/models/pace-proxy.mjs, its /stats gives PURE upstream seconds, so
+ *  the pacing the proxy adds is never reported as the model's latency. */
+const PACE_STATS = process.env.PACE_STATS ?? "";
+async function upstreamSeconds(): Promise<number | null> {
+  if (!PACE_STATS) return null;
+  try { return Number((await (await fetch(PACE_STATS)).json()).upstreamSeconds); } catch { return null; }
+}
 
 const PROFILE: UserProfile = {
   goal: "maintain", diet: "none", allergies: "", dislikes: "", budget: "medium",
@@ -353,6 +360,7 @@ for (const s of scenarios) {
     { role: "assistant" as const, turn: { thinking: "", reply: h.assistant, operations: [] } },
   ]);
   let t0 = performance.now();
+  let up0 = await upstreamSeconds();
   let r: AgentRunResult;
   try {
     // A scenario that never reached the model (rate limit, queue reset) is RE-RUN from scratch after a
@@ -365,6 +373,7 @@ for (const s of scenarios) {
       console.log(`   … ${s.id}: model unreachable, retry ${attempt}/${LOOP_RETRIES} in ${wait / 1000}s`);
       await new Promise((res) => setTimeout(res, wait));
       t0 = performance.now();
+      up0 = await upstreamSeconds();
       r = await runAgent({ profile: structuredClone(PROFILE), plan: structuredClone(PLAN), message: s.message, history, today: TODAY, model });
     }
   } catch (e) {
@@ -372,7 +381,10 @@ for (const s of scenarios) {
     console.log(`!! ${s.id.padEnd(18)} threw`);
     continue;
   }
-  const seconds = (performance.now() - t0) / 1000;
+  const wallSeconds = (performance.now() - t0) / 1000;
+  // Behind the pace proxy, the model's own time is the upstream delta; the wall clock includes our pacing.
+  const up1 = await upstreamSeconds();
+  const seconds = up0 != null && up1 != null ? up1 - up0 : wallSeconds;
 
   const opsSeq: string[] = [];
   let firstRead = -1, firstWrite = -1;

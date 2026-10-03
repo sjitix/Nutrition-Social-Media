@@ -1,0 +1,7 @@
+{"at":"2026-10-03T10:42:31.805Z","model":"gpt-oss-120b","path":"/chat/completions","attempt":1,"status":429,"seconds":0.09,"limited":true,"gapMs":35000}
+{"at":"2026-10-03T10:43:16.804Z","model":"gpt-oss-120b","path":"/chat/completions","attempt":2,"status":429,"seconds":0.08,"limited":true,"gapMs":45000}
+{"at":"2026-10-03T10:44:16.855Z","model":"gpt-oss-120b","path":"/chat/completions","attempt":3,"status":429,"seconds":0.04,"limited":true,"gapMs":55000}
+{"at":"2026-10-03T10:45:46.914Z","model":"gpt-oss-120b","path":"/chat/completions","attempt":4,"status":429,"seconds":0.06,"limited":true,"gapMs":65000}
+{"at":"2026-10-03T10:47:46.984Z","model":"gpt-oss-120b","path":"/chat/completions","attempt":5,"status":429,"seconds":0.06,"limited":true,"gapMs":75000}
+{"at":"2026-10-03T10:50:17.086Z","model":"gpt-oss-120b","path":"/chat/completions","attempt":6,"status":429,"seconds":0.09,"limited":true,"gapMs":85000}
+{"at":"2026-10-03T10:53:17.148Z","model":"gpt-oss-120b","path":"/chat/completions","attempt":7,"status":429,"seconds":0.05,"limited":true,"gapMs":95000}
