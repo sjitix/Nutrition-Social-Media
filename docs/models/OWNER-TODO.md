@@ -1,25 +1,33 @@
 # Owner to-do — models lane
 
 Things only you can do. **This lane never waits on them** — it keeps working with what is reachable,
-and each item says exactly what it unlocks. Newest at the top. Put every key in `.env.local` of the
-main folder only (gitignored) — **never** in the repo, never in a message to an agent you can't see.
+and each item says exactly what it unlocks. Put every key in the main folder's `.env.local` only
+(gitignored) — **never** in the repo, never in a message.
 
-## Open
+## Open — four free keys, no card, ~2 minutes each (do these first; they unlock the big-model search)
 
-- [ ] **Google AI Studio key — free, no card, ~2 min.** aistudio.google.com → "Get API key" → create.
-  Add to `.env.local` as `GEMINI_API_KEY=...`.
-  **Unlocks:** the Gemini Flash family (frontier-class quality, typically ~1–3 s/call) and Gemma 4 on a
-  permanent free tier (Flash ≈ 1,000+ requests/day). This is the most likely "big *and* fast" answer —
-  the free NVIDIA tier can't give one (see `survey.md`).
-- [ ] **Groq key — free, no card, ~2 min.** console.groq.com → API Keys → create.
-  Add as `GROQ_API_KEY=...`.
-  **Unlocks:** `gpt-oss-120b` (6× the parameters of today's model) and other large open models at
-  hundreds of tokens/sec. Free daily caps are tight (~1,000 requests/day for the 120B), enough for
-  evals, not for a public beta.
-- [ ] **(optional, later) one paid frontier key** — Anthropic, OpenRouter or Cerebras ($5 trial with a
-  card since July 2026). Only if the free candidates can't clear the 84% bar. ~35–40¢ per full eval.
-- [ ] **(free, unlocks local 30B)** Install the other RTX 2070s if you have them
-  (`docs/v1/03-kimi-decision.md` §3): 4 cards = 32 GB VRAM = a 30B model fully on GPU.
+The free NVIDIA tier tops out at one slow big model (Nemotron-Ultra-550B, 7–46 s per call). Every
+model below is bigger-and-faster or frontier-class, and free:
+
+- [ ] **Groq** — console.groq.com → API Keys → Create. Add `GROQ_API_KEY=...`
+  **Unlocks:** `gpt-oss-120b` (6× today's model) at hundreds of tok/s — the fastest big model there is,
+  and the same class a 128 GB box would run (see `hardware-128gb.md`). ~1,000 requests/day.
+- [ ] **OpenRouter** — openrouter.ai → Keys → Create (no credit needed). Add `OPENROUTER_API_KEY=...`
+  **Unlocks:** `qwen3-235b-a22b:free` and the other `:free` models (Nemotron-3-Ultra, Laguna-S).
+  50 requests/day per model — enough for evals.
+- [ ] **GitHub Models** — github.com → Settings → Developer settings → Fine-grained tokens → Generate,
+  with permission **Models: read** only. Add `GITHUB_MODELS_TOKEN=...`
+  **Unlocks:** GPT-4.1, o3/o4-mini, Llama-4, DeepSeek-R1, Grok-3 — frontier models, free on your
+  existing account (50/day on the big ones). Note: this machine has no `gh` CLI, and this lane will not
+  borrow git's stored credential for another purpose — so it needs its own token.
+- [ ] **Google AI Studio** — aistudio.google.com → Get API key. Add `GEMINI_API_KEY=...`
+  **Unlocks:** the Gemini Flash family + Gemma 4 on a permanent free tier (~1,000+ requests/day).
+
+## Open — optional / later
+
+- [ ] One paid key (Anthropic, Cerebras $5 trial, SambaNova) — only if no free model clears the bar.
+- [ ] Install the other RTX 2070s if you have them (`docs/v1/03-kimi-decision.md` §3) — 32 GB VRAM, a
+  30B model fully on GPU, free.
 
 ## Done
 

@@ -34,6 +34,22 @@ is 15 s on a good draw and over 2 minutes on a bad one. **The free NVIDIA tier c
 fast" at the same time.** It is still the right place to measure *quality* of big models for free —
 the hard-case evals for Ultra-550B, GLM-5.3 and Lightning are running.
 
+### Hard-case scores (45 cases, engine-verified, single turn)
+
+| model | actedRight | do | clarify | refuse | decline | trustworthy | scorecard |
+|---|---|---|---|---|---|---|---|
+| gpt-oss-20b *(control; Sept, LM Studio)* | 84% | 24/27 | 6/7 | 5/5 | 3/6 | yes | — |
+| **Nemotron-3-Ultra-550B** | **82%** | 23/27 | 4/7 | 5/5 | **5/6** | **yes (0 infra)** | `2026-10-03T09-48-24-…ultra-550b….json` |
+| Kimi K3 *(2026-10-02)* | ≤78% best case | — | 1/6 | — | ≤4/6 | no (8 infra) | `2026-10-02T22-13-09-moonshotai-kimi-k3.json` |
+
+**Read:** 27× the parameters does not buy a higher score on this eval. The 550B model is clearly more
+*honest* (it declined 5 of 6 unsupported requests instead of faking them — the small model's worst
+habit), but it over-acts on feelings (`health-period`, `eating-problem`, `cycle-sync-offer`) the way K3
+did. Several of its misses are **the prompt's fault, not the model's**: it answered the quinoa question
+and "why oatmeal on Monday" correctly but without the `answer`/`explain` op the contract expects, and
+it asked "which day is today?" before logging a meal because **the prompt never tells the model the
+date**. The prompt fix being prototyped on `models-exp` targets exactly these.
+
 ## Where "big and fast" actually lives (researched 2026-10-03, not yet measured)
 
 | provider | free? | what it would unlock |

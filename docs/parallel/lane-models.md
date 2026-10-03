@@ -7,22 +7,31 @@ Protocol: [`README.md`](README.md). Worktree: `../NutriFlow-models/`, branch `mo
 
 ## Now doing
 
-**2026-10-03 — lane set up; starting the model survey + latency/quality sweep.**
+**2026-10-03 — the big-model search, and a read-tool fix for v1 to land.**
 
-Owner's mandate: find the best LLM brain for the assistant — a **high-parameter** model (cloud is fine
-for beta) that behaves like a real personal nutritionist: strong language generation, general
-intelligence, uses all the app's functions, decides well — and has a **reliable response time**.
-Measure quality AND latency, on a parallel branch, continuously. Starting point is the Kimi K3 verdict
-(`docs/v1/03-kimi-decision.md`): K3 is too slow on the free tier and over-acts; `gpt-oss-20b` is the
-84% baseline and fast (~2.8s). So the question is open — which model clears the bar on BOTH axes.
+Owner's mandate: find **the largest model that is free, fast enough, and can do everything the
+assistant needs** (decide, use every app function, write like a nutritionist). **`gpt-oss-20b` is only
+a control now** — the owner judged 20B too small for the job; every comparison runs on big models.
 
-In order:
-1. Survey high-parameter models reachable for free/cheap (NVIDIA NIM first — I have the owner's key);
-   measure per-call latency for each.
-2. Run the hard-case eval against the viable ones; compare quality to the 84% gpt-oss baseline.
-3. Build the **loop-level eval** (`03-kimi-decision.md §6`) — single-turn scores miss whether the model
-   reads before it writes / stops vs burns 8 steps, which is what the product actually depends on.
-4. The over-act prompt fix (`promptV2.ts` is v1's — prototype on my branch, then ask v1 to land it).
+Branches (both on GitHub): **`models`** (worktree `../NutriFlow-models`) ships my own paths onto main;
+**`models-exp`** (worktree `../NutriFlow-models-exp`) holds experiments in v1-owned files — reviewed
+by v1, never merged without it.
+
+Done so far:
+1. Round-1 survey of NVIDIA free (`docs/models/survey.md`): only 6 of 42 chat models answer; the one big
+   one is **Nemotron-3-Ultra-550B** — 82% on the 45 hard cases, `trustworthy` (0 infra), decline 5/6
+   (honest) but clarify 4/7 (over-acts on feelings); latency a 7–46 s queue lottery.
+2. **Loop-level eval built** (`scripts/models/loop-eval.mts`): drives the production loop, scores
+   engine-verified outcomes, steps, read-before-write and seconds per message. gpt-oss-20b control:
+   9/14, median 7.3 s/message, **read-before-write 0/2**.
+3. **Found: the loop can never use its read tools** — they're in neither the turn schema nor the
+   prompt, and the prompt never explains the loop. v1 confirmed and will land the fix. Prototype on
+   `models-exp`; before/after on Nemotron-Ultra-550B + the engine gate running now.
+4. The 128 GB answer (below, "Answers to other lanes").
+
+Next: the free-key providers (Groq gpt-oss-120b, OpenRouter Qwen3-235B, GitHub Models GPT-4.1/
+Llama-4, Gemini Flash) the moment the owner adds any key (`docs/models/OWNER-TODO.md`); until then,
+everything big that NVIDIA serves free (GLM-5.3 eval running).
 
 ## Files I'm editing right now
 
@@ -46,6 +55,15 @@ In order:
   accounts sit behind `storage.ts`.
 - **Experiments run on branch `models`**; only finished deliverables (scorecards, decision docs,
   reusable tooling) ship onto `main`.
+
+## Answers to other lanes
+
+- **v1 asked (relaying the owner's 2026-09-19 board comment): "what's the maximum agent on cloud, and
+  what about 128 GB?"** — Cloud: `docs/models/survey.md`. 128 GB: `docs/models/hardware-128gb.md`.
+  Short form: a 128 GB box tops out at the **gpt-oss-120b class** at conversational speed (~35–58 tok/s;
+  Qwen3-235B only at 3-bit, ~11 tok/s; dense 70B ~5 tok/s; ≥550B doesn't fit). Groq serves that same
+  class free and an order of magnitude faster, so a 128 GB box buys privacy/offline, not intelligence.
+  If bought: DGX Spark (~5× the AMD box's prompt processing, which dominates our long prompts).
 
 ## Asks of the other lanes
 
