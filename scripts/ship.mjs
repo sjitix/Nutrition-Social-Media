@@ -20,7 +20,8 @@
  * What it guarantees, in order:
  *   1. The remote is fetched and divergence is reported BEFORE any work is done — and if the remote
  *      changed a file you are about to commit, it STOPS, because that is where a merge loses work.
- *   2. The gate runs (test:engine when src/lib is touched, else tsc) and a failure stops everything.
+ *   2. The gate runs (check:boundaries whenever src/ is touched; then test:engine when src/lib is
+ *      touched, else tsc) and a failure stops everything.
  *   3. The commit contains EXACTLY the paths asked for — verified against the commit afterwards, so
  *      a file swept in or dropped out is reported rather than discovered later.
  *   4. ONLY THEN, if the remote moved, the commit is rebased onto it (other uncommitted files are
@@ -145,13 +146,20 @@ console.log("ship: will commit\n" + dirty.map((l) => `  ${l}`).join("\n"));
 
 // ---- 3. the gate -------------------------------------------------------------------------------
 const touchesEngine = dirty.some((l) => porcelainPath(l).includes("src/lib/"));
+// The module boundaries run whenever code moves — they take about a second, so they go first and a
+// layering mistake fails before a 25-minute engine suite starts. Skipped quietly on a branch that
+// predates the gate (a lane that has not rebased past it yet), rather than failing on a missing file.
+const touchesCode = dirty.some((l) => /^(src\/|scripts\/check-boundaries\.mjs$)/.test(porcelainPath(l)));
+const hasBoundaries = existsSync("scripts/check-boundaries.mjs");
 if (skipGate) {
   console.log("ship: --no-gate given; skipping the gate (docs-only changes).");
 } else {
   console.log(
-    `\nship: running the gate — ${touchesEngine ? "npm run test:engine (src/lib changed)" : "tsc"}…`,
+    `\nship: running the gate — ${touchesCode && hasBoundaries ? "check:boundaries, then " : ""}` +
+      `${touchesEngine ? "npm run test:engine (src/lib changed)" : "tsc"}…`,
   );
   try {
+    if (touchesCode && hasBoundaries) run("node", ["scripts/check-boundaries.mjs"]);
     if (touchesEngine) run("npm", ["run", "test:engine"]);
     else run("npx", ["tsc", "--noEmit"]);
   } catch {
