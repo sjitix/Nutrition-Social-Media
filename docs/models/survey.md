@@ -48,10 +48,13 @@ the hard-case evals for Ultra-550B, GLM-5.3 and Lightning are running.
 **Nemotron-3.5-Lightning is ruled out:** its chain of thought leaks into the reply (the sweep showed
 "Here's a thinking process: 1. Analyze…"), so most replies never parse.
 
-**GLM-5.3 is not yet fairly measured:** 10 of 45 replies didn't parse (a reasoning model that sometimes
-spent the budget before writing the JSON, or leaked its `{"thinking"…}` into the text). Where it did
-answer, its tone was among the warmest. Needs a format fix (larger output budget / JSON mode) before its
-judgement can be compared — on the to-do, behind the models that format cleanly.
+**GLM-5.3's first score was the harness's fault.** At a 2,000-token output cap, 10/45 replies didn't
+parse — a reasoning model that spent the budget thinking before writing the JSON. Re-run with
+`MAX_TOKENS=6000`, same prompt (`2026-10-03T10-58-11-z-ai-glm-5.3.json`): **schemaOk 93%, actedRight
+76% (v1) / 82% (v2)**, do 24/27, decline 3/6 → **5/6 under v2** (its declines were `remember`/`answer`
+replies the v1 ruler counted as acting), 2/45 infra (so not strictly trustworthy). Same league as the
+550B — but at 25–90 s per call while it thinks, it is not a chat brain on this tier. Lesson for every
+reasoning model: give it room to think, or you measure the truncation, not the model.
 
 **Read:** 27× the parameters does not buy a higher score on this eval. The 550B model is clearly more
 *honest* (it declined 5 of 6 unsupported requests instead of faking them — the small model's worst
