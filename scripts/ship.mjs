@@ -24,7 +24,8 @@
  *      touched, else tsc) and a failure stops everything.
  *   3. The commit contains EXACTLY the paths asked for — verified against the commit afterwards, so
  *      a file swept in or dropped out is reported rather than discovered later.
- *   4. ONLY THEN, if the remote moved, the commit is rebased onto it (other uncommitted files are
+ *   4. ONLY THEN the remote is fetched AGAIN — a 25-minute gate is long enough for another lane to
+ *      push — with the same overlap stop, and if the remote moved the commit is rebased onto it (other uncommitted files are
  *      autostashed and put back). Committing first means the work is already a commit object —
  *      recoverable from the reflog — before any rebase or stash touches the tree. On a conflict it
  *      ABORTS the rebase and says so; it never resolves one on its own and never discards.
@@ -214,11 +215,31 @@ if (missing.length) {
 }
 console.log(`ship: commit verified — ${committed.length} file(s), exactly as asked.`);
 
+// ---- 5a. the remote AGAIN — the gate is a long time -------------------------------------------
+// Step 1 looked at the remote before a gate that can take 25 minutes. On 2026-10-03 the models lane
+// pushed three commits during this lane's engine gate: step 1 had seen "0 behind", so no rebase ran
+// and the push bounced. Nothing was lost (the commit was local), but the tool's promise is to land
+// the work, so it looks again now, with the same overlap rule as step 1.
+git(["fetch", "origin"]);
+const behindNow = Number(git(["rev-list", "--count", `HEAD..origin/${branch}`]));
+if (behindNow > 0) {
+  const touchedDuring = git(["diff", "--name-only", `HEAD...origin/${branch}`]).split("\n").filter(Boolean);
+  const overlapNow = committed.filter((f) => touchedDuring.includes(f));
+  if (overlapNow.length) {
+    console.error("\nship: WHILE THE GATE RAN, the remote changed files this commit also changes:");
+    for (const o of overlapNow) console.error(`  - ${o}`);
+    console.error("ship: stopping before any rebase. Your commit is intact and NOT pushed (HEAD).");
+    console.error(`ship: compare with git diff HEAD origin/${branch} -- <path>, merge BY HAND, then push.`);
+    process.exit(2);
+  }
+  console.log(`\nship: the remote moved by ${behindNow} commit(s) during the gate, none touching these paths.`);
+}
+
 // ---- 5b. if the remote moved, put this commit on top of it -------------------------------------
 // The work is already a commit, so nothing below can lose it: it stays in the reflog whatever
 // happens. `--autostash` is for the OTHER uncommitted files in the tree (not part of this commit),
 // which would otherwise make git refuse to rebase at all.
-if (behind > 0) {
+if (behindNow > 0) {
   console.log("\nship: rebasing the commit onto the remote…");
   const rebaseDir = (name) => existsSync(git(["rev-parse", "--git-path", name]));
   try {
