@@ -68,7 +68,12 @@ never blocks on the owner): `docs/models/OWNER-TODO.md`.
   lane file. **Does not edit** `promptV2.ts` / `ai.ts` / `agentLoop.ts` / `eval-hardcases.mts` (v1's) —
   runs them, and asks v1 before landing any change to them on `main`. Touches no accounts files.
 
-### >>> V1 LANE — 2026-10-03 (night): Days 1 + 2 DONE, swap fix LANDED (`5cab547`). TRACK A IS A GATE. Next: land the models lane's diff, then Day 3. <<<
+### >>> V1 LANE — 2026-10-03 (night): Days 1–3 DONE, swap fix LANDED. TRACK A IS A GATE. Next: Day 4 (A4 payload). <<<
+
+**Day 3 (A3) LANDED `ff93b99`, test:engine 680/0 identical:** the engine is now **`src/lib/plan/`** —
+nine modules + `index.ts` (the public surface, the same 22 names); `recipeDb.ts` is a 10-line
+barrel. A 105-point fingerprint identical before/after. **New engine code goes in `plan/`.**
+`check:boundaries` rule 2 now enforces the `plan/` index.
 
 **State:** `main` pushed (`5cab547` + docs). `check:boundaries` passes (0 new, **9 known debts**) ·
 `test:engine` **680/0** · `test:ui` **51/0** · `test:api` **60/0** · `tsc` clean. Live lane status:
@@ -145,9 +150,23 @@ C4**, every Track E button gets a chat primitive. Reasoning: `02-module-map.md` 
 2. **Land the models lane's read-tool diff** (`origin/models-exp`, = `d3d0a18`, merged up to date;
    3 files: `primitives.ts`, `promptV2.ts`, `ai.ts`) when they send "ready to land". Reviewed: the
    safety bullet was fixed in `5336ab1`. Land it in its own commit, between Track A days.
-3. **V1 Day 3 — A3, the executor out**: `applyOperations` + `previewOperations` + their note-writers
-   (`recipeDb.ts` ~1266–3212) → `src/lib/plan/execute.ts`; the selection privates it uses become
-   folder-internal exports, NOT barrel exports. Gate: `test:engine` identical, `check:boundaries`.
+3. ~~V1 Day 3~~ — done (see above).
+4. **V1 Day 4 — A4, the browser payload boundary.** The target is measured (`01-…md` D4: markers
+   `Shakshuka`, `Miso-Glazed Cod`, `fdcId`, `approxCost` in `.next/static/chunks/*.js`; first-load
+   `/sage/plan` 216 kB, `/sage/explore` 212 kB). `check:boundaries`' rule-4 debts ARE the work list:
+   Explore/`/plan` via `feed.ts` → the card projection; WeekBoard via `../demo` for `SLOTS`;
+   Groceries via `batchGrocery` → the 80 kB USDA table. Each debt paid = delete its `KNOWN_DEBT`
+   entry (the gate fails until you do). **Stop the dev server before `npm run build`.**
+   **VERIFY the Groceries debt before fixing it:** rule 4 reasons about module REACHABILITY, but the
+   production bundler tree-shakes unused exports — and `gramsFor` reads only `UNIT_GRAMS` (a small
+   block at the end of `nutrientTable.generated.ts`), never `NUTRIENT_TABLE`. So the 80 kB table may
+   not actually ship on that route. Grep the Groceries route's chunks for `fdcId` first; if absent,
+   the debt is a gate false-positive at module granularity — say so in the debt text rather than
+   "fixing" nothing. Likewise measure which route(s) the existing `fdcId` marker comes from.
+   Explore's card projection is the real design question: `RecipeModal` shows every ingredient and
+   step, and `/sage` must keep working on static GitHub Pages (no API), so details cannot simply be
+   fetched from a route — decide between serialised props (RSC payload, not JS) and a static JSON
+   emitted at build.
 
 #### 2. TRACK E IS COMPLETE — what the app can now do with NO model
 

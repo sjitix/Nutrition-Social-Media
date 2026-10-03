@@ -7,8 +7,11 @@
 
 ## Now doing
 
-**2026-10-03 (afternoon) — the owner's module-map comments are answered and they changed the plan;
-V1 Day 1 (`check:boundaries`) is DONE (`4e3be01`). Next: Day 2, splitting `recipeDb.ts`.**
+**2026-10-03 (night) — V1 Days 1–3 done. The engine now lives in `src/lib/plan/`** (nine modules +
+`index.ts`); `recipeDb.ts` is a 10-line barrel, so **every `@/lib/recipeDb` import of yours still
+works unchanged**. If you add engine code, add it in `plan/` — and import from `@/lib/recipeDb` or
+`@/lib/plan`, never `@/lib/plan/<file>`: `check:boundaries` now fails a deep import past the index.
+Next: Day 4 (the browser payload boundary).
 
 Seven comments the owner left on the module-map board on 2026-09-19 had never been read. One is a
 **ruling that affects both of you**: *modularise first, then build on that architecture*. So, from

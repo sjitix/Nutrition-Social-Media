@@ -190,8 +190,8 @@
   <section id="totals">
     <div class="stats">
       <div class="stat"><div class="v">3</div><div class="l">days logged</div></div>
-      <div class="stat"><div class="v">4</div><div class="l">milestones done</div></div>
-      <div class="stat"><div class="v">15</div><div class="l">days to V1</div></div>
+      <div class="stat"><div class="v">6</div><div class="l">milestones done</div></div>
+      <div class="stat"><div class="v">13</div><div class="l">days to V1</div></div>
       <div class="stat"><div class="v">5</div><div class="l">open deferrals</div></div>
     </div>
   </section>
@@ -202,6 +202,40 @@
     <p class="lede">Only days that actually happened, each with its date, appended at the end of every work-day.
       Nothing planned appears here — the schedule ahead is in its own collapsed block below.</p>
     <div class="tl" style="margin-top:20px">
+
+      <article class="entry" id="d-2026-10-03-night">
+        <div class="box">
+          <div class="ehead">
+            <span class="date">2026-10-03 &middot; night</span>
+            <span class="pill done">solved &middot; done</span>
+          </div>
+          <h3>Day 3 done &mdash; the engine is nine readable modules</h3>
+          <p class="sub">The 11,000-line file from this morning is now a 10-line pointer. Everything it held lives in
+            <span class="mono">src/lib/plan/</span>, one idea per file.</p>
+          <div class="blocks">
+            <div class="blk">
+              <h4>What moved</h4>
+              <ul>
+                <li>Nine modules &mdash; library, rules, rebalance, select, batch, report, boost, candidates, execute &mdash;
+                  layered so nothing depends upward, plus <b>one index that is the entire public surface</b>.</li>
+                <li>No other file in the app had to change.</li>
+                <li><b>Proven identical:</b> 105 fingerprints of every public function, four kinds of user, seventeen kinds of
+                  change.</li>
+                <li>The boundaries gate now <b>refuses</b> imports that reach past the index, and treats the engine as
+                  server-only, so it cannot sneak into the browser by a new route.</li>
+              </ul>
+            </div>
+            <div class="blk found">
+              <h4>Why it went further than planned</h4>
+              <ul>
+                <li>Moving only the executor would have made two files import each other in a loop. The gate built on Day 1
+                  forbids exactly that &mdash; so the whole engine moved, the way your ruling asked for.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="gate">GATE &middot; 105-point fingerprint identical &middot; tsc clean &middot; check:boundaries 0 new &middot; test:engine as the ship gate</div>
+        </div>
+      </article>
 
       <article class="entry" id="d-2026-10-03-eve">
         <div class="box">

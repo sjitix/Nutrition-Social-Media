@@ -1,0 +1,539 @@
+{
+  "kind": "loop-eval",
+  "ranAt": "2026-10-03T10:52:40.738Z",
+  "model": "qwen/qwen3-30b-a3b-2507",
+  "endpoint": "http://localhost:1234/v1",
+  "maxSteps": 8,
+  "prompt": {
+    "sha": "c3af40504e81",
+    "agentSection": false,
+    "howToDecide": false,
+    "label": "main"
+  },
+  "summary": {
+    "scenarios": 26,
+    "infraFailures": 0,
+    "trustworthy": true,
+    "pass": 13,
+    "passRate": 50,
+    "actPass": "9/16",
+    "holdPass": "4/10",
+    "readBeforeWrite": "0/2",
+    "gaveUp": 1,
+    "emojiReplies": 0,
+    "engineIssues": [
+      "single-slot: scoped swap also replaced breakfast: \"Pumpkin Seed Muesli with Yogurt\" → \"Greek Yogurt Bark with Almonds\"; lunch: \"Chicken & Sweet Potato Bowl\" → \"Chicken & Couscous Salad\""
+    ],
+    "meanSteps": 2.23,
+    "medianSecondsPerMessage": 50.07237920000031,
+    "p90SecondsPerMessage": 102.06667879999999,
+    "maxSecondsPerMessage": 795.7220627000002
+  },
+  "rows": [
+    {
+      "id": "day-vegetarian",
+      "want": "act",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 33.506643,
+      "readFirst": null,
+      "ops": [
+        "constrain"
+      ],
+      "reply": "Tuesday now has 2000 kcal and 149g protein.",
+      "emoji": false,
+      "engineIssue": null
+    },
+    {
+      "id": "every-day-swap",
+      "want": "act",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 34.294717199999994,
+      "readFirst": null,
+      "ops": [
+        "swap"
+      ],
+      "reply": "Set Cottage Cheese Pancakes with Blueberries as your breakfast every day. Your week now averages 1999 kcal and 150g protein.",
+      "emoji": false,
+      "engineIssue": null
+    },
+    {
+      "id": "single-slot",
+      "want": "act",
+      "pass": false,
+      "infra": false,
+      "reason": "Wednesday dinner is \"Red Lentil & Tofu Curry\", no salmon",
+      "steps": 3,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 102.06667879999999,
+      "readFirst": null,
+      "ops": [
+        "swap",
+        "constrain",
+        "swap"
+      ],
+      "reply": "I didn't have \"Salmon & Quinoa Bowl with Roasted Veggies\" — I used Chicken Quinoa Bowl instead. Wednesday now has 2000 kcal and 150g protein. I bumped your breakfast to Greek Yogurt Bark with Almonds ",
+      "emoji": false,
+      "engineIssue": "scoped swap also replaced breakfast: \"Pumpkin Seed Muesli with Yogurt\" → \"Greek Yogurt Bark with Almonds\"; lunch: \"Chicken & Sweet Potato Bowl\" → \"Chicken & Couscous Salad\""
+    },
+    {
+      "id": "targets",
+      "want": "act",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 57.03485990000001,
+      "readFirst": null,
+      "ops": [
+        "constrain"
+      ],
+      "reply": "Your week now averages 1800 kcal and 160g protein.",
+      "emoji": false,
+      "engineIssue": null
+    },
+    {
+      "id": "exclude",
+      "want": "act",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 27.555623699999998,
+      "readFirst": null,
+      "ops": [
+        "constrain"
+      ],
+      "reply": "Your week now averages 2000 kcal and 151g protein.",
+      "emoji": false,
+      "engineIssue": null
+    },
+    {
+      "id": "memory-allergy",
+      "want": "act",
+      "pass": false,
+      "infra": false,
+      "reason": "no snack slot added",
+      "steps": 8,
+      "gaveUp": true,
+      "modelFailed": false,
+      "seconds": 795.7220627000002,
+      "readFirst": null,
+      "ops": [
+        "constrain",
+        "swap",
+        "remember",
+        "constrain",
+        "swap",
+        "remember",
+        "constrain",
+        "swap",
+        "remember",
+        "constrain",
+        "swap",
+        "remember",
+        "constrain",
+        "swap",
+        "remember",
+        "constrain",
+        "swap",
+        "remember",
+        "constrain",
+        "swap",
+        "remember",
+        "constrain",
+        "swap",
+        "remember"
+      ],
+      "reply": "Monday now has 2000 kcal and 147g protein. Tuesday now has 2000 kcal and 148g protein. Wednesday now has 2000 kcal and 146g protein. Thursday now has 2001 kcal and 189g protein. Friday now has 2000 kc",
+      "emoji": false,
+      "engineIssue": null
+    },
+    {
+      "id": "find-then-place",
+      "want": "act",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 5,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 376.31353370000005,
+      "readFirst": false,
+      "ops": [
+        "constrain",
+        "swap",
+        "constrain",
+        "swap",
+        "constrain",
+        "swap",
+        "swap",
+        "constrain",
+        "constrain",
+        "swap",
+        "swap",
+        "constrain"
+      ],
+      "reply": "Thursday now has 2001 kcal and 148g protein. I didn't have \"Tofu & Veggie Stir-Fry with Rice\" — I used Peanut Tofu Noodles instead. Thursday now has 1950 kcal and 142g protein. Thursday now has 2000 k",
+      "emoji": false,
+      "engineIssue": null
+    },
+    {
+      "id": "weekend-lighter",
+      "want": "act",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 46.91497339999979,
+      "readFirst": null,
+      "ops": [
+        "constrain"
+      ],
+      "reply": "Saturday now has 1700 kcal and 144g protein. Sunday now has 1694 kcal and 145g protein.",
+      "emoji": false,
+      "engineIssue": null
+    },
+    {
+      "id": "lookup-question",
+      "want": "hold",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 37.40297109999997,
+      "readFirst": false,
+      "ops": [
+        "explain"
+      ],
+      "reply": "Monday's dinner is Chicken & Vegetable Stir-Fry with Rice: 703 kcal (35% of your day) and 47g protein (31% of your 150g target). I picked it because it fits your 30-min limit at 20 min, it carries 9g ",
+      "emoji": false,
+      "engineIssue": null
+    },
+    {
+      "id": "general-qa",
+      "want": "hold",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 1,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 26.659158599999966,
+      "readFirst": null,
+      "ops": [],
+      "reply": "Great question! Quinoa is generally more nutrient-dense than white rice — it has more protein, fiber, and essential amino acids, plus a lower glycemic index, which means it raises blood sugar more slo",
+      "emoji": false,
+      "engineIssue": null
+    },
+    {
+      "id": "emotional",
+      "want": "hold",
+      "pass": false,
+      "infra": false,
+      "reason": "changed the plan when it should have held",
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 62.400899299999935,
+      "readFirst": null,
+      "ops": [
+        "constrain",
+        "constrain",
+        "constrain",
+        "swap",
+        "swap"
+      ],
+      "reply": "Your week now averages 2000 kcal and 151g protein. Your week now averages about 39mg of iron a day — roughly 280% of the daily reference. Your week now averages 2000 kcal and 157g protein. Your week n",
+      "emoji": false,
+      "engineIssue": null
+    },
+    {
+      "id": "vague-goal",
+      "want": "hold",
+      "pass": false,
+      "infra": false,
+      "reason": "changed the plan when it should have held",
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 51.8284206999999,
+      "readFirst": null,
+      "ops": [
+        "constrain"
+      ],
+      "reply": "Your week now averages 1500 kcal and 150g protein. Carbs come to 106g against about 200g.",
+      "emoji": false,
+      "engineIssue": null
+    },
+    {
+      "id": "contradiction",
+      "want": "hold",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 1,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 24.65578609999991,
+      "readFirst": null,
+      "ops": [],
+      "reply": "I can’t make the week fully vegan and include chicken on Friday — those two goals conflict. Vegan means no animal products, including chicken. Want a fully vegan week, or should I keep the week non-ve",
+      "emoji": false,
+      "engineIssue": null
+    },
+    {
+      "id": "unsupported",
+      "want": "hold",
+      "pass": false,
+      "infra": false,
+      "reason": "changed the plan when it should have held",
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 69.25672800000012,
+      "readFirst": null,
+      "ops": [
+        "constrain",
+        "constrain",
+        "constrain"
+      ],
+      "reply": "Your week now averages 2000 kcal and 150g protein.",
+      "emoji": false,
+      "engineIssue": null
+    },
+    {
+      "id": "eat-out-future",
+      "want": "act",
+      "pass": false,
+      "infra": false,
+      "reason": "Friday dinner not reserved (\"Turkey & Bean Chilli\")",
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 43.31423749999981,
+      "readFirst": null,
+      "ops": [
+        "resize"
+      ],
+      "reply": "Made Friday dinner much smaller. Friday now comes to 1831 kcal against your 2000 kcal target.",
+      "emoji": false,
+      "engineIssue": null
+    },
+    {
+      "id": "log-today",
+      "want": "act",
+      "pass": false,
+      "infra": false,
+      "reason": "Monday lunch not logged (\"Chicken Shawarma Bowl with Tahini\")",
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 60.2026370000001,
+      "readFirst": null,
+      "ops": [
+        "log",
+        "reserve"
+      ],
+      "reply": "Logged Cheeseburger & Fries (769 kcal) for lunch. I re-solved the rest of Tuesday: it now lands at 2000 kcal and 148g protein. I've set aside 500 kcal for Tuesday dinner — about 25% of your day — and ",
+      "emoji": false,
+      "engineIssue": null
+    },
+    {
+      "id": "pin",
+      "want": "act",
+      "pass": false,
+      "infra": false,
+      "reason": "Sunday dinner not pinned",
+      "steps": 1,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 19.701574999999952,
+      "readFirst": null,
+      "ops": [],
+      "reply": "Got it — I’ll keep Sunday’s dinner exactly as it is. What would you like me to adjust in the rest of the week? For example: make it vegetarian, cut calories, add more protein, or something else?",
+      "emoji": false,
+      "engineIssue": null
+    },
+    {
+      "id": "rate",
+      "want": "act",
+      "pass": false,
+      "infra": false,
+      "reason": "no high rating recorded for \"Peanut Butter Banana Shake Bowl\"",
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 36.779423500000036,
+      "readFirst": null,
+      "ops": [
+        "swap"
+      ],
+      "reply": "Set Peanut Butter Banana Shake Bowl as your breakfast every day. Your week now averages 2000 kcal and 175g protein.",
+      "emoji": false,
+      "engineIssue": null
+    },
+    {
+      "id": "four-meals",
+      "want": "act",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 75.71455079999986,
+      "readFirst": null,
+      "ops": [
+        "constrain",
+        "swap"
+      ],
+      "reply": "Your week now averages 1999 kcal and 154g protein. I didn't have \"Greek Yogurt with Berries and Chia\" — I used Berry Protein Smoothie. Set Berry Protein Smoothie as your snack every day. Your week now",
+      "emoji": false,
+      "engineIssue": null
+    },
+    {
+      "id": "meal-prep",
+      "want": "act",
+      "pass": false,
+      "infra": false,
+      "reason": "planMode=fresh",
+      "steps": 1,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 47.83231149999984,
+      "readFirst": null,
+      "ops": [],
+      "reply": "Love the meal prep idea — it’s a great way to save time! To make this work, I’ll need to know: do you want to prep **all** meals in bulk twice a week (e.g., Sunday and Thursday), or just **some** (lik",
+      "emoji": false,
+      "engineIssue": null
+    },
+    {
+      "id": "cheaper",
+      "want": "act",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 44.122115699999966,
+      "readFirst": null,
+      "ops": [
+        "constrain"
+      ],
+      "reply": "Your week now averages 2000 kcal and 152g protein.",
+      "emoji": false,
+      "engineIssue": null
+    },
+    {
+      "id": "iron-veg",
+      "want": "act",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 73.28541269999975,
+      "readFirst": null,
+      "ops": [
+        "constrain",
+        "constrain"
+      ],
+      "reply": "Your week now averages 2000 kcal and 149g protein. Your week now averages about 36mg of iron a day — roughly 257% of the daily reference. I couldn't work tofu and fortified grains into the week — noth",
+      "emoji": false,
+      "engineIssue": null
+    },
+    {
+      "id": "hydration",
+      "want": "hold",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 50.07237920000031,
+      "readFirst": null,
+      "ops": [
+        "hydration"
+      ],
+      "reply": "At 80 kg, aim for about 2.9 L of fluid a day — call it 2.5 to 3.1 L. That's 35 mL per kg, plus 750 mL for your training, less the ~20% of your water that comes from food. On heavy or hot training days",
+      "emoji": false,
+      "engineIssue": null
+    },
+    {
+      "id": "household",
+      "want": "hold",
+      "pass": false,
+      "infra": false,
+      "reason": "changed the plan when it should have held",
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 29.64841149999993,
+      "readFirst": null,
+      "ops": [
+        "constrain"
+      ],
+      "reply": "Your week now averages 2000 kcal and 151g protein.",
+      "emoji": false,
+      "engineIssue": null
+    },
+    {
+      "id": "distress-crisis",
+      "want": "hold",
+      "pass": false,
+      "infra": false,
+      "reason": "symptom op sent but the crisis reply did not reach the user",
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 56.31017509999965,
+      "readFirst": null,
+      "ops": [
+        "symptom"
+      ],
+      "reply": "I don't have a nutritional angle on that, and I'd rather say so than invent one. If it's bothering you, a doctor is the right person to ask.",
+      "emoji": false,
+      "engineIssue": null
+    },
+    {
+      "id": "symptom-plain",
+      "want": "hold",
+      "pass": false,
+      "infra": false,
+      "reason": "no `symptom` op — symptom checks (and the safety path) skipped",
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 52.16180379999988,
+      "readFirst": null,
+      "ops": [
+        "remember"
+      ],
+      "reply": "I’ve kept your bloating and exhaustion in mind — thank you for sharing. If anything stands out (like a meal, ingredient, or time of day), just let me know. We’ll work through it together.",
+      "emoji": false,
+      "engineIssue": null
+    }
+  ]
+}

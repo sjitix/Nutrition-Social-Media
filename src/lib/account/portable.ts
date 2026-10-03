@@ -16,8 +16,8 @@
  *  2. **An import replaces only what the file contains.** A store the file does not mention is left
  *     alone. And the caller takes a backup first (`storage.takeBackup`), so an import is undoable.
  */
-import { WeekPlanSchema } from "../types";
 import type { StoreName } from "../storage";
+import { checkStore } from "./validate";
 
 export const EXPORT_FORMAT = "nutriflow-export";
 export const EXPORT_VERSION = 1;
@@ -53,48 +53,11 @@ export function exportFilename(now: Date = new Date()): string {
 }
 
 /* ------------------------------------------------------------------------------------------------
- * Validation — one checker per store. Each returns null when the value is acceptable, or a sentence
- * saying what is wrong with it, in words a person can act on.
+ * Validation lives in validate.ts — ONE checker per store, shared with sync, so a value is held to the
+ * same standard whether it arrives in a file or from the account.
  * ---------------------------------------------------------------------------------------------- */
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
-const isStrArray = (v: unknown): v is string[] => Array.isArray(v) && v.every((x) => typeof x === "string");
-
-const CHECKS: Record<StoreName, (v: unknown) => string | null> = {
-  profile(v) {
-    if (!isObj(v)) return "the profile is not an object";
-    if (!(typeof v.targetCalories === "number" && Number.isFinite(v.targetCalories) && v.targetCalories > 0))
-      return "the profile has no valid calorie target";
-    if (v.mealsPerDay !== 3 && v.mealsPerDay !== 4) return "the profile's meals-per-day is not 3 or 4";
-    if (typeof v.diet !== "string" || typeof v.goal !== "string") return "the profile is missing its diet or goal";
-    return null;
-  },
-  plan: (v) => checkPlan(v, "week plan"),
-  batchPlan: (v) => checkPlan(v, "meal-prep week"),
-  chat(v) {
-    if (!Array.isArray(v)) return "the chat history is not a list";
-    const ok = v.every((m) => isObj(m) && (m.role === "user" || m.role === "assistant") && typeof m.text === "string");
-    return ok ? null : "the chat history has a message in an unknown shape";
-  },
-  imports(v) {
-    if (!Array.isArray(v)) return "the imported-recipes history is not a list";
-    const ok = v.every((r) => isObj(r) && typeof r.name === "string" && typeof r.sourceUrl === "string");
-    return ok ? null : "an imported recipe is missing its name or link";
-  },
-  saved: (v) => (isStrArray(v) ? null : "the saved recipes are not a list of names"),
-  groceriesChecked: (v) => (isStrArray(v) ? null : "the ticked grocery items are not a list of names"),
-  visits(v) {
-    if (!isStrArray(v)) return "the visit history is not a list of dates";
-    return v.every((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)) ? null : "the visit history has something that isn't a date";
-  },
-};
-
-function checkPlan(v: unknown, label: string): string | null {
-  const parsed = WeekPlanSchema.safeParse(v);
-  if (!parsed.success) return `the ${label} is not in a shape this app can read`;
-  if (parsed.data.days.length === 0) return `the ${label} has no days in it`;
-  return null;
-}
 
 export type ParseResult =
   | { ok: true; bundle: ExportBundle; stores: StoreName[]; warnings: string[] }
@@ -126,7 +89,7 @@ export function parseExport(text: string): ParseResult {
       continue;
     }
     const name = key as StoreName;
-    const problem = CHECKS[name](value);
+    const problem = checkStore(name, value);
     if (problem) return { ok: false, error: `Nothing was imported: ${problem}.` };
     data[name] = value;
   }

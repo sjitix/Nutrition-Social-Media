@@ -295,6 +295,40 @@ before any library expansion. The schedule in `01-…md` carries it as **D5b**.
 
 ### L3 · Plan engine — the split (see §5)
 
+**Built 2026-10-03 (A3).** The engine is `src/lib/plan/`, nine modules plus an index, and
+`recipeDb.ts` is a 10-line barrel (`export * from "./plan"` + the recipe types), so **no importer
+changed**. The module graph, which the split was generated against and asserted acyclic:
+
+```
+library (126)   rules (116)                      <- depend on nothing in plan/
+rebalance (318)  -> library, rules
+select (494)     -> library, rules, rebalance
+batch (241)      -> library, rules, rebalance, select
+report (572)     -> library, rules, rebalance
+boost (140)      -> library, rules, rebalance, select, report
+candidates (140) -> rules, rebalance, select, batch
+execute (1,309)  -> everything above
+index (15)       the public surface: exactly the 22 names recipeDb.ts exported before
+```
+
+**Public vs private, mechanically:** a name is public iff `plan/index.ts` re-exports it. 59 other
+names are exported between the modules so they can call each other; they are **internal to the
+folder** — `check:boundaries` rule 2 fails anything outside `plan/` that imports them, and rule 4
+treats the whole folder (and `data/`) as server-only, so a client cannot dodge the old payload
+problem by importing `@/lib/plan` instead of `@/lib/recipeDb`. Both were proven with a probe
+component that tried all three routes.
+
+**How it was split**, so it can be redone or extended: a generator assigned each of the 115
+top-level declarations to a module, resolved every reference with the **TypeScript type checker**
+(not by name — dozens of locals are called `cap`, and name-matching would have invented import
+edges and fake cycles), asserted the module graph acyclic and every declaration placed exactly once,
+then wrote the files. The proof it changed no behaviour: a **105-point fingerprint** of every public
+function over four profiles and seventeen operations (plus previews, candidates, batch, condition
+weeks and the export list) is **identical** before and after; then `test:engine` as the ship gate.
+
+The headings below are the CONTRACTS of these modules; `select` and `rebalance` here are the files
+of the same names, `execute` + `report` are the executor and its note-writers.
+
 **`plan/select`** — *"Given a profile, choose the week's dishes so every hard rule holds and the
 macros land as close to target as the library allows."*
 - **Public:** `selectWeekFromDb(profile, opts?)`, `selectBatchWeek`, `buildWeek`,
@@ -520,6 +554,14 @@ re-exports the moved types, so **no importer was touched**. Proven three ways: a
 the computed `RECIPES` (all 501, after macro derivation) and of a seeded week came out **identical**
 before and after; `check:recipes` passes; `test:engine` is the same count. One stale comment was
 dropped on the way ("7 breakfasts / 7 lunches / 7 dinners / 2 snacks" — from when the library had 23).
+
+**Part 2 DONE 2026-10-03 (D3).** The rest of `recipeDb.ts` is `src/lib/plan/` — nine modules and
+an index (§4 L3 has the graph) — and `recipeDb.ts` is a **10-line barrel**. It went further than the
+table below planned, for a reason worth keeping: moving only the executor out would have left
+`execute.ts` importing helpers from `recipeDb.ts` while `recipeDb.ts` re-exported `execute.ts` — an
+import cycle, which `check:boundaries` forbids. So `recipeDb.ts` had to become a pure barrel, and
+everything in it had to land somewhere. A 105-point behavioural fingerprint is identical before and
+after.
 
 Done in **two days, data first** (D2, D3 in the schedule), each behind a barrel that re-exports
 today's 18 consumed names unchanged, so **no importer is touched on either day**. The gate is that

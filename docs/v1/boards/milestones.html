@@ -306,6 +306,11 @@
         <h3>Split part 2 — the executor</h3>
         <p class="desc"><span class="mono">applyOperations</span> becomes <span class="mono">plan/execute.ts</span>;
           batch selection becomes <span class="mono">plan/batch.ts</span>. Same barrel discipline.</p>
+        <div class="callout" style="margin:12px 0 0;border-color:var(--accent-line);background:var(--accent-soft)">
+          <b>Done 2026-10-03, and further than planned.</b> The whole engine is in <span class="mono">src/lib/plan/</span>
+          &mdash; nine modules plus one index &mdash; and <span class="mono">recipeDb.ts</span> is <b>10 lines</b>. Moving only the
+          executor would have made two files import each other in a loop, which the new gate forbids. A fingerprint of every
+          public function over four kinds of user and seventeen kinds of change came out identical.</div>
         <div class="par"><b>Parallel · C1-a</b><span>Start the K3 re-run in the background; it marinates for ~50 minutes.</span></div>
         <div class="meta">
           <div><span class="k">Usable when</span>Same suite result, and <span class="mono">recipeDb.ts</span> is under ~2k lines and one idea.</div>

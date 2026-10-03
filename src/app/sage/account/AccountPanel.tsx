@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  accountConfig, completeSignInFromUrl, deleteAccount, onAccountStatus, sendSignInLink, signOut, startSync,
+  accountConfig, completeSignInFromUrl, deleteAccount, onAccountStatus, onPulled, sendSignInLink, signOut, startSync,
   type AccountStatus,
 } from "@/lib/account/client";
 import { notifyPlanChanged } from "../myPlan";
@@ -25,20 +25,39 @@ export function AccountPanel({ onChange }: { onChange: () => void }) {
   const [sent, setSent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // Where keyboard focus goes when a confirm step opens or a message replaces the control that had it,
+  // so a screen-reader user hears the question instead of focus falling to the page body.
+  const keepButton = useRef<HTMLButtonElement>(null);
+  const sentNote = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (confirmDelete) keepButton.current?.focus();
+  }, [confirmDelete]);
+  useEffect(() => {
+    if (sent) sentNote.current?.focus();
+  }, [sent]);
 
   useEffect(() => {
     setConfigured(accountConfig() !== null);
-    const off = onAccountStatus(setStatus);
-    try {
-      completeSignInFromUrl();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Sign-in didn't complete.");
-    }
-    void startSync(() => {
+    const offStatus = onAccountStatus(setStatus);
+    // This page shows what is stored, so it re-reads whenever data comes down from the account; the
+    // other screens hear the same pull through notifyPlanChanged.
+    const offPulled = onPulled(() => {
       notifyPlanChanged();
       onChange();
     });
-    return off;
+    // Finish a sign-in this page was opened from (if any), THEN sync — the sync needs the session the
+    // link produces. A sign-in can set data aside (another account's) or replace some of it, so the
+    // page's view of what is stored is refreshed once the first sync settles, whatever it did.
+    void completeSignInFromUrl()
+      .catch((e: unknown) => {
+        setError(e instanceof Error ? e.message : "Sign-in didn't complete. Ask for a new link.");
+      })
+      .then(() => startSync())
+      .then(() => onChange());
+    return () => {
+      offStatus();
+      offPulled();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -79,20 +98,30 @@ export function AccountPanel({ onChange }: { onChange: () => void }) {
 
       {configured === false && (
         <p className="mt-2 max-w-[70ch] text-[13px] leading-relaxed text-white/85">
-          Accounts aren&apos;t switched on for this copy of the app yet, so everything stays in this
-          browser. Until they are, the file download below is how you move your plan to another device.
+          Accounts aren&apos;t switched on for this copy of the app yet, so nothing about you is stored
+          anywhere but this browser (what is sent to work out your plan is explained below). Until they
+          are, the file download below is how you move your plan to another device.
         </p>
       )}
 
       {configured && !signedIn && (
         <>
           <p className="mt-2 max-w-[70ch] text-[13px] leading-relaxed text-white/85">
-            Sign in to keep your plan on every device you use. We email you a link — no password. If
-            this browser already has a week, it comes with you; nothing here is thrown away.
+            Sign in to keep your plan on every device you use. We email you a link — no password. A
+            week you made here before having an account comes with you; if your account already has a
+            newer one, that wins and this browser&apos;s is kept as a copy on this page. If this browser
+            holds another account&apos;s data, it is set aside rather than added to yours.
           </p>
+          {status.message && (
+            <p role="status" className="mt-3 max-w-[70ch] rounded-[10px] bg-white/10 px-4 py-3 text-[12.5px] leading-relaxed">
+              {status.message}
+            </p>
+          )}
           {sent ? (
-            <p role="status" className="mt-4 rounded-[10px] bg-white/10 px-4 py-3 text-[12.5px] leading-relaxed">
-              Check <b className="font-semibold">{sent}</b> for a sign-in link, and open it in this browser.
+            <p ref={sentNote} tabIndex={-1} role="status" className="mt-4 rounded-[10px] bg-white/10 px-4 py-3 text-[12.5px] leading-relaxed outline-none">
+              Check <b className="font-semibold">{sent}</b> for a sign-in link, and open it{" "}
+              <b className="font-semibold">in this browser</b> — for your safety, a link opened anywhere else
+              won&apos;t sign you in.
             </p>
           ) : (
             <form
@@ -132,7 +161,7 @@ export function AccountPanel({ onChange }: { onChange: () => void }) {
             <SyncLine status={status} />
           </p>
           {status.message && (
-            <p className="mt-2 max-w-[70ch] text-[12px] leading-relaxed text-white/65">{status.message}</p>
+            <p role="status" className="mt-2 max-w-[70ch] text-[12px] leading-relaxed text-white/65">{status.message}</p>
           )}
           <div className="mt-4 flex flex-wrap gap-2">
             <button
@@ -163,7 +192,7 @@ export function AccountPanel({ onChange }: { onChange: () => void }) {
                 >
                   Yes, delete it
                 </button>
-                <button type="button" onClick={() => setConfirmDelete(false)} className="px-2 py-1.5 font-semibold text-white/70 hover:text-white">
+                <button ref={keepButton} type="button" onClick={() => setConfirmDelete(false)} className="px-2 py-1.5 font-semibold text-white/70 hover:text-white">
                   Keep it
                 </button>
               </span>
@@ -189,7 +218,7 @@ function SyncLine({ status }: { status: AccountStatus }) {
       ? `Everything is saved to your account (${new Date(status.lastSyncedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}).`
       : "Everything is saved to your account.",
     offline: "Offline — your changes are kept here and will be sent.",
-    error: "Sync hit a problem.",
+    error: "Syncing needs your attention — see below.",
   };
   return <span>{text[status.state] ?? ""}</span>;
 }

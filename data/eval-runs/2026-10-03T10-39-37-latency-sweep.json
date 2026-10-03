@@ -1,0 +1,88 @@
+{
+  "ranAt": "2026-10-03T10:39:37.055Z",
+  "endpoint": "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1",
+  "probes": 2,
+  "timeoutS": 180,
+  "system": "You are NutriFlow's assistant — a warm, sharp personal nutritionist. The user has a weekly meal plan (~2000 kcal, 150 g protein, 3 meals/day). Reply in 2-3 friendly sentences.",
+  "user": "i've been really tired lately and i think i want to eat more vegetarian, but i don't want to lose protein. what would you change in my week?",
+  "results": [
+    {
+      "model": "Mistral-Small-3.2-24B-Instruct-2506",
+      "reachable": true,
+      "okCalls": 1,
+      "calls": 2,
+      "medianTotalS": 1.6655826000000016,
+      "bestTotalS": 1.6655826000000016,
+      "medianOutTokens": 97,
+      "reasoning": false,
+      "lastError": "{\n  \"message\":\"API rate limit exceeded\",\n  \"request_id\":\"c7be2400cdf5e44460f6036b319bc838\"\n}",
+      "lastStatus": 200,
+      "sample": "It's great that you're considering a more plant-based diet! To maintain your protein intake, I'd suggest incorporating more protein-rich vegetarian foods like lentils, chickpeas, tofu, tempeh, and quinoa into your meals."
+    },
+    {
+      "model": "Meta-Llama-3_3-70B-Instruct",
+      "reachable": true,
+      "okCalls": 1,
+      "calls": 2,
+      "medianTotalS": 2.7222122999999994,
+      "bestTotalS": 2.7222122999999994,
+      "medianOutTokens": 91,
+      "reasoning": false,
+      "lastError": "{\n  \"message\":\"API rate limit exceeded\",\n  \"request_id\":\"f0998c6a3d06ac189129c22df7c1c428\"\n}",
+      "lastStatus": 200,
+      "sample": "I'd be happy to help you boost your energy levels and incorporate more vegetarian options into your meal plan. To ensure you don't lose protein, I'd suggest adding protein-rich vegetarian foods like lentils, chickpeas, a"
+    },
+    {
+      "model": "gpt-oss-120b",
+      "reachable": true,
+      "okCalls": 1,
+      "calls": 2,
+      "medianTotalS": 3.376053599999999,
+      "bestTotalS": 3.376053599999999,
+      "medianOutTokens": 249,
+      "reasoning": true,
+      "lastError": "{\n  \"message\":\"API rate limit exceeded\",\n  \"request_id\":\"55e5230ed300676c47d2af0b22523521\"\n}",
+      "lastStatus": 200,
+      "sample": "Sure thing! Swap your chicken, beef, or fish meals for high‑protein veg options—think tofu or tempeh stir‑fries, lentil‑chickpea salads, and quinoa‑black‑bean bowls—while keeping a serving of Greek yogurt, cottage cheese"
+    },
+    {
+      "model": "Qwen3.8-27B",
+      "reachable": true,
+      "okCalls": 1,
+      "calls": 2,
+      "medianTotalS": 5.1976311999999965,
+      "bestTotalS": 5.1976311999999965,
+      "medianOutTokens": 400,
+      "reasoning": true,
+      "lastError": "{\n  \"message\":\"API rate limit exceeded\",\n  \"request_id\":\"fd64434b8e48396227c56874fc8e0c50\"\n}",
+      "lastStatus": 200,
+      "sample": "Let’s keep your 150 g protein by swapping 2–3 meat/fish meals for tofu, tempeh, lentils, chickpeas, eggs, or Greek yogurt, and adding a small handful of nuts or seeds to one meal. Since you’re tired, I’d also make sure y"
+    },
+    {
+      "model": "Qwen3.5-397B-A17B",
+      "reachable": false,
+      "okCalls": 0,
+      "calls": 2,
+      "medianTotalS": null,
+      "bestTotalS": null,
+      "medianOutTokens": null,
+      "reasoning": false,
+      "lastError": "{\n  \"message\":\"API rate limit exceeded\",\n  \"request_id\":\"986974120811686b4e09351750c2396d\"\n}",
+      "lastStatus": 200,
+      "sample": null
+    },
+    {
+      "model": "Qwen3.6-27B",
+      "reachable": false,
+      "okCalls": 0,
+      "calls": 2,
+      "medianTotalS": null,
+      "bestTotalS": null,
+      "medianOutTokens": null,
+      "reasoning": false,
+      "lastError": "{\n  \"message\":\"API rate limit exceeded\",\n  \"request_id\":\"696827350c085b0800010f201180773b\"\n}",
+      "lastStatus": 200,
+      "sample": null
+    }
+  ]
+}

@@ -23,6 +23,12 @@ model below is bigger-and-faster or frontier-class, and free:
 - [ ] **Google AI Studio** — aistudio.google.com → Get API key. Add `GEMINI_API_KEY=...`
   **Unlocks:** the Gemini Flash family + Gemma 4 on a permanent free tier (~1,000+ requests/day).
 
+- [ ] **OVHcloud AI Endpoints key** — ovhcloud.com → create an account → Public Cloud project → AI
+  Endpoints → API keys. Add `OVH_AI_KEY=...`. **Unlocks:** the same models measured keyless today —
+  **Qwen3.5-397B**, **gpt-oss-120b (3.4 s/call)**, **Llama-3.3-70B (2.7 s/call)** — at 400 requests/min
+  instead of 2. Keyless already works but locks the IP out after a burst, so it can't carry an eval.
+  (Check whether your account gets free credit; usage beyond that is pay-per-token and cheap.)
+
 ## Open — optional / later
 
 - [ ] One paid key (Anthropic, Cerebras $5 trial, SambaNova) — only if no free model clears the bar.

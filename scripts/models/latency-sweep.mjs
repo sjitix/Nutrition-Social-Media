@@ -22,6 +22,10 @@ const PROBES = Number(process.env.PROBES ?? 2);
 const CONCURRENCY = Number(process.env.CONCURRENCY ?? 3);
 const TIMEOUT_S = Number(process.env.TIMEOUT_S ?? 90);
 const ONLY = process.env.ONLY ? new RegExp(process.env.ONLY, "i") : null;
+// Keyless public endpoints (OVHcloud AI Endpoints' anonymous tier) must get NO Authorization header.
+const AUTH = KEY ? { Authorization: `Bearer ${KEY}` } : {};
+// Space the probes of one model at least this far apart (OVH anonymous: 2 req/min per model per IP).
+const GAP_MS = Number(process.env.GAP_MS ?? 1500);
 
 // Not chat models, or not useful as an assistant brain.
 const EXCLUDE = /embed|guard|safety|reward|parse|translate|retriever|vision|vlm|omni|code|coder|codestral|codegemma|diffusion|recurrentgemma|chatqa|topic-control|content-safety|gemma-2b|sea-lion|zamba|minitron|granite-3\.0-3b/i;
@@ -32,7 +36,7 @@ const USER = `i've been really tired lately and i think i want to eat more veget
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function listModels() {
-  const r = await fetch(`${BASE_URL}/models`, { headers: { Authorization: `Bearer ${KEY}` } });
+  const r = await fetch(`${BASE_URL}/models`, { headers: AUTH });
   if (!r.ok) throw new Error(`models list ${r.status}`);
   const j = await r.json();
   return (j.data ?? []).map((m) => m.id).sort();
@@ -46,7 +50,7 @@ async function probe(model) {
     const res = await fetch(`${BASE_URL}/chat/completions`, {
       method: "POST",
       signal: ac.signal,
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${KEY}` },
+      headers: { "Content-Type": "application/json", ...AUTH },
       body: JSON.stringify({
         model, temperature: 0.3, max_tokens: 400,
         messages: [{ role: "system", content: SYSTEM }, { role: "user", content: USER }],
@@ -88,7 +92,7 @@ async function worker() {
     for (let p = 0; p < PROBES; p++) {
       calls.push(await probe(model));
       if (calls[0].status === 404 || calls[0].status === 410) break; // not provisioned / EOL — don't retry
-      await sleep(1500);
+      await sleep(GAP_MS);
     }
     const good = calls.filter((c) => c.ok);
     const row = {
