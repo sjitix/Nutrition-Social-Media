@@ -28,6 +28,7 @@ import { agentModelFn, resolveProvider } from "@/lib/ai";
 import { selectWeekFromDb, rebalanceWeek, withSeed } from "@/lib/recipeDb";
 import { dietTagConflicts, haystackBlocked } from "@/lib/exclusions";
 import { isReadTool } from "@/lib/agentTools";
+import { withFastFinish } from "./fast-finish";
 import type { UserProfile, WeekPlan, Meal } from "@/lib/types";
 
 const MODEL = process.env.LOCAL_AI_MODEL ?? "(unset)";
@@ -342,7 +343,10 @@ if (resolveProvider() !== "local") {
 // The date reaches the prompt through the adapter factory where the branch under test supports it
 // (models-exp-date: agentModelFn({ today })); on code without that option the argument is ignored, so
 // the same file measures before and after. The engine gets TODAY via runAgent either way.
-const model = (agentModelFn as (o?: { today?: string }) => ReturnType<typeof agentModelFn>)({ today: TODAY });
+const baseModel = (agentModelFn as (o?: { today?: string }) => ReturnType<typeof agentModelFn>)({ today: TODAY });
+// FAST_FINISH=1: skip the loop's last call when the engine's notes will be the reply anyway (see fast-finish.ts).
+const FAST_FINISH = process.env.FAST_FINISH === "1";
+const { fn: model, stats: ff } = withFastFinish(baseModel, FAST_FINISH);
 
 // Stamp WHICH prompt this run measured — the prompt is the variable under test, and a scorecard that
 // can't say which one it graded is unreadable a week later. Called through a widened type so this
@@ -369,6 +373,8 @@ interface Row {
   /** Every WRITE operation with its arguments — op names alone could not tell "forgot exclude" from
    *  "the engine ignored exclude" (2026-10-03, memory-allergy). */
   writes: string;
+  /** Real model calls this message cost (steps minus any FAST_FINISH skips). */
+  modelCalls: number;
 }
 const EMOJI = /\p{Extended_Pictographic}/u;
 const rows: Row[] = [];
@@ -381,6 +387,7 @@ for (const s of scenarios) {
   ]);
   let t0 = performance.now();
   let up0 = await upstreamSeconds();
+  let sk0 = ff.skipped;
   let r: AgentRunResult;
   try {
     // A scenario that never reached the model (rate limit, queue reset) is RE-RUN from scratch after a
@@ -394,10 +401,11 @@ for (const s of scenarios) {
       await new Promise((res) => setTimeout(res, wait));
       t0 = performance.now();
       up0 = await upstreamSeconds();
+      sk0 = ff.skipped;
       r = await runAgent({ profile: structuredClone(PROFILE), plan: structuredClone(PLAN), message: s.message, history, today: TODAY, model });
     }
   } catch (e) {
-    rows.push({ id: s.id, want: s.want, pass: false, infra: true, reason: `threw: ${(e as Error).message}`, steps: 0, gaveUp: false, modelFailed: true, seconds: (performance.now() - t0) / 1000, readFirst: null, ops: [], reply: "", emoji: false, engineIssue: null, writes: "" });
+    rows.push({ id: s.id, want: s.want, pass: false, infra: true, reason: `threw: ${(e as Error).message}`, steps: 0, gaveUp: false, modelFailed: true, seconds: (performance.now() - t0) / 1000, readFirst: null, ops: [], reply: "", emoji: false, engineIssue: null, writes: "", modelCalls: 0 });
     console.log(`!! ${s.id.padEnd(18)} threw`);
     continue;
   }
@@ -422,7 +430,7 @@ for (const s of scenarios) {
   const infra = r.modelFailed;
   const reason = infra ? "model unreachable / failed (infra)" : s.check(r, before);
   const pass = !infra && reason === null;
-  rows.push({ id: s.id, want: s.want, pass, infra, reason, steps: r.steps, gaveUp: r.gaveUp, modelFailed: r.modelFailed, seconds, readFirst, ops: opsSeq, reply: r.reply.replace(/\s+/g, " ").slice(0, 200), emoji: EMOJI.test(r.reply), engineIssue: infra || !s.engine ? null : s.engine(r, before), writes: writesOf(r) });
+  rows.push({ id: s.id, want: s.want, pass, infra, reason, steps: r.steps, gaveUp: r.gaveUp, modelFailed: r.modelFailed, seconds, readFirst, ops: opsSeq, reply: r.reply.replace(/\s+/g, " ").slice(0, 200), emoji: EMOJI.test(r.reply), engineIssue: infra || !s.engine ? null : s.engine(r, before), writes: writesOf(r), modelCalls: r.steps - (ff.skipped - sk0) });
   console.log(`${pass ? "✓ " : infra ? "!!" : "✗ "} ${s.id.padEnd(18)} ${seconds.toFixed(1).padStart(6)}s  ${r.steps} step${r.steps === 1 ? " " : "s"}${r.gaveUp ? " GAVE-UP" : ""}  [${opsSeq.join(",") || "no ops"}]${reason ? `  — ${reason}` : ""}`);
 }
 
@@ -446,13 +454,15 @@ const summary = {
   /** Engine assertions that failed — about the engine, NOT this model; never part of passRate. */
   engineIssues: rows.filter((r) => r.engineIssue).map((r) => `${r.id}: ${r.engineIssue}`),
   meanSteps: graded.length ? +(graded.reduce((s, r) => s + r.steps, 0) / graded.length).toFixed(2) : null,
+  meanModelCalls: graded.length ? +(graded.reduce((s, r) => s + r.modelCalls, 0) / graded.length).toFixed(2) : null,
+  fastFinish: FAST_FINISH,
   medianSecondsPerMessage: q(0.5),
   p90SecondsPerMessage: q(0.9),
   maxSecondsPerMessage: secs.length ? secs[secs.length - 1] : null,
 };
 
 console.log(`\npass ${summary.pass}/${graded.length} (${summary.passRate}%)  · act ${summary.actPass}  · hold ${summary.holdPass}  · read-before-write ${summary.readBeforeWrite}`);
-console.log(`steps mean ${summary.meanSteps}  · gave up ${summary.gaveUp}  · emoji replies ${summary.emojiReplies}  · per-message seconds: median ${summary.medianSecondsPerMessage?.toFixed(1)}  p90 ${summary.p90SecondsPerMessage?.toFixed(1)}  max ${summary.maxSecondsPerMessage?.toFixed(1)}`);
+console.log(`steps mean ${summary.meanSteps}  · model calls mean ${summary.meanModelCalls}${FAST_FINISH ? " (fast finish)" : ""}  · gave up ${summary.gaveUp}  · emoji replies ${summary.emojiReplies}  · per-message seconds: median ${summary.medianSecondsPerMessage?.toFixed(1)}  p90 ${summary.p90SecondsPerMessage?.toFixed(1)}  max ${summary.maxSecondsPerMessage?.toFixed(1)}`);
 for (const e of summary.engineIssues) console.log(`ENGINE (not the model): ${e}`);
 if (!summary.trustworthy) console.log(`!! ${summary.infraFailures} scenario(s) never reached the model — not counted as misses; re-run before quoting.`);
 
