@@ -11,7 +11,12 @@
  *
  * What it auto-scores (no judge model needed):
  *   schemaOk     — a valid {thinking, reply, operations} envelope
- *   actedRight   — DO cases emit operations; clarify/decline/refuse emit none (held)
+ *   actedRight   — v1: DO cases emit operations; clarify/decline/refuse emit none (held)
+ *   actedRightV2 — v2 (2026-10-03): the same for DO; a hold case is held when nothing PLAN-SHAPING
+ *                  moved, so `remember` and `answer` are not counted as acting. v1 contradicted the
+ *                  cases' own expected text ("remember the fact") and graded `answer` as acting on
+ *                  general-qa but as over-acting on capabilities. Both are reported, so every past
+ *                  number — the 84% baseline included — stays comparable. Found by the models lane.
  *   changedState — for DO cases, whether the plan/profile actually moved
  * The nuanced split among clarify vs decline vs refuse is semantic (all emit no ops), so the harness
  * prints every reply for a human to eyeball — it grades the coarse act/hold correctly and hands you
@@ -142,8 +147,15 @@ async function ask(turns: HardCase["turns"]): Promise<string> {
   throw new Error(lastErr || "request failed");
 }
 
-const stat = { n: 0, schemaOk: 0, actedRight: 0, changed: 0, infra: 0 };
-const byBucket: Record<string, { n: number; right: number }> = {};
+/** Everything about a profile that the PLAN depends on — i.e. the profile minus the assistant's
+ *  memory. Comparing this before and after tells "remembered a fact" apart from "changed my diet". */
+function planShaping(p: UserProfile): string {
+  const { memory: _memory, ...rest } = p;
+  return JSON.stringify(rest);
+}
+
+const stat = { n: 0, schemaOk: 0, actedRight: 0, actedRightV2: 0, changed: 0, infra: 0 };
+const byBucket: Record<string, { n: number; right: number; rightV2: number }> = {};
 const lines: string[] = [];
 
 console.log(`\nmodel: ${MODEL}\nendpoint: ${BASE_URL}\ncases: ${CASES.length}   concurrency: ${CONCURRENCY}\n`);
@@ -152,7 +164,11 @@ type CaseResult = {
   id: string;
   bucket: string;
   schemaOk: boolean;
+  /** v1 grading: a hold case is right only with ZERO operations. Kept so every past score (the 84%
+   *  baseline) stays comparable — a ruler that changes silently makes every old number a lie. */
   actedRight: boolean;
+  /** v2 grading: a hold case is right when nothing plan-shaping moved (remember / answer are fine). */
+  actedRightV2?: boolean;
   changed: boolean;
   line: string;
   fatal?: string;
@@ -201,16 +217,24 @@ async function runCase(c: HardCase): Promise<CaseResult> {
   const expectAct = c.bucket === "do";
   const actedRight = acted === expectAct;
   let changed = false;
+  let shaped = acted; // if the engine rejects the ops we cannot tell, so assume the worst
   try {
     const res = applyPrimitives(PROFILE, PLAN, ops);
     changed = res.planChanged || res.profileChanged;
+    shaped = res.planChanged || planShaping(res.profile) !== planShaping(PROFILE);
   } catch {
     /* an op the engine rejects still counts as a wrong action below */
   }
+  // The scope-aware grading (v2). A HOLD case is held when nothing the plan depends on moved: the
+  // plan itself, or a plan-shaping profile field (targets, diet, exclusions…). Remembering a fact or
+  // answering a question is not acting — three hold cases' own `expected` text says "remember the
+  // fact", and v1 scored a model that did exactly that as having over-acted. A DO case still has to
+  // emit something.
+  const actedRightV2 = expectAct ? acted : !shaped;
   const mark = actedRight ? "✓" : "✗";
   const did = acted ? (changed ? "acted+changed" : "acted") : "held";
   return {
-    id: c.id, bucket: c.bucket, schemaOk: true, actedRight, changed,
+    id: c.id, bucket: c.bucket, schemaOk: true, actedRight, actedRightV2, changed,
     reply: parsed.reply.replace(/\s+/g, " ").slice(0, 400),
     line: `${mark} ${c.id.padEnd(22)} [${c.bucket}] want ${expectAct ? "ACT " : "HOLD"} · got ${did.padEnd(13)} · "${parsed.reply.replace(/\s+/g, " ").slice(0, 64)}"`,
   };
@@ -238,10 +262,11 @@ await Promise.all(Array.from({ length: Math.min(CONCURRENCY, Math.max(0, CASES.l
 
 for (const r of results) {
   stat.n++;
-  const b = (byBucket[r.bucket] ??= { n: 0, right: 0 });
+  const b = (byBucket[r.bucket] ??= { n: 0, right: 0, rightV2: 0 });
   b.n++;
   if (r.schemaOk) stat.schemaOk++;
   if (r.actedRight) { stat.actedRight++; b.right++; }
+  if (r.actedRightV2) { stat.actedRightV2++; b.rightV2++; }
   if (r.changed) stat.changed++;
   if (r.infra) stat.infra++;
   lines.push(r.line);
@@ -249,10 +274,11 @@ for (const r of results) {
 
 const pct = (x: number, d = stat.n) => (d ? `${((x / d) * 100).toFixed(0)}%` : "—").padStart(4);
 console.log(`schemaOk      ${pct(stat.schemaOk)}   (valid {thinking,reply,operations})`);
-console.log(`actedRight    ${pct(stat.actedRight)}   (DO acts · clarify/decline/refuse hold)`);
+console.log(`actedRight    ${pct(stat.actedRight)}   v1 (DO acts · clarify/decline/refuse emit nothing) — the historical ruler`);
+console.log(`actedRightV2  ${pct(stat.actedRightV2)}   v2 (DO acts · a hold may remember or answer, but moves nothing plan-shaping)`);
 console.log(`changedState  ${stat.changed}/${byBucket["do"]?.n ?? 0} DO-cases moved the plan/profile\n`);
-console.log("by bucket:");
-for (const [k, v] of Object.entries(byBucket)) console.log(`  ${k.padEnd(9)} ${v.right}/${v.n}`);
+console.log("by bucket:      v1     v2");
+for (const [k, v] of Object.entries(byBucket)) console.log(`  ${k.padEnd(9)} ${`${v.right}/${v.n}`.padStart(6)} ${`${v.rightV2}/${v.n}`.padStart(6)}`);
 console.log("\nper-case (eyeball the reply for clarify/decline/refuse nuance):");
 for (const l of lines) console.log("  " + l);
 
@@ -288,13 +314,15 @@ writeFileSync(
       summary: {
         schemaOk: stat.schemaOk,
         actedRight: stat.actedRight,
+        actedRightV2: stat.actedRightV2,
+        grading: "actedRight = v1 (hold = zero ops); actedRightV2 = v2 (hold = nothing plan-shaping moved). Added 2026-10-03.",
         changedState: stat.changed,
         infraFailures: stat.infra,
         trustworthy: stat.infra === 0,
       },
       byBucket,
       results: results.map((r) => ({
-        id: r.id, bucket: r.bucket, schemaOk: r.schemaOk, actedRight: r.actedRight,
+        id: r.id, bucket: r.bucket, schemaOk: r.schemaOk, actedRight: r.actedRight, actedRightV2: Boolean(r.actedRightV2),
         changed: r.changed, infra: Boolean(r.infra), reply: r.reply ?? "",
       })),
     },
