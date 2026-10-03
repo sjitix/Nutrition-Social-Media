@@ -60,6 +60,12 @@ const MUTATIONS = [
     from: "  const s = currentSession();\n  stopRunning();\n  if (cfg && s) {",
     to: "  const s = currentSession();\n  if (cfg && s) {",
   },
+  {
+    name: "store size counted in UTF-16 units again, not the bytes the server counts",
+    file: "src/lib/account/sync.ts",
+    from: "  return new TextEncoder().encode(JSON.stringify(value)).length;",
+    to: "  return JSON.stringify(value).length;",
+  },
 ];
 
 const root = process.argv[2] ?? process.cwd();

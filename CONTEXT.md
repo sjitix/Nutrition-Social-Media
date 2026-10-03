@@ -51,10 +51,10 @@ Supabase row per user under RLS.
   in. Its first run found that every signed-in user still held TRUNCATE. RLS does not cover TRUNCATE,
   so one user could have emptied every account. It was not reachable through the REST API, and it is
   now closed in 0001. Lesson 56.
-- **Gate for this lane:** `node scripts/test-account.mjs` — **238 checks**, including the real
+- **Gate for this lane:** `node scripts/test-account.mjs` — **240 checks**, including the real
   `client.ts` end to end against an in-memory Supabase (RLS, PKCE, conditional writes, jsonb order) ·
   `node scripts/test-account-sql.mjs --mutate` — **37 checks in real Postgres, 15/15 broken guards
-  caught** · `node scripts/mutate-account.mjs` — 8/8.
+  caught** · `node scripts/mutate-account.mjs` — 9/9.
 - **Owner, to switch accounts on:** `supabase/README.md` — create a project, run **both** migrations,
   **configure custom SMTP** (without it only your own organisation receives sign-in emails), then put
   `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` in `.env.local` and Vercel. Never the

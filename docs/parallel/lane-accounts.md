@@ -17,9 +17,10 @@ skeptics) found real bugs in the A1–A4 code. All are fixed and shipped as `819
 - an honest privacy note.
 
 Then the SQL ran for the first time, in PGlite with Supabase's default grants. It found that signed-in
-users still held TRUNCATE, which is now closed in 0001. **Next:**
-- the review's final synthesis;
-- measure the store-size cap in UTF-8 bytes (it counts UTF-16 units, while the server counts bytes);
+users still held TRUNCATE, which is now closed in 0001. The store-size cap now counts UTF-8 bytes, as
+the server does. **Next:**
+- a second adversarial review, this time of the hardening itself (the fixes are about a thousand new
+  lines);
 - then wait on the owner's Supabase project for a live run.
 
 ## Files I'm editing right now
@@ -118,4 +119,5 @@ whose claims were each checked against the code (and corrected twice by the revi
 | `eac9bb8` | A1–A4: storage bookkeeping, export/import/delete, sync rules + engine, SQL + RLS, the REST client, `/sage/account` — `node scripts/test-account.mjs` 94/0 |
 | `91501d5` | docs: A1–A4 recorded — what works without keys, what waits on them, and two asks |
 | `8190c2b` | the adversarial review's fixes: PKCE, the account-switch guard and per-account pin, key-order-blind sync, `upsert_state` (0002), restore without deletions, rows validated on pull, the privacy note — 238/0, 8/8 mutations caught, engine 680/0 |
-| *(next)* | the SQL executed in real Postgres (`test-account-sql.mjs`, 37/0, 15/15 mutations); TRUNCATE revoked from signed-in users; test plan rows 5/5b/5c; lessons 52–56 |
+| `a42a97e` | the SQL executed in real Postgres (`test-account-sql.mjs`, 37/0, 15/15 mutations); TRUNCATE revoked from signed-in users; test plan rows 5/5b/5c; lessons 52–56 |
+| *(next)* | the store-size cap counts UTF-8 bytes, as the server does (`storeBytes`): a long Japanese or Arabic chat was waved through by `.length` and then refused, re-uploaded on every edit — 240/0, 9/9 mutations |

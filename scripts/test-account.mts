@@ -66,7 +66,7 @@ import {
 import { checkStore } from "@/lib/account/validate";
 import { planSync, unionStore, canonical, type Side } from "@/lib/account/merge";
 import {
-  syncNow, createMirror, localSide, partitionBySize, pushOrIsolate, MAX_STORE_BYTES,
+  syncNow, createMirror, localSide, partitionBySize, pushOrIsolate, MAX_STORE_BYTES, storeBytes,
   type LocalAccess, type Remote, type RemoteRow, type PushResult,
 } from "@/lib/account/sync";
 import {
@@ -586,6 +586,15 @@ await (async () => {
   ]);
   check("size guard: an oversized store is held back", split.tooLarge.join() === "chat");
   check("size guard: everything else still goes, including a cleared store", split.ok.map((r) => r.name).join() === "plan,saved");
+
+  // Bytes, as the server counts them. `.length` counts UTF-16 units, so it under-reads every
+  // non-Latin script, by 3x in Japanese (measured in real Postgres; see MAX_STORE_BYTES).
+  check("storeBytes counts UTF-8: a, é, 日 and U+20000 weigh 1, 2, 3 and 4 bytes (plus the JSON quotes)",
+    storeBytes("a") === 3 && storeBytes("é") === 4 && storeBytes("日") === 5 && storeBytes("\u{20000}") === 6);
+  const japanese = "日".repeat(Math.ceil(MAX_STORE_BYTES / 2)); // 450k characters, 1.35 MB
+  const byBytes = partitionBySize([{ name: "chat", value: [{ role: "user", text: japanese }], at: 1 }]);
+  check("size guard: a Japanese chat under the cap in characters but over it in bytes stays local (else it is refused on every edit)",
+    byBytes.tooLarge.join() === "chat", `${japanese.length} chars, ${storeBytes(japanese)} bytes`);
 
   const server = new FakeServer();
   const d = new FakeDevice();
