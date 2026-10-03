@@ -18,12 +18,15 @@
  * and this one cannot take theirs.
  *
  * What it guarantees, in order:
- *   1. The remote is fetched and divergence is reported BEFORE any work is done.
- *   2. If the branch is behind, it rebases — and on conflict it ABORTS the rebase, restoring the
- *      tree exactly, and tells you. It never resolves a conflict on its own and never discards.
- *   3. The gate runs (test:engine when src/lib is touched, else tsc) and a failure stops everything.
- *   4. The commit contains EXACTLY the paths asked for — verified against the commit afterwards, so
+ *   1. The remote is fetched and divergence is reported BEFORE any work is done — and if the remote
+ *      changed a file you are about to commit, it STOPS, because that is where a merge loses work.
+ *   2. The gate runs (test:engine when src/lib is touched, else tsc) and a failure stops everything.
+ *   3. The commit contains EXACTLY the paths asked for — verified against the commit afterwards, so
  *      a file swept in or dropped out is reported rather than discovered later.
+ *   4. ONLY THEN, if the remote moved, the commit is rebased onto it (other uncommitted files are
+ *      autostashed and put back). Committing first means the work is already a commit object —
+ *      recoverable from the reflog — before any rebase or stash touches the tree. On a conflict it
+ *      ABORTS the rebase and says so; it never resolves one on its own and never discards.
  *   5. The push is verified: `git log origin/main..HEAD` must end empty.
  *
  * It never force-pushes, never amends, and never touches a path it was not given.
@@ -125,21 +128,14 @@ if (behind > 0) {
     process.exit(2);
   }
 
-  console.log("ship: behind the remote — rebasing (nothing of yours is discarded)…");
-  try {
-    run("git", ["pull", "--rebase", "origin", branch]);
-  } catch {
-    // A conflicted rebase leaves the tree mid-operation. Put it back exactly and hand it over.
-    console.error("\nship: the rebase hit a conflict. Aborting it to restore your tree untouched.");
-    try {
-      git(["rebase", "--abort"]);
-      console.error("ship: rebase aborted; your working tree is as it was.");
-    } catch {
-      console.error("ship: could not abort automatically — run `git rebase --abort` yourself.");
-    }
-    console.error("ship: resolve by hand, verify nothing is lost, then run ship again.");
-    process.exit(2);
-  }
+  // No rebase HERE. It used to happen at this point and it could not work in the normal case:
+  // `git pull --rebase` refuses outright while the tree has uncommitted changes — and the files we
+  // are about to commit ARE uncommitted changes. Found 2026-10-03 when the other lane pushed while
+  // this lane had work ready; ship stopped (safely — nothing was lost) and then misreported the
+  // refusal as a conflict. The rebase now happens AFTER the commit, in step 5b, which is also the
+  // stronger guarantee: by then the work is a commit object, recoverable from the reflog whatever
+  // the rebase does.
+  console.log("ship: behind the remote, with no overlap — will rebase AFTER committing.");
 }
 
 // ---- 2. is there anything in these paths to commit? --------------------------------------------
@@ -209,6 +205,48 @@ if (missing.length) {
   process.exit(3);
 }
 console.log(`ship: commit verified — ${committed.length} file(s), exactly as asked.`);
+
+// ---- 5b. if the remote moved, put this commit on top of it -------------------------------------
+// The work is already a commit, so nothing below can lose it: it stays in the reflog whatever
+// happens. `--autostash` is for the OTHER uncommitted files in the tree (not part of this commit),
+// which would otherwise make git refuse to rebase at all.
+if (behind > 0) {
+  console.log("\nship: rebasing the commit onto the remote…");
+  const rebaseDir = (name) => existsSync(git(["rev-parse", "--git-path", name]));
+  try {
+    run("git", ["pull", "--rebase", "--autostash", "origin", branch]);
+  } catch {
+    if (rebaseDir("rebase-merge") || rebaseDir("rebase-apply")) {
+      // A real conflict. Abort to return to the commit exactly as it was made, on the old base.
+      console.error("\nship: the rebase hit a CONFLICT. Aborting it — your commit is intact, unpushed.");
+      try {
+        git(["rebase", "--abort"]);
+      } catch {
+        console.error("ship: could not abort automatically — run `git rebase --abort` yourself.");
+      }
+      console.error("ship: read the remote's version, re-apply yours BY HAND, then run ship again.");
+    } else {
+      // No rebase in progress means git refused before starting, or the autostash could not be
+      // re-applied. Either way the commit exists; say what to check rather than guessing.
+      console.error("\nship: the rebase did not complete. Your commit is safe and NOT pushed.");
+      console.error("ship: check `git status` and `git stash list` — an autostash that could not be");
+      console.error("ship: re-applied is kept in the stash, never dropped.");
+    }
+    process.exit(2);
+  }
+
+  // A rebase replays the same change onto a new base, so the commit should hold the same paths.
+  // Check anyway: the claim this tool makes is "exactly what you named", and it is cheap to keep.
+  const rebased = git(["show", "--pretty=format:", "--name-only", "HEAD"]).split("\n").filter(Boolean);
+  const drift = rebased.filter((f) => !committed.includes(f)).concat(committed.filter((f) => !rebased.includes(f)));
+  if (drift.length) {
+    console.error("\nship: WARNING — after the rebase the commit's file list changed:");
+    for (const d of drift) console.error(`  ~ ${d}`);
+    console.error("ship: NOT pushing. Inspect with `git show --stat HEAD`.");
+    process.exit(3);
+  }
+  console.log("ship: rebased cleanly; the commit still holds exactly the named paths.");
+}
 
 // ---- 6. push, and prove it landed --------------------------------------------------------------
 console.log("ship: pushing…");

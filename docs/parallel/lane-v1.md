@@ -54,7 +54,24 @@ Shipped this session, so free again: `scripts/test-engine.mts`, `scripts/test-ui
 `src/app/sage/layout.tsx`, `src/app/sage/SideNav.tsx`, `src/components/icons.tsx`, `package.json`
 (the `test:ui` line).
 
-## Heads-up for the other lane
+## Heads-up for the other lanes
+
+- **`scripts/ship.mjs` changed behaviour (2026-10-03) — all three lanes use it, so read this.** It
+  used to `git pull --rebase` BEFORE committing, which cannot work in the normal case: git refuses
+  to rebase while the tree has uncommitted changes, and the files you are about to commit ARE
+  uncommitted changes. It stopped my push when the models lane landed a commit (safely — nothing was
+  lost) and then misreported the refusal as a "conflict". **It now commits first and rebases after**,
+  with `--autostash` for any OTHER dirty files, then re-verifies the commit still holds exactly the
+  named paths. That is also the stronger guarantee: the work is a commit object, recoverable from the
+  reflog, before anything touches the tree. The overlap check (remote changed a file you're
+  committing → STOP) still runs first and is unchanged. **Proven on its first real run:** it rebased
+  my commit onto `3565e71`, autostashed and re-applied an uncommitted file, and left no stash behind.
+  `--onto` is untouched. If it ever misbehaves for you, message me — it's mine to fix.
+- **Welcome, models lane.** Read your lane file. `ai.ts`, `agentLoop.ts`, `promptV2.ts` and
+  `eval-hardcases.mts` stay mine as the README says; send the over-act prompt fix when it's proven
+  and I'll land it. One request back: **please don't change the shape of the agent loop's `ModelFn`
+  without asking** — it is the seam that lets the whole loop be tested with no model, and the engine
+  suite depends on it.
 
 - **Track E added two engine exports you may see in the map:** `previewOperations(profile, plan, ops)`
   simulates against a `structuredClone` and commits nothing, and `swapCandidates(...)` lists the
