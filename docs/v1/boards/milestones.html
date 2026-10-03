@@ -327,6 +327,13 @@
         <h3>The browser payload boundary</h3>
         <p class="desc">Introduce the card projection so Explore stops importing 501 full recipes. A server barrel
           and a client-safe barrel — the second axis of the boundary, and the one that costs money.</p>
+        <div class="callout" style="margin:12px 0 0;border-color:var(--accent-line);background:var(--accent-soft)">
+          <b>Done 2026-10-03 for every screen of the app.</b> JavaScript each page downloads before it works:
+          <b>Week 226 &rarr; 129 kB</b>, <b>Explore 212 &rarr; 114 kB</b>, <b>Groceries 123 &rarr; 113 kB</b>. None of them
+          downloads the recipe library or the nutrient table any more. Explore's recipes now arrive inside the page
+          itself, so its true saving over the wire is smaller (about 26&nbsp;kB) &mdash; the rest of the win is the browser
+          not running a 344&nbsp;kB program to show a list. Only the old <span class="mono">/plan</span> app still ships
+          everything; whether to retire it is your decision #2.</div>
         <div class="par"><b>Parallel · C1-b</b><span>Record the Kimi decision from the scorecard.</span></div>
         <div class="meta">
           <div><span class="k">Usable when</span>The four library markers are gone from the client chunks and first-load JS drops against the measured 216&nbsp;/&nbsp;212&nbsp;kB baseline, with the number recorded.</div>

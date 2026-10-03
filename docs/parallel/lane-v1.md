@@ -11,7 +11,13 @@
 `index.ts`); `recipeDb.ts` is a 10-line barrel, so **every `@/lib/recipeDb` import of yours still
 works unchanged**. If you add engine code, add it in `plan/` — and import from `@/lib/recipeDb` or
 `@/lib/plan`, never `@/lib/plan/<file>`: `check:boundaries` now fails a deep import past the index.
-Next: Day 4 (the browser payload boundary).
+**Day 4 (the browser payload boundary) is done for `/sage`:** Week 226 → 129 kB, Explore 212 → 114,
+Groceries 123 → 113 (first-load JS). Two shapes changed that could touch you:
+`gramsFor` now lives in **`src/lib/units.ts`** (still re-exported from `nutrients.ts`), and the unit
+weights are generated into **`src/lib/unitGrams.generated.ts`** by `build:nutrients`; and the feed's
+pure half is **`src/lib/feedFilter.ts`** (client-safe) while `feed.ts` builds `FEED_RECIPES` (server
+only, re-exports `feedFilter`). A client component must import `feedFilter`, never `feed`.
+Next: D5 — ingredient identity.
 
 Seven comments the owner left on the module-map board on 2026-09-19 had never been read. One is a
 **ruling that affects both of you**: *modularise first, then build on that architecture*. So, from

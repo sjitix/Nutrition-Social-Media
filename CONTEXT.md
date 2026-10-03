@@ -93,7 +93,17 @@ onto main) and `models-exp` (experiments in v1-owned files; never merged without
 - **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`, this block, the
   lane file. Does not edit v1's files; asks v1 first. Touches no accounts files.
 
-### >>> V1 LANE — 2026-10-03 (night): Days 1–3 DONE, swap fix LANDED. TRACK A IS A GATE. Next: Day 4 (A4 payload). <<<
+### >>> V1 LANE — 2026-10-03 (late): Days 1–3 DONE, Day 4 DONE for /sage (steps 2–3 in their ship gate). TRACK A IS A GATE. Next: D5 (ingredient ids). <<<
+
+**Day 4 (A4):** `/sage/plan` 226 → **129 kB** (`7efbe9b`), `/sage/groceries` 123 → **113 kB**,
+`/sage/explore` 212 → **114 kB** first-load JS (steps 2–3: if not on `origin/main`, the gate failed).
+Every `/sage` route is free of the library (`approxCost`) and the USDA table (`fdcId`) — **those are
+the markers; `Shakshuka`/`Miso-Glazed Cod` are photographed dishes and legitimately stay.** Explore's
+cards now travel in the HTML (32 → 80 kB gz; net ≈ −26 kB). **Follow-up:** load the modal's
+ingredients+steps lazily. `/plan` still ships everything — owner decision #2. `check:boundaries`:
+6 debts left. The measuring worktree `../NutriFlow-v1-measure` (detached, node_modules junction) can
+be deleted with `git worktree remove ../NutriFlow-v1-measure` — or kept for D5's measurements.
+`build:nutrients` reports **180** ingredients, docs say 182 — not chased yet.
 
 **Day 3 (A3) LANDED `ff93b99`, test:engine 680/0 identical:** the engine is now **`src/lib/plan/`** —
 nine modules + `index.ts` (the public surface, the same 22 names); `recipeDb.ts` is a 10-line
@@ -176,7 +186,9 @@ C4**, every Track E button gets a chat primitive. Reasoning: `02-module-map.md` 
    3 files: `primitives.ts`, `promptV2.ts`, `ai.ts`) when they send "ready to land". Reviewed: the
    safety bullet was fixed in `5336ab1`. Land it in its own commit, between Track A days.
 3. ~~V1 Day 3~~ — done (see above).
-4. **V1 Day 4 — A4, the browser payload boundary.** The target is measured (`01-…md` D4: markers
+4. ~~V1 Day 4~~ — done for `/sage` (see the block above). Next is **D5 — ingredient identity**
+   (`01-…md` D5), then D5a (barrels + folders, coordinated with the lanes) and D5b (the maths proven).
+   *(What follows is the Day 4 brief, kept for the record.)* The target is measured (`01-…md` D4: markers
    `Shakshuka`, `Miso-Glazed Cod`, `fdcId`, `approxCost` in `.next/static/chunks/*.js`; first-load
    `/sage/plan` 216 kB, `/sage/explore` 212 kB). `check:boundaries`' rule-4 debts ARE the work list:
    Explore/`/plan` via `feed.ts` → the card projection; WeekBoard via `../demo` for `SLOTS`;
