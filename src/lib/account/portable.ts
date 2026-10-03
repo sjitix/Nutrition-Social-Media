@@ -59,6 +59,12 @@ export function exportFilename(now: Date = new Date()): string {
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
+const STORE_LABEL: Record<StoreName, string> = {
+  profile: "your profile", plan: "your week plan", batchPlan: "your meal-prep week", chat: "your chat history",
+  imports: "your imported recipes", saved: "your saved recipes", groceriesChecked: "your ticked groceries",
+  visits: "your visit history",
+};
+
 export type ParseResult =
   | { ok: true; bundle: ExportBundle; stores: StoreName[]; warnings: string[] }
   | { ok: false; error: string };
@@ -89,6 +95,10 @@ export function parseExport(text: string): ParseResult {
       continue;
     }
     const name = key as StoreName;
+    // A cleared store (null) is fine as an ACCOUNT row, where it is a deliberate clear. In a file it is
+    // never genuine, since `buildExport` leaves cleared stores out, and importing it would delete that
+    // store here and, when signed in, on every device, while the preview said nothing (review 2).
+    if (value === null) return { ok: false, error: `Nothing was imported: the file would clear ${STORE_LABEL[name]}, which a real export never does.` };
     const problem = checkStore(name, value);
     if (problem) return { ok: false, error: `Nothing was imported: ${problem}.` };
     data[name] = value;
@@ -124,8 +134,13 @@ export function applyImport(bundle: ExportBundle, write: (name: StoreName, value
 /**
  * What a set of stores amounts to, in plain words — for "this file holds…" and "this browser
  * holds…". Counts are read off the data, never assumed.
+ *
+ * `incoming`: the data is a file about to be brought in. Then an EMPTY list it carries is named too,
+ * with what it will do, because bringing it in clears that list here (and, when signed in, on every
+ * device). Real exports carry empty lists (a reset chat, the last recipe unsaved), and a preview that
+ * skipped them, as this one did, let an import wipe data it never mentioned (review 2).
  */
-export function describeData(data: Partial<Record<StoreName, unknown>>): string[] {
+export function describeData(data: Partial<Record<StoreName, unknown>>, opts: { incoming?: boolean } = {}): string[] {
   const out: string[] = [];
   const len = (v: unknown) => (Array.isArray(v) ? v.length : 0);
   const days = (v: unknown) => (isObj(v) && Array.isArray(v.days) ? v.days.length : 0);
@@ -136,11 +151,16 @@ export function describeData(data: Partial<Record<StoreName, unknown>>): string[
   }
   if (data.plan) out.push(`a week plan (${days(data.plan)} days)`);
   if (data.batchPlan) out.push(`a meal-prep week (${days(data.batchPlan)} days)`);
-  if (len(data.saved)) out.push(plural(len(data.saved), "saved recipe"));
-  if (len(data.imports)) out.push(plural(len(data.imports), "imported recipe"));
-  if (len(data.chat)) out.push(plural(len(data.chat), "chat message"));
-  if (len(data.groceriesChecked)) out.push(plural(len(data.groceriesChecked), "ticked grocery item"));
-  if (len(data.visits)) out.push(plural(len(data.visits), "day", "of visit history"));
+  const list = (name: StoreName, noun: string, none: string, tail = "") => {
+    const n = len(data[name]);
+    if (n) out.push(plural(n, noun, tail));
+    else if (opts.incoming && Array.isArray(data[name])) out.push(`${none} (bringing it in clears ${STORE_LABEL[name]} here)`);
+  };
+  list("saved", "saved recipe", "no saved recipes");
+  list("imports", "imported recipe", "no imported recipes");
+  list("chat", "chat message", "no chat messages");
+  list("groceriesChecked", "ticked grocery item", "no ticked grocery items");
+  list("visits", "day", "no visit history", "of visit history");
   return out;
 }
 

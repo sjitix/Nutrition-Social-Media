@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import {
-  STORE_NAMES, discardBackup, loadBackups, readStore, restoreBackup, takeBackup, writeStore,
+  STORE_NAMES, discardBackup, loadBackups, putBackCopy, readStore, takeBackup, writeStore,
   type LocalBackup, type StoreName,
 } from "@/lib/storage";
 import {
@@ -83,21 +83,26 @@ export function AccountClient() {
       setNote(e instanceof Error ? e.message : "Couldn't keep a safety copy, so nothing was imported.");
       return;
     }
-    const written = applyImport(incoming.result.bundle, (n, v) => writeStore(n, v));
+    applyImport(incoming.result.bundle, (n, v) => writeStore(n, v));
     setIncoming(null);
-    setNote(`Brought in ${written.length} item${written.length === 1 ? "" : "s"} from ${incoming.file}. What was here before is kept above until you forget it.`);
+    // The same words as the preview, so what was done is exactly what was offered.
+    setNote(`Brought in from ${incoming.file}: ${describeData(incoming.result.bundle.data, { incoming: true }).join(", ")}. What was here before is kept above until you forget it.`);
     refresh();
   }
 
   function restoreNow(b: LocalBackup) {
-    // Putting a copy back replaces what is here now — so what is here now is kept as a copy first.
+    // Putting a copy back replaces what is here now — so what is here now is kept as a copy first,
+    // without ever pushing out the copy being put back (storage.putBackCopy).
+    let ok: boolean;
     try {
-      takeBackup(`before putting back the copy from ${when(b.takenAt)}`);
+      ok = putBackCopy(b.id, `before putting back the copy from ${when(b.takenAt)}`);
     } catch (e) {
       setNote(e instanceof Error ? e.message : "Couldn't keep a safety copy, so nothing was changed.");
       return;
     }
-    if (restoreBackup(b.id)) setNote("Put back exactly what this browser held then. What was here a moment ago is kept as a copy.");
+    setNote(ok
+      ? "Put back exactly what this browser held then. What was here a moment ago is kept as a copy."
+      : "That copy is no longer here (it may have been forgotten in another tab), so nothing was changed.");
     refresh();
   }
 
@@ -109,7 +114,14 @@ export function AccountClient() {
   async function deleteNow() {
     // Stop syncing (and cancel a sync in flight) BEFORE clearing, or a pull landing a moment later
     // would put everything straight back; then end the sign-in. The account itself is untouched.
-    await forgetThisBrowser();
+    try {
+      await forgetThisBrowser();
+    } catch (e) {
+      // Refused: this browser now holds an account this page isn't showing (another tab signed in).
+      setConfirmDelete(false);
+      setNote(e instanceof Error ? e.message : "Nothing was deleted.");
+      return;
+    }
     setConfirmDelete(false);
     setNote("Everything this app kept in this browser is gone, and this browser is signed out. Your account, if you had one, is untouched.");
     refresh();
@@ -231,7 +243,7 @@ export function AccountClient() {
                 <>
                   <p className="text-[12.5px] leading-relaxed">
                     <b className="font-semibold">{incoming.file}</b> holds{" "}
-                    {describeData(incoming.result.bundle.data).join(", ")}.
+                    {describeData(incoming.result.bundle.data, { incoming: true }).join(", ")}.
                   </p>
                   {incoming.result.warnings.map((w) => (
                     <p key={w} className="mt-1.5 text-[11.5px] text-mut">{w}</p>

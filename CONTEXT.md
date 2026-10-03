@@ -60,10 +60,19 @@ Supabase row per user under RLS.
   - "Put it back" lost the restored copy.
   Now every write is stamped later than what it replaces (`nextStamp`, the logical-clock rule), so raw
   clocks decide only true conflicts, where the backup applies.
-- **Gate for this lane:** `node scripts/test-account.mjs` — **252 checks**, including the real
+- **A second adversarial review, of the hardening itself, found more. Batch 1 is fixed (lesson 58):**
+  - "Delete my account" in a stale tab deleted the OTHER account another tab had signed in;
+  - a failed first sync left the browser unowned, so the next person's sign-in uploaded the previous
+    person's data;
+  - "Put it back" on the oldest copy destroyed it;
+  - the import preview hid the lists it would clear;
+  - a push could replace the account's copy with no copy kept anywhere (now rule 6).
+  Still open, in the lane file: stale tabs (the two-tab cases), sign-in against the real GoTrue (a
+  401 signs people out; the 5-minute first-link window), and test and fake fidelity.
+- **Gate for this lane:** `node scripts/test-account.mjs` — **269 checks**, including the real
   `client.ts` end to end against an in-memory Supabase (RLS, PKCE, conditional writes, jsonb order,
   skewed device clocks) · `node scripts/test-account-sql.mjs --mutate` — **37 checks in real
-  Postgres, 15/15 broken guards caught** · `node scripts/mutate-account.mjs` — **14/14**.
+  Postgres, 15/15 broken guards caught** · `node scripts/mutate-account.mjs` — **25/25**.
 - **Owner, to switch accounts on:** `supabase/README.md` — create a project, run **both** migrations,
   **configure custom SMTP** (without it only your own organisation receives sign-in emails), then put
   `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` in `.env.local` and Vercel. Never the

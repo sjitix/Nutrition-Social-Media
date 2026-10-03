@@ -280,9 +280,10 @@ export const loadBackup = (): LocalBackup | null => loadBackups()[0] ?? null;
  * because replacing data without a copy is exactly what backups exist to prevent.
  */
 function writeBackups(list: LocalBackup[]): void {
+  // `list` is in order of what to keep FIRST; it is stored newest first.
   for (let keep = list.length; keep >= 1; keep--) {
     try {
-      writeKey(INTERNAL.backup, list.slice(0, keep));
+      writeKey(INTERNAL.backup, list.slice(0, keep).sort((a, b) => b.id - a.id));
       return;
     } catch {
       /* QuotaExceededError — try again with one fewer old copy */
@@ -291,11 +292,16 @@ function writeBackups(list: LocalBackup[]): void {
   throw new Error("There isn't room in this browser to keep a safety copy of your data, so nothing was replaced.");
 }
 
-/** Snapshot every user-data store before something replaces them. Keeps the last few. */
-export function takeBackup(reason: string): LocalBackup {
+/**
+ * Snapshot every user-data store before something replaces them. Keeps the last few.
+ *
+ * `data` keeps those values instead of this browser's stores: the ACCOUNT's copies a sync is about to
+ * replace (merge.ts rule 6). Putting such a copy back writes them here and sends them up again.
+ */
+export function takeBackup(reason: string, opts: { data?: Partial<Record<StoreName, unknown>> } = {}): LocalBackup {
   const data: Partial<Record<StoreName, unknown>> = {};
   for (const n of STORE_NAMES) {
-    const v = read<unknown>(n);
+    const v = opts.data ? opts.data[n] ?? null : read<unknown>(n);
     if (v !== null) data[n] = v;
   }
   const existing = loadBackups();
@@ -304,6 +310,34 @@ export function takeBackup(reason: string): LocalBackup {
   const backup: LocalBackup = { id, reason, takenAt: now, data };
   writeBackups([backup, ...existing].slice(0, BACKUPS_KEPT));
   return backup;
+}
+
+/**
+ * "Put it back", the way the account page does it. What is here now is kept as a copy first; then
+ * the chosen copy is put back. Returns false, changing nothing, when that copy no longer exists.
+ * Throws when there is no room for the safety copy, and then nothing is replaced.
+ *
+ * The chosen copy is read BEFORE the safety copy is taken, and put back from that reading. With three
+ * copies kept, taking the safety copy pushes out the oldest, which is often the very one being put
+ * back. Looking it up again afterwards found nothing, so the button destroyed the copy and restored
+ * nothing, silently (review 2, found twice). Read first, it cannot be lost that way, and no OTHER copy
+ * has to make room for it: being put back uses it up anyway.
+ */
+export function putBackCopy(id: number, reason: string): boolean {
+  const target = loadBackups().find((b) => b.id === id);
+  if (!target) return false;
+  takeBackup(reason);
+  try {
+    return restoreBackup(target);
+  } catch (e) {
+    // The restore failed part-way (storage full). Keep the copy listed, so it can be tried again.
+    try {
+      writeBackups([target, ...loadBackups().filter((b) => b.id !== target.id)]);
+    } catch {
+      /* nothing more can be done here */
+    }
+    throw e;
+  }
 }
 
 /** Forget one backup (by id), or all of them. */
@@ -329,9 +363,9 @@ export function discardBackup(id?: number): void {
  * is forgotten here, silently — value, write time and sync marker — so this device goes back to having
  * "never had it", and the next sync brings the account's copy down again.
  */
-export function restoreBackup(id?: number): boolean {
+export function restoreBackup(which?: number | LocalBackup): boolean {
   const all = loadBackups();
-  const b = id === undefined ? all[0] : all.find((x) => x.id === id);
+  const b = typeof which === "object" ? which : which === undefined ? all[0] : all.find((x) => x.id === which);
   if (!b) return false;
   for (const n of STORE_NAMES) {
     if (n in b.data && b.data[n] !== null && b.data[n] !== undefined) {

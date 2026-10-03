@@ -38,6 +38,11 @@ export type AccountState =
 export interface AccountStatus {
   state: AccountState;
   email?: string;
+  /**
+   * The account THIS TAB is showing. Destructive actions act on this account only, never on whatever
+   * session another tab may have stored since (see `shownUser`).
+   */
+  userId?: string;
   /** A sentence for the person, when there is something to say. */
   message?: string;
   lastSyncedAt?: number;
@@ -121,6 +126,9 @@ const localAccess: LocalAccess = {
   writeSilently: (n, v, at) => writeStore(n, v, { at, silent: true }),
   backup: (reason) => {
     takeBackup(reason);
+  },
+  backupValues: (reason, data) => {
+    takeBackup(reason, { data });
   },
   // Rows from the account are outside data: held to the same checks as an imported file.
   accepts: (n, v) => checkStore(n, v) === null,
@@ -271,7 +279,7 @@ export function startSync(): Promise<SyncReport | null> {
       takeBackup(`from a different account, before ${email || "this account"} signed in`);
     } catch (e) {
       // No room for a safety copy: do NOT empty anything. Stay signed in but don't sync, and say why.
-      setStatus({ state: "error", email, message: e instanceof Error ? e.message : "Couldn't keep a safety copy, so nothing was synced." });
+      setStatus({ state: "error", email, userId, message: e instanceof Error ? e.message : "Couldn't keep a safety copy, so nothing was synced." });
       return Promise.resolve(null);
     }
     resetStoresSilently();
@@ -280,6 +288,12 @@ export function startSync(): Promise<SyncReport | null> {
     // second time and back up the empty stores over the copy that holds the previous account's data.
     saveSyncOwner(userId);
     switchedFrom = true;
+  } else if (!owner) {
+    // Never synced: the data here is this person's own, and it is this account's from NOW, not from
+    // the first sync that succeeds. Waiting let a failed first sync leave the browser unowned, so the
+    // next person to sign in skipped the guard above and got this person's unsynced data (profile
+    // and health notes included) uploaded into THEIR account (review 2, found twice).
+    saveSyncOwner(userId);
   }
 
   const gen = ++generation;
@@ -299,19 +313,20 @@ export function startSync(): Promise<SyncReport | null> {
       if (s === "idle" || !isCurrent()) return;
       if (s === "error") {
         // A refused or oversized store is held back; transient failures arrive via onError instead.
-        if (held.size) setStatus({ state: "error", email, lastSyncedAt: status.lastSyncedAt, message: heldMessage(held) });
+        if (held.size) setStatus({ state: "error", email, userId, lastSyncedAt: status.lastSyncedAt, message: heldMessage(held) });
         return;
       }
       const map = { pending: "pending", saving: "syncing", saved: "saved", offline: "offline" } as const;
       setStatus({
         state: map[s],
         email,
+        userId,
         lastSyncedAt: s === "saved" ? Date.now() : status.lastSyncedAt,
         message: s === "offline" ? "Couldn't reach your account. Your changes are kept here and will be sent when you're back online." : undefined,
       });
     },
     onError: (e) => {
-      if (isCurrent()) handleFailure(e, email);
+      if (isCurrent()) handleFailure(e, email, userId);
     },
     onHeld: (h) => {
       held = h;
@@ -342,7 +357,7 @@ export function startSync(): Promise<SyncReport | null> {
 
   async function runSync(): Promise<SyncReport | null> {
     const first = !everSynced;
-    setStatus({ state: "syncing", email });
+    setStatus({ state: "syncing", email, userId });
     try {
       const report = await syncNow(localAccess, remote, { stillCurrent: isCurrent });
       if (report.cancelled || !isCurrent()) return null;
@@ -359,6 +374,9 @@ export function startSync(): Promise<SyncReport | null> {
       if (report.backedUp) {
         notes.push("Your account had newer data, so it replaced some of what was on this device. The previous copy is kept on the account page.");
       }
+      if (report.keptAccountCopy?.length) {
+        notes.push(`This device's newer changes replaced ${list(report.keptAccountCopy)} in your account. The account's previous copy is kept on the account page.`);
+      }
       if (report.invalid.length) {
         notes.push(`${capital(list(report.invalid))} in your account couldn't be read by this version of the app, so this device kept its own copy.`);
       }
@@ -371,6 +389,7 @@ export function startSync(): Promise<SyncReport | null> {
       setStatus({
         state: held.size ? "error" : "saved",
         email,
+        userId,
         lastSyncedAt: Date.now(),
         message: notes.join(" ") || undefined,
       });
@@ -378,7 +397,7 @@ export function startSync(): Promise<SyncReport | null> {
       if (report.skipped.length) void Promise.resolve().then(() => resync()); // the account moved on mid-sync
       return report;
     } catch (e) {
-      if (isCurrent()) handleFailure(e, email);
+      if (isCurrent()) handleFailure(e, email, userId);
       return null;
     }
   }
@@ -447,7 +466,7 @@ function heldMessage(held: ReadonlyMap<StoreName, HeldReason>): string {
  * Turn a failure into the right state. A dead sign-in is not "offline": the sync stops, the session
  * is dropped (this device keeps every bit of its data), and the person is told to sign in again.
  */
-function handleFailure(e: unknown, email: string): void {
+function handleFailure(e: unknown, email: string, userId: string): void {
   if (e instanceof AccountError && e.kind === "superseded") {
     // Someone else's session is now the browser's. Stop this tab's sync and leave theirs alone.
     stopRunning();
@@ -469,9 +488,25 @@ function handleFailure(e: unknown, email: string): void {
   setStatus({
     state: permanent ? "error" : "offline",
     email,
+    userId,
     message: e instanceof Error ? e.message : "Couldn't sync just now.",
   });
 }
+
+/**
+ * The account this tab is showing, or null. Sign-out, "Delete my account" and "Delete everything in
+ * this browser" act on THIS account and refuse when the browser now holds another one.
+ *
+ * Why (review 2): the session lives in storage every tab shares. When another tab signed this browser
+ * in as Bob and this tab missed the event (a page restored from the back/forward cache, for one), this
+ * tab still showed Ana, and "Delete my account" deleted BOB's account, for good, while telling Ana hers
+ * was gone. The running sync was already pinned to its account; these actions were not.
+ */
+function shownUser(): string | null {
+  return status.userId ?? running?.userId ?? null;
+}
+
+const ANOTHER_TAB = "This browser signed in to a different account in another tab";
 
 /**
  * Send anything still waiting, then stop mirroring. Returns true when some edits could NOT be sent
@@ -495,12 +530,21 @@ async function stopSync(): Promise<boolean> {
  */
 export async function signOut(): Promise<void> {
   const cfg = accountConfig();
+  const mine = shownUser();
+  const stored = currentSession();
+  if (stored && stored.userId !== mine) {
+    // The browser is signed in as an account this tab isn't showing: another tab signed in, and this
+    // one missed it. Signing out here would end THEIR sign-in. Stop this tab, and leave theirs alone.
+    stopRunning();
+    setStatus({ state: "signed-out", message: `${ANOTHER_TAB}, so this tab stopped and left that sign-in alone. Reload it to see which account it is.` });
+    return;
+  }
   const unsent = await stopSync();
   let ended = true;
   if (cfg && currentSession()) {
     // /logout refuses an expired access token, which would leave the server session alive while the
     // page said "signed out". Renew it first; if that fails too, use what there is.
-    const s = await liveSession(cfg).catch(() => currentSession());
+    const s = await liveSession(cfg, mine ?? undefined).catch(() => currentSession());
     ended = s ? await signOutRemote(cfg, s) : false;
   }
   saveSessionRaw(null);
@@ -519,6 +563,11 @@ export async function signOut(): Promise<void> {
 export async function forgetThisBrowser(): Promise<void> {
   const cfg = accountConfig();
   const s = currentSession();
+  if (s && s.userId !== shownUser()) {
+    // This browser now holds an account this tab isn't showing (another tab signed in). Clearing it
+    // from here would wipe THAT account's data on this browser and end its sign-in, unseen.
+    throw new AccountError(`${ANOTHER_TAB}, so nothing was deleted. Reload this page to see it first.`, "superseded");
+  }
   stopRunning();
   if (cfg && s) {
     const live = await liveSession(cfg).catch(() => s);
@@ -529,14 +578,31 @@ export async function forgetThisBrowser(): Promise<void> {
 }
 
 /**
- * Delete the account and everything stored in it. This device's copy is left for the person to
- * decide about, and it becomes theirs again rather than the deleted account's: the owner is cleared,
- * so if they sign up again later, this data comes with them like any pre-account data.
+ * Delete the account this tab is showing, and everything stored in it. This device's copy is left for
+ * the person to decide about.
+ *
+ * The browser's data STAYS marked as the deleted account's. Clearing that mark (as this once did) made
+ * the browser look as if it had never synced, so the next person to sign in here skipped the switch
+ * guard and got the deleted account's data uploaded into theirs (review 2). Kept, whoever signs in
+ * next, the same person with a new account included, gets it set aside as a copy they can put back.
  */
 export async function deleteAccount(): Promise<void> {
   const cfg = accountConfig();
   if (!cfg) throw new AccountError("Accounts aren't switched on for this copy of the app.");
-  const s = await liveSession(cfg);
+  const mine = shownUser();
+  if (!mine) throw new AccountError("Reload this page, then try again: it isn't showing an account to delete.", "superseded");
+  let s: Session;
+  try {
+    s = await liveSession(cfg, mine);
+  } catch (e) {
+    if (e instanceof AccountError && e.kind === "superseded") {
+      stopRunning();
+      const why = `${ANOTHER_TAB}, so nothing was deleted. Reload this page to see which account it is.`;
+      setStatus({ state: "signed-out", message: why });
+      throw new AccountError(why, "superseded");
+    }
+    throw e;
+  }
   stopRunning(); // do NOT send: pending edits must not recreate rows we are about to delete
   try {
     await deleteAccountRemote(cfg, s);
@@ -546,9 +612,8 @@ export async function deleteAccount(): Promise<void> {
     throw e;
   }
   saveSessionRaw(null);
-  saveSyncOwner(null);
   setStatus({
     state: "signed-out",
-    message: "Your account and everything stored in it are deleted. (The sign-in service keeps its own record of past sign-ins for a limited time.) This browser still has its copy.",
+    message: "Your account and everything stored in it are deleted. (The sign-in service keeps its own record of past sign-ins for a limited time.) This browser still has its copy. If anyone signs in here again, you with a new account included, it is set aside as a copy rather than added to that account.",
   });
 }

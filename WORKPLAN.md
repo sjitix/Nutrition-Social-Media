@@ -1375,6 +1375,25 @@ Each of these was discovered by doing the work, and each earned its place.
     written. One `Date.now()` that bypassed `write()`, in `restoreBackup`, turned up only on a search
     for every raw clock read, so after a fix like this, search for every place the old pattern lives.
 
+58. **Every safety rule has a mirror image — check that both sides exist.** The first review's fixes
+    each covered one direction. The second review (four lenses, every finding with a reproduction)
+    found the other:
+    - Rule 5 backed up LOCAL data a pull would replace. Nothing kept the ACCOUNT's copy a push replaced,
+      so a second device's first sync could overwrite the account's saved recipes on every device with
+      no copy anywhere. Rule 6 now keeps it.
+    - The running sync was pinned to its account, but "Delete my account", sign-out and "Delete
+      everything in this browser" were not. In a tab that missed another tab's sign-in, delete removed
+      the OTHER person's account, permanently, and told this person theirs was gone.
+    - The owner was recorded when a first sync SUCCEEDED, not when it started, so a failed first sync
+      left the browser unowned and the next person's sign-in uploaded the previous person's data,
+      health notes included. "Delete my account" cleared it outright, with the same result.
+    - "Put it back" took its safety copy first, and that pushed out the oldest copy, often the very
+      one being put back.
+    Ask of every guard: what is the same risk going the other way, by another actor (another tab,
+    another device, the next person), or at the other end of the operation? A process note: a quoted
+    heredoc through the Bash tool on Windows still collapsed `\\` to `\` (lesson 35, met a third
+    time), so write script files with the editor, never through the shell.
+
 ---
 
 ## 4. Training track (runs in parallel, never blocked by the above)

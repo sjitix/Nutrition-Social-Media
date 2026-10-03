@@ -24,6 +24,12 @@
  *     on this device before you signed in" can always be put back from the account page. A pull that
  *     only replaces a value the account already had loses nothing, and takes no backup: otherwise every
  *     routine change from another device would push the important backups out.
+ *  6. **…and neither is losing the ACCOUNT's data.** Rule 5's mirror image. If a push would replace
+ *     an account copy this device never agreed on (another device's edit it never pulled, or the
+ *     account's data on a device's first sync), that copy is about to be lost EVERYWHERE: every other
+ *     device pulls the replacement with no backup, because their copy was synced. So the plan names it
+ *     in `keepAccountCopy`, and the engine keeps it on this device first. Found by review 2: a first
+ *     sync on a second device replaced the account's saved recipes with its own, and nothing kept them.
  *
  * CLOCKS. Write times come from each device's own clock, and clocks disagree: by hours after a dual
  * boot, and by anything on a phone whose time was set by hand. Compared raw, that LOST EDITS SILENTLY.
@@ -59,6 +65,8 @@ export interface SyncPlan {
   actions: SyncAction[];
   /** True when at least one pull would overwrite differing local data (rule 5). */
   needsBackup: boolean;
+  /** Account copies a push is about to replace that this device never agreed on (rule 6). */
+  keepAccountCopy: Partial<Record<StoreName, unknown>>;
 }
 
 /** Stores whose history only grows, merged by union rather than newest-wins (rule 3). */
@@ -108,6 +116,7 @@ export function planSync(
 ): SyncPlan {
   const actions: SyncAction[] = [];
   let needsBackup = false;
+  const keepAccountCopy: Partial<Record<StoreName, unknown>> = {};
   const names = new Set<StoreName>([...(Object.keys(local) as StoreName[]), ...(Object.keys(remote) as StoreName[])]);
 
   for (const name of names) {
@@ -140,6 +149,9 @@ export function planSync(
     }
 
     if (l.at > r.at) {
+      // Rule 6: the account's copy is about to go, everywhere. Keep it here first unless this device
+      // already agreed on exactly that version (then it is just the previous version of this edit).
+      if (!isEmpty(r.value) && r.at !== synced[name]) keepAccountCopy[name] = r.value;
       actions.push({ name, kind: "push", value: l.value, at: l.at });
     } else {
       // Rule 2 (remote newer) and rule 4 (a tie).
@@ -151,7 +163,7 @@ export function planSync(
 
   // A stable order makes plans comparable in tests and logs.
   actions.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
-  return { actions, needsBackup };
+  return { actions, needsBackup, keepAccountCopy };
 }
 
 /** Rule 3: the union of two copies of an append-only store, in that store's own order and cap. */

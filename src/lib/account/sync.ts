@@ -49,6 +49,11 @@ export interface LocalAccess {
   writeSilently(name: StoreName, value: unknown, at: number): void;
   backup(reason: string): void;
   /**
+   * Keep these values (the ACCOUNT's copies a push is about to replace, merge.ts rule 6) as a copy on
+   * this device. Optional: a device without it keeps nothing, which is how a test opts out.
+   */
+  backupValues?(reason: string, data: Partial<Record<StoreName, unknown>>): void;
+  /**
    * May a value that came FROM THE ACCOUNT be written into this store? Optional; without it every
    * value is accepted. In the browser this is `validate.checkStore` — the account is outside this
    * browser, and one malformed row must not be able to break a screen on every device.
@@ -62,6 +67,8 @@ export interface SyncReport {
   merged: StoreName[];
   /** A backup of this device's data was taken before the account's copy replaced some of it. */
   backedUp: boolean;
+  /** Stores whose ACCOUNT copy this device's newer data replaced; the old copy is kept here (rule 6). */
+  keptAccountCopy?: StoreName[];
   /** Stores too large to keep in the account. They stay on this device; everything else synced. */
   tooLarge: StoreName[];
   /** Stores the account refused outright. They stay on this device; everything else synced. */
@@ -197,6 +204,13 @@ export async function syncNow(local: LocalAccess, remote: Remote, opts: SyncOpti
 
   if (plan.needsBackup) local.backup("before syncing with your account replaced data on this device");
   report.backedUp = plan.needsBackup;
+  // Rule 6, before anything is pushed: the account copies about to be replaced, kept here. Kept even
+  // if a push then fails or is skipped; a spare copy costs little, a missing one is permanent.
+  const kept = Object.keys(plan.keepAccountCopy) as StoreName[];
+  if (kept.length && local.backupValues) {
+    local.backupValues("your account's copy, before this device's newer data replaced it", plan.keepAccountCopy);
+    report.keptAccountCopy = kept;
+  }
 
   const toPush: RemoteRow[] = [];
   for (const a of plan.actions) apply(a, local, toPush, report);
