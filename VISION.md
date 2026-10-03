@@ -494,6 +494,20 @@ growing set of simultaneous constraints.** Planned layers, in order of when we a
    portions/other meals as needed. Numeric and cumulative across the day/week, so it is owned
    by the deterministic macro engine, not the model (see "The app replaces a nutritionist —
    the macro-preservation engine").
+
+   **Two refinements (2026-10-03), found when a one-meal swap replaced breakfast and lunch too:**
+   - **When the user limits the change, the limit holds.** "Swap *just* Wednesday's dinner",
+     "only lunch", "leave the rest": the engine resizes the rest of the day but replaces nothing
+     else, and if resizing cannot hold the targets it says so and **offers** the dish change by
+     name ("I could swap your breakfast to X — just say so"). The assistant expresses this with
+     `swap {…, only: true}` (engine: `keepOtherMeals`).
+   - **Replacing a meal the user did not mention is never silent.** The default above still may
+     replace other meals to hold the targets (the macro-preservation rule) — but every replacement
+     is named in the reply. The whole-week swap path used to replace up to 11 meals with no mention.
+
+   **Open for the owner:** should a *plain* swap — no "just", no "keep my macros" — replace other
+   meals by default, or resize only and offer? Today's default is this section's original rule
+   (replace, and say so). The flag works either way; the choice is about which surprise is worse.
 3. **Conversational adaptation (later — the big one):** an AI assistant the user talks
    to. The user says something in plain language — e.g. *"I don't want onions this
    week"* — and the assistant **adapts the whole plan** to that instruction **while

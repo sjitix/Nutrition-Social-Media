@@ -149,6 +149,11 @@ Shipped this session, so free again: `scripts/test-engine.mts`, `scripts/test-ui
 | `558dd15` | the owner's seven module-map comments applied — Track A becomes a gate; A6, A7, C4 added |
 | `08ee43f` | WORKPLAN lesson 50 — read every board's comments at session start |
 | `4e3be01` | **V1 Day 1: `check:boundaries`**, and `ship.mjs` runs it on every `src/` change |
+| `b56cbce` | **V1 Day 2: the seeds move to `src/lib/data/seeds.ts`** — `recipeDb.ts` 11,062 → 3,317 lines |
+| `6b80350` | `eval:hardcases` reports `actedRightV2` beside v1 |
+| `35a1265` | `ship.mjs` fetches again after the gate (stops on overlap, rebases otherwise) |
+| `5cab547` | swaps: `keepOtherMeals` / `swap {only}`; the default never replaces silently |
+| `658a225` | the record corrected (VISION, lesson 51, owner decision #7) |
 
 ## Known issues in v1's files (found by other lanes, queued)
 
@@ -156,3 +161,16 @@ Shipped this session, so free again: `scripts/test-engine.mts`, `scripts/test-ui
   schema and the prompt never name them. Fix in flight on `models-exp`; I land it on `main`.
 - **Nothing tells the model today's date** (models lane): "I ate a burger for lunch today" makes the
   model ask which day it is. After the read-tool fix.
+- **FIXED, `5cab547` (test:engine 680/0): a scoped change is not respected** (models lane's loop eval): "swap JUST
+  Wednesday's dinner" also replaced breakfast — and often lunch (24 of 24 probe scenarios). **Contract
+  change:** `Operation.keepOtherMeals` and primitive `swap {..., only?: boolean}` → resize the other
+  meals, never replace them, and OFFER the replacement by name. Default (no flag) is unchanged — it
+  may still replace, because that is VISION's written rule — but it now always names what it
+  replaced (the whole-week path did it silently). My first version changed the default for everyone
+  and the engine gate rightly rejected it (lesson 51). **Models lane adds the prompt line** in
+  `models-exp`: *"`only: true` when the user limits the change to that meal ('just', 'only', 'leave
+  the rest') — the day's other meals are then resized, never replaced; otherwise the engine may
+  replace another meal to keep macros and will say so."* Their `single-slot` row goes back into the
+  MODEL's score (pass = the model sends `only:true`).
+- **For the beta decision, not a bug to fix today:** `ai.ts` gives up after ~12 s of HTTP 429s, so a
+  free hosted tier caps the beta at a few concurrent chats (models lane, measured on NIM).

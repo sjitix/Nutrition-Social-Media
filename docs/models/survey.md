@@ -79,6 +79,29 @@ own concurrent evals pushed the account's rate limit — free-tier headroom is t
 better than the ~250 s measured in September, so its free queue has improved. The diary's output cap
 was raised 400 → 2000 after reasoning models (GLM, K3) returned empty content at 400.
 
+## The free tier's rate limit is the real ceiling — and it moves
+
+Same model (Nemotron-3-Ultra-550B), same kind of load, same day:
+
+| when | concurrent requests on the model | calls that never reached it |
+|---|---|---|
+| morning | ~6 (two hard-case runs + two loop runs) | **0** (45/45, 14/14) |
+| midday | ~6 | **20/21** loop scenarios (both arms); **12/45** and **16/45** hard cases even with 6 back-off retries |
+| any time | 1 probe with an eval running | instant `429 Too Many Requests` (4/4 probes) |
+
+The void runs are kept as evidence (`variant: VOID — rate-limited`) and never quoted. Two consequences:
+
+1. **For measuring:** big-model evals on this tier must run one at a time, concurrency 1, with long
+   back-off — and the loop eval now re-runs scenarios that never reached the model.
+2. **For the product:** the app's adapter (`ai.ts`) gives up after ~12 s of 429s, so a beta on this
+   tier's 550B model would show "assistant offline" to a handful of simultaneous users. Reported to the
+   v1 lane. The free tier is fine for *measuring* a big model's quality; it is not a production brain.
+
+**Latency must come from the real loop, not a sweep.** The sweep's short prompt flatters every model:
+local Qwen3-30B was 8.5 s per call in the sweep but 27–102 s per *message* in the loop, because the real
+system prompt carries the whole week (thousands of tokens) and reading it dominates on one 8 GB card.
+Only per-message seconds from `loop-eval` count as response time.
+
 ## Where "big and fast" actually lives (researched 2026-10-03, not yet measured)
 
 | provider | free? | what it would unlock |

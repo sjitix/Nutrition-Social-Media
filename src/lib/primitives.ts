@@ -107,7 +107,8 @@ export function applyRemember(profile: UserProfile, r: RememberOp, today?: strin
 // The uniform `op`-based verbs (so the model speaks ONE vocabulary — every op has an `op`), each
 // mapping to an existing tested engine tool. This keeps the model's surface general while the
 // engine keeps its proven internals.
-export interface SwapOp { op: "swap"; dish: string; slot?: MealType; days?: Day[] } // no days = every day
+// no days = every day. only = the user scoped it ("just dinner"): resize the other meals, never replace them.
+export interface SwapOp { op: "swap"; dish: string; slot?: MealType; days?: Day[]; only?: boolean }
 export interface LogOp { op: "log"; day: Day; slot: MealType; dish: string; calories?: number; protein?: number }
 export interface ReserveOp { op: "reserve"; day: Day; slot: MealType; calories?: number }
 export interface ResizeOp { op: "resize"; direction: "much_smaller" | "smaller" | "bigger" | "much_bigger"; day?: Day; slot?: MealType }
@@ -130,7 +131,7 @@ export function verbToOperation(o: VerbOp): Operation | null {
   switch (o.op) {
     case "swap": {
       const day = o.days && o.days.length === 1 ? o.days[0] : null; // no/none-single day = every day
-      return { tool: "swap_meal", dish: o.dish, mealType: o.slot ?? null, day } as Operation;
+      return { tool: "swap_meal", dish: o.dish, mealType: o.slot ?? null, day, keepOtherMeals: o.only ?? null } as Operation;
     }
     case "log": return { tool: "log_meal", day: o.day, mealType: o.slot, dish: o.dish, loggedCalories: o.calories ?? null, loggedProtein: o.protein ?? null } as Operation;
     case "reserve": return { tool: "eating_out", day: o.day, mealType: o.slot, estimatedCalories: o.calories ?? null } as Operation;
@@ -232,7 +233,7 @@ export const PrimitiveOpSchema = z.discriminatedUnion("op", [
     cadence: z.enum(["weekly", "every3days"]).optional(),
   }),
   z.object({ op: z.literal("remember"), fact: z.string(), kind: z.enum(["preference", "allergy", "condition", "goal", "context"]).optional() }),
-  z.object({ op: z.literal("swap"), dish: z.string(), slot: slotEnum.optional(), days: z.array(dayEnum).optional() }),
+  z.object({ op: z.literal("swap"), dish: z.string(), slot: slotEnum.optional(), days: z.array(dayEnum).optional(), only: z.boolean().optional() }),
   z.object({ op: z.literal("log"), day: dayEnum, slot: slotEnum, dish: z.string(), calories: z.number().optional(), protein: z.number().optional() }),
   z.object({ op: z.literal("reserve"), day: dayEnum, slot: slotEnum, calories: z.number().optional() }),
   z.object({ op: z.literal("resize"), direction: z.enum(["much_smaller", "smaller", "bigger", "much_bigger"]), day: dayEnum.optional(), slot: slotEnum.optional() }),

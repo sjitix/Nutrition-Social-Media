@@ -277,7 +277,7 @@
       <div class="layer" id="L3">
         <div class="lab"><div class="id">L3</div><div class="nm">Plan engine</div><div class="pl">the decisions; the only thing that may change a plan</div></div>
         <div class="mods">
-          <div class="mod big"><div class="n">recipeDb</div><div class="s">11,061 lines · 18 / 24 public</div><div class="bar"><i style="width:75%"></i></div></div>
+          <div class="mod big"><div class="n">recipeDb</div><div class="s">3,317 lines (was 11,061) · 18 / 24 public</div><div class="bar"><i style="width:75%"></i></div></div>
           <div class="mod"><div class="n">→ plan/select</div><div class="s">after the split</div><div class="bar"><i style="width:100%"></i></div></div>
           <div class="mod"><div class="n">→ plan/rebalance</div><div class="s">after the split</div><div class="bar"><i style="width:100%"></i></div></div>
           <div class="mod"><div class="n">→ plan/batch</div><div class="s">after the split</div><div class="bar"><i style="width:100%"></i></div></div>
@@ -297,7 +297,7 @@
       <div class="layer" id="L1">
         <div class="lab"><div class="id">L1</div><div class="nm">Data</div><div class="pl">the facts: recipes, USDA values, tables</div></div>
         <div class="mods">
-          <div class="mod"><div class="n">recipe seeds</div><div class="s">501 recipes · 7,685 lines</div><div class="bar"><i style="width:100%"></i></div></div>
+          <div class="mod"><div class="n">data/seeds</div><div class="s">501 recipes · own file since A2 · imports nothing</div><div class="bar"><i style="width:100%"></i></div></div>
           <div class="mod"><div class="n">nutrientTable</div><div class="s">USDA · generated, never edited</div><div class="bar"><i style="width:100%"></i></div></div>
           <div class="mod"><div class="n">symptoms</div><div class="s">safety data</div><div class="bar"><i style="width:80%"></i></div></div>
           <div class="mod"><div class="n">substitutions</div><div class="s">2 / 2 public</div><div class="bar"><i style="width:100%"></i></div></div>
@@ -323,7 +323,7 @@
   <section id="recipedb">
     <div class="shead"><span class="eyebrow">The big one</span><span class="rule"></span></div>
     <h2>recipeDb.ts is three jobs sharing a file</h2>
-    <p class="lede">10,850 lines, 24 exports, 19 direct consumers — including UI pages, which is how the whole
+    <p class="lede">It was 10,850 lines (11,061 by October), 24 exports, 19 direct consumers — including UI pages, which is how the whole
       library reaches the browser.</p>
     <div class="split">
       <div style="width:71%;background:var(--accent)">71% · the 501 recipe seeds</div>
@@ -332,6 +332,13 @@
     </div>
     <p style="font-size:12.5px;color:var(--mut)">Lines 179–7863 are data · 7864–9010 selection, rebalancing and
       batch · 9011–10850 the executor and its note-writers.</p>
+    <div class="callout" style="border-color:var(--accent-line);background:var(--accent-soft)"><b>Part 1 done
+      (2026-10-03).</b> The 71% is out: the seeds and the recipe types are in
+      <span class="mono">src/lib/data/seeds.ts</span>, which imports nothing. <span class="mono">recipeDb.ts</span> is
+      now <b>3,317 lines</b>, and no importer changed. The computed library and a generated week fingerprint
+      identical before and after. <b>Decided on the way:</b> the module folders live under
+      <span class="mono">src/lib/</span>, so every <span class="mono">@/lib/…</span> import stays valid and the app's own
+      tree stays separate from the library.</div>
     <div class="callout">Split over <b>two days, data first</b>, each behind a barrel that re-exports today's
       eighteen consumed names unchanged — so <b>no importer is touched on either day</b>. The gate is that
       <span class="mono">test:engine</span> produces the same number of passes before and after: a split that

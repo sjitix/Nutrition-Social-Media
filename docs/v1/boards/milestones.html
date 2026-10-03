@@ -286,6 +286,11 @@
         <p class="desc">The 501 recipe seeds (≈7,685 lines, <b>71% of the file</b>) move to their own module;
           selection and rebalancing stay. A barrel re-exports today's eighteen consumed names unchanged, so
           <b>no call site is touched</b>.</p>
+        <div class="callout" style="margin:12px 0 0;border-color:var(--accent-line);background:var(--accent-soft)">
+          <b>Done 2026-10-03.</b> The recipes now live in their own file, <span class="mono">src/lib/data/seeds.ts</span>,
+          which depends on nothing. <span class="mono">recipeDb.ts</span> went from <b>11,062 to 3,317 lines</b> and
+          no other file had to change. Proven, not assumed: a fingerprint of all 501 computed recipes and of a generated
+          week came out <b>identical</b> before and after.</div>
         <div class="meta">
           <div><span class="k">Usable when</span><span class="mono">test:engine</span> returns an identical result and no importer changed.</div>
           <div><span class="k">Depends on</span>D1</div>
@@ -606,6 +611,14 @@ everything ─► D4 release</pre>
             <td class="mono">D5</td>
             <td><span class="pill open">open</span></td>
             <td>Ingredient <i>identity</i> in V1; the Lidl-style product layer first thing after it. Target 400 ingredients / 900 recipes.</td>
+          </tr>
+          <tr>
+            <td><b>When you swap one meal, may the app replace your other meals to keep your macros?</b> Today it may, and
+              it always says which. Saying &ldquo;just&rdquo; or &ldquo;only&rdquo; turns that off, and it offers instead.
+              The alternative: never replace anything you did not mention.</td>
+            <td class="mono">D9a</td>
+            <td><span class="pill open">open</span></td>
+            <td>Keep today's default &mdash; it is the vision's written rule &mdash; with every replacement named.</td>
           </tr>
         </tbody>
       </table>

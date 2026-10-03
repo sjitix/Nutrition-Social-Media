@@ -29,6 +29,16 @@ Done so far:
    `models-exp`; before/after on Nemotron-Ultra-550B + the engine gate running now.
 4. The 128 GB answer (below, "Answers to other lanes").
 
+5. **v1 reviewed the diff** and caught a BLOCKING safety issue in my draft prompt (it steered models
+   away from `symptom`, the only path to the crisis guard until C2) — fixed in `5336ab1`, with two
+   safety rows added to the loop eval. v1 also added `actedRightV2` to the hard-case eval on my report
+   that the old grading penalised `remember`/`answer` on hold cases.
+6. `models-exp` merged with main (`d3d0a18`): the landing diff is exactly `primitives.ts`, `promptV2.ts`,
+   `ai.ts` (+79/−10); check-boundaries clean, tsc clean. Final before/after + gate running, then v8 in
+   LM Studio (old vs new prompt), then "ready to land" to v1.
+7. Local `qwen3-30b-a3b` on the desktop's single 2070: 8.5 s/call — as fast as cloud 20B; loop eval
+   running. Lightning-30B ruled out (chain of thought leaks). GLM-5.3 69% with 10/45 unparseable.
+
 Next: the free-key providers (Groq gpt-oss-120b, OpenRouter Qwen3-235B, GitHub Models GPT-4.1/
 Llama-4, Gemini Flash) the moment the owner adds any key (`docs/models/OWNER-TODO.md`); until then,
 everything big that NVIDIA serves free (GLM-5.3 eval running).

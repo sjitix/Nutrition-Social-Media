@@ -935,12 +935,18 @@ const PROTEIN_SLACK = 8; // g/day we'll tolerate before reaching for lever 2
 // they have already EATEN today (log_meal). They are never rescaled or upgraded.
 // `avoidNames` are dishes used elsewhere in the week, so an upgrade doesn't create a
 // cross-day repeat.
+// `replaceOthers: false` turns lever 2 off: portions move, dishes do not. A change the user SCOPED
+// to one slot ("swap just Wednesday's dinner") is not permission to replace the others — that used
+// to replace breakfast and often lunch as well, in 24 of 24 probe scenarios (found by the models
+// lane's loop eval, 2026-10-03). Those callers offer the upgrade by name instead of making it.
 function rebalanceDay(
   meals: Meal[],
   profile: UserProfile,
   locked?: LockedSlots,
   avoidNames?: Set<string>,
+  opts: { replaceOthers?: boolean } = {},
 ): Meal[] {
+  if (opts.replaceOthers === false) return scaleToTargets(meals, profile, locked);
   let work = meals;
   const split = localSplit(profile.mealsPerDay);
   const cap = budgetCap(profile.budget);
@@ -1356,11 +1362,17 @@ function achievementNote(
   label: string,
   got: { kcal: number; protein: number; carbs?: number; fat?: number; fiber?: number },
   p: UserProfile,
+  // `keptByChoice`: the day was held by RESIZING only, because the user scoped the change to one
+  // slot. Then "the most these recipes allow" would be false — replacing another dish could do
+  // better, and the caller offers exactly that — so the shortfall is attributed to its real cause.
+  opts: { keptByChoice?: boolean } = {},
 ): string {
   let note = `${label} ${got.kcal} kcal and ${got.protein}g protein.`;
   const short = p.proteinGrams - got.protein;
   if (short > PROTEIN_MISS)
-    note += ` I couldn't reach ${p.proteinGrams}g protein within your diet, budget and time limits — ${got.protein}g is the most these recipes allow.`;
+    note += opts.keptByChoice
+      ? ` That's ${short}g under your ${p.proteinGrams}g protein target, keeping the other meals you had.`
+      : ` I couldn't reach ${p.proteinGrams}g protein within your diet, budget and time limits — ${got.protein}g is the most these recipes allow.`;
   // Calories were only ever reported, never admitted as missed. A user setting 4000 kcal was
   // told "your week averages 2100 kcal" as though that were success.
   const calMiss = got.kcal - p.targetCalories;
@@ -2638,6 +2650,10 @@ export function applyOperations(
           }
           const slot = op.mealType ?? match.type;
           let placedDays = 0;
+          const scopedWeek = op.keepOtherMeals === true;
+          // Meals OTHER than the swapped slot that the rebalancer replaced, across the week. This path
+          // used to do that SILENTLY; replacing what the user did not mention is only acceptable said aloud.
+          const replacedWeek: string[] = [];
           for (const day of DAYS) {
             const origDay = curPlan.days.find((d) => d.day === day);
             if (!origDay) continue;
@@ -2654,9 +2670,14 @@ export function applyOperations(
             const dayShare = localSplit(p.mealsPerDay).find((s) => s[0] === match.type)?.[1] ?? 1 / p.mealsPerDay;
             const dish = toMeal(scaleRecipeToTarget(match, Math.round(p.targetCalories * dayShare)));
             const swapped = origDay.meals.map((m) => (m.type === match.type ? dish : m));
+            // Scoped ("just the dinners"): resize the others, never replace them. Default: the macro-
+            // preservation rebalance, which may replace a meal — collected so the note can say so.
             const newMeals = keepMacros(op)
-              ? rebalanceDay(swapped, p, new Set([match.type, ...lockedSlotsFor(p, day)]), namesOnOtherDays(curPlan, day, p))
+              ? rebalanceDay(swapped, p, new Set([match.type, ...lockedSlotsFor(p, day)]), namesOnOtherDays(curPlan, day, p), { replaceOthers: !scopedWeek })
               : swapped;
+            for (const nm of newMeals)
+              if (nm.type !== match.type && !origDay.meals.some((om) => om.type === nm.type && om.name === nm.name))
+                replacedWeek.push(`${day} ${nm.type} to ${nm.name}`);
             curPlan = { ...curPlan, days: curPlan.days.map((d) => (d.day === day ? { ...d, meals: newMeals } : d)) };
             placedDays++;
           }
@@ -2673,7 +2694,14 @@ export function applyOperations(
           notes.push(placedDays === DAYS.length
             ? `Set ${match.name} as your ${slot} every day.`
             : `Set ${match.name} as your ${slot} on the ${placedDays} day${placedDays === 1 ? "" : "s"} that have one.`);
-          if (keepMacros(op)) notes.push(achievementNote("Your week now averages", weekAveragesFull(curPlan), p));
+          if (keepMacros(op)) {
+            // Scoped = resizing only, so a shortfall is the cost of keeping the other meals, not a
+            // limit of the library.
+            let note = achievementNote("Your week now averages", weekAveragesFull(curPlan), p, { keptByChoice: scopedWeek });
+            if (replacedWeek.length)
+              note += ` To hold your macros I also changed ${replacedWeek.length} other meal${replacedWeek.length === 1 ? "" : "s"}: ${replacedWeek.slice(0, 3).join(", ")}${replacedWeek.length > 3 ? ", and more" : ""}.`;
+            notes.push(note);
+          }
           break;
         }
         // Macro-aware pick: matches the requested dish, tie-broken toward the slot's
@@ -2726,30 +2754,42 @@ export function applyOperations(
           notes.push(`I didn't have "${op.dish}" — I used ${match.name} instead.`);
 
         const swapped = origDay.meals.map((m) => (m.type === match.type ? meal : m));
-        // Keep the day on its macro targets by rebalancing the OTHER meals — the
-        // swapped-in dish stays as the user requested (locked).
+        // Keep the day on its macro targets by rebalancing the OTHER meals — the swapped-in dish stays
+        // as the user requested (locked). By default that may REPLACE another meal when resizing
+        // cannot hold protein (the macro-preservation default in VISION.md), and the note says so.
+        // When the user scoped the change ("just the dinner"), keepOtherMeals makes it resize-only.
+        const scoped = op.keepOtherMeals === true;
+        const scopedLocked = new Set([match.type, ...lockedSlotsFor(p, op.day)]);
+        const avoid = namesOnOtherDays(curPlan, op.day, p);
         const newMeals = keepMacros(op)
-          ? rebalanceDay(swapped, p, new Set([match.type, ...lockedSlotsFor(p, op.day)]), namesOnOtherDays(curPlan, op.day, p))
+          ? rebalanceDay(swapped, p, scopedLocked, avoid, { replaceOthers: !scoped })
           : swapped;
         curPlan = {
           ...curPlan,
           days: curPlan.days.map((d) => (d.day === op.day ? { ...d, meals: newMeals } : d)),
         };
         if (keepMacros(op)) {
-          // Meals the engine upgraded (a non-locked dish whose name changed) to fit
-          // the requested dish in while holding macros.
-          const bumped = newMeals.filter(
-            (nm) =>
-              nm.type !== match.type &&
-              !origDay.meals.some((om) => om.type === nm.type && om.name === nm.name),
-          );
           // Disclose the day's ACTUAL macros (the same achievementNote the regenerate and whole-week
-          // swap paths use) instead of an unconditional "Kept on target". The rebalance holds the
-          // OTHER meals to target, but a large requested dish can still push the day off — and
-          // claiming "on target" when it isn't is the exact dishonesty the two-layer design forbids.
-          // This was the sibling the whole-week path had already been fixed for.
+          // swap paths use) instead of an unconditional "Kept on target". A large or lean requested
+          // dish can push the day off target, and claiming "on target" when it isn't is the exact
+          // dishonesty the two-layer design forbids.
           const finalDay = curPlan.days.find((d) => d.day === op.day);
-          if (finalDay) {
+          if (finalDay && scoped) {
+            // What replacing another dish WOULD have bought, offered by name rather than done. The
+            // same rebalance with lever 2 on, compared against the swap the user actually asked for.
+            const offer = rebalanceDay(swapped, p, scopedLocked, avoid).filter(
+              (nm) => nm.type !== match.type && !swapped.some((sm) => sm.type === nm.type && sm.name === nm.name),
+            );
+            let note = achievementNote(`${op.day} now has`, dayTotalsFull(finalDay), p, { keptByChoice: offer.length > 0 });
+            if (offer.length)
+              note += ` If you'd like protein closer to target, I could swap your ${offer.map((o) => `${o.type} to ${o.name}`).join(" and your ")} — just say so.`;
+            notes.push(note);
+          } else if (finalDay) {
+            // Meals the engine replaced (a non-locked dish whose name changed) to hold the macros.
+            // Never silent: replacing something the user did not mention is only acceptable said aloud.
+            const bumped = newMeals.filter(
+              (nm) => nm.type !== match.type && !origDay.meals.some((om) => om.type === nm.type && om.name === nm.name),
+            );
             let note = achievementNote(`${op.day} now has`, dayTotalsFull(finalDay), p);
             if (bumped.length)
               note += ` I bumped your ${bumped.map((b) => `${b.type} to ${b.name}`).join(" and ")} to make room.`;

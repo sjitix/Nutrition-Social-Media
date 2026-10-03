@@ -68,10 +68,10 @@ never blocks on the owner): `docs/models/OWNER-TODO.md`.
   lane file. **Does not edit** `promptV2.ts` / `ai.ts` / `agentLoop.ts` / `eval-hardcases.mts` (v1's) —
   runs them, and asks v1 before landing any change to them on `main`. Touches no accounts files.
 
-### >>> V1 LANE — 2026-10-03 (afternoon): Day 1 DONE (`check:boundaries`). TRACK A IS NOW A GATE. Next: Day 2. <<<
+### >>> V1 LANE — 2026-10-03 (night): Days 1 + 2 DONE, swap fix LANDED (`5cab547`). TRACK A IS A GATE. Next: land the models lane's diff, then Day 3. <<<
 
-**State:** `main` pushed (`4e3be01` + docs). `check:boundaries` passes (0 new, **9 known debts**) ·
-`test:engine` **660/0** · `test:ui` **51/0** · `test:api` **60/0** · `tsc` clean. Live lane status:
+**State:** `main` pushed (`5cab547` + docs). `check:boundaries` passes (0 new, **9 known debts**) ·
+`test:engine` **680/0** · `test:ui` **51/0** · `test:api` **60/0** · `tsc` clean. Live lane status:
 `docs/parallel/lane-v1.md`. **Dev server: UP on :3000** (pid 800) — stop it before any `npm run build`.
 
 #### 0. READ THIS FIRST — the owner's ruling, found two weeks late
@@ -120,9 +120,34 @@ C4**, every Track E button gets a chat primitive. Reasoning: `02-module-map.md` 
   v1's; answer its asks when they come (likely first: the over-act prompt fix). Tell it when any of
   those, the assistant routes or the primitives' contract change.
 
-**NEXT: V1 Day 2 — A2, split `recipeDb.ts` part 1: the 501 seeds out of the engine**, behind a
-barrel so no call site changes. Gate: `test:engine` **660/0 identical**, `check:boundaries` 0 new.
-Run `npm run check:boundaries` before AND after — a split that points a dependency upward fails it.
+- **D2 done** — the seeds are in `src/lib/data/seeds.ts` (imports nothing); `recipeDb.ts` 11,062 →
+  3,317 lines; fingerprint of the computed library + a seeded week identical before/after. Module
+  folders live under **`src/lib/`** (decided). **Add a recipe in `data/seeds.ts` now.**
+- **`eval-hardcases.mts` reports `actedRightV2`** beside v1 (a hold may `remember`/`answer`); v1 kept
+  so the 84% baseline stays comparable.
+
+- **Swap fix — LANDED `5cab547`, test:engine 680/0.** The FIRST version made every swap resize-only and the engine gate rejected it, rightly — an
+  existing "oatmeal, but keep me on my macros" scenario encodes VISION's owner-written rule that
+  edits may replace other meals to hold macros (WORKPLAN **lesson 51**). Shipped version: new
+  `Operation.keepOtherMeals` / primitive `swap {only: true}` → resize-only + a named offer;
+  the default still may replace, but **never silently** (the whole-week path had replaced 11 meals
+  unannounced). `achievementNote` gained `keptByChoice`. ~15 tests in a SCOPED CHANGES block.
+  **Owner decision #7 raised** (`01-…md` §5): should a PLAIN swap replace other meals at all?
+- **Models lane finding for the beta decision:** `ai.ts`'s `localStructuredChat` gives up after
+  ~12 s of HTTP 429s (3 attempts, 2 s / 4 s back-off), so on a free hosted tier a handful of
+  concurrent users get "assistant offline". Not acted on — it decides the beta's provider plan (a
+  queue/longer back-off, or a second provider for overflow). They are documenting numbers in
+  `docs/models/`.
+
+**NEXT, in order:**
+1. ~~Confirm the swap fix landed~~ — done, `5cab547`, and the models lane has the sha; they add the
+   `only` line to `promptV2` in `models-exp` (agreed wording in `lane-v1.md`) before "ready to land".
+2. **Land the models lane's read-tool diff** (`origin/models-exp`, = `d3d0a18`, merged up to date;
+   3 files: `primitives.ts`, `promptV2.ts`, `ai.ts`) when they send "ready to land". Reviewed: the
+   safety bullet was fixed in `5336ab1`. Land it in its own commit, between Track A days.
+3. **V1 Day 3 — A3, the executor out**: `applyOperations` + `previewOperations` + their note-writers
+   (`recipeDb.ts` ~1266–3212) → `src/lib/plan/execute.ts`; the selection privates it uses become
+   folder-internal exports, NOT barrel exports. Gate: `test:engine` identical, `check:boundaries`.
 
 #### 2. TRACK E IS COMPLETE — what the app can now do with NO model
 

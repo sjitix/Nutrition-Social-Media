@@ -1289,6 +1289,21 @@ Each of these was discovered by doing the work, and each earned its place.
     `docs/v1/boards/README.md` is step one of every session, before choosing what to work on. A
     direction the owner gave and nobody read is worse than none — work proceeds confidently against it.
 
+51. **A bug report about one sentence is not a mandate to change the default for everyone — and a
+    test that fails on your fix may be the owner's decision talking.** "Swap JUST Wednesday's dinner"
+    replaced breakfast too, so the first fix made EVERY swap resize-only — and even wrote that into
+    VISION.md as "decided". The engine gate rejected it on an existing scenario, "oatmeal for
+    breakfast, but keep me on my macros" (protein 150 → 122 g). That test was not in the way; it was
+    the evidence. VISION's constraint layer 2 is the owner's written rule that edits rebalance
+    "portions/other meals as needed", and the bug was really that the user had **no way to say
+    "just"** — not that the rule was wrong. The right fix added the missing signal (`keepOtherMeals`
+    / `only`), kept the default, made the default never silent (the whole-week path had been replacing
+    11 meals unannounced), and raised the default itself to the owner as a question. **When a fix
+    turns a test red, read the test's user story before touching either; if it encodes a direction
+    the owner wrote, the fix narrows, it does not override.** And a document is not where a decision
+    gets made: writing "decided" into VISION for a call the owner had not made was the second half of
+    the same mistake.
+
 ---
 
 ## 4. Training track (runs in parallel, never blocked by the above)

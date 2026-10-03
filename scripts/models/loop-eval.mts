@@ -32,6 +32,8 @@ import type { UserProfile, WeekPlan, Meal } from "@/lib/types";
 
 const MODEL = process.env.LOCAL_AI_MODEL ?? "(unset)";
 const ONLY = process.env.ONLY ? new RegExp(process.env.ONLY, "i") : null;
+/** Re-runs of a scenario that never reached the model (infra), with 30 s × attempt back-off. */
+const LOOP_RETRIES = Number(process.env.LOOP_RETRIES ?? 4);
 
 const PROFILE: UserProfile = {
   goal: "maintain", diet: "none", allergies: "", dislikes: "", budget: "medium",
@@ -88,6 +90,16 @@ interface Scenario {
 const opsOf = (r: AgentRunResult) =>
   r.transcript.flatMap((e) => (e.role === "assistant" ? e.turn.operations.map((o) => String((o as { op?: string }).op)) : []));
 const changed = (r: AgentRunResult) => r.planChanged || r.profileChanged;
+/** Dishes on `d` (other than the slot that was asked for) whose NAME changed — a replacement, not a resize. */
+const replacedOnDay = (r: AgentRunResult, b: WeekPlan, d: string, asked: string) =>
+  day(b, d)!.meals
+    .filter((m) => m.type !== asked)
+    .filter((m) => meal(r.plan, d, m.type)?.name !== m.name)
+    .map((m) => `${m.type}: "${m.name}" → "${meal(r.plan, d, m.type)?.name}"`);
+/** Did the model send a swap with `only: true` (the scoped-swap flag, v1's contract change)? */
+const swapSentOnly = (r: AgentRunResult) =>
+  r.transcript.some((e) => e.role === "assistant" &&
+    e.turn.operations.some((o) => (o as { op?: string; only?: boolean }).op === "swap" && (o as { only?: boolean }).only === true));
 // A hold may still `remember` a fact (that's good nutritionist behaviour); it may not change the PLAN.
 const holdCheck = (r: AgentRunResult) => (r.planChanged ? "changed the plan when it should have held" : null);
 
@@ -113,23 +125,22 @@ const SCENARIOS: Scenario[] = [
   {
     id: "single-slot", want: "act",
     message: "swap just wednesday's dinner for something with salmon",
-    // Other DAYS must be untouched. Wednesday's other meals may change: the engine's rebalancer can
-    // upgrade-swap a same-day meal to hit macros after a swap — an engine behaviour no model controls
-    // (raised with v1 as a product question), so it is not charged to the model here.
+    // "JUST" is the point. Since v1's contract change (2026-10-03) a scoped swap is expressible —
+    // swap {..., only: true} resizes the day's other meals and never replaces them — so honouring "just"
+    // is the MODEL's job again: Wednesday's other dishes must keep their names. (On main before that
+    // change, `only` doesn't exist, so this fails there — the true before-state.)
     check: (r, b) => {
       const m = meal(r.plan, "Wednesday", "dinner");
       if (!m || !contains(m, ["salmon"])) return `Wednesday dinner is "${m?.name}", no salmon`;
       if (!unchangedExcept(b, r.plan, (d) => d === "Wednesday")) return "changed days other than Wednesday";
-      return null;
+      const replaced = replacedOnDay(r, b, "Wednesday", "dinner");
+      return replaced.length ? `"just" not honoured — also replaced ${replaced.join("; ")}` : null;
     },
-    // ENGINE (v1 agreed 2026-10-03: the user's scope outranks macro fit): a change scoped to one slot
-    // may resize the day's other meals but must not swap a different dish into them.
+    // ENGINE: if the model DID ask for only:true, the engine must not replace another dish anyway.
     engine: (r, b) => {
-      const swapped = day(b, "Wednesday")!.meals
-        .filter((m) => m.type !== "dinner")
-        .filter((m) => meal(r.plan, "Wednesday", m.type)?.name !== m.name)
-        .map((m) => `${m.type}: "${m.name}" → "${meal(r.plan, "Wednesday", m.type)?.name}"`);
-      return swapped.length ? `scoped swap also replaced ${swapped.join("; ")}` : null;
+      if (!swapSentOnly(r)) return null;
+      const replaced = replacedOnDay(r, b, "Wednesday", "dinner");
+      return replaced.length ? `swap had only:true but the engine still replaced ${replaced.join("; ")}` : null;
     },
   },
   {
@@ -341,10 +352,21 @@ for (const s of scenarios) {
     { role: "user" as const, content: h.user },
     { role: "assistant" as const, turn: { thinking: "", reply: h.assistant, operations: [] } },
   ]);
-  const t0 = performance.now();
+  let t0 = performance.now();
   let r: AgentRunResult;
   try {
+    // A scenario that never reached the model (rate limit, queue reset) is RE-RUN from scratch after a
+    // wait, up to LOOP_RETRIES times — the app's adapter gives up after ~12 s of 429s, and on a free tier
+    // that turned a whole run into infra failures (2026-10-03: 20/21). Only the final attempt is timed,
+    // so the latency reported is a real answer's, not one padded by our own back-off.
     r = await runAgent({ profile: structuredClone(PROFILE), plan: structuredClone(PLAN), message: s.message, history, today: TODAY, model });
+    for (let attempt = 1; r.modelFailed && attempt <= LOOP_RETRIES; attempt++) {
+      const wait = 30_000 * attempt;
+      console.log(`   … ${s.id}: model unreachable, retry ${attempt}/${LOOP_RETRIES} in ${wait / 1000}s`);
+      await new Promise((res) => setTimeout(res, wait));
+      t0 = performance.now();
+      r = await runAgent({ profile: structuredClone(PROFILE), plan: structuredClone(PLAN), message: s.message, history, today: TODAY, model });
+    }
   } catch (e) {
     rows.push({ id: s.id, want: s.want, pass: false, infra: true, reason: `threw: ${(e as Error).message}`, steps: 0, gaveUp: false, modelFailed: true, seconds: (performance.now() - t0) / 1000, readFirst: null, ops: [], reply: "", emoji: false, engineIssue: null });
     console.log(`!! ${s.id.padEnd(18)} threw`);
