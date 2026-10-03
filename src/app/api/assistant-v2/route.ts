@@ -89,15 +89,17 @@ export async function POST(request: Request) {
         : { role: "assistant", turn: { thinking: "", reply: m.text, operations: [] } },
     );
 
+    // One date for both: the engine (logging, eating out) and the model's prompt ("today is Monday…").
+    const today = new Date().toISOString().slice(0, 10);
     const result = await runAgent({
       profile,
       plan: body.plan,
       message,
       history,
       saved: body.saved,
-      today: new Date().toISOString().slice(0, 10),
+      today,
       previous: body.previous,
-      model: agentModelFn(),
+      model: agentModelFn({ today }),
     });
 
     await logRun({

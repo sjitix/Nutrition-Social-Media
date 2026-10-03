@@ -903,7 +903,9 @@ function transcriptToTurns(transcript: import("./agentLoop").TranscriptEntry[]):
  * not from the state the turn began with. After a write the week has changed, and a prompt built
  * from the starting state would have the model reasoning about a week that no longer exists.
  */
-export function agentModelFn(): import("./agentLoop").ModelFn {
+export function agentModelFn(opts: { today?: string } = {}): import("./agentLoop").ModelFn {
+  // `today` (ISO date) reaches the prompt through the factory, so ModelFn's shape stays unchanged.
+  const promptOpts = { agent: true, today: opts.today };
   return async (transcript, _step, state) => {
     const p = withTargetDefaults(state.profile);
     const turns = transcriptToTurns(transcript).slice(-16);
@@ -914,7 +916,7 @@ export function agentModelFn(): import("./agentLoop").ModelFn {
       return localStructuredChat(
         AgentTurnSchema,
         "agent_turn",
-        [{ role: "system", content: assistantV2SystemPrompt(p, state.plan, { agent: true }) }, ...turns],
+        [{ role: "system", content: assistantV2SystemPrompt(p, state.plan, promptOpts) }, ...turns],
         0,
         // Double cast ON PURPOSE: AgentTurn types operations as PrimitiveOp[], but read ops are not
         // PrimitiveOps. The loop routes them by name (isReadTool) and never hands them to the engine, so
@@ -927,7 +929,7 @@ export function agentModelFn(): import("./agentLoop").ModelFn {
     const response = await client.messages.parse({
       model: CLAUDE_MODEL,
       max_tokens: 2000,
-      system: assistantV2SystemPrompt(p, state.plan, { agent: true }),
+      system: assistantV2SystemPrompt(p, state.plan, promptOpts),
       messages: turns,
       output_config: { format: zodOutputFormat(AgentTurnSchema) },
     });
