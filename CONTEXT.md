@@ -176,8 +176,9 @@ uncommitted in this folder's working tree:
    land the two bug fixes alone through the full gate. Worktree `../NutriFlow-v1fix` holds the branch
    (node_modules is a junction: `cmd /c rmdir` it before `git worktree remove`).
 3. **Open, from the models lane:** "lighter meals on the weekend please" became a bare day constrain (a
-   same-calorie re-plan). Proposed: a prompt line in their wording branch ("lighter" = resize smaller on
-   those days), not an engine no-op; ask them. Their wording branch (`eb6e7d0`) is NOT ready to land.
+   same-calorie re-plan). Agreed: a prompt line, not an engine no-op. It is IN their wording branch
+   (`models-wording` `cf89758`: "lighter"/"smaller" on some days = `resize smaller` per day, never a bare
+   constrain), unmeasured, and NOT ready to land until it passes their held-out test (they will send "ready").
    After the gate commit lands, also: CONTEXT/lane/worklog/boards for it, and tell the accounts lane about
    their three old-path debts.
 
