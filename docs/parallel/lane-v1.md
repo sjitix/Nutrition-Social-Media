@@ -117,7 +117,12 @@ In order this session:
 
 *(the accounts agent: if you need one of these, message me first)*
 
-**Nothing open (2026-10-03, 20:45).** D5a is on main (`c50d58d`, `cc38524`, `1dff171`): `src/lib` lives in folders
+**Shut down for the night (2026-10-03).** In flight, on the pushed branch `wip/v1-handoff-2026-10-03`: the
+boundary-gate hardening (adds an `old-path:` rule — your `storage.ts` → `./types`, `./import` and
+`account/validate.ts` → `../slots` are listed as YOUR debts; every name is in `core/client`), and the
+multi-day swap + remember false-claim fixes. Fast finish stays held for the models lane.
+
+**Earlier (2026-10-03, 20:45).** D5a is on main (`c50d58d`, `cc38524`, `1dff171`): `src/lib` lives in folders
 behind barrels, and **every old flat path is a one-line `export *`**, so nothing of yours broke. **Import a folder
 through its barrel** (`@/lib/assistant`, `@/lib/nutrition`, or `@/lib/<folder>/client` from a client component);
 `check:boundaries` fails a deep import from `src/`. **`package.json` now declares `"sideEffects": ["*.css"]`** —

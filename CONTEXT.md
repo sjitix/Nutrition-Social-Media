@@ -155,7 +155,29 @@ held-out wording test.** Day record: `docs/worklog/2026-10-03-models.md`. Live s
 - **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`,
   `docs/worklog/*-models.md`, this block, the lane file. Does not edit v1's files; asks v1 first.
 
-### >>> V1 LANE — 2026-10-03 ~20:45: TRACK A DONE except the shims — D1–D5, D5a (folders + barrels) and D5b all landed. Next: LOCAL_AI_EXTRA_BODY, the D5a review's findings, then the models lane's fast finish + wording when they say "ready". <<<
+### >>> V1 LANE — 2026-10-03 night: SHUT DOWN — see RESUME HERE. TRACK A DONE except the shims. <<<
+
+**RESUME HERE (shutdown, 2026-10-03 night).** `LOCAL_AI_EXTRA_BODY` landed (`45a0c12`). Everything else is on
+the pushed branch **`wip/v1-handoff-2026-10-03`** (two commits on `c9208df`), AND the first one is still
+uncommitted in this folder's working tree:
+1. **`c428c4e` — check:boundaries hardened by the D5a review** (TypeScript's own resolver, old-path imports
+   from src/ are rule 2, zod followed by rule 4, rules 7 + 8, debt keyed on names, self-test 41/0;
+   `DEFAULT_TARGETS` → `core/defaults.ts`; `ship.mjs` type-checks scripts/ via `tsconfig.scripts.json`).
+   Fingerprint identical, tsc (src + scripts) clean, boundaries green. Its full gate was STOPPED halfway
+   for the shutdown (476 checks passed, none failed). **To land:** `node scripts/ship.mjs --message-file
+   <its message> -- <its 17 paths>` from this folder (paths: `git show --stat c428c4e`).
+2. **`de1a102` — WIP, full suite not run:** the multi-day swap fix (a swap over Wed–Sun replaced all seven
+   days), the false-claim guard missing a claim that rides on `remember`, and the native fast finish. New
+   test sections pass in isolation. **The models lane says HOLD the fast finish** until their arms B/C
+   (one clock, one commit): split it out (agentLoop.ts's FAST FINISH block, `fastFinished`, its tests),
+   land the two bug fixes alone through the full gate. Worktree `../NutriFlow-v1fix` holds the branch
+   (node_modules is a junction: `cmd /c rmdir` it before `git worktree remove`).
+3. **Open, from the models lane:** "lighter meals on the weekend please" became a bare day constrain (a
+   same-calorie re-plan). Proposed: a prompt line in their wording branch ("lighter" = resize smaller on
+   those days), not an engine no-op; ask them. Their wording branch (`eb6e7d0`) is NOT ready to land.
+   After the gate commit lands, also: CONTEXT/lane/worklog/boards for it, and tell the accounts lane about
+   their three old-path debts.
+
 
 **D5a — DONE** (`c50d58d` the move, `cc38524` two contracts to `core/`, `1dff171` the barrels; test:engine 924/0).
 `src/lib` is `core/ data/ nutrition/ plan/ assistant/ providers/ presentation/`, each with an `index.ts` carrying
