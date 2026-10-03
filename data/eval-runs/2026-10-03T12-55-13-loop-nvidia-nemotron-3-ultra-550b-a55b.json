@@ -1,0 +1,88 @@
+{
+  "kind": "loop-eval",
+  "ranAt": "2026-10-03T12:55:13.382Z",
+  "model": "nvidia/nemotron-3-ultra-550b-a55b",
+  "endpoint": "https://integrate.api.nvidia.com/v1",
+  "maxSteps": 8,
+  "prompt": {
+    "sha": "6c0016f97ea1",
+    "agentSection": true,
+    "howToDecide": true,
+    "label": "date-0341df5"
+  },
+  "summary": {
+    "scenarios": 3,
+    "infraFailures": 0,
+    "trustworthy": true,
+    "pass": 0,
+    "passRate": 0,
+    "actPass": "0/3",
+    "holdPass": "0/0",
+    "readBeforeWrite": "0/0",
+    "gaveUp": 0,
+    "emojiReplies": 0,
+    "engineIssues": [],
+    "meanSteps": 1.67,
+    "medianSecondsPerMessage": 17.5613726,
+    "p90SecondsPerMessage": 19.618992500000008,
+    "maxSecondsPerMessage": 19.618992500000008
+  },
+  "rows": [
+    {
+      "id": "eat-out-future",
+      "want": "act",
+      "pass": false,
+      "infra": false,
+      "reason": "Friday dinner not reserved (\"Turkey & Bean Chilli\")",
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 17.5613726,
+      "readFirst": null,
+      "ops": [
+        "resize"
+      ],
+      "reply": "Made Friday dinner smaller. Friday now comes to 1935 kcal against your 2000 kcal target.",
+      "emoji": false,
+      "engineIssue": null,
+      "writes": "[{\"op\":\"resize\",\"direction\":\"smaller\",\"day\":\"Friday\",\"slot\":\"dinner\"}]"
+    },
+    {
+      "id": "log-today",
+      "want": "act",
+      "pass": false,
+      "infra": false,
+      "reason": "Monday lunch not logged (\"Cheeseburger & Fries\")",
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 19.618992500000008,
+      "readFirst": null,
+      "ops": [
+        "log"
+      ],
+      "reply": "Logged Cheeseburger & Fries (769 kcal) for lunch. I re-solved the rest of Monday: it now lands at 2000 kcal and 156g protein.",
+      "emoji": false,
+      "engineIssue": null,
+      "writes": "[{\"op\":\"log\",\"day\":\"Monday\",\"slot\":\"lunch\",\"dish\":\"Big burger and fries\"}]"
+    },
+    {
+      "id": "rate",
+      "want": "act",
+      "pass": false,
+      "infra": false,
+      "reason": "no high rating recorded for \"Peanut Butter Banana Shake Bowl\"",
+      "steps": 1,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 4.393679500000013,
+      "readFirst": null,
+      "ops": [],
+      "reply": "Which days would you like the Peanut Butter Banana Shake Bowl on — every day, or just a few specific days?",
+      "emoji": false,
+      "engineIssue": null,
+      "writes": "[]"
+    }
+  ],
+  "variant": "models-exp-date 0341df5 (date line) — ONLY log-today|eat-out-future|rate; graded with the OLD log check (log-today actually logged: Cheeseburger & Fries)"
+}

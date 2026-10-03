@@ -1,0 +1,72 @@
+{
+  "kind": "convo-eval",
+  "ranAt": "2026-10-03T12:57:57.280Z",
+  "model": "nvidia/nemotron-3-ultra-550b-a55b",
+  "endpoint": "https://integrate.api.nvidia.com/v1",
+  "prompt": {
+    "sha": "6c0016f97ea1",
+    "agentSection": true,
+    "howToDecide": true,
+    "label": "date-0341df5"
+  },
+  "summary": {
+    "conversations": 1,
+    "infraFailures": 0,
+    "trustworthy": true,
+    "pass": 0,
+    "passRate": 0,
+    "turnsPassed": "1/2",
+    "secondTurnsPassed": "1/1",
+    "bySkill": {
+      "date": "0/1"
+    },
+    "gaveUp": 0,
+    "emojiReplies": 0,
+    "medianSecondsPerTurn": 20.8,
+    "p90SecondsPerTurn": 20.8,
+    "maxSecondsPerTurn": 20.8
+  },
+  "rows": [
+    {
+      "id": "log-then-tonight",
+      "skill": "date",
+      "pass": false,
+      "infra": false,
+      "turns": [
+        {
+          "user": "i had a massive pizza for lunch today",
+          "want": "act",
+          "pass": false,
+          "infra": false,
+          "reason": "Monday lunch not logged (\"Pepperoni & Mozzarella Pizza\")",
+          "steps": 2,
+          "gaveUp": false,
+          "seconds": 20.762943600000007,
+          "ops": [
+            "log"
+          ],
+          "writes": "[{\"op\":\"log\",\"day\":\"Monday\",\"slot\":\"lunch\",\"dish\":\"massive pizza\"}]",
+          "reply": "Logged Pepperoni & Mozzarella Pizza (712 kcal) for lunch. I re-solved the rest of Monday: it now lands at 2000 kcal and 150g protein.",
+          "emoji": false
+        },
+        {
+          "user": "go easy on dinner tonight then",
+          "want": "act",
+          "pass": true,
+          "infra": false,
+          "reason": null,
+          "steps": 2,
+          "gaveUp": false,
+          "seconds": 9.66026919999998,
+          "ops": [
+            "resize"
+          ],
+          "writes": "[{\"op\":\"resize\",\"direction\":\"smaller\",\"day\":\"Monday\",\"slot\":\"dinner\"}]",
+          "reply": "Made Monday dinner smaller. Monday now comes to 1930 kcal against your 2000 kcal target.",
+          "emoji": false
+        }
+      ]
+    }
+  ],
+  "variant": "models-exp-date 0341df5 (date line) — ONLY log-then-tonight; graded with the OLD log check (turn 1 actually logged the pizza)"
+}

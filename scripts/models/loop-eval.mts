@@ -111,6 +111,17 @@ const replacedOnDay = (r: AgentRunResult, b: WeekPlan, d: string, asked: string)
 const swapSentOnly = (r: AgentRunResult) =>
   r.transcript.some((e) => e.role === "assistant" &&
     e.turn.operations.some((o) => (o as { op?: string; only?: boolean }).op === "swap" && (o as { only?: boolean }).only === true));
+/** A meal was logged into that slot. The engine marks a free-form meal "Logged by you.", but when the
+ *  dish matches a library recipe ("big burger and fries" → Cheeseburger & Fries) the recipe keeps its own
+ *  description, so a `log` op for the slot that changed the dish counts too. (The first version of this
+ *  check failed the 550B for logging correctly, 2026-10-03.) */
+const loggedOn = (r: AgentRunResult, b: WeekPlan, d: string, t: string) =>
+  /Logged by you/i.test(meal(r.plan, d, t)?.description ?? "") ||
+  (meal(r.plan, d, t)?.name !== meal(b, d, t)?.name &&
+    r.transcript.some((e) => e.role === "assistant" && e.turn.operations.some((o) => {
+      const x = o as { op?: string; day?: string; slot?: string };
+      return x.op === "log" && x.day === d && x.slot === t;
+    })));
 // A hold may still `remember` a fact (that's good nutritionist behaviour); it may not change the PLAN.
 const holdCheck = (r: AgentRunResult) => (r.planChanged ? "changed the plan when it should have held" : null);
 
@@ -246,8 +257,7 @@ const SCENARIOS: Scenario[] = [
     // TODAY is a Monday. Fails on any model if the prompt never tells it the date — tracked on purpose.
     id: "log-today", want: "act",
     message: "welp, i already smashed a big burger and fries for lunch today",
-    check: (r) => /Logged by you/i.test(meal(r.plan, "Monday", "lunch")?.description ?? "")
-      ? null : `Monday lunch not logged ("${meal(r.plan, "Monday", "lunch")?.name}")`,
+    check: (r, b) => (loggedOn(r, b, "Monday", "lunch") ? null : `Monday lunch not logged ("${meal(r.plan, "Monday", "lunch")?.name}")`),
   },
   {
     id: "pin", want: "act",

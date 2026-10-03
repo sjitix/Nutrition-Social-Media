@@ -16,7 +16,8 @@
  *   - it keeps a running total of PURE upstream seconds — time the model actually spent — exposed at
  *     GET /stats, so the loop eval can subtract the pacing it added and report honest latency;
  *   - every request is appended to LOG as a JSON line.
- * Nothing else is altered: the body goes up untouched and the answer comes back untouched.
+ * Nothing else is altered: the body goes up untouched (unless INJECT is set, below) and the answer comes
+ * back untouched.
  */
 import { createServer } from "node:http";
 import { appendFileSync, mkdirSync } from "node:fs";
@@ -28,6 +29,11 @@ let gapMs = Number(process.env.GAP_MS ?? 35000);
 const MAX_TRIES = Number(process.env.MAX_TRIES ?? 8);
 const LOG = process.env.LOG ?? join(process.cwd(), "data", "eval-runs", `pace-proxy-${new Date().toISOString().slice(0, 10)}.jsonl`);
 mkdirSync(dirname(LOG), { recursive: true });
+// INJECT='{"chat_template_kwargs":{"enable_thinking":false}}' merges fields into every chat request, so
+// a REQUEST-level setting (reasoning off, a reasoning effort) can be measured through the app's own
+// adapter and both evals before any app code changes. Added 2026-10-03: reasoning off cut a 550B call
+// on our prompt from 27 s to 4 s, and whether it costs quality has to be measured, not assumed.
+const INJECT = process.env.INJECT ? JSON.parse(process.env.INJECT) : null;
 
 const stats = { requests: 0, upstreamCalls: 0, rateLimited: 0, failed: 0, upstreamSeconds: 0 };
 let lastStart = 0;
@@ -78,8 +84,11 @@ createServer(async (req, res) => {
   }
   const chunks = [];
   for await (const c of req) chunks.push(c);
-  const body = chunks.length ? Buffer.concat(chunks).toString("utf8") : undefined;
+  let body = chunks.length ? Buffer.concat(chunks).toString("utf8") : undefined;
   const path = (req.url ?? "/").replace(/^\/v1/, "");
+  if (INJECT && body && path.startsWith("/chat/completions")) {
+    try { body = JSON.stringify({ ...JSON.parse(body), ...INJECT }); } catch { /* not JSON — forward untouched */ }
+  }
   const headers = { "content-type": "application/json" };
   if (req.headers.authorization && process.env.PASS_AUTH === "1") headers.authorization = req.headers.authorization; // keyless by default
   stats.requests++;
@@ -88,4 +97,4 @@ createServer(async (req, res) => {
   const out = await job;
   res.writeHead(out.status, { "content-type": out.contentType, "x-upstream-seconds": String(out.seconds ?? "") });
   res.end(out.text);
-}).listen(PORT, () => console.log(`pace proxy :${PORT} -> ${UPSTREAM}  gap ${gapMs} ms, ${MAX_TRIES} tries  log ${LOG}`));
+}).listen(PORT, () => console.log(`pace proxy :${PORT} -> ${UPSTREAM}  gap ${gapMs} ms, ${MAX_TRIES} tries  log ${LOG}${INJECT ? `  inject ${JSON.stringify(INJECT)}` : ""}`));
