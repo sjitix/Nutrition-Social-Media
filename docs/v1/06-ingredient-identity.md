@@ -72,6 +72,21 @@ and `test:engine` as the ship gate. The order is chosen so each step is independ
 4. lookup sites switch to the resolver, tables key by slug — behaviour must not change (fingerprint)
 5. `Meal.ingredients[].slug` (optional) flows through `recipeToMeal`
 
+## Progress
+
+- **Steps 1–2 done 2026-10-03.** All 180 curated ingredients carry an explicit `slug` in
+  `ingredient-map.json` (derived once, all unique, the JSON round-tripped byte for byte so the diff is
+  only the new field); `build:nutrients` emits `src/lib/data/ingredients.generated.ts`
+  (`INGREDIENT_SLUGS`, the `IngredientSlug` union, `INGREDIENTS`), and the two existing generated
+  tables came out unchanged; `src/lib/data/ingredients.ts` holds `resolveIngredient`; and
+  **`npm run check:ingredients`** passes: 2,296 references, 179 distinct, all resolving.
+- **What it reports (not failures — curation decisions for after D5):** one curated ingredient is
+  unused (`beetroot`); and several slugs share one USDA food. Some of those are deliberate
+  approximations (sriracha / harissa / buffalo sauce in tsp amounts), but some are the same thing
+  named twice — `egg` / `eggs`, `bell-pepper` / `bell-peppers`, `soy-ginger-sauce` /
+  `ginger-soy-sauce` — which identity should eventually merge into one slug with aliases.
+- **Next: step 3** — the seeds carry `slug` (a generated rewrite of `data/seeds.ts`).
+
 ## Decided, and why
 
 - **A separate slug, not "the lowercase name is the id".** Making the canonical name the id would have
