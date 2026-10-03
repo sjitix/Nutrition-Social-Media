@@ -4709,6 +4709,52 @@ if (violations.size === 0) {
     }
   }
 
+  // The models lane's gaps from the 550B reasoning-off run (2026-10-03): passive claims slipped past
+  // claimsChange, and an EMPTY day-scoped constrain re-rolled the weekend silently, so the model's
+  // "Saturday and Sunday have been scaled down" was the whole reply. Their strings, verbatim.
+  {
+    const CLAIMS = [
+      "Your weekend meals are now lighter — Saturday and Sunday have been scaled down to match your lower activity.",
+      "Saturday and Sunday have been lightened.",
+      "Your dinners are now quicker.",
+      "Breakfast has been swapped for a high-protein option.",
+      "Wednesday now has 2000 kcal and 144g protein.",
+      "Done — dinner is now a lighter portion of Chicken & Vegetable Stir-Fry with Rice.",
+      "Done — breakfast is off the menu.",
+      "No eggs, no problem — I've swapped them out of tomorrow's breakfast",
+    ];
+    const NOT_CLAIMS = [
+      "I'd be glad to help. The plan right now averages about 2000 kcal a day. Do you have a calorie target in mind?",
+      "Your plan currently averages 2000 kcal a day.",
+      "Thursday dinner is a Turkey & Bean Chilli: turkey, kidney beans, tomatoes, peppers.",
+      "Want me to make Wednesday vegetarian too?",
+      "I can't remove breakfast entirely yet — plans run on 3 or 4 meals a day.",
+      "Your meals are currently lighter on the weekend.",
+      "Should the weekend be lighter? I can make Saturday and Sunday smaller if you'd like.",
+      "Your Tuesday is already vegetarian, so nothing needed to change.",
+    ];
+    const missed = CLAIMS.filter((t) => !claimsChange(t));
+    const tripped = NOT_CLAIMS.filter((t) => claimsChange(t));
+    check("false claim: passive claims are caught too ('has been swapped', 'are now quicker')", missed.length === 0, missed.join(" | "));
+    check("false claim: ...and descriptions and offers are not ('currently lighter', 'should it be lighter?')", tripped.length === 0, tripped.join(" | "));
+
+    const wk = freshWeek(BASE);
+    const empty = applyPrimitives(BASE, wk, [{ op: "constrain", scope: { days: ["Saturday", "Sunday"] }, preserveMacros: false } as PrimitiveOp]);
+    check("empty constrain: a day-scoped constrain that names nothing changes nothing",
+      empty.planChanged === false && JSON.stringify(empty.plan) === JSON.stringify(wk), `planChanged ${empty.planChanged}`);
+    check("empty constrain: ...and says what it needs, so the model's prose cannot claim a change",
+      empty.notes.some((n) => /didn't say what to change about Saturday and Sunday, so nothing changed/.test(n)), empty.notes.join(" | "));
+    const emptyWeek = applyPrimitives(BASE, wk, [{ op: "constrain", preserveMacros: true } as PrimitiveOp]);
+    check("empty constrain: the same for the whole week", emptyWeek.planChanged === false && emptyWeek.notes.some((n) => /about your week, so nothing changed/.test(n)), emptyWeek.notes.join(" | "));
+    // A bare DAY constrain is how the model asks for different meals on a day: it still re-plans, and now says where it landed.
+    const reroll = applyPrimitives(BASE, wk, [{ op: "constrain", scope: { days: ["Saturday"] } } as PrimitiveOp]);
+    check("empty constrain: a bare day re-plan still happens (the only re-roll the vocabulary has), and says where the day landed",
+      reroll.notes.some((n) => /^Saturday now has/.test(n)) && !reroll.notes.some((n) => /didn't say what to change/.test(n)), reroll.notes.join(" | "));
+    const veg = applyPrimitives(BASE, wk, [{ op: "constrain", scope: { days: ["Saturday"] }, diet: "vegetarian", preserveMacros: false } as PrimitiveOp]);
+    check("day re-plan: a real change with preserveMacros false still says where the day landed",
+      veg.planChanged === true && veg.notes.some((n) => /^Saturday now has/.test(n)), veg.notes.join(" | "));
+  }
+
   // the loop must not quietly break the contract the rest of the app depends on
   {
     // Not "All set.": with nothing changed, that is itself an unbacked claim and gets one retry (below).

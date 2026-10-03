@@ -158,6 +158,44 @@ export function expandConstrain(c: ConstrainOp): Operation[] {
   return [];
 }
 
+/**
+ * A constrain that names nothing to change: no targets, diet, budget, cuisine, meal count, cook time,
+ * exclusion, ingredient to use, nutrient or plan mode. "Make the weekend lighter" once arrived as
+ * {scope: weekend, preserveMacros: false} and nothing else; the day branch rebuilt all six weekend
+ * dishes at the same calories and wrote no note, so the user read the model's "Saturday and Sunday
+ * have been scaled down" — false, with planChanged true, so the false-claim guard could not catch it
+ * (models lane, 2026-10-03). A random re-roll is worse than doing nothing: it changes nothing and
+ * says what it needs.
+ *
+ * Only when it cannot mean anything else, though: the WEEK scope (a bare re-solve keeps every dish
+ * anyway), or `preserveMacros: false` with no new target (leave the targets for… what?). A bare
+ * DAY-scoped constrain is how the model asks for different meals on Saturday (the vocabulary has no
+ * other re-roll), so that one still re-plans the day, and regenerate_day now always says where it
+ * landed. See `noOpConstrain`.
+ */
+export function isEmptyConstrain(c: ConstrainOp): boolean {
+  const t = c.targets ?? {};
+  const hasTarget = [t.calories, t.protein, t.carbs, t.fat, t.fiber].some((v) => typeof v === "number" && v > 0);
+  return !(
+    hasTarget || c.diet || c.budget || c.cuisine || c.mealsPerDay || (c.maxCookTime ?? 0) > 0 || c.exclude?.length ||
+    c.use?.length || c.boostNutrient || c.planMode || c.cadence
+  );
+}
+
+/** An empty constrain that changes nothing (see isEmptyConstrain): week scope, or no-target preserveMacros:false. */
+export function noOpConstrain(c: ConstrainOp): boolean {
+  const scope = c.scope ?? "week";
+  if (!isEmptyConstrain(c)) return false;
+  return scope === "week" || (isDayScope(scope) && c.preserveMacros === false);
+}
+
+/** What the user reads for an empty constrain: nothing changed, and what would make it change. */
+export function emptyConstrainNote(c: ConstrainOp): string {
+  const scope = c.scope ?? "week";
+  const where = scope === "week" ? "your week" : isDayScope(scope) ? scope.days.join(" and ") : `your ${scope.slot}`;
+  return `That didn't say what to change about ${where}, so nothing changed. Tell me what you'd like: fewer calories (and by how much), more protein, a different diet, quicker meals, or a dish to swap.`;
+}
+
 /** The honest answer to a slot-scoped constrain, until per-slot targeting exists (milestone C4). */
 export function slotScopeNote(c: ConstrainOp): string | null {
   const scope = c.scope ?? "week";
@@ -268,6 +306,10 @@ export function applyPrimitives(
         }
       }
     } else if (isConstrain(o)) {
+      if (noOpConstrain(o)) {
+        extraNotes.push(emptyConstrainNote(o));
+        continue;
+      }
       flat.push(...expandConstrain(o));
       const honest = slotScopeNote(o);
       if (honest) extraNotes.push(honest);

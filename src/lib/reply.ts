@@ -86,8 +86,15 @@ export function describeOperations(operations: Operation[]): string {
 const CLAIMS_CHANGE =
   /^(done|all set)\b|(?<!\bright |\bcurrently |\bas of )\bnow (has|lands|averages|comes to)\b|\bi(?:'ve| have) (made|swapped|changed|updated|added|lightened|moved|set|replaced|resized|raised|increased|boosted|bumped)\b/i;
 
+/** The passive voice says it too: "Breakfast has been swapped", "Your dinners are now quicker". Same
+ *  exception for a description ("currently lighter", "right now"). Models lane, 2026-10-03: with it,
+ *  8/8 of their claims are caught and 0/8 of their honest replies tripped. */
+const CLAIMS_CHANGE_PASSIVE =
+  /\b(?:has|have) been (?:swapped|changed|updated|added|lightened|scaled|moved|replaced|resized|raised|increased|boosted|bumped|made|set|adjusted|reduced|lowered|removed|cut|trimmed)\b|(?<!\bright |\bcurrently )\b(?:is|are) now (?:lighter|quicker|faster|smaller|bigger|heavier|cheaper|vegetarian|vegan|higher|lower|meat-free|dairy-free|gluten-free)\b/i;
+
 export function claimsChange(text: string): boolean {
-  return CLAIMS_CHANGE.test(text.trim().replace(/[‘’]/g, "'"));
+  const t = text.trim().replace(/[‘’]/g, "'");
+  return CLAIMS_CHANGE.test(t) || CLAIMS_CHANGE_PASSIVE.test(t);
 }
 
 /** What the user reads instead of a claim the engine cannot back. Honest, and it keeps the turn going. */

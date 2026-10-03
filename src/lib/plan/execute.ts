@@ -687,7 +687,9 @@ export function applyOperations(
         curPlan = { ...curPlan, days: curPlan.days.map((d) => (d.day === op.day ? { ...newDay, meals } : d)) };
         applyLocks(new Set([op.day]), tp);
         const finalDay = curPlan.days.find((d) => d.day === op.day);
-        if (keepMacros(op) && finalDay) notes.push(achievementNote(`${op.day} now has`, dayTotalsFull(finalDay), tp));
+        // Always, not only when macros were kept: a re-plan with preserveMacros false wrote NO note, so
+        // the model's prose ("the weekend has been scaled down") was the whole reply and could be false.
+        if (finalDay) notes.push(achievementNote(`${op.day} now has`, dayTotalsFull(finalDay), tp));
         break;
       }
       case "swap_meal": {
