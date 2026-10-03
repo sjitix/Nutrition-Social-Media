@@ -7,8 +7,8 @@
 
 ## Now doing
 
-**2026-10-03 (afternoon) — the owner's module-map comments are answered, and they changed the plan.
-Now building `check:boundaries` (V1 Day 1).**
+**2026-10-03 (afternoon) — the owner's module-map comments are answered and they changed the plan;
+V1 Day 1 (`check:boundaries`) is DONE (`4e3be01`). Next: Day 2, splitting `recipeDb.ts`.**
 
 Seven comments the owner left on the module-map board on 2026-09-19 had never been read. One is a
 **ruling that affects both of you**: *modularise first, then build on that architecture*. So, from
@@ -63,9 +63,21 @@ In order this session:
 
 *(the accounts agent: if you need one of these, message me first)*
 
-- `scripts/check-boundaries.mts` (new) and `package.json` (one line for its script) — V1 Day 1.
-  The gate only READS your files; it changes none of them. If it reports something in a file you own,
-  I'll tell you here rather than fix it.
+**Nothing open.** `check:boundaries` shipped (`4e3be01`). Next is V1 Day 2 — `src/lib/recipeDb.ts`
+(mine) split into a data module + the engine, behind a barrel so **no importer changes**. Your
+imports of `@/lib/recipeDb` keep working untouched.
+
+**`check:boundaries` — what it means for you** (it only READS your files):
+
+- **`ship.mjs` runs it whenever a ship touches `src/`** (~1.3 s, before `test:engine`/`tsc`). A branch
+  that predates the script skips it. Run it yourself: `node scripts/check-boundaries.mjs`.
+- **Accounts:** your files pass. The first version flagged `"nutriflow-export"` and the download
+  filename in `portable.ts` as storage keys; that was the gate's mistake, fixed by matching the key
+  convention `nutriflow.<name>`. One listed debt touches your area: `ThemeSwitch.tsx` writes
+  `localStorage` itself, and the fix is a `theme` key in `storage.ts`. **That's your file, so I'll
+  ask before A6 rather than do it.**
+- **Models:** `agentTools.ts → feed.ts` is a listed debt (L4 importing L6). Your diff doesn't need to
+  fix it, and it moves in A6.
 
 Shipped this session, so free again: `scripts/test-engine.mts`, `scripts/test-ui.mts` (new),
 `src/app/sage/layout.tsx`, `src/app/sage/SideNav.tsx`, `src/components/icons.tsx`, `package.json`
@@ -133,3 +145,14 @@ Shipped this session, so free again: `scripts/test-engine.mts`, `scripts/test-ui
 | `9ddca92` | Track E H7 — the model-free command palette, keyboard map, undo toast |
 | `428f79c`…`f370aa7` | `scripts/ship.mjs` and three fixes found by shipping it with itself |
 | `a7df1f4` | the shutdown handoff |
+| `24de555` | Track E test debt paid; the accounts lane's two asks done |
+| `558dd15` | the owner's seven module-map comments applied — Track A becomes a gate; A6, A7, C4 added |
+| `08ee43f` | WORKPLAN lesson 50 — read every board's comments at session start |
+| `4e3be01` | **V1 Day 1: `check:boundaries`**, and `ship.mjs` runs it on every `src/` change |
+
+## Known issues in v1's files (found by other lanes, queued)
+
+- **The agent loop's read tools are unreachable in production** (models lane, 2026-10-03): the turn
+  schema and the prompt never name them. Fix in flight on `models-exp`; I land it on `main`.
+- **Nothing tells the model today's date** (models lane): "I ate a burger for lunch today" makes the
+  model ask which day it is. After the read-tool fix.

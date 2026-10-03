@@ -600,6 +600,59 @@ A homemade gate in the family of `check:recipes` / `check:data` — no new depen
 `scripts/` is exempt by name (§2). Every failure prints the offending file, the import, and the rule
 in plain English — a gate that says "violation in 3 files" teaches nobody anything.
 
+### Built 2026-10-03 — `scripts/check-boundaries.mjs`
+
+**What it is.** One node script, no new dependency: it parses imports with the TypeScript compiler
+(already installed), so a comment or a string can never fool it, and runs in ~1.3 s over the 78 files
+in `src/`. It also enforces a **rule 0**: every file under `src/lib` must be placed in a layer, so a
+new module cannot arrive unowned. The layer table in the script is §2 of this document as data;
+**change one, change the other, same commit.**
+
+**Two decisions that make its answers true rather than plausible:**
+
+- **Rule 4 reads what the bundler ships, not what the source says.** Each file is transpiled first,
+  and TypeScript drops an import whose names are only used as types, with or without the `type`
+  keyword. Reading the source would have accused `import { Recipe } from "@/lib/recipeDb"` of
+  shipping 501 recipes. Rule 1 (layers) deliberately counts type imports too: depending on a higher
+  layer's *types* is still depending on that layer.
+- **Rule 3 matches the key convention, not the prefix.** Keys are `nutriflow.<name>`. The first
+  version matched anything starting `nutriflow` and flagged the export format tag
+  `"nutriflow-export"` and the download filename `nutriflow-<date>.json` in the accounts lane's
+  `portable.ts` — neither is a key. A gate that cries wolf gets ignored. A key in any other shape
+  cannot reach the browser without touching `localStorage` directly, which the other half of the
+  rule catches.
+
+**Known debt, and why the list can only shrink.** The code broke some rules on the day the gate was
+written. Failing on them forever would make the gate a thing people skip; weakening the rules would
+make it a lie. So each one sits in `KNOWN_DEBT` with the milestone that removes it. A listed debt
+passes and is printed every run. A **new** violation fails. A debt that has been **paid** also fails
+until its entry is deleted, so the list never claims a problem that is gone.
+
+| # | Debt | Owed to |
+|---|---|---|
+| 1 | Explore → `feed.ts` → `recipeDb` (the whole library ships) | A4 |
+| 2 | `/plan` → `feed.ts` → `recipeDb` | A4 / B2 |
+| 3 | `WeekBoard` → `../demo` (for `SLOTS`) → `recipeDb` | A4 |
+| 4 | **`GroceriesClient` → `batchGrocery` → `nutrients` → the 80 kB USDA table** — *new, found on the first run* | A4 |
+| 5 | **`/plan` → `import.ts`** (a pure converter living inside the network adapter) — *new* | B2 / A6 |
+| 6 | **`agentTools` (L4) → `feed` (L6)** — searching the library is engine work, the query moves down — *new* | A6 |
+| 7 | **`conditions`, `symptoms` (L1) → `nutrients` (L2)** — the micronutrient vocabulary is a contract and moves to L0 — *new* | A6 |
+| 8 | `ThemeSwitch` writes `localStorage` itself (the theme key predates the rule) | A6, with the accounts lane |
+
+Rows 1–3 were known (they are A4's measured target). **Rows 4–7 were not known by anyone** — which is
+the whole argument for having the gate. Rule 5 (cycles) and rule 6 (emoji) found nothing; rule 2
+(barrels) is vacuous until A6 creates the first `index.ts`, and switches on by itself when it does.
+
+**It has been seen to fail** — `npm run check:boundaries -- --self-test` runs every rule against
+fixtures that break it on purpose (11/0), including the two cases it must *not* flag (a key in a
+comment, a type-only import). It was also proven on the real tree: a probe component that touched
+`localStorage` and imported `RECIPES` failed three rules in plain English, and a stale debt entry
+failed as "paid".
+
+**It runs without anyone remembering.** `scripts/ship.mjs` runs it first whenever a ship touches
+`src/`, before `test:engine` or `tsc`, so a layering mistake fails in a second rather than after a
+25-minute suite. A branch that predates the script skips it rather than failing.
+
 **The method used to produce §3, so it can be re-run:** parse every `import { … } from "…"` in
 `src/` and `scripts/`, resolve `@/lib/x` and relative specifiers to a module, and compare the set of
 imported names against the set of `export`ed ones. Anything exported and never imported is

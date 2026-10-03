@@ -264,6 +264,8 @@ disabled) — good for showing the UI without any AI.
 ```bash
 npm run test:engine     # THE gate. Scenarios + adversarial + invariants + fuzz. Never push red.
 npm run check:recipes   # every ingredient priced, every dish plausible, Atwater holds
+npm run check:boundaries # the module map enforced: layers, client payload, storage keys, cycles, emoji
+                         # (~1 s; ship.mjs runs it on any src/ change; `-- --self-test` proves it fails)
 npm run check:data      # gates the training data
 npm run test:api        # HTTP route integration tests
 node scripts/test-account.mjs  # accounts: export file, sync rules + engine, REST client — no network
