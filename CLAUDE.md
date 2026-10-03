@@ -80,10 +80,16 @@ disabled) — good for showing the UI without any AI.
 
 **The engine (pure TypeScript, no network, no model — this is where correctness lives)**
 
-- `src/lib/recipeDb.ts` — the heart of the app: the constraint-filtering selector, `rebalanceDay`,
-  and `applyOperations` (the executor the assistant's tool calls run through), and `RECIPES`, the
-  library with its macros computed. **Macros are never written on a recipe** — `deriveMacros`
-  computes them from the ingredient list against USDA data.
+- **`src/lib/plan/` — the engine, the heart of the app** (split out of `recipeDb.ts` in V1 A3):
+  `library` (`RECIPES` with macros computed — **macros are never written on a recipe**, `deriveMacros`
+  computes them from the ingredients against USDA data), `rules` (diet/allergen/budget predicates),
+  `rebalance` (`rebalanceDay`, portions within 0.6–1.8×), `select` (the constraint-filtering
+  selector, `withSeed`), `batch` (meal-prep), `report` (totals and every note-writer), `boost`,
+  `candidates` (`swapCandidates`), and `execute` (`applyOperations` — the executor every tool call
+  runs through — and `previewOperations`). **`plan/index.ts` is the public surface**; anything not
+  re-exported there is private to the folder, and `check:boundaries` enforces it.
+- `src/lib/recipeDb.ts` — a 10-line barrel over `plan/` + the recipe types, kept so every
+  `@/lib/recipeDb` import works unchanged. **Add engine code in `plan/`, not here.**
 - `src/lib/data/seeds.ts` — **the 501 recipes as authored**, and the recipe types (`Recipe`,
   `DietTag`, `Cuisine`, `MainProtein`). Moved out of `recipeDb.ts` in V1 milestone A2; it imports
   nothing. Add a recipe HERE. `recipeDb` re-exports the types, so `@/lib/recipeDb` imports still work.

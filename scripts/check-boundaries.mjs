@@ -44,7 +44,8 @@ const LIB_LAYERS = {
   "nutrientTable.generated.ts": 1, "substitutions.ts": 1, "symptoms.ts": 1, "conditions.ts": 1,
   "data/": 1, // the recipe seeds and their vocabulary (A2, 2026-10-03); imports nothing
   "nutrients.ts": 2, "targets.ts": 2, "exclusions.ts": 2, "grocery.ts": 2, "streak.ts": 2,
-  "recipeDb.ts": 3,
+  "recipeDb.ts": 3, // since A3 a one-line barrel over plan/
+  "plan/": 3, // the engine, split out of recipeDb.ts (A3, 2026-10-03); index.ts is its public surface
   "primitives.ts": 4, "agentTools.ts": 4, "agentLoop.ts": 4, "reply.ts": 4, "promptV2.ts": 4,
   "ai.ts": 5, "import.ts": 5, "videoImport.ts": 5, "storage.ts": 5, "savedStore.ts": 5, "account/": 5,
   // The fine-tune data pipeline and the API's demo-mode plan: tooling and an adapter that happen to
@@ -64,6 +65,10 @@ const SERVER_ONLY = new Set([
   "src/lib/ai.ts", "src/lib/import.ts", "src/lib/videoImport.ts",
   "src/lib/genV2.ts", "src/lib/dataValidate.ts", "src/lib/demo.ts",
 ]);
+// Whole folders that are server-only: the engine (A3 split it out of recipeDb.ts — a client reaching
+// "@/lib/plan" would ship it exactly as "@/lib/recipeDb" does) and the 7.7k-line raw seeds.
+const SERVER_ONLY_DIRS = ["src/lib/plan/", "src/lib/data/"];
+const isServerOnly = (f) => SERVER_ONLY.has(f) || SERVER_ONLY_DIRS.some((d) => f.startsWith(d));
 
 const STORAGE_OWNER = "src/lib/storage.ts";
 const STORAGE_GLOBALS = new Set(["localStorage", "sessionStorage"]);
@@ -87,7 +92,7 @@ const KNOWN_DEBT = {
   "client-server:src/app/sage/plan/WeekBoard.tsx->src/lib/recipeDb.ts":
     "A4 (D4): WeekBoard imports SLOTS from ../demo, and demo.ts builds the fixture week with the engine. SLOTS belongs in a client-safe module.",
   "client-server:src/app/sage/groceries/GroceriesClient.tsx->src/lib/nutrientTable.generated.ts":
-    "A4 (D4): found by this gate on its first run. The bulk (meal-prep) grocery list runs in the browser and needs gramsFor, which drags the whole 80 kB USDA table with it. Compute the list on the server, or ship only the unit weights.",
+    "A4 (D4): found by this gate on its first run. The bulk (meal-prep) grocery list runs in the browser (it is computed from the reader's own week) and needs gramsFor, whose MODULE also holds the 80 kB USDA table. Unverified whether the bundler tree-shakes the table away (gramsFor reads only UNIT_GRAMS) — measure the route's chunks for `fdcId` before fixing. Fix if real: give the unit weights their own module.",
   "client-server:src/app/plan/page.tsx->src/lib/import.ts":
     "B2 (D8) / A6 (D5a): the legacy /plan page imports importedToMeal, a pure converter that lives inside the network adapter with the SSRF guard. Move the converter out, or retire /plan.",
   // rule 1 — layering (milestone A6 moves these pieces to the layer they belong in)
@@ -250,7 +255,7 @@ export function check(sources) {
     const hit = new Set();
     while (queue.length) {
       const n = queue.shift();
-      if (SERVER_ONLY.has(n) && n !== root) { hit.add(n); continue; } // report the first server module on a path, not everything behind it
+      if (isServerOnly(n) && n !== root) { hit.add(n); continue; } // report the first server module on a path, not everything behind it
       for (const imp of info.get(n).value) if (!prev.has(imp.to)) { prev.set(imp.to, { from: n, names: imp.names }); queue.push(imp.to); }
     }
     for (const target of hit) {
