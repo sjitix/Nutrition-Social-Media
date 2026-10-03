@@ -168,7 +168,7 @@
     <div class="stamp">
       <b><i>source</i> docs/v1/01-dimensions-and-milestones.md</b>
       <b><i>synced</i> 2026-10-03</b>
-      <b><i>commit</i> f657fa9+</b>
+      <b><i>commit</i> 9aaff8d+</b>
     </div>
   </header>
 
@@ -352,6 +352,12 @@
           as <b>free text</b> with no id. Give each a stable id, have recipes carry it, and add
           <span class="mono">check:ingredients</span> asserting every recipe reference resolves to a real
           FDC-backed entry. The nutrition maths does not change — this is identity, not arithmetic.</p>
+        <div class="callout" style="margin:12px 0 0;border-color:var(--accent-line);background:var(--accent-soft)">
+          <b>Done 2026-10-03.</b> Every ingredient has a permanent id, and all 2,296 recipe references carry it as a
+          typed field, so <b>a misspelled ingredient now fails the build</b>. One rule decides which ingredient a name
+          means, for every nutrition lookup. Before shipping, a review by thirteen agents found six real problems,
+          the worst being that every plan saved before this change would have been reported as changed by a no-op.
+          All six were fixed, and each now has a test.</div>
         <div class="par"><b>Parallel · B7</b><span>A curation helper that <i>proposes</i> USDA matches for a new
           ingredient, for a human to confirm. It never auto-accepts: <span class="mono">salmon fillet →
           Salmonberries</span> is why.</span></div>
@@ -397,10 +403,28 @@
           its calories; a cup is 16 tablespoons; the published Mifflin-St Jeor examples come out exactly; an
           allergen matches both ways and never inside another word). Every USDA entry checks its own maths.
           <span class="mono">deriveMacros</span> refuses an unknown ingredient instead of quietly skipping it.</p>
-        <div class="par"><b>The automation</b><span><span class="mono">check:recipes</span> passes today but
-          <b>nothing runs it</b> &mdash; not the ship script, not CI. It and <span class="mono">check:ingredients</span>
-          join both, so a new ingredient or recipe is verified every time, by default. That is what makes
-          &ldquo;expand by a lot&rdquo; safe.</span></div>
+        <div class="callout" style="margin:12px 0 0;border-color:var(--accent-line);background:var(--accent-soft)">
+          <b>Done 2026-10-03, and it found real harm.</b> 83 laws over five areas: units, recipe macros, targets,
+          the USDA table and allergies. Each was run against the code, and three skeptics judged every one that
+          failed. 30 failed. Every real one is fixed, and every law is now a test.
+          <ul style="margin:8px 0 0 18px;padding:0">
+            <li><b>Allergies were easy to lose.</b> Ordinary ways of typing them (&ldquo;peanuts.&rdquo;, a line break,
+              &ldquo;dairy-free&rdquo;, &ldquo;severe peanut allergy&rdquo;) lost the allergy, and the planner served the food. So did
+              &ldquo;prawns&rdquo; meaning shrimp, and whey protein powder for a milk allergy. The worst was my own fix
+              from the same afternoon: &ldquo;fine with almonds but allergic to peanuts&rdquo; was served peanuts.</li>
+            <li><b>Targets accepted nonsense</b>, telling someone aged 500 that they burn &minus;570 kcal at rest. Body
+              stats outside the adult range are now refused, with the range given.</li>
+            <li><b>Units:</b> &ldquo;2 pieces&rdquo; and &ldquo;2 piece&rdquo; weighed different amounts, and
+              &ldquo;2 (400 g) cans&rdquo; read as 200 g. Seven recipes are re-weighed.</li>
+            <li><b>Five diet tags were wrong</b>, raw shrimp had no vitamin B12, and the calorie check could not catch a
+              wrong quantity. It has a ceiling now that can.</li>
+          </ul>
+          <p style="margin:8px 0 0">Then the fix itself was reviewed by eleven agents, and they found a hole in it:
+            &ldquo;I can eat anything without gluten&rdquo; lost the allergy. That is closed too, with every reviewer's
+            case kept as a test.</p></div>
+        <div class="par"><b>The automation</b><span><b>Done.</b> <span class="mono">check:recipes</span> and
+          <span class="mono">check:ingredients</span> now run in the ship script and on every push to GitHub, so a new
+          ingredient or recipe is verified every time, by default. That is what makes &ldquo;expand by a lot&rdquo; safe.</span></div>
         <div class="meta">
           <div><span class="k">Usable when</span>A new ingredient or recipe cannot reach <span class="mono">main</span> without every check running, and each law has a property test.</div>
           <div><span class="k">Depends on</span>D5 (the tests key on ingredient ids)</div>

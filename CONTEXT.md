@@ -60,19 +60,23 @@ Supabase row per user under RLS.
   - "Put it back" lost the restored copy.
   Now every write is stamped later than what it replaces (`nextStamp`, the logical-clock rule), so raw
   clocks decide only true conflicts, where the backup applies.
-- **A second adversarial review, of the hardening itself, found more. Batch 1 is fixed (lesson 58):**
+- **A second adversarial review, of the hardening itself, found more. Batches 1–3 are fixed
+  (lessons 58–59):**
   - "Delete my account" in a stale tab deleted the OTHER account another tab had signed in;
   - a failed first sync left the browser unowned, so the next person's sign-in uploaded the previous
     person's data;
   - "Put it back" on the oldest copy destroyed it;
-  - the import preview hid the lists it would clear;
-  - a push could replace the account's copy with no copy kept anywhere (now rule 6).
-  Still open, in the lane file: stale tabs (the two-tab cases), sign-in against the real GoTrue (a
-  401 signs people out; the 5-minute first-link window), and test and fake fidelity.
-- **Gate for this lane:** `node scripts/test-account.mjs` — **269 checks**, including the real
-  `client.ts` end to end against an in-memory Supabase (RLS, PKCE, conditional writes, jsonb order,
-  skewed device clocks) · `node scripts/test-account-sql.mjs --mutate` — **37 checks in real
-  Postgres, 15/15 broken guards caught** · `node scripts/mutate-account.mjs` — **25/25**.
+  - a push could replace the account's copy with no copy kept anywhere (now rule 6);
+  - a tab left open across another tab's pull or sign-in wrote stale or someone else's data back;
+  - every 401 signed people out;
+  - a first link opened after five minutes, or after a network blip, could not be finished.
+  Still open (batch 4, in the lane file): late callbacks after "delete everything", notes the reload
+  wipes, untested guards in the React layer, and accessibility. The security lens is still reporting.
+- **Gate for this lane:** `node scripts/test-account.mjs` runs two suites: **286 checks** in one tab,
+  including the real `client.ts` end to end against an in-memory Supabase (RLS, PKCE, conditional
+  writes, jsonb order, skewed clocks, token expiry), and **10 checks across tabs** of one browser ·
+  `node scripts/test-account-sql.mjs --mutate` — **37 checks in real Postgres, 15/15 broken guards
+  caught** · `node scripts/mutate-account.mjs` — **38/38**.
 - **Owner, to switch accounts on:** `supabase/README.md` — create a project, run **both** migrations,
   **configure custom SMTP** (without it only your own organisation receives sign-in emails), then put
   `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` in `.env.local` and Vercel. Never the
@@ -116,34 +120,51 @@ schema work, landed; now equal to main), `models-exp-date` (the date line, lande
 - **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`, this block, the
   lane file. Does not edit v1's files; asks v1 first. Touches no accounts files.
 
-### >>> V1 LANE — 2026-10-04: Days 1–5 DONE (D5's last commit in its gate), C2 pre-scan DONE, models lane's read-tool fix LANDED. TRACK A IS A GATE. Next: D5a (barrels + folders). <<<
+### >>> V1 LANE — 2026-10-03 ~19:45: Days 1–5 DONE, D5b DONE + its review fixed, false-claim guard, local date and empty-constrain fix LANDED. TRACK A IS A GATE. Next: D5a (barrels + folders) — ask both lanes for a date first. <<<
 
-**Landed since the last update:** `98747f6` (the assistant's words bind the engine — remembered
-allergies enforced, a "but" clause no longer cancels a typed allergy, honest slot note, day-scoped
-exclusions, plural swap matching), `3392461` (models lane's read tools + prompt), `db5ff7d`
-(symptom note always ends with one concrete offer). **D5 steps 3–5 + the review fixes** are in their
-gate: if `src/lib/data/seeds.ts` is still modified-uncommitted, the gate failed — check the ship log.
-**Lookups resolve the NAME first, the slug as fallback** (changed by the D5 review; see
-`docs/v1/06-ingredient-identity.md`). test:engine was **752/0** before the D5 commit's new tests.
+**D5b — DONE** (`fdc6e3a` the automation, `889f667` the laws, test:engine 864/0). A workflow derived 83
+laws over five families; 30 failed; every real one is fixed and every law is a test. Then an
+**adversarial review of D5b itself** (11 agents, every finding reproduced end to end) found that
+`889f667`'s allergy parser dropped whole clauses as "allowances": "I can eat anything without gluten"
+was served 41 gluten meals in five weeks, "Neither dairy nor eggs are ok" 26 egg meals. **The rework
+LANDED `af947d4`, test:engine 911/0:** a clause is dropped only when it plainly allows a SPECIFIC food; split
+category names joined; possessives stripped; allergies mined for every curated food, dislikes only for
+category words; casein/whey/CMPA/tahini keys; no gluten_free-tagged recipe removed by a gluten allergy
+(17 recipes' methods now say "corn tortillas" etc., two titles renamed); plus the review's unit,
+target and onboarding fixes. Full account: `docs/worklog/2026-10-03.md` "15:30" and "17:30".
+**Not done, recorded:** the pepperoni pizza has no pepperoni ingredient; tempeh/soba fiber has no
+offline source; micronutrient coverage counts ingredients, not nutrients; `scaleQuantity` does not
+share `gramsFor`'s parser (latent: no library quantity differs).
 
-**Next: D5a — every module behind its barrel, in folders under `src/lib/`.** It moves files the other
-lanes use: ask both lanes for a date FIRST (lane-v1.md "Asks"), leave a one-line re-export at every
-old path, and never move a file in the same commit as a behaviour change. Then D5b (the maths
-proven exact). **Waiting on the owner:** decisions #7 (swap default) and #8 (crisis guard).
+**The false-claim guard LANDED `361b2e1` (879/0):** `claimsChange` in `reply.ts` (the models lane's
+regex; their evals import it, `77e7caf`); `runAgent` gives an unbacked claim one nudge and one retry,
+then `composeReply` shows `NOTHING_CHANGED_REPLY`; `falseClaimRetried` / `falseClaimCaught` on the result.
+**`ship.mjs` now stops on an autostash that came back in conflict** (`82fe92e`, lesson 62): it once
+reported "rebased cleanly" with WORKPLAN.md unmerged. After every ship, `git status` and
+`git stash list` should both be clean.
 
-**D5 — ingredient identity** (`docs/v1/06-ingredient-identity.md` is the plan AND the progress log):
-steps 1–2 LANDED `6d5a9cd` (slugs in `scripts/ingredient-map.json`, `src/lib/data/ingredients.generated.ts`
-+ `ingredients.ts` `resolveIngredient`, `npm run check:ingredients`). **Step 3** (all 2,296 seed
-references carry a REQUIRED typed `slug`) is verified and ships after the engine-binding fixes — if
-`src/lib/data/seeds.ts` is still modified-but-uncommitted, ship it: slug-blind fingerprint was
-identical, `tsc` clean. **Next: step 4** (lookups through the resolver — tables stay keyed by name,
-see the doc's refinement) and **step 5** (optional `slug` on `Meal.ingredients`, flowing through
-`recipeToMeal`; `types.ts` change is additive — tell the accounts lane, it syncs plans).
+**Next, in order:**
+1. **Local date — LANDED `9aaff8d` (917/0).** `requestDay(sent, now)` in `streak.ts` accepts the browser's
+   YYYY-MM-DD only if some time zone is on that date now (UTC-12 to UTC+14).
+2. **The models lane's two gaps from the 550B reasoning-off run — LANDED `85e684b` (924/0):** an EMPTY constrain
+   ({scope: weekend, preserveMacros: false} and nothing else) re-rolled the weekend silently, with no
+   note, so the model's "Saturday and Sunday have been scaled down" was the whole reply; and
+   `claimsChange` missed PASSIVE claims ("has been swapped", "are now quicker"). The fix is written:
+   `isEmptyConstrain` / `noOpConstrain` / `emptyConstrainNote` in primitives.ts (a no-op with a note for a
+   week-scoped empty constrain or a day scope with only preserveMacros:false; a BARE day constrain stays
+   a re-roll, as the lane's stored turns confirm), regenerate_day always
+   writes "<day> now has…", and the passive pattern OR'd into `claimsChange`, with the lane's 8/8 strings
+   as tests. If it is not on main, re-apply it from this description.
+3. **D5a** — every module behind its barrel, in folders under `src/lib/`. It moves files the other
+   lanes use: ask both lanes for a date FIRST, leave a one-line re-export at every old path, never move
+   a file in the same commit as a behaviour change.
+**Waiting on the owner:** decisions #7 (swap default) and #8 (crisis guard), plus two from D5b
+(targets refused under 18 — one constant if they want 16; kimchi kept vegan with a note).
 
-**Engine-binding fixes (models lane's findings):** remembered allergy now enforced (`allergensInFact`),
-a "but" clause no longer cancels a typed allergy (`parseExclusionTokens`), slot-scoped constrain says
-"nothing changed", day-scoped constrain keeps exclude/use/cookTime/budget. If not on `origin/main`,
-the gate failed — check `git log` and the ship log.
+**Landed earlier today:** `98747f6` (the assistant's words bind the engine), `3392461` (models lane's
+read tools + prompt), `db5ff7d` (symptom note offer), `555386b` (D5 steps 3–5: typed slugs, one lookup
+rule — **name first, slug as fallback**), `4f53468` (the models lane's date line in the agent prompt),
+`889f667` (D5b laws), `361b2e1` (false-claim guard), `82fe92e` (ship.mjs autostash check).
 
 **C2 pre-scan (safety, pulled forward):** `src/lib/safety.ts` `redFlag` runs on the user's RAW
 message in both assistant routes before any model AND before demo mode; `symptomNote` shares it.
@@ -167,8 +188,8 @@ nine modules + `index.ts` (the public surface, the same 22 names); `recipeDb.ts`
 barrel. A 105-point fingerprint identical before/after. **New engine code goes in `plan/`.**
 `check:boundaries` rule 2 now enforces the `plan/` index.
 
-**State:** `main` pushed (`5cab547` + docs). `check:boundaries` passes (0 new, **9 known debts**) ·
-`test:engine` **722/0** · `test:ui` **51/0** · `test:api` 60/0 last full run (18 new pre-scan checks not yet run as a suite) · `tsc` clean. Live lane status:
+**State:** `main` pushed. `check:boundaries` passes (0 new, **6 known debts**) ·
+`test:engine` **924/0** · `test:ui` **51/0** · `test:api` 60/0 last full run (18 new pre-scan checks not yet run as a suite) · `tsc` clean. Live lane status:
 `docs/parallel/lane-v1.md`. **Dev server: UP on :3000** (pid 800) — stop it before any `npm run build`.
 
 #### 0. READ THIS FIRST — the owner's ruling, found two weeks late

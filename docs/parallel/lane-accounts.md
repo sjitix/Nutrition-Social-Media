@@ -28,18 +28,28 @@ Every write is now stamped later than what it replaces.
 detached, to be removed afterwards). Three of them reported 23 findings, each with a reproduction. The
 security lens and the skeptics hit a usage limit and were resumed; they are still running.
 
-**Batch 1 is fixed (shipping):**
+**Batch 1 shipped (`d219a1f`):**
 - delete, sign-out and forget are pinned to the account this tab shows;
 - the owner is recorded at sync start and kept after delete;
 - "Put it back" works on the oldest copy;
 - the import preview names what it clears, and a file with a null store is refused;
 - rule 6 keeps the account's copy a push replaces.
 
-**Next:**
-- batch 2, stale tabs: a tab-lifetime watcher, with a real two-tab test harness;
-- batch 3, sign-in against the real GoTrue: a 401 means refresh and retry; token expiry relative to the
-  device clock; the 5-minute first-link window; keep the verifier on transient failures;
-- batch 4: status, tests, fake fidelity, accessibility.
+**Batches 2 and 3 (shipping):**
+- **stale tabs:** `watchOtherTabs` reloads a tab when the browser changes hands in another tab, or
+  when another tab replaces a store its screens hold while signed in. There is a real two-tab suite,
+  `scripts/test-account-tabs.mts`.
+- **sign-in as the real GoTrue behaves:**
+  - a 401 renews the token and retries, and only a refused renewal signs out;
+  - token expiry is measured on the device's clock;
+  - an expired first link (422) says to ask for a new one;
+  - a transient failure offers "Try again" with the kept code;
+  - asking twice keeps the first link working, and a typo touches nothing;
+  - the setup guide matches today's Supabase (publishable key, Site URL, "Confirm email" off,
+    CAPTCHA off).
+
+**Next, batch 4:** late mirror callbacks after "delete everything", the notes the reload wipes, the
+guards the suite still can't see (the React layer, `savedStore`, `validate.ts`), and accessibility.
 Then wait on the owner's Supabase project for a live run.
 
 ## Files I'm editing right now
@@ -47,7 +57,8 @@ Then wait on the owner's Supabase project for a live run.
 *(the other lanes: if you need one of these, message me first)*
 
 - `src/lib/storage.ts`, `src/lib/savedStore.ts`, `src/lib/account/**`, `src/app/sage/account/**`,
-  `scripts/test-account.*`, `scripts/test-account-sql.mjs`, `scripts/mutate-account.mjs`,
+  `scripts/test-account.*`, `scripts/test-account-tabs.mts`, `scripts/account-tab.mts`,
+  `scripts/account-fakes.ts`, `scripts/test-account-sql.mjs`, `scripts/mutate-account.mjs`,
   `supabase/**` — all mine; nothing of yours.
 
 ## Heads-up for the other lanes
@@ -74,6 +85,14 @@ Then wait on the owner's Supabase project for a live run.
   over whenever suits; then delete the KNOWN_DEBT entry.
 - **`<AccountSync/>` reloads the tab once** (at most once per 30 s, per tab) when sync brings the week,
   the meal-prep week or the profile DOWN from the account. Reason, and how to retire it: Ask 1 below.
+  **It now reloads for OTHER TABS too** (review 2):
+  - always, when the browser changes hands in another tab (someone else signs in there, or the
+    browser is cleared);
+  - while signed in, when another tab replaces the week, the meal-prep week or the profile (at most
+    once per 30 s; otherwise your screens get `notifyPlanChanged`).
+  A sign-out or a refreshed token elsewhere reloads nothing. Your screens need do nothing about it.
+  If a reload interrupts something of yours (an assistant turn in a background tab, say), tell me.
+  Ask 1 would retire this too.
 - **`/sage/account` copy now says what a plan action sends** (profile + week to the server, and to the
   model provider when one is on) and what operators and the sign-in provider can see. If you change
   what a route sends or logs, tell me and I'll keep the note true.
@@ -146,4 +165,5 @@ whose claims were each checked against the code (and corrected twice by the revi
 | `a42a97e` | the SQL executed in real Postgres (`test-account-sql.mjs`, 37/0, 15/15 mutations); TRUNCATE revoked from signed-in users; test plan rows 5/5b/5c; lessons 52–56 |
 | `5c6c80c` | the store-size cap counts UTF-8 bytes, as the server does (`storeBytes`): a long Japanese or Arabic chat was waved through by `.length` and then refused, re-uploaded on every edit — 240/0, 9/9 mutations, engine 680/0 |
 | `b4492e3` | clock skew: every write stamped later than what it replaces (`nextStamp`). A 2-h-slow phone lost post-sync edits silently; a day-fast device locked stores; merged stores never settled; "Put it back" lost its copy. All reproduced first — 252/0, 14/14 mutations, engine 680/0, lesson 57 |
-| *(next)* | review 2, batch 1: destructive actions pinned to the shown account (a stale tab deleted the OTHER account); owner at sync start and kept after delete (cross-account upload); put back the oldest copy; honest import preview; rule 6 (keep the account copy a push replaces) — 269/0, 25/25 mutations, lesson 58 |
+| `d219a1f` | review 2, batch 1: destructive actions pinned to the shown account (a stale tab deleted the OTHER account); owner at sync start and kept after delete (cross-account upload); put back the oldest copy; honest import preview; rule 6 (keep the account copy a push replaces) — 269/0, 24/24 mutations (the commit message says 25: one was counted twice), engine 752/0, lesson 58 |
+| *(next)* | review 2, batches 2–3: stale tabs (`watchOtherTabs` + a real two-tab suite); a 401 renews instead of signing out; device-clock token expiry; the 5-minute first link; "Try again" after a transient failure; verifier reuse; one shared fake (`account-fakes.ts`); setup guide for today's Supabase — 286 + 10 checks, 38/38 mutations, lesson 59 |

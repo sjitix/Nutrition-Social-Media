@@ -35,6 +35,9 @@ mkdirSync(dirname(LOG), { recursive: true });
 // adapter and both evals before any app code changes. Added 2026-10-03: reasoning off cut a 550B call
 // on our prompt from 27 s to 4 s, and whether it costs quality has to be measured, not assumed.
 const INJECT = process.env.INJECT ? JSON.parse(process.env.INJECT) : null;
+// APPEND_SYSTEM='…' adds text to the end of the first system message, so a prompt WORDING change can be
+// measured through the app's own adapter before anyone edits promptV2.ts (v1's file, and about to move).
+const APPEND_SYSTEM = process.env.APPEND_SYSTEM ?? "";
 
 const stats = { requests: 0, upstreamCalls: 0, rateLimited: 0, failed: 0, upstreamSeconds: 0 };
 let lastStart = 0;
@@ -92,8 +95,13 @@ createServer(async (req, res) => {
   for await (const c of req) chunks.push(c);
   let body = chunks.length ? Buffer.concat(chunks).toString("utf8") : undefined;
   const path = (req.url ?? "/").replace(/^\/v1/, "");
-  if (INJECT && body && path.startsWith("/chat/completions")) {
-    try { body = JSON.stringify({ ...JSON.parse(body), ...INJECT }); } catch { /* not JSON — forward untouched */ }
+  if ((INJECT || APPEND_SYSTEM) && body && path.startsWith("/chat/completions")) {
+    try {
+      const j = { ...JSON.parse(body), ...(INJECT ?? {}) };
+      const sys = Array.isArray(j.messages) ? j.messages.find((m) => m.role === "system") : null;
+      if (APPEND_SYSTEM && sys && typeof sys.content === "string") sys.content += `\n\n${APPEND_SYSTEM}`;
+      body = JSON.stringify(j);
+    } catch { /* not JSON — forward untouched */ }
   }
   const headers = { "content-type": "application/json" };
   if (req.headers.authorization && process.env.PASS_AUTH === "1") headers.authorization = req.headers.authorization; // keyless by default
@@ -103,4 +111,4 @@ createServer(async (req, res) => {
   const out = await job;
   res.writeHead(out.status, { "content-type": out.contentType, "x-upstream-seconds": String(out.seconds ?? "") });
   res.end(out.text);
-}).listen(PORT, () => console.log(`pace proxy :${PORT} -> ${UPSTREAM}  gap ${gapMs} ms, ${MAX_TRIES} tries  log ${LOG}${INJECT ? `  inject ${JSON.stringify(INJECT)}` : ""}`));
+}).listen(PORT, () => console.log(`pace proxy :${PORT} -> ${UPSTREAM}  gap ${gapMs} ms, ${MAX_TRIES} tries  log ${LOG}${INJECT ? `  inject ${JSON.stringify(INJECT)}` : ""}${APPEND_SYSTEM ? `  append-system ${APPEND_SYSTEM.length} chars` : ""}`));

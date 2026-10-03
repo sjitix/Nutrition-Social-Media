@@ -9,33 +9,11 @@
  *
  * Several checks here exist because an adversarial review found the bug they pin; their labels say so.
  */
-import { createHash } from "node:crypto";
+import { Events, FakeSupabase, MemoryStorage, PROFILE, fakeJwt, jsonbOrder, s256, summary, week } from "./account-fakes";
 
 // ---- a fake browser -------------------------------------------------------------------------------
 // Nothing in storage.ts or client.ts touches `window` at import time, only when called, so installing
 // these globals in the module body (which runs after hoisted imports) is early enough.
-class MemoryStorage {
-  private m = new Map<string, string>();
-  /** Total characters allowed, like a browser's per-origin quota. Infinity unless a test sets it. */
-  quota = Infinity;
-  getItem(k: string) { return this.m.has(k) ? this.m.get(k)! : null; }
-  setItem(k: string, v: string) {
-    const next = String(v);
-    const used = [...this.m.entries()].reduce((s, [key, val]) => s + (key === k ? 0 : key.length + val.length), 0);
-    if (used + k.length + next.length > this.quota) throw new Error("QuotaExceededError");
-    this.m.set(k, next);
-  }
-  removeItem(k: string) { this.m.delete(k); }
-  clear() { this.m.clear(); }
-  keys() { return [...this.m.keys()]; }
-}
-class Events {
-  private l = new Map<string, Set<(e: unknown) => void>>();
-  addEventListener(t: string, f: (e: unknown) => void) { (this.l.get(t) ?? this.l.set(t, new Set()).get(t)!).add(f); }
-  removeEventListener(t: string, f: (e: unknown) => void) { this.l.get(t)?.delete(f); }
-  dispatch(t: string, e: unknown = {}) { for (const f of [...(this.l.get(t) ?? [])]) f(e); }
-  count(t: string) { return this.l.get(t)?.size ?? 0; }
-}
 const memory = new MemoryStorage();
 let reloads = 0;
 const fakeWindow = Object.assign(new Events(), {
@@ -72,11 +50,11 @@ import {
 import {
   readAccountConfig, requestMagicLink, readRedirect, hasAuthParams, exchangeCode, createPkcePair, freshSession,
   refreshSession, supabaseRemote, deleteAccountRemote, jwtClaims, AccountError, wellFormed, signOutRemote,
-  type Session,
+  type Session, type SessionSource,
 } from "@/lib/account/supabase";
 import {
   startSync, signOut, deleteAccount, completeSignInFromUrl, sendSignInLink, forgetThisBrowser, onPulled,
-  accountStatus, currentSession,
+  accountStatus, currentSession, retrySignIn, canRetrySignIn,
 } from "@/lib/account/client";
 import type { StoreName } from "@/lib/storage";
 import type { UserProfile, WeekPlan } from "@/lib/types";
@@ -89,27 +67,21 @@ function check(label: string, cond: boolean, detail = "") {
   else { fail++; failures.push(label); console.log(`FAIL  ${label}${detail ? `  — ${detail}` : ""}`); }
 }
 const json = (v: unknown) => JSON.stringify(v);
+/**
+ * Await a call a check is about to judge. A throw becomes null, and is printed, so the check FAILS
+ * with the reason instead of the whole suite crashing: a crash hides every check after it, and the
+ * mutation run (scripts/mutate-account.mjs) cannot tell which guard it was.
+ */
+async function mayThrow<T>(p: Promise<T>): Promise<T | null> {
+  try {
+    return await p;
+  } catch (e) {
+    console.log(`      (threw: ${e instanceof Error ? e.message : String(e)})`);
+    return null;
+  }
+}
 
 // ---- fixtures ------------------------------------------------------------------------------------
-const PROFILE: UserProfile = {
-  name: "Ana", goal: "maintain", diet: "none", allergies: "", dislikes: "", budget: "medium",
-  mealsPerDay: 3, targetCalories: 2000, proteinGrams: 150, carbsGrams: 200, fatGrams: 65,
-  maxCookTime: 30, maxIngredients: 10,
-};
-function meal(name: string, type: "breakfast" | "lunch" | "dinner") {
-  return {
-    name, type, description: "", calories: 600, proteinGrams: 45, carbsGrams: 60, fatGrams: 20,
-    timeMinutes: 20, ingredients: [{ name: "rice", quantity: "80 g" }], steps: ["cook"],
-  };
-}
-const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
-function week(tag: string): WeekPlan {
-  return {
-    days: DAYS.map((day) => ({ day, meals: [meal(`${tag} oats`, "breakfast"), meal(`${tag} bowl`, "lunch"), meal(`${tag} stew`, "dinner")] })),
-    weekSummary: `week ${tag}`,
-  } as WeekPlan;
-}
-const summary = (v: unknown) => (v as WeekPlan | null)?.weekSummary;
 
 // =================================================================================================
 // storage.ts — the bookkeeping accounts depend on
@@ -430,14 +402,6 @@ const summary = (v: unknown) => (v as WeekPlan | null)?.weekSummary;
  * then in byte order. Every fake server in this file stores values through this, because a fake that
  * kept the app's own key order is exactly what hid the "every sync takes a backup" bug.
  */
-function jsonbOrder(v: unknown): unknown {
-  if (Array.isArray(v)) return v.map(jsonbOrder);
-  if (v && typeof v === "object") {
-    const keys = Object.keys(v as Record<string, unknown>).sort((a, b) => a.length - b.length || (a < b ? -1 : a > b ? 1 : 0));
-    return Object.fromEntries(keys.map((k) => [k, jsonbOrder((v as Record<string, unknown>)[k])]));
-  }
-  return v;
-}
 
 /** A fake account that writes a store only if the write is NEWER, like upsert_state (migration 0002). */
 class FakeServer implements Remote {
@@ -736,11 +700,6 @@ await (async () => {
 }
 
 /** A fake JWT whose payload the client can read (the server, not the client, verifies it). */
-function fakeJwt(payload: object): string {
-  const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString("base64").replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_");
-  return `${b64({ alg: "HS256" })}.${b64(payload)}.sig`;
-}
-const s256 = (verifier: string) => createHash("sha256").update(verifier).digest("base64url");
 
 interface Call { url: string; method: string; headers: Record<string, string>; body: unknown }
 function fakeFetch(respond: (c: Call) => { status?: number; body?: unknown } | "throw") {
@@ -813,6 +772,35 @@ await (async () => {
   try { await exchangeCode(cfg, "CODE123", "nope", wrong.f); msg = ""; } catch (e) { msg = (e as Error).message; }
   check("exchange: a code from another browser (wrong verifier) is refused in plain words", msg.includes("different browser"));
 
+  // Review 2, the platform lens (against GoTrue's own source).
+  const skewed = fakeFetch(() => ({ body: { access_token: token, refresh_token: "R1", expires_in: 3600, expires_at: 999_999, user: { id: "user-1", email: "ana@example.com" } } }));
+  const sk = await exchangeCode(cfg, "CODE123", pair.verifier, skewed.f, 1000);
+  check("exchange: expiry is measured on THIS device's clock (now + lifetime), not on the server's expires_at",
+    sk.expiresAt === 4600, String(sk.expiresAt));
+  const lateLink = fakeFetch(() => ({ status: 422, body: { error_code: "flow_state_expired" } }));
+  let lateErr: AccountError | null = null;
+  try { await exchangeCode(cfg, "CODE123", pair.verifier, lateLink.f); } catch (e) { lateErr = e as AccountError; }
+  check("exchange: a first link opened after its five minutes (422) says to ask for a new one, and is not retryable",
+    !!lateErr && lateErr.message.includes("five minutes") && !lateErr.retryable, lateErr?.message ?? "no error");
+  const busyEx = fakeFetch(() => ({ status: 503, body: { message: "upstream" } }));
+  let busyErr: AccountError | null = null;
+  try { await exchangeCode(cfg, "CODE123", pair.verifier, busyEx.f); } catch (e) { busyErr = e as AccountError; }
+  check("exchange: a transient failure is retryable, and never tells anyone to open the link again",
+    !!busyErr && busyErr.retryable && !busyErr.message.toLowerCase().includes("link again"), busyErr?.message ?? "no error");
+  {
+    const env = process.env as Record<string, string | undefined>;
+    const before = { url: env.NEXT_PUBLIC_SUPABASE_URL, anon: env.NEXT_PUBLIC_SUPABASE_ANON_KEY, pub: env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY };
+    env.NEXT_PUBLIC_SUPABASE_URL = "https://p.supabase.co";
+    delete env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_x";
+    check("config: Supabase's own variable name, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, switches accounts on",
+      readAccountConfig()?.anonKey === "sb_publishable_x", json(readAccountConfig()));
+    const put = (k: string, v: string | undefined) => { if (v === undefined) delete env[k]; else env[k] = v; };
+    put("NEXT_PUBLIC_SUPABASE_URL", before.url);
+    put("NEXT_PUBLIC_SUPABASE_ANON_KEY", before.anon);
+    put("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", before.pub);
+  }
+
   // refresh
   const t2 = fakeJwt({ sub: "user-1", email: "ana@example.com" });
   const rf = fakeFetch(() => ({ body: { access_token: t2, refresh_token: "R2", expires_in: 3600, user: { id: "user-1", email: "ana@example.com" } } }));
@@ -862,12 +850,26 @@ await (async () => {
   await supabaseRemote(cfg, sess, pushed.f).push([{ name: "imports", value: [{ name: loneHigh }], at: 0 }]);
   check("push: values are made well-formed on the way out", !JSON.stringify(pushed.calls[0].body).includes("\\ud83c"));
 
-  const kindFor = async (status: number) => {
+  const kindFor = async (status: number, src: SessionSource = sess) => {
     const ff = fakeFetch(() => ({ status, body: { message: "x" } }));
-    try { await supabaseRemote(cfg, sess, ff.f).push([{ name: "saved", value: [], at: 0 }]); return "none"; }
+    try { await supabaseRemote(cfg, src, ff.f).push([{ name: "saved", value: [], at: 0 }]); return "none"; }
     catch (e) { return (e as AccountError).kind + ((e as AccountError).retryable ? "+retry" : ""); }
   };
-  check("error kind: 401 is an expired sign-in, not retryable", (await kindFor(401)) === "auth");
+  // A 401 is a refused ACCESS token, not a dead sign-in (review 2: on a device a few minutes slow,
+  // every hour's 401 signed people out with a refresh token that was still good). Renew once, retry.
+  {
+    let renewals = 0;
+    let n = 0;
+    const flaky = fakeFetch(() => (n++ === 0 ? { status: 401, body: { message: "JWT expired" } } : { body: [] }));
+    const renewing: SessionSource = async (o) => { if (o?.renew) renewals++; return s; };
+    const out = await mayThrow(supabaseRemote(cfg, renewing, flaky.f).push([{ name: "saved", value: [], at: 0 }]));
+    check("401: a refused access token is renewed once and the request retried, not treated as a sign-out",
+      renewals === 1 && flaky.calls.length === 2 && Array.isArray(out?.skipped), json({ renewals, calls: flaky.calls.length }));
+    const over: SessionSource = async (o) => { if (o?.renew) throw new AccountError("Your sign-in has expired.", "auth"); return s; };
+    check("401: …and only a REFUSED renewal means the sign-in is over", (await kindFor(401, over)) === "auth");
+    check("401: a 401 even with a just-renewed token is a retryable outage that keeps the sign-in (this app's key, say)",
+      (await kindFor(401)) === "server+retry");
+  }
   check("error kind: 400/403 are refusals, not retryable", (await kindFor(400)) === "rejected" && (await kindFor(403)) === "rejected");
   check("error kind: 429 and 5xx are the server's moment, retryable", (await kindFor(429)) === "server+retry" && (await kindFor(503)) === "server+retry");
   const unreachable = fakeFetch(() => "throw");
@@ -879,6 +881,9 @@ await (async () => {
   check("sign-out: ends THIS browser's session only (scope=local), not every device's", lo.calls[0].url.endsWith("/auth/v1/logout?scope=local"));
   const loFail = fakeFetch(() => ({ status: 403, body: { error_code: "bad_jwt" } }));
   check("sign-out: an expired token's refusal is reported, not swallowed as success", (await signOutRemote(cfg, s, loFail.f)) === false);
+  const loGone = fakeFetch(() => ({ status: 403, body: { error_code: "session_not_found" } }));
+  check("sign-out: a session the server had already ended counts as ended (another tab or device signed it out)",
+    (await signOutRemote(cfg, s, loGone.f)) === true);
 
   const del = fakeFetch(() => ({ status: 204 }));
   await deleteAccountRemote(cfg, s, del.f);
@@ -901,125 +906,6 @@ await (async () => {
  * the verifier whose SHA-256 was sent), refresh tokens rotate, writes only move a store forward in
  * time (upsert_state), values come back in jsonb key order, and deleting an account deletes its rows.
  */
-class FakeSupabase {
-  users = new Map<string, { id: string; email: string }>();
-  rows = new Map<string, Map<string, { value: unknown; updated_at: string }>>();
-  access = new Map<string, string>();
-  refresh = new Map<string, string>();
-  codes = new Map<string, { email: string; challenge: string }>();
-  lastCode = new Map<string, string>();
-  down = false;
-  refuseRefresh = false;
-  /** A store whose rows Postgres refuses (e.g. a value jsonb can't hold); a batch containing it fails whole. */
-  refuseKey: string | null = null;
-  /** Make the next N pulls fail with a 503 while everything else works (a transient server error). */
-  failPulls = 0;
-  /** Make pulls take this long, so a test can act while one is in flight. */
-  pullDelayMs = 0;
-  /** Lifetime of the next issued access token, in seconds (negative = already expired). */
-  nextExpiresIn = 3600;
-  writes = 0;
-  logouts = 0;
-  private n = 0;
-  user(email: string) {
-    const id = `uid-${email.split("@")[0]}`;
-    if (!this.users.has(id)) this.users.set(id, { id, email });
-    return this.users.get(id)!;
-  }
-  private issue(id: string) {
-    const u = this.users.get(id)!;
-    const access = fakeJwt({ sub: id, email: u.email, n: ++this.n });
-    const refresh = `rt-${this.n}`;
-    this.access.set(access, id);
-    this.refresh.set(refresh, id);
-    const expiresIn = this.nextExpiresIn;
-    this.nextExpiresIn = 3600;
-    return { access_token: access, refresh_token: refresh, expires_in: expiresIn, user: u };
-  }
-  /** Hand out a session directly (as an attacker would have for their OWN account). */
-  sessionFor(email: string) {
-    return this.issue(this.user(email).id);
-  }
-  table(id: string) {
-    return this.rows.get(id) ?? this.rows.set(id, new Map()).get(id)!;
-  }
-  fetch = (async (input: string, init: RequestInit = {}) => {
-    if (this.down) throw new TypeError("Failed to fetch");
-    const url = new URL(input);
-    const method = init.method ?? "GET";
-    const headers = (init.headers ?? {}) as Record<string, string>;
-    const body = init.body ? JSON.parse(String(init.body)) : undefined;
-    const reply = (status: number, data?: unknown) => new Response(data === undefined ? null : JSON.stringify(data), { status });
-    if (headers.apikey !== "ANON") return reply(401, { message: "No API key found in request" });
-
-    if (url.pathname === "/auth/v1/otp" && method === "POST") {
-      if (!body?.code_challenge) return reply(400, { msg: "this fake only does PKCE" });
-      this.user(body.email);
-      const code = `code${++this.n}xyz`;
-      this.codes.set(code, { email: body.email, challenge: body.code_challenge });
-      this.lastCode.set(body.email, code);
-      return reply(200, {});
-    }
-    if (url.pathname === "/auth/v1/token" && url.searchParams.get("grant_type") === "pkce") {
-      const c = this.codes.get(body?.auth_code);
-      if (!c) return reply(404, { error_code: "flow_state_not_found" });
-      if (s256(body.code_verifier ?? "") !== c.challenge) return reply(400, { error_code: "bad_code_verifier" });
-      this.codes.delete(body.auth_code); // one use
-      return reply(200, this.issue(this.user(c.email).id));
-    }
-    if (url.pathname === "/auth/v1/token" && url.searchParams.get("grant_type") === "refresh_token") {
-      const id = this.refresh.get(body?.refresh_token);
-      if (!id || this.refuseRefresh || !this.users.has(id)) return reply(400, { error: "invalid_grant", error_description: "Invalid Refresh Token" });
-      this.refresh.delete(body.refresh_token); // rotation: an old refresh token works once
-      return reply(200, this.issue(id));
-    }
-    const uid = this.access.get((headers.Authorization ?? "").replace(/^Bearer /, ""));
-    if (url.pathname === "/auth/v1/logout") {
-      if (!uid) return reply(403, { error_code: "bad_jwt" });
-      this.logouts++;
-      return reply(204);
-    }
-    if (!uid || !this.users.has(uid)) return reply(401, { message: "JWT expired" });
-
-    if (url.pathname === "/rest/v1/rpc/delete_my_account" && method === "POST") {
-      this.users.delete(uid);
-      this.rows.delete(uid);
-      return reply(204);
-    }
-    if (url.pathname === "/rest/v1/rpc/upsert_state" && method === "POST") {
-      const incoming = (body?.rows ?? []) as { key: string; value: unknown; updated_at: string }[];
-      // One SQL statement: refused whole.
-      if (this.refuseKey && incoming.some((r) => r.key === this.refuseKey)) return reply(400, { code: "22P05", message: "unsupported Unicode escape sequence" });
-      if (incoming.some((r) => JSON.stringify(r.value).length > 1_000_000)) return reply(400, { code: "23514", message: "user_state_value_size" });
-      const skipped: string[] = [];
-      for (const r of incoming) {
-        const cur = this.table(uid).get(r.key);
-        if (cur && Date.parse(cur.updated_at) >= Date.parse(r.updated_at)) skipped.push(r.key);
-        else this.table(uid).set(r.key, { value: jsonbOrder(r.value), updated_at: r.updated_at });
-      }
-      this.writes++;
-      return reply(200, skipped);
-    }
-    if (url.pathname === "/rest/v1/user_state") {
-      const filterUser = (url.searchParams.get("user_id") ?? "").replace(/^eq\./, "");
-      // RLS: only your own rows exist, whatever the filter says.
-      const mine = filterUser && filterUser !== uid ? new Map() : this.table(uid);
-      if (method === "GET") {
-        if (this.failPulls > 0) {
-          this.failPulls--;
-          return reply(503, { message: "upstream timeout" });
-        }
-        if (this.pullDelayMs) await new Promise((r) => setTimeout(r, this.pullDelayMs));
-        return reply(200, [...mine.entries()].map(([key, r]) => ({ key, value: r.value, updated_at: r.updated_at })));
-      }
-      if (method === "DELETE") {
-        this.rows.delete(uid);
-        return reply(204);
-      }
-    }
-    return reply(404, { message: `no route ${method} ${url.pathname}` });
-  }) as typeof fetch;
-}
 
 const settle = () => new Promise((r) => setTimeout(r, 20));
 const realNow = Date.now;
@@ -1405,6 +1291,87 @@ await (async () => {
   await startSync();
   check("invalid row: an unreadable profile from the account is NOT written over this device's",
     storage.loadProfile()?.targetCalories === 2000 && (accountStatus().message ?? "").includes("couldn't be read"));
+  await signOut();
+
+  // ---- review 2, batch 3: sign-in and tokens, as the real GoTrue and PostgREST behave ----
+  // A token the server refuses is renewed and the request retried: the person stays signed in. (Every
+  // 401 used to sign people out, with a refresh token that was still good.)
+  fakeWindow.localStorage = new MemoryStorage();
+  await signIn("kai@example.com");
+  await startSync();
+  sb.revokeAccess();
+  storage.savePlan(week("KAI-AFTER-401"));
+  await leaveAndReturn();
+  check("401: a refused access token is renewed, and the edit still reaches the account",
+    summary(sb.table("uid-kai").get("plan")?.value) === "week KAI-AFTER-401", summary(sb.table("uid-kai").get("plan")?.value));
+  check("401: …and the person stays signed in", currentSession()?.userId === "uid-kai" && accountStatus().state !== "signed-out",
+    json(accountStatus()));
+  await signOut();
+
+  // A transient failure of the code exchange: the code and verifier are kept, and "Try again" finishes.
+  fakeWindow.localStorage = new MemoryStorage();
+  await sendSignInLink("lee@example.com");
+  fakeWindow.location.search = `?code=${sb.lastCode.get("lee@example.com")}`;
+  sb.failExchange = 1;
+  let transient = "";
+  try { await completeSignInFromUrl(); } catch (e) { transient = (e as Error).message; }
+  check("sign-in: a transient failure says so and offers to try again (opening the used link again could not work)",
+    transient.length > 0 && !transient.toLowerCase().includes("link again") && canRetrySignIn(), json({ transient, canRetry: canRetrySignIn() }));
+  const retried = await mayThrow(retrySignIn());
+  check("sign-in: …and 'Try again' finishes it with the kept code", retried?.userId === "uid-lee" && currentSession()?.userId === "uid-lee");
+  check("sign-in: …after which nothing is left to retry, and the verifier is gone", !canRetrySignIn() && storage.loadPendingSignIn() === null);
+  await signOut();
+
+  // A first link opened more than five minutes after it was asked for.
+  fakeWindow.localStorage = new MemoryStorage();
+  sb.codeTtlMs = 300_000;
+  await sendSignInLink("mo@example.com");
+  advanceClock(6 * 60_000);
+  fakeWindow.location.search = `?code=${sb.lastCode.get("mo@example.com")}`;
+  let late = "";
+  try { await completeSignInFromUrl(); } catch (e) { late = (e as Error).message; }
+  check("sign-in: a first link opened after its five minutes says to ask for a new one, and offers no retry",
+    late.includes("five minutes") && !canRetrySignIn(), late);
+  sb.codeTtlMs = Infinity;
+
+  // Asking again for the same address keeps the first link working (review 2: the second request
+  // replaced the verifier, so the valid first link failed as "opened in a different browser").
+  fakeWindow.localStorage = new MemoryStorage();
+  await sendSignInLink("nia@example.com");
+  const firstCode = sb.lastCode.get("nia@example.com");
+  await sendSignInLink("nia@example.com");
+  fakeWindow.location.search = `?code=${firstCode}`;
+  const viaFirst = await mayThrow(completeSignInFromUrl());
+  check("sign-in: after asking twice, the FIRST link still signs in", viaFirst?.userId === "uid-nia");
+  await signOut();
+  check("sign-in: …and signing out straight after works (the tab shows the account it just signed in to)",
+    currentSession() === null, json({ session: currentSession()?.userId ?? null, status: accountStatus() }));
+
+  // A mistyped address never touches the pending sign-in.
+  fakeWindow.localStorage = new MemoryStorage();
+  await sendSignInLink("oz@example.com");
+  let typo = "";
+  try { await sendSignInLink("oz@example"); } catch (e) { typo = (e as Error).message; }
+  fakeWindow.location.search = `?code=${sb.lastCode.get("oz@example.com")}`;
+  const afterTypo = await mayThrow(completeSignInFromUrl());
+  check("sign-in: a mistyped address is refused before anything is stored, and the real link still works",
+    typo.includes("email address") && afterTypo?.userId === "uid-oz", json({ typo, user: afterTypo?.userId ?? null }));
+  await signOut();
+
+  // A new request made while an earlier link's exchange is in flight keeps ITS verifier.
+  fakeWindow.localStorage = new MemoryStorage();
+  await sendSignInLink("pia@example.com");
+  fakeWindow.location.search = `?code=${sb.lastCode.get("pia@example.com")}`;
+  sb.exchangeDelayMs = 60;
+  const piaSigningIn = completeSignInFromUrl();
+  await sendSignInLink("quin@example.com");
+  await mayThrow(piaSigningIn);
+  sb.exchangeDelayMs = 0;
+  await signOut();
+  fakeWindow.location.search = `?code=${sb.lastCode.get("quin@example.com")}`;
+  const quin = await mayThrow(completeSignInFromUrl());
+  check("sign-in: a link asked for while another sign-in was finishing still works (its verifier was kept)",
+    quin?.userId === "uid-quin");
   await signOut();
 
   // ---- a SECOND device pulls the account down, and listeners hear it ----

@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  accountConfig, completeSignInFromUrl, deleteAccount, onAccountStatus, onPulled, sendSignInLink, signOut, startSync,
-  type AccountStatus,
+  accountConfig, canRetrySignIn, completeSignInFromUrl, deleteAccount, onAccountStatus, onPulled, openedFromSignInLink,
+  retrySignIn, sendSignInLink, signOut, startSync, type AccountStatus,
 } from "@/lib/account/client";
 import { notifyPlanChanged } from "../myPlan";
 
@@ -25,6 +25,12 @@ export function AccountPanel({ onChange }: { onChange: () => void }) {
   const [sent, setSent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // While a sign-in link's code is being exchanged, the email form is not offered: a second request
+  // made then could only confuse the sign-in already under way (review 2).
+  const [signingIn, setSigningIn] = useState(false);
+  // A sign-in whose exchange failed for a transient reason can be finished from here: the emailed link
+  // was used up when it was opened, so opening it again could not.
+  const [canRetry, setCanRetry] = useState(false);
   // Where keyboard focus goes when a confirm step opens or a message replaces the control that had it,
   // so a screen-reader user hears the question instead of focus falling to the page body.
   const keepButton = useRef<HTMLButtonElement>(null);
@@ -48,10 +54,13 @@ export function AccountPanel({ onChange }: { onChange: () => void }) {
     // Finish a sign-in this page was opened from (if any), THEN sync — the sync needs the session the
     // link produces. A sign-in can set data aside (another account's) or replace some of it, so the
     // page's view of what is stored is refreshed once the first sync settles, whatever it did.
+    setSigningIn(openedFromSignInLink());
     void completeSignInFromUrl()
       .catch((e: unknown) => {
         setError(e instanceof Error ? e.message : "Sign-in didn't complete. Ask for a new link.");
+        setCanRetry(canRetrySignIn());
       })
+      .finally(() => setSigningIn(false))
       .then(() => startSync())
       .then(() => onChange());
     return () => {
@@ -69,6 +78,22 @@ export function AccountPanel({ onChange }: { onChange: () => void }) {
       setSent(email.trim());
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't send the email.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function retry() {
+    setBusy(true);
+    setError(null);
+    try {
+      await retrySignIn();
+      setCanRetry(false);
+      await startSync();
+      onChange();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Sign-in didn't complete. Ask for a new link.");
+      setCanRetry(canRetrySignIn());
     } finally {
       setBusy(false);
     }
@@ -117,7 +142,11 @@ export function AccountPanel({ onChange }: { onChange: () => void }) {
               {status.message}
             </p>
           )}
-          {sent ? (
+          {signingIn ? (
+            <p role="status" className="mt-4 rounded-[10px] bg-white/10 px-4 py-3 text-[12.5px] leading-relaxed">
+              Signing you in…
+            </p>
+          ) : sent ? (
             <p ref={sentNote} tabIndex={-1} role="status" className="mt-4 rounded-[10px] bg-white/10 px-4 py-3 text-[12.5px] leading-relaxed outline-none">
               Check <b className="font-semibold">{sent}</b> for a sign-in link, and open it{" "}
               <b className="font-semibold">in this browser</b> — for your safety, a link opened anywhere else
@@ -205,7 +234,21 @@ export function AccountPanel({ onChange }: { onChange: () => void }) {
         </>
       )}
 
-      {error && <p role="alert" className="mt-3 rounded-[10px] bg-white px-4 py-3 text-[12.5px] text-red-700">{error}</p>}
+      {error && (
+        <div role="alert" className="mt-3 flex flex-wrap items-center gap-3 rounded-[10px] bg-white px-4 py-3 text-[12.5px] text-red-700">
+          <span>{error}</span>
+          {canRetry && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void retry()}
+              className="rounded-full bg-red-700 px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-red-800 disabled:opacity-50"
+            >
+              {busy ? "Trying…" : "Try again"}
+            </button>
+          )}
+        </div>
+      )}
     </section>
   );
 }

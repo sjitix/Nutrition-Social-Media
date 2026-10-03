@@ -22,14 +22,19 @@ export interface AccountConfig {
 }
 
 /**
- * The project's public URL and anon key, or null when accounts are not switched on for this build.
- * Written as two literal `process.env.NEXT_PUBLIC_…` reads because Next inlines exactly that form
- * into the client bundle at build time and nothing else.
+ * The project's public URL and key, or null when accounts are not switched on for this build.
+ * Written as literal `process.env.NEXT_PUBLIC_…` reads because Next inlines exactly that form into
+ * the client bundle at build time and nothing else.
+ *
+ * The key is the PUBLISHABLE key (`sb_publishable_…`), which Supabase's Connect dialog names
+ * `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, or the legacy anon key under the older name. Either name
+ * works, so pasting Supabase's own snippet switches accounts on (review 2: with only the old name, it
+ * silently left them off). The legacy anon keys are being deactivated, so prefer the publishable one.
  */
 export function readAccountConfig(
   env: { url?: string; anonKey?: string } = {
     url: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    anonKey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   },
 ): AccountConfig | null {
   const url = env.url?.trim().replace(/\/+$/, "");
@@ -113,8 +118,17 @@ export async function createPkcePair(): Promise<{ verifier: string; challenge: s
   const random = new Uint8Array(48);
   crypto.getRandomValues(random);
   const verifier = base64url(random); // 64 chars of [A-Za-z0-9_-]
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
-  return { verifier, challenge: base64url(digest) };
+  return { verifier, challenge: await challengeFor(verifier) };
+}
+
+/** The S256 challenge for a verifier: what a link request carries in place of the secret itself. */
+export async function challengeFor(verifier: string): Promise<string> {
+  return base64url(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier))));
+}
+
+/** Whether a string can be an email address. Checked before anything is stored or sent. */
+export function looksLikeEmail(address: string): boolean {
+  return EMAIL.test(address.trim());
 }
 
 /** Ask for a sign-in link. The person clicks it in their email and lands back on `redirectTo`. */
@@ -151,7 +165,7 @@ export type RedirectResult =
 const LINK_ERRORS: Record<string, string> = {
   otp_expired: "That sign-in link has expired or was already used. Ask for a new one.",
   access_denied: "That sign-in link has expired or was already used. Ask for a new one.",
-  flow_state_expired: "That sign-in link took too long to open. Ask for a new one.",
+  flow_state_expired: "That sign-in link took too long to open: a first link works for five minutes after you ask for it. Ask for a new one, and open it straight away.",
   flow_state_not_found: "That sign-in link was opened in a different browser from the one that asked for it. Ask for a new one here.",
 };
 const LINK_ERROR_FALLBACK = "Sign-in didn't complete. Ask for a new link.";
@@ -190,10 +204,17 @@ export async function exchangeCode(
     headers: base(cfg),
     body: JSON.stringify({ auth_code: code, code_verifier: verifier }),
   });
+  // 422 is GoTrue's flow_state_expired. A new user's FIRST link (Supabase's "Confirm email", on by
+  // default) expires five minutes after it was REQUESTED, not after it was opened, so a link opened
+  // six minutes later lands here (review 2). The emailed link was used up when it was opened, so the
+  // only way forward is a new one, and saying "try the link again" would send them in a circle.
+  if (res.status === 422) throw new AccountError(LINK_ERRORS.flow_state_expired, "auth");
   if (res.status === 400 || res.status === 401 || res.status === 403 || res.status === 404) {
     throw new AccountError("That sign-in link has expired, was already used, or was opened in a different browser from the one that asked for it. Ask for a new one here.", "auth");
   }
-  if (!res.ok) throw new AccountError("Couldn't finish signing in just now. Try the link again in a moment.", kindOf(res.status));
+  // Transient (offline, 429, 5xx): the code is still good for a few minutes, so the caller keeps it,
+  // with its verifier, and offers to try the exchange again. Opening the link again would not work.
+  if (!res.ok) throw new AccountError("Couldn't finish signing in just now.", kindOf(res.status));
   const s = sessionFromTokenResponse(await res.json(), nowSec);
   if (!s) throw new AccountError(LINK_ERROR_FALLBACK, "auth");
   return s;
@@ -212,7 +233,11 @@ function sessionFromTokenResponse(raw: unknown, nowSec: number): Session | null 
   return {
     accessToken: d.access_token,
     refreshToken: d.refresh_token,
-    expiresAt: d.expires_at ?? nowSec + (d.expires_in ?? 3600),
+    // Measured on THIS DEVICE's clock: now plus the token's lifetime. GoTrue's `expires_at` is the
+    // SERVER's clock, and comparing it with the device's made a device a few minutes slow keep
+    // sending a token the server had already expired; the 401 then signed the person out with a
+    // refresh token that was still good (review 2). `expires_at` is used only if no lifetime comes.
+    expiresAt: typeof d.expires_in === "number" ? nowSec + d.expires_in : d.expires_at ?? nowSec + 3600,
     userId,
     email: d.user?.email ?? claims?.email ?? "",
   };
@@ -252,20 +277,58 @@ export async function signOutRemote(cfg: AccountConfig, s: Session, f: Fetch = f
     // scope=local ends THIS browser's session only. Without it GoTrue defaults to global and signs the
     // person out of every device, silently stopping sync on their phone because they left a laptop.
     const res = await call(f, `${cfg.url}/auth/v1/logout?scope=local`, { method: "POST", headers: authed(cfg, s) });
-    return res.ok;
+    if (res.ok) return true;
+    // Already ended on the server (another tab or device signed it out): the outcome asked for, not a
+    // failure to report. Any other refusal (403 bad_jwt: an expired access token) leaves it alive.
+    const code = await res.json().then((d: { error_code?: string; code?: string }) => d?.error_code ?? d?.code, () => undefined);
+    return (res.status === 403 || res.status === 404) && code === "session_not_found";
   } catch {
     return false; // offline — the local session is dropped regardless
   }
 }
 
 /** Delete the account and, by cascade, every row it owns (supabase/migrations: delete_my_account). */
-export async function deleteAccountRemote(cfg: AccountConfig, s: Session, f: Fetch = fetch): Promise<void> {
-  const res = await call(f, `${cfg.url}/rest/v1/rpc/delete_my_account`, {
+export async function deleteAccountRemote(cfg: AccountConfig, session: Session | SessionSource, f: Fetch = fetch): Promise<void> {
+  const res = await authorized(f, sourceOf(session), (s) => [`${cfg.url}/rest/v1/rpc/delete_my_account`, {
     method: "POST",
     headers: { ...authed(cfg, s), "Content-Type": "application/json" },
     body: "{}",
-  });
+  }], "Couldn't delete the account just now. Nothing was deleted.");
   if (!res.ok) throw new AccountError(await errorText(res, "Couldn't delete the account just now. Nothing was deleted."), kindOf(res.status));
+}
+
+/**
+ * Where an authorised request gets its session. `renew` asks for a refreshed one whatever the local
+ * expiry says: what `authorized` does when the server refuses the access token it was given.
+ */
+export type SessionSource = (opts?: { renew?: boolean }) => Promise<Session>;
+
+const sourceOf = (s: Session | SessionSource): SessionSource => (typeof s === "function" ? s : async () => s);
+
+/**
+ * Make an authorised request, and if the server refuses the access token (401), renew it once and
+ * try again.
+ *
+ * A refused ACCESS token is not a dead sign-in. The clock that judged it fresh may be off, or the
+ * token may have been revoked a moment ago. Treating every 401 as "signed out" (as this once did)
+ * threw away refresh tokens that were still good, signing people out every hour on a device whose
+ * clock was a few minutes slow (review 2). Only a refused REFRESH means signed out: the renewal
+ * throws "auth" then. A second 401, even with a just-renewed token, means the server refused something
+ * other than the sign-in (this app's key, say). That is reported as a retryable outage, which keeps
+ * the sign-in and the queued edits.
+ */
+async function authorized(
+  f: Fetch,
+  session: SessionSource,
+  request: (s: Session) => [string, RequestInit],
+  refused = "Your account refused this app's request. Your data is safe on this device, and it will try again.",
+): Promise<Response> {
+  const first = await call(f, ...request(await session()));
+  if (first.status !== 401) return first;
+  const renewed = await session({ renew: true });
+  const second = await call(f, ...request(renewed));
+  if (second.status === 401) throw new AccountError(await errorText(second, refused), "server");
+  return second;
 }
 
 /* ------------------------------------------------------------------------------------------------
@@ -283,34 +346,36 @@ interface Row {
  * between calls is always the one used. RLS (supabase/migrations) is what limits each call to the
  * signed-in user's rows; the explicit `user_id` filter and field are belt-and-braces, not the guard.
  */
-export function supabaseRemote(cfg: AccountConfig, session: () => Promise<Session>, f: Fetch = fetch): Remote {
+export function supabaseRemote(cfg: AccountConfig, session: SessionSource, f: Fetch = fetch): Remote {
   const table = `${cfg.url}/rest/v1/user_state`;
   return {
     async pull(): Promise<RemoteRow[]> {
-      const s = await session();
-      const res = await call(f, `${table}?select=key,value,updated_at&user_id=eq.${encodeURIComponent(s.userId)}`, { headers: authed(cfg, s) });
+      const res = await authorized(f, session, (s) => [
+        `${table}?select=key,value,updated_at&user_id=eq.${encodeURIComponent(s.userId)}`,
+        { headers: authed(cfg, s) },
+      ]);
       if (!res.ok) throw new AccountError(await errorText(res, "Couldn't read your account."), kindOf(res.status));
       const rows = (await res.json()) as Row[];
       return rows.map((r) => ({ name: r.key, value: r.value, at: Date.parse(r.updated_at) || 0 }));
     },
     async push(rows: RemoteRow[]): Promise<PushResult> {
       if (!rows.length) return { skipped: [] };
-      const s = await session();
       // Through upsert_state (supabase/migrations/0002), which writes a store only if this write is
       // NEWER than the account's copy and returns the keys it skipped. A plain table upsert would let a
       // device that was offline for days overwrite a newer week from another device. The user id is
       // not sent: the function takes it from the verified token.
-      const res = await call(f, `${cfg.url}/rest/v1/rpc/upsert_state`, {
+      const body = JSON.stringify({
+        rows: rows.map((r) => ({
+          key: r.name,
+          value: wellFormed(r.value ?? null),
+          updated_at: new Date(r.at).toISOString(),
+        })),
+      });
+      const res = await authorized(f, session, (s) => [`${cfg.url}/rest/v1/rpc/upsert_state`, {
         method: "POST",
         headers: { ...authed(cfg, s), "Content-Type": "application/json" },
-        body: JSON.stringify({
-          rows: rows.map((r) => ({
-            key: r.name,
-            value: wellFormed(r.value ?? null),
-            updated_at: new Date(r.at).toISOString(),
-          })),
-        }),
-      });
+        body,
+      }]);
       if (!res.ok) throw new AccountError(await errorText(res, "Couldn't save to your account."), kindOf(res.status));
       const skipped = (await res.json().catch(() => [])) as unknown;
       const sent = new Set(rows.map((r) => r.name));
@@ -319,8 +384,10 @@ export function supabaseRemote(cfg: AccountConfig, session: () => Promise<Sessio
       };
     },
     async removeAll(): Promise<void> {
-      const s = await session();
-      const res = await call(f, `${table}?user_id=eq.${encodeURIComponent(s.userId)}`, { method: "DELETE", headers: authed(cfg, s) });
+      const res = await authorized(f, session, (s) => [
+        `${table}?user_id=eq.${encodeURIComponent(s.userId)}`,
+        { method: "DELETE", headers: authed(cfg, s) },
+      ]);
       if (!res.ok) throw new AccountError(await errorText(res, "Couldn't clear your account."), kindOf(res.status));
     },
   };

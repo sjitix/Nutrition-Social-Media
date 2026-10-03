@@ -37,6 +37,7 @@ import { agentModelFn, resolveProvider } from "@/lib/ai";
 import { selectWeekFromDb, rebalanceWeek, withSeed } from "@/lib/recipeDb";
 import { dietTagConflicts, haystackBlocked } from "@/lib/exclusions";
 import { isReadTool } from "@/lib/agentTools";
+import { claimsChange } from "@/lib/reply";
 import { withFastFinish } from "./fast-finish";
 import type { UserProfile, WeekPlan, Meal, PlanSnapshot } from "@/lib/types";
 
@@ -80,21 +81,18 @@ const opsOf = (r: AgentRunResult) =>
   r.transcript.flatMap((e) => (e.role === "assistant" ? e.turn.operations.map((o) => String((o as { op?: string }).op)) : []));
 /** The fact is somewhere in the profile — memory, allergies or dislikes (whichever the engine wrote). */
 const knows = (p: UserProfile, re: RegExp) => re.test(JSON.stringify(p));
-/** The reply CLAIMS a change ("Done —", "I've made…", "Wednesday now has 2000 kcal…") but no write
- *  operation ran in the whole message. With reasoning off the 550B did this 2 times in 28 turns
- *  (0 in 84 with reasoning on), imitating the engine's note style from earlier turns, so it is
- *  checked on every turn, act or hold. */
-const CLAIM = /^(done|all set)|(?<!right |currently |as of )now (has|lands|averages|comes to)|i(?:'ve| have) (made|swapped|changed|updated|added|lightened|moved|set|replaced|resized|raised|increased|boosted|bumped)/i;
-// Fires only when the reply is the MODEL's own prose (the engine wrote no note, so composeReply passed the
-// model's text through): engine notes are truthful and may say "your week now averages…" after a refusal.
-// "right now / currently averages" is excluded: a clarifying question that describes the current plan
-// ("the plan right now averages about 2000 kcal — do you have a target?") is honest.
+/** The reply CLAIMS a change ("Done —", "I've made…", "Wednesday now has 2000 kcal…") while nothing changed
+ *  and the reply is the model's own prose (no engine note). The pattern is v1's `claimsChange` (one copy,
+ *  so the eval and the app's guard cannot drift); the app now retries such a turn once and then replaces
+ *  the reply (falseClaimRetried / falseClaimCaught, 361b2e1). This counts any that still get through. */
 const lastModelReply = (r: AgentRunResult) => {
   for (let i = r.transcript.length - 1; i >= 0; i--) { const e = r.transcript[i]; if (e.role === "assistant") return e.turn.reply ?? ""; }
   return "";
 };
 const falseClaim = (r: AgentRunResult) =>
-  !r.planChanged && !r.profileChanged && r.reply.trim() === lastModelReply(r).trim() && CLAIM.test(r.reply.trim());
+  !r.planChanged && !r.profileChanged && r.reply.trim() === lastModelReply(r).trim() && claimsChange(r.reply);
+/** The app's guard fields, read optionally so this file still runs against code from before 361b2e1. */
+const guard = (r: AgentRunResult) => r as AgentRunResult & { falseClaimRetried?: boolean; falseClaimCaught?: boolean };
 const first = (...reasons: (string | null)[]) => reasons.find((x) => x) ?? null;
 /** A meal was logged into that slot: "Logged by you." for a free-form meal, or — when the dish matched a
  *  library recipe, which keeps its own description — a `log` op for the slot that changed the dish. */
@@ -322,7 +320,7 @@ console.log(`\nconversation eval · model ${MODEL} · ${convos.length} conversat
 const writesOf = (r: AgentRunResult) =>
   JSON.stringify(r.transcript.flatMap((e) => (e.role === "assistant" ? e.turn.operations : []))
     .filter((o) => !isReadTool(String((o as { op?: string }).op)))).slice(0, 800);
-interface TurnRow { user: string; want: "act" | "hold"; pass: boolean; infra: boolean; reason: string | null; steps: number; gaveUp: boolean; seconds: number; ops: string[]; writes: string; reply: string; emoji: boolean; modelCalls: number; falseClaim: boolean }
+interface TurnRow { user: string; want: "act" | "hold"; pass: boolean; infra: boolean; reason: string | null; steps: number; gaveUp: boolean; seconds: number; ops: string[]; writes: string; reply: string; emoji: boolean; modelCalls: number; falseClaim: boolean; guardRetried: boolean; guardCaught: boolean }
 interface ConvoRow { id: string; skill: Skill; pass: boolean; infra: boolean; turns: TurnRow[] }
 const EMOJI = /\p{Extended_Pictographic}/u;
 const rows: ConvoRow[] = [];
@@ -357,7 +355,7 @@ for (const c of convos) {
     const up1 = await upstreamSeconds();
     const seconds = up0 != null && up1 != null ? up1 - up0 : wallSeconds;
     if (!r || r.modelFailed) {
-      turns.push({ user: t.user, want: t.want, pass: false, infra: true, reason: "model unreachable (infra)", steps: r?.steps ?? 0, gaveUp: false, seconds, ops: [], writes: "", reply: "", emoji: false, modelCalls: 0, falseClaim: false });
+      turns.push({ user: t.user, want: t.want, pass: false, infra: true, reason: "model unreachable (infra)", steps: r?.steps ?? 0, gaveUp: false, seconds, ops: [], writes: "", reply: "", emoji: false, modelCalls: 0, falseClaim: false, guardRetried: false, guardCaught: false });
       break; // the rest of the conversation depends on this turn
     }
     const claimed = falseClaim(r);
@@ -369,7 +367,7 @@ for (const c of convos) {
       return x.op === "constrain" && typeof x.scope === "object" && x.scope !== null && "slot" in x.scope;
     }));
     if (reason && slotConstrain && !r.planChanged) reason += " [engine: slot-scoped constrain is a no-op]";
-    turns.push({ user: t.user, want: t.want, pass: reason === null, infra: false, reason, steps: r.steps, gaveUp: r.gaveUp, seconds, ops: opsOf(r), writes: writesOf(r), reply: r.reply.replace(/\s+/g, " ").slice(0, 600), emoji: EMOJI.test(r.reply), modelCalls: r.steps - (ff.skipped - sk0), falseClaim: claimed });
+    turns.push({ user: t.user, want: t.want, pass: reason === null, infra: false, reason, steps: r.steps, gaveUp: r.gaveUp, seconds, ops: opsOf(r), writes: writesOf(r), reply: r.reply.replace(/\s+/g, " ").slice(0, 600), emoji: EMOJI.test(r.reply), modelCalls: r.steps - (ff.skipped - sk0), falseClaim: claimed, guardRetried: Boolean(guard(r).falseClaimRetried), guardCaught: Boolean(guard(r).falseClaimCaught) });
     // Carry state forward exactly as the client does between requests.
     profile = r.profile;
     plan = r.plan;
@@ -410,6 +408,9 @@ const summary = {
   /** Turns whose reply claimed a change when no write ran. Already failures; counted because they are
    *  the failure a user can't see through. */
   falseClaims: gradedTurns.filter((t) => t.falseClaim).length,
+  /** The app's guard: turns it nudged once, and turns where it had to replace the reply. */
+  guardRetries: gradedTurns.filter((t) => t.guardRetried).length,
+  guardCatches: gradedTurns.filter((t) => t.guardCaught).length,
   meanModelCallsPerTurn: gradedTurns.length ? +(gradedTurns.reduce((s, t) => s + t.modelCalls, 0) / gradedTurns.length).toFixed(2) : null,
   fastFinish: FAST_FINISH,
   medianSecondsPerTurn: q(0.5),
@@ -418,7 +419,7 @@ const summary = {
 };
 console.log(`\npass ${summary.pass}/${graded.length} conversations (${summary.passRate}%)  · turns ${summary.turnsPassed}  · second turns ${summary.secondTurnsPassed}`);
 console.log(`by skill ${Object.entries(bySkill).map(([k, v]) => `${k} ${v}`).join("  · ")}`);
-console.log(`gave up ${summary.gaveUp}  · model calls per turn ${summary.meanModelCallsPerTurn}${FAST_FINISH ? " (fast finish)" : ""}  · emoji replies ${summary.emojiReplies}  · FALSE CLAIMS ${summary.falseClaims}  · per-turn seconds: median ${summary.medianSecondsPerTurn}  p90 ${summary.p90SecondsPerTurn}  max ${summary.maxSecondsPerTurn}`);
+console.log(`gave up ${summary.gaveUp}  · model calls per turn ${summary.meanModelCallsPerTurn}${FAST_FINISH ? " (fast finish)" : ""}  · emoji replies ${summary.emojiReplies}  · FALSE CLAIMS ${summary.falseClaims} (guard: ${summary.guardRetries} nudged, ${summary.guardCatches} caught)  · per-turn seconds: median ${summary.medianSecondsPerTurn}  p90 ${summary.p90SecondsPerTurn}  max ${summary.maxSecondsPerTurn}`);
 if (!summary.trustworthy) console.log(`!! ${summary.infraFailures} conversation(s) never finished reaching the model — not counted; re-run before quoting.`);
 
 const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);

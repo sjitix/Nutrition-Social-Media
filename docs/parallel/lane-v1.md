@@ -7,7 +7,38 @@
 
 ## Now doing
 
-**2026-10-03 (night) — V1 Days 1–3 done. The engine now lives in `src/lib/plan/`** (nine modules +
+**2026-10-03 ~18:30 — D5b done and its review fixed; the false-claim guard landed (`361b2e1`); next the
+local-date change, then D5a.** Since the D5b notes below:
+- **The allergy parser was reworked after a review** (the commit after `82fe92e`). D5b's first version dropped
+  whole clauses as "allowances" ("I can eat anything without gluten" lost the allergy). Now a clause is dropped
+  only when it plainly allows one specific food. Allergies are mined for every curated food. DISLIKES are mined
+  only for category words, so a dislike blocks less than in D5b and more like before it. **Models lane:**
+  allergy rows in your evals may move between `889f667` and this commit, and that is the parser, not the model.
+- **Two recipe titles changed:** "Potato & Pepper Tortilla" became "Spanish Potato & Pepper Omelette", and
+  "Tortilla & Pepper Scramble" became "Corn Tortilla & Pepper Scramble". **Accounts lane:** a synced plan holding
+  the old name keeps it, and the dish simply stops matching the library by name (no error).
+- **The false-claim guard:** `claimsChange`, `NOTHING_CHANGED_REPLY` (reply.ts) and `FALSE_CLAIM_NUDGE`
+  (agentLoop.ts). `AgentRunResult` gains `falseClaimRetried` / `falseClaimCaught`.
+- **`ship.mjs` exits 4 when an autostash came back in conflict** and names the files (`82fe92e`). If you
+  use it with `--onto main`, that applies to you too.
+
+**Earlier the same day — D5b done (the maths stated as laws).**
+What changed that either of you can see:
+- **Allergy parsing (`exclusions.ts`)** reads every clause and blocks far more ways of typing an
+  allergy: synonyms, "-free", line breaks, compound foods. `EXCLUSION_CATEGORIES` grew new keys
+  (soya, prawn, shrimp, crustacean, mollusc, coeliac, peanut, yogurt…). **Models lane:** expect
+  allergen holds to get stricter in your evals. A plan can lose dishes it used to keep, and that is
+  the fix working.
+- **`compute_targets` / `hydration`** refuse body stats outside 18–100 y, 120–230 cm and 30–300 kg,
+  with a note that gives the range. Under 18 it points to a GP or dietitian. Nothing is stored on a
+  refusal.
+- **`gramsFor`** returns null for a number followed by text that is not a unit (it used to guess
+  "count"). Seven library recipes are re-weighed: bell peppers, sweet potato small/large, portobello.
+- **`NUTRIENT_TABLE` entries** may carry `filledFrom` and `gaps`. These are additive fields.
+- **Accounts lane:** nothing in a stored or synced shape changed.
+**Models lane: your false-claim proposal is next on my list.** I will message the sha.
+
+**Earlier — V1 Days 1–3 done. The engine now lives in `src/lib/plan/`** (nine modules +
 `index.ts`); `recipeDb.ts` is a 10-line barrel, so **every `@/lib/recipeDb` import of yours still
 works unchanged**. If you add engine code, add it in `plan/` — and import from `@/lib/recipeDb` or
 `@/lib/plan`, never `@/lib/plan/<file>`: `check:boundaries` now fails a deep import past the index.
@@ -86,9 +117,8 @@ In order this session:
 
 *(the accounts agent: if you need one of these, message me first)*
 
-**Nothing open.** `check:boundaries` shipped (`4e3be01`). Next is V1 Day 2 — `src/lib/recipeDb.ts`
-(mine) split into a data module + the engine, behind a barrel so **no importer changes**. Your
-imports of `@/lib/recipeDb` keep working untouched.
+**Nothing open (2026-10-03, 19:45).** Everything of today's is on main (`c88897b`). **Next is D5a, the
+folder move. It does not start until both of you have answered the ask below.**
 
 **`check:boundaries` — what it means for you** (it only READS your files):
 
@@ -144,19 +174,20 @@ Shipped this session, so free again: `scripts/test-engine.mts`, `scripts/test-ui
 
 ## Asks of the other lanes
 
-- **Models lane — the owner asked you a question, via a board comment (2026-09-19, forwarded
-  2026-10-03):** *"What is the maximum AI agent we can run on cloud — just for beta testing, but way
-  faster, but still sufficient and intelligent for the task at hand? What about things like 128 GB?"*
-  Your round-1 survey (`cc1aadb`) already answers the cloud half, and I quoted it back to the owner
-  in the thread. **The open half is the 128 GB machine** (a DGX Spark, a Ryzen AI Max+ 395 box, or a
-  Mac Studio, presumably): what it would run (a ~120B MoE such as `gpt-oss-120b` fits in memory) and
-  how fast, measured or sourced rather than estimated. The thread stays open on the module-map board
-  until there is an answer; tell me here and I'll post it, or the owner can read your survey.
-- **Accounts + models lanes — for A6 (later, not this week):** when the module folders land, I'd
-  like each of you to either move your own files or approve my moving them, at a time you're between
-  commits. Accounts: `storage.ts`, `savedStore.ts`, `account/**` → `persistence/`. Models: nothing of
-  yours moves, but `ai.ts`, `promptV2.ts`, `agentLoop.ts` (mine, which you run) go to `providers/` and
-  `assistant/`, with re-exports left at the old paths. No action now — I'll ask again with a date.
+- *(Answered: the owner's 128 GB question. The models lane's `docs/models/hardware-128gb.md` was posted
+  to the board thread on 2026-10-03.)*
+- **Accounts + models lanes — D5a (A6), ASKING NOW (2026-10-03):** `src/lib/` moves into folders
+  (`core/ nutrition/ assistant/ providers/ persistence/ presentation/`; `data/` and `plan/` already
+  exist), each with an `index.ts` holding only its public names. **Every old path keeps a one-line
+  re-export** (`export * from "./persistence/storage"`) until each lane has rebased past it, so no import
+  of yours breaks on the day. It is one mechanical commit with no behaviour change, gated on `tsc` +
+  `check:boundaries` + `test:engine` + an identical behaviour fingerprint.
+  - **Accounts:** may I move `storage.ts` and `savedStore.ts` to `persistence/`? I propose to leave
+    `account/` where it is (it is already a folder) unless you'd rather it moved too, in which case I'd
+    prefer you move it on your branch. Tell me a time you are between commits.
+  - **Models:** `ai.ts` → `providers/`; `promptV2.ts`, `agentLoop.ts`, `agentTools.ts`, `primitives.ts`,
+    `reply.ts` → `assistant/`. Asked by message too.
+  Reply here or by message. I start D5a only after both answers.
 
 ## Shipped
 

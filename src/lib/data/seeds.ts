@@ -814,7 +814,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "fajita-spice", name: "fajita spice", quantity: "1 tbsp" },
       { slug: "olive-oil", name: "olive oil", quantity: "1 tbsp" },
     ],
-    steps: ["Roast spiced chicken and peppers on a sheet 20 min.", "Serve in tortillas with beans."],
+    steps: ["Roast spiced chicken and peppers on a sheet 20 min.", "Serve in corn tortillas with beans."],
   },
   {
     id: "d-lentil-bolognese", name: "Lentil Bolognese over Whole-Wheat Spaghetti", type: "dinner",
@@ -966,7 +966,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "salsa", name: "salsa", quantity: "3 tbsp" },
       { slug: "olive-oil", name: "olive oil", quantity: "1 tsp" },
     ],
-    steps: ["Warm beans and tortillas.", "Top with fried eggs and salsa."],
+    steps: ["Warm beans and corn tortillas.", "Top with fried eggs and salsa."],
   },
   {
     id: "b-tofu-kale-toast", name: "Scrambled Tofu & Kale Toast", type: "breakfast",
@@ -1159,7 +1159,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "cabbage", name: "cabbage", quantity: "60 g" },
       { slug: "olive-oil", name: "olive oil", quantity: "1 tbsp" },
     ],
-    steps: ["Roast diced sweet potato with spices.", "Fill tortillas with beans, potato and slaw."],
+    steps: ["Roast diced sweet potato with spices.", "Fill corn tortillas with beans, potato and slaw."],
   },
   {
     id: "l-beef-kofta-bulgur", name: "Beef Kofta & Bulgur Bowl", type: "lunch",
@@ -1309,7 +1309,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "tamarind-sauce", name: "tamarind sauce", quantity: "2 tbsp" },
       { slug: "sesame-oil", name: "sesame oil", quantity: "1 tbsp" },
     ],
-    steps: ["Soak noodles; stir-fry tofu.", "Toss with noodles, sprouts and sauce; top with peanuts."],
+    steps: ["Soak rice noodles; stir-fry tofu.", "Toss with the rice noodles, sprouts and sauce; top with peanuts."],
   },
   {
     id: "d-harissa-salmon", name: "Harissa Salmon Traybake with Chickpeas", type: "dinner",
@@ -1445,7 +1445,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "chickpea-flour", name: "chickpea flour", quantity: "2 tbsp" },
       { slug: "olive-oil", name: "olive oil", quantity: "1 tsp" },
     ],
-    steps: ["Grate and squeeze zucchini; mix with egg, feta and flour.", "Fry spoonfuls until golden."],
+    steps: ["Grate and squeeze zucchini; mix with egg, feta and chickpea flour.", "Fry spoonfuls until golden."],
   },
   {
     id: "b-ab-banana-toast", name: "Almond Butter & Banana Protein Toast", type: "breakfast",
@@ -1474,7 +1474,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "smoked-paprika", name: "smoked paprika", quantity: "1 tsp" },
       { slug: "olive-oil", name: "olive oil", quantity: "1 tsp" },
     ],
-    steps: ["Fry crumbled tofu with paprika and spices.", "Fill tortillas with tofu and beans."],
+    steps: ["Fry crumbled tofu with paprika and spices.", "Fill corn tortillas with tofu and beans."],
   },
   {
     id: "b-matcha-chia", name: "Matcha Chia Protein Pudding", type: "breakfast",
@@ -1719,7 +1719,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "mango", name: "mango", quantity: "80 g" },
       { slug: "lime", name: "lime", quantity: "1/2" },
     ],
-    steps: ["Soak noodles; poach prawns.", "Toss with mango, herbs and lime dressing."],
+    steps: ["Soak rice noodles; poach prawns.", "Toss with mango, herbs and lime dressing."],
   },
   {
     id: "l-roast-beef-wrap", name: "Roast Beef & Horseradish Wrap", type: "lunch",
@@ -2187,7 +2187,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "salsa", name: "salsa", quantity: "60 g" },
       { slug: "olive-oil", name: "olive oil", quantity: "1 tbsp" },
     ],
-    steps: ["Cut and bake the tortillas into chips.", "Layer with beans and cheddar; bake until melted.", "Spoon over salsa."],
+    steps: ["Cut and bake the corn tortillas into chips.", "Layer with beans and cheddar; bake until melted.", "Spoon over salsa."],
   },
   {
     id: "t-ice-cream", name: "Chocolate Ice Cream Sundae", type: "snack",
@@ -3019,7 +3019,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "olive-oil", name: "olive oil", quantity: "1 tbsp" },
       { slug: "spinach", name: "spinach", quantity: "40 g" },
     ],
-    steps: ["Whisk the flour with water and spices.", "Fry with onion and spinach until set."],
+    steps: ["Whisk the chickpea flour with water and spices.", "Fry with onion and spinach until set."],
   },
   {
     id: "b-indian-spiced-oats", name: "Savoury Spiced Oats", type: "breakfast",
@@ -3420,7 +3420,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "olive-oil", name: "olive oil", quantity: "1 tbsp" },
       { slug: "lime", name: "lime", quantity: "1/4 piece" },
     ],
-    steps: ["Pan-fry the spiced cod.", "Fill the tortillas with fish, slaw and salsa."],
+    steps: ["Pan-fry the spiced cod.", "Fill the corn tortillas with fish, slaw and salsa."],
   },
   {
     id: "d-mexican-enchilada-bake", name: "Turkey Enchilada Bake", type: "dinner",
@@ -4519,7 +4519,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
     ],
     steps: [
       "Sear the prawns hard for two minutes a side.",
-      "Warm the tortillas.",
+      "Warm the corn tortillas.",
       "Fill with cabbage, prawns, salsa and avocado, and squeeze over the lime.",
     ],
   },
@@ -5048,7 +5048,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "avocado", name: "avocado", quantity: "1/4 piece" },
     ],
     steps: [
-      "Tear and crisp the tortillas in a dry pan.",
+      "Tear and crisp the corn tortillas in a dry pan.",
       "Add the salsa and beans and let it bubble.",
       "Fry the eggs on top and finish with avocado.",
     ],
@@ -5130,7 +5130,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
     ],
   },
   {
-    id: "d-fast-potato-pepper-tortilla", name: "Potato & Pepper Tortilla", type: "dinner",
+    id: "d-fast-potato-pepper-tortilla", name: "Spanish Potato & Pepper Omelette", type: "dinner",
     cuisine: "mediterranean", mainProtein: "eggs",
     timeMinutes: 20, approxCost: 1,
     dietTags: ["vegetarian", "gluten_free", "mediterranean"],
@@ -5496,7 +5496,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
     ],
   },
   {
-    id: "b-mexican-corn-tortilla-scramble", name: "Tortilla & Pepper Scramble", type: "breakfast",
+    id: "b-mexican-corn-tortilla-scramble", name: "Corn Tortilla & Pepper Scramble", type: "breakfast",
     cuisine: "mexican", mainProtein: "eggs",
     timeMinutes: 10, approxCost: 1,
     dietTags: ["vegetarian", "gluten_free"],
@@ -5508,7 +5508,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "corn", name: "corn", quantity: "80 g" },
       { slug: "salsa", name: "salsa", quantity: "50 g" },
     ],
-    steps: ["Crisp the sliced tortillas with the pepper.", "Add the corn and beaten eggs and scramble.", "Serve with salsa."],
+    steps: ["Crisp the sliced corn tortillas with the pepper.", "Add the corn and beaten eggs and scramble.", "Serve with salsa."],
   },
   {
     id: "b-mexican-refried-bean-toast", name: "Smoky Bean & Avocado Toast", type: "breakfast",
@@ -6104,7 +6104,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "avocado", name: "avocado", quantity: "1/4 piece" },
       { slug: "taco-spice", name: "taco spice", quantity: "1 tsp" },
     ],
-    steps: ["Toss the chickpeas with the spice and pan-roast until crisp.", "Crisp the torn tortillas alongside.", "Build with salsa and avocado."],
+    steps: ["Toss the chickpeas with the spice and pan-roast until crisp.", "Crisp the torn corn tortillas alongside.", "Build with salsa and avocado."],
   },
   {
     id: "l-mexican-egg-bean-burrito", name: "Egg & Bean Burrito", type: "lunch",
@@ -6724,7 +6724,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "salsa", name: "salsa", quantity: "60 g" },
       { slug: "lime", name: "lime", quantity: "1/4 piece" },
     ],
-    steps: ["Pan-fry and flake the cod.", "Shred the cabbage and dress with lime.", "Fill the warmed tortillas with everything."],
+    steps: ["Pan-fry and flake the cod.", "Shred the cabbage and dress with lime.", "Fill the warmed corn tortillas with everything."],
   },
   {
     id: "d-mexican-beef-chilli-rice", name: "Beef Chilli & Rice", type: "dinner",

@@ -9,9 +9,22 @@ creates a Supabase project; with no keys configured the app behaves exactly as i
 2. **SQL editor → run every file in `migrations/`, in order: `0001_user_state.sql`, then
    `0002_conditional_upsert.sql`.** Each is idempotent; running one twice is harmless. The app writes
    through the function 0002 creates, so sync does not work with 0001 alone.
-3. **Authentication → URL configuration:** set the Site URL to where the app runs
-   (`https://ntrux.vercel.app`), and add `http://localhost:3000/**` to the redirect allow-list for
-   development. A magic link only ever redirects to an allow-listed URL.
+3. **Authentication → URL configuration:** set the **Site URL to the account page,
+   `https://ntrux.vercel.app/sage/account`**, not the bare domain. Then add to the redirect allow-list
+   every other address the app is opened at: `http://localhost:3000/**` for development, plus any you
+   use for testing on a phone (the LAN address `next dev` prints, e.g. `http://192.168.1.20:3000/**`),
+   another dev port, or Vercel preview URLs (`https://*-<your-team>.vercel.app/**`).
+   Why both matter: a link whose return address is NOT on the list silently goes to the Site URL
+   instead. If that were the bare domain, the root page's redirect to `/sage` would drop the sign-in
+   code, and the sign-in would do nothing at all, with no message. Landing on the account page, it
+   either completes or says why it didn't.
+   **Authentication → Sign In / Providers → Email:** turn **off "Confirm email"**. This app signs in
+   only by email link, and opening the link already proves the address. With it on (the default), a
+   new person's FIRST link expires five minutes after it was *requested*, not after it was opened, so
+   anyone slower than that to find the email is told the link expired (the app says to ask for a new
+   one, which then works). If you leave it on, expect that.
+   **Keep CAPTCHA protection off** (Authentication → Attack Protection). This app sends no captcha
+   token, so with it on every sign-in fails.
 4. **Authentication → Emails → SMTP settings: switch on a custom SMTP provider. Without this step
    nobody but you can sign in.** Supabase's built-in mailer is for trying things out only: it sends
    **only to members of your Supabase organisation** (everyone else gets `email_address_not_authorized`)
@@ -21,16 +34,20 @@ creates a Supabase project; with no keys configured the app behaves exactly as i
    it to something a real launch needs (it starts low).
    Sources: <https://supabase.com/docs/guides/auth/auth-smtp> ·
    <https://supabase.com/docs/guides/auth/debugging/error-codes>
-5. **Project settings → API:** copy the **Project URL** and the **anon / publishable key** into
-   `.env.local` (and the Vercel project's environment variables):
+5. **Project Settings → API Keys** (or the **Connect** button at the top of the dashboard): copy the
+   **Project URL** and the **publishable key** (`sb_publishable_…`) into `.env.local`, and into the
+   Vercel project's environment variables:
 
    ```
    NEXT_PUBLIC_SUPABASE_URL=https://<project>.supabase.co
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key>
+   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_…
    ```
 
-   The anon key is safe in a browser: Row Level Security (below) is what protects the data. **The
-   `service_role` key is never needed by this app and must never be committed** — the repo is public.
+   That is the name Supabase's own Next.js snippet uses, so pasting the Connect dialog's block works.
+   The older name, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, with the legacy anon key, also works, but Supabase
+   is deactivating the legacy keys, so use the publishable one. Either is safe in a browser: Row Level
+   Security (below) is what protects the data. **The `service_role` and secret keys are never needed
+   by this app and must never be committed** — the repo is public.
 
 ## How sign-in works, and the one thing to tell people
 

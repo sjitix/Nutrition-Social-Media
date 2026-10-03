@@ -78,6 +78,15 @@ disabled) — good for showing the UI without any AI.
 
 ## Architecture — key files
 
+**Since V1 D5a (2026-10-03) the library lives in folders under `src/lib/`**: `core/` (types, slots),
+`data/` (seeds, ingredient identity, the USDA table, symptoms, substitutions, conditions), `nutrition/`
+(units, nutrients, targets, exclusions, safety, grocery), `plan/` (the engine), `assistant/` (primitives,
+agentTools, agentLoop, reply, promptV2), `providers/` (ai, import, videoImport) and `presentation/` (feed,
+feedFilter, recipes, batchGrocery, streak). **The old flat paths are one-line re-exports**, so
+`@/lib/exclusions` still works; new code inside `src/lib` imports the real path. The accounts lane's
+`storage.ts`, `savedStore.ts` and `account/` have not moved. A path below written flat (`src/lib/x.ts`) means
+the module, wherever its folder is; `docs/v1/02-module-map.md` §2 is the exact map.
+
 **The engine (pure TypeScript, no network, no model — this is where correctness lives)**
 
 - **`src/lib/plan/` — the engine, the heart of the app** (split out of `recipeDb.ts` in V1 A3):
@@ -159,7 +168,10 @@ disabled) — good for showing the UI without any AI.
   `NEXT_PUBLIC_SUPABASE_*` keys every entry point is a no-op. Server side: `supabase/` — two migrations
   (the table + RLS; `upsert_state`, which only moves a store forward in time), the setup steps
   including custom SMTP, and the RLS test plan. Tested by `node scripts/test-account.mjs` with no
-  network, and `node scripts/mutate-account.mjs` proves each guard's test can fail (lessons 52–55).
+  network: two suites, one tab (`test-account.mts`) and several tabs of one browser
+  (`test-account-tabs.mts`, the real modules bundled once per tab), over ONE shared fake Supabase
+  (`scripts/account-fakes.ts`). `node scripts/mutate-account.mjs` proves each guard's test can fail
+  (lessons 52–55, 59).
   **The SQL itself is executed** by `node scripts/test-account-sql.mjs`: real Postgres (PGlite, in
   WebAssembly) with Supabase's default grants stubbed in, so no project is needed (lesson 56).
 - `src/lib/savedStore.ts` — a three-method async interface (`list`/`add`/`remove`) over saved
@@ -307,7 +319,7 @@ npm run check:boundaries # the module map enforced: layers, client payload, stor
                          # (~1 s; ship.mjs runs it on any src/ change; `-- --self-test` proves it fails)
 npm run check:data      # gates the training data
 npm run test:api        # HTTP route integration tests
-node scripts/test-account.mjs  # accounts: export file, sync, REST client, client.ts end to end vs a fake Supabase — no network
+node scripts/test-account.mjs  # accounts: export file, sync, REST client, client.ts end to end vs a fake Supabase, and across tabs — no network
 node scripts/mutate-account.mjs  # accounts: removes each guard in turn and proves a test goes red
 node scripts/test-account-sql.mjs [--mutate]  # accounts: the migrations + RLS plan in real Postgres (PGlite; installs once to the OS temp dir)
 npm run export:recipes  # library -> NutriFlow-recipes.xls, incl. a coverage/gaps report

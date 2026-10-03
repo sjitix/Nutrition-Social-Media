@@ -262,7 +262,7 @@ if (behindNow > 0) {
     run("git", ["pull", "--rebase", "--autostash", "origin", branch]);
     // The pull can SUCCEED while re-applying the autostash conflicts: git prints a line, keeps the
     // stash, stages what it could and leaves the conflicted files unmerged — and exits 0. That
-    // happened on 2026-10-03 (WORKPLAN lesson 61): the commit was rebased cleanly and pushed, but
+    // happened on 2026-10-03 (WORKPLAN lesson 62): the commit was rebased cleanly and pushed, but
     // WORKPLAN.md sat unmerged in the working tree with nothing saying so. The commit itself is fine
     // and is still pushed below; the tree is reported, loudly, and the exit code is non-zero.
     const unmerged = git(["diff", "--name-only", "--diff-filter=U"]).split("\n").filter(Boolean);

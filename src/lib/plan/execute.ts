@@ -7,10 +7,10 @@
  * milestone A3). The public surface is ./index.ts; an export here that index.ts does not re-export
  * is internal to this folder, and check:boundaries fails anything outside the folder that imports it.
  */
-import { DAYS, type DayPlan, type Meal, type Operation, type UserProfile, type WeekPlan, type LockedMeal, type MealRating, type PlanSnapshot } from "../types";
-import { computeTargets, explainTargets, hydrationTarget, explainHydration, CALORIE_FLOOR, DEFAULT_CALORIE_FLOOR, BODY_LIMITS, bodyStatProblems, bodyStatMessage } from "../targets";
+import { DAYS, type DayPlan, type Meal, type Operation, type UserProfile, type WeekPlan, type LockedMeal, type MealRating, type PlanSnapshot } from "../core/types";
+import { computeTargets, explainTargets, hydrationTarget, explainHydration, CALORIE_FLOOR, DEFAULT_CALORIE_FLOOR, BODY_LIMITS, bodyStatProblems, bodyStatMessage, isRealBody, referenceWeightKg } from "../nutrition/targets";
 import { type Recipe } from "../data/seeds";
-import { wordMatches } from "../exclusions";
+import { wordMatches } from "../nutrition/exclusions";
 import { RECIPES, baseRecipeOf, scaleRecipeToTarget, toMeal } from "./library";
 import { bannedForUser, blockedByExclusions, budgetCap, exclusionTokens, fiberOn, keepMacros, localSplit, mergeDislikes, normalizeCuisine, passesDiet } from "./rules";
 import { SCALE_LO, clampScale, dayTargetMacros, macroDistance, rebalanceDay, rebalanceWeek, recipeMacros, scaleRecipeByFactor, scaleToTargets, slotShare, slotTargetMacros, slotsUpTo } from "./rebalance";
@@ -687,7 +687,9 @@ export function applyOperations(
         curPlan = { ...curPlan, days: curPlan.days.map((d) => (d.day === op.day ? { ...newDay, meals } : d)) };
         applyLocks(new Set([op.day]), tp);
         const finalDay = curPlan.days.find((d) => d.day === op.day);
-        if (keepMacros(op) && finalDay) notes.push(achievementNote(`${op.day} now has`, dayTotalsFull(finalDay), tp));
+        // Always, not only when macros were kept: a re-plan with preserveMacros false wrote NO note, so
+        // the model's prose ("the weekend has been scaled down") was the whole reply and could be false.
+        if (finalDay) notes.push(achievementNote(`${op.day} now has`, dayTotalsFull(finalDay), tp));
         break;
       }
       case "swap_meal": {
@@ -1160,7 +1162,11 @@ export function applyOperations(
         // A weight we would not compute targets from is not one to prescribe fluid from, or to keep:
         // -80 kg used to answer "aim for about -2.3 L a day" and store the -80 (D5b).
         if (bodyStatProblems({ weightKg }).length) {
-          notes.push(`${weightKg} kg doesn't look right, so I haven't used it — fluid needs scale with body weight, and I work them out for ${BODY_LIMITS.weightKg.min}–${BODY_LIMITS.weightKg.max} kg.`);
+          notes.push(
+            isRealBody("weightKg", weightKg)
+              ? `The per-kilo rule I use isn't validated at ${weightKg} kg, so I won't guess — a GP or a registered dietitian can give you a fluid target that fits you.`
+              : `${weightKg} kg doesn't look right, so I haven't used it — fluid needs scale with body weight, and I work them out for ${BODY_LIMITS.weightKg.min}–${BODY_LIMITS.weightKg.max} kg.`,
+          );
           break;
         }
         // No stored activity means we don't know it. Assume the least, and say so below — a
@@ -1176,7 +1182,12 @@ export function applyOperations(
           };
           profileChanged = true;
         }
-        let note = explainHydration(hydrationTarget(weightKg, activity), weightKg, activity);
+        // Per kg of a weight capped at BMI 30 when the height is known: body water follows lean mass,
+        // the same reason protein does, so 35 mL per kg of TOTAL weight overstated a larger body's need.
+        const refKg = Math.round(referenceWeightKg(weightKg, p.bodyStats?.heightCm));
+        let note = explainHydration(hydrationTarget(refKg, activity), weightKg, activity);
+        if (refKg < weightKg)
+          note += ` I worked it from ${refKg} kg rather than ${weightKg}: fluid needs follow lean mass, so the per-kilo rule would overstate them.`;
         if (!known) note += " I've assumed you're not training much — tell me how active you are and I'll adjust it.";
         notes.push(note);
         break;

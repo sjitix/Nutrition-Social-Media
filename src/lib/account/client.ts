@@ -11,14 +11,16 @@
  * would push every edit twice and race itself. Each caller registers its own `onPulled` listener.
  */
 import {
-  STORE_NAMES, clearAll, loadPendingSignIn, loadSessionRaw, loadStoreMeta, loadSyncedAt, loadSyncOwner, markSynced,
-  onSignInChangedElsewhere, onStoreChange, readStore, resetStoresSilently, savePendingSignIn, saveSessionRaw,
+  STORE_NAMES, claimSyncReload, clearAll, clearPendingSignIn, loadPendingSignIn, loadSessionRaw, loadSignInCode,
+  loadStoreMeta, loadSyncedAt, loadSyncOwner, markSynced, onSignInChangedElsewhere, onStoreChange,
+  onStoresChangedElsewhere, readStore, resetStoresSilently, savePendingSignIn, saveSessionRaw, saveSignInCode,
   saveSyncOwner, takeBackup, writeStore, type StoreName,
 } from "../storage";
 import { createMirror, syncNow, type HeldReason, type LocalAccess, type Mirror, type SyncReport } from "./sync";
 import {
-  AccountError, createPkcePair, deleteAccountRemote, exchangeCode, freshSession, hasAuthParams, readAccountConfig,
-  readRedirect, requestMagicLink, signOutRemote, supabaseRemote, type AccountConfig, type Session,
+  AccountError, challengeFor, createPkcePair, deleteAccountRemote, exchangeCode, freshSession, hasAuthParams,
+  looksLikeEmail, readAccountConfig, readRedirect, refreshSession, requestMagicLink, signOutRemote, supabaseRemote,
+  type AccountConfig, type Session,
 } from "./supabase";
 import { checkStore } from "./validate";
 
@@ -105,14 +107,18 @@ export function currentSession(): Session | null {
  * error instead of the new account's token. Without the pin, a mirror running in one tab would follow
  * whatever session another tab stored, and push this tab's edits into the other person's account.
  */
-async function liveSession(cfg: AccountConfig, forUser?: string): Promise<Session> {
+async function liveSession(cfg: AccountConfig, forUser?: string, opts: { renew?: boolean } = {}): Promise<Session> {
   const s = currentSession();
   if (!s) throw new AccountError("You're signed out.", "auth");
   if (forUser && s.userId !== forUser) {
     throw new AccountError("This browser signed in to a different account in another tab, so this tab stopped syncing. Reload it to carry on.", "superseded");
   }
-  const next = await freshSession(cfg, s);
-  if (next !== s) saveSessionRaw(next);
+  // `renew`: the server refused this access token although this device judged it fresh (supabase.ts
+  // `authorized`). Renew it whatever the expiry says. Only a refused renewal means signed out.
+  const next = opts.renew ? await refreshSession(cfg, s.refreshToken) : await freshSession(cfg, s);
+  // Saved only if the stored session is still the one renewed: a renewal landing after a sign-out or
+  // "Delete everything in this browser" must not bring the session back.
+  if (next !== s && currentSession()?.refreshToken === s.refreshToken) saveSessionRaw(next);
   return next;
 }
 
@@ -144,17 +150,29 @@ const LABEL: Record<StoreName, string> = {
 
 /** A link older than this is not worth completing: Supabase's own links expire long before it. */
 const PENDING_SIGN_IN_TTL_MS = 24 * 60 * 60 * 1000;
+/** How long a repeat request for the same address reuses the pending verifier. Links last an hour. */
+const REUSE_VERIFIER_MS = 60 * 60 * 1000;
 
 /**
- * Email a sign-in link. A fresh PKCE verifier is kept in THIS browser first, so the link can only
- * complete here (see `supabase.ts` — that is what makes a link made by someone else worthless).
+ * Email a sign-in link. The PKCE verifier is kept in THIS browser first, so the link can only complete
+ * here (see `supabase.ts` — that is what makes a link made by someone else worthless).
+ *
+ * The address is checked BEFORE anything is stored, and a repeat request for the same address reuses
+ * the verifier, so every link issued to this person completes here, whichever arrives first. Before,
+ * each request replaced the verifier, even a request with a typo or one the server then refused for
+ * being too soon. The valid link already in the inbox then failed as "opened in a different browser",
+ * though it was opened in this one (review 2).
  */
 export async function sendSignInLink(email: string): Promise<void> {
   const cfg = accountConfig();
   if (!cfg) throw new AccountError("Accounts aren't switched on for this copy of the app.");
-  const { verifier, challenge } = await createPkcePair();
-  savePendingSignIn({ verifier, email: email.trim(), at: Date.now() });
-  await requestMagicLink(cfg, email, `${window.location.origin}${window.location.pathname}`, challenge);
+  const address = email.trim();
+  if (!looksLikeEmail(address)) throw new AccountError("That doesn't look like an email address.");
+  const pending = loadPendingSignIn();
+  const reuse = !!pending && pending.email === address && Date.now() - pending.at < REUSE_VERIFIER_MS;
+  const verifier = reuse && pending ? pending.verifier : (await createPkcePair()).verifier;
+  if (!reuse) savePendingSignIn({ verifier, email: address, at: Date.now() });
+  await requestMagicLink(cfg, address, `${window.location.origin}${window.location.pathname}`, await challengeFor(verifier));
 }
 
 /**
@@ -179,10 +197,8 @@ export async function completeSignInFromUrl(): Promise<Session | null> {
 
   const result = readRedirect(search, hash);
   if (result.kind === "none") return null;
-  if (result.kind === "error") {
-    savePendingSignIn(null);
-    throw new AccountError(result.message, "auth");
-  }
+  // A failed link keeps the verifier: another link issued to the same request may still work.
+  if (result.kind === "error") throw new AccountError(result.message, "auth");
   const pending = loadPendingSignIn();
   if (!pending || Date.now() - pending.at > PENDING_SIGN_IN_TTL_MS) {
     savePendingSignIn(null);
@@ -191,14 +207,53 @@ export async function completeSignInFromUrl(): Promise<Session | null> {
       "auth",
     );
   }
+  return exchangeWith(cfg, result.code, pending.verifier);
+}
+
+/**
+ * Exchange a link's code for a session, and decide what to keep.
+ *  - Success: the verifier that was used is forgotten. Only that one, compared by value: a newer
+ *    request made while this exchange was in flight keeps its own (review 2).
+ *  - A TRANSIENT failure (offline, 429, 5xx): the code is still good for a few minutes, so it is kept,
+ *    with its verifier, for "Try again" (`retrySignIn`). The emailed link was used up when it was
+ *    opened, so telling the person to open it again (as this once did) could never work.
+ *  - Any other failure: the code is dropped; the verifier stays for another link from the same
+ *    request, until its time runs out.
+ */
+async function exchangeWith(cfg: AccountConfig, code: string, verifier: string): Promise<Session> {
   let s: Session;
   try {
-    s = await exchangeCode(cfg, result.code, pending.verifier);
-  } finally {
-    savePendingSignIn(null); // one link, one use — the code is gone from the address bar either way
+    s = await exchangeCode(cfg, code, verifier);
+  } catch (e) {
+    saveSignInCode(e instanceof AccountError && e.retryable ? code : null);
+    throw e;
   }
+  saveSignInCode(null);
+  clearPendingSignIn(verifier);
   saveSessionRaw(s);
+  // This tab now shows this account, so sign-out and delete act on it (see `shownUser`). Its sync,
+  // which the caller starts next, replaces this status with its own.
+  setStatus({ state: "syncing", email: s.email, userId: s.userId });
   return s;
+}
+
+/** Whether this page was opened from a sign-in link, so the panel can say it is signing in. */
+export function openedFromSignInLink(): boolean {
+  return !!accountConfig() && typeof window !== "undefined" && hasAuthParams(window.location.search, window.location.hash);
+}
+
+/** Whether a sign-in can be finished with "Try again": its exchange failed for a transient reason. */
+export function canRetrySignIn(): boolean {
+  return !!accountConfig() && !!loadSignInCode() && !!loadPendingSignIn();
+}
+
+/** "Try again": finish the sign-in whose exchange failed for a transient reason. */
+export async function retrySignIn(): Promise<Session | null> {
+  const cfg = accountConfig();
+  const code = loadSignInCode();
+  const pending = loadPendingSignIn();
+  if (!cfg || !code || !pending) return null;
+  return exchangeWith(cfg, code, pending.verifier);
 }
 
 /* ---- the running sync ---- */
@@ -221,6 +276,49 @@ let running: Running | null = null;
  * browser", a sign-out or an account switch cannot refill the browser.
  */
 let generation = 0;
+
+/**
+ * Whose data this tab's screens were showing: the browser's owner when `watchOtherTabs` started, and
+ * then whichever account this tab itself syncs. Null until known, and after this tab clears the browser.
+ */
+let tabOwner: string | null = null;
+
+/** The stores the screens keep a copy of while mounted: the assistant, the one-step undo. */
+const HELD_BY_SCREENS: ReadonlySet<StoreName> = new Set<StoreName>(["plan", "batchPlan", "profile"]);
+
+/**
+ * Watch what OTHER tabs of this browser do, for as long as this tab is open. `<AccountSync/>` calls
+ * this once per tab: `reload` reloads the page, `refresh` tells mounted screens to re-read.
+ *
+ * Two things make a tab's screens unsafe to keep running as they are (review 2, found by two lenses):
+ *  - THE BROWSER CHANGED HANDS. Another tab signed someone else in, so the switch guard set this
+ *    data aside and brought theirs down, or another tab cleared the browser. This tab's screens
+ *    still hold the previous person's week and profile, and their next save writes it into storage
+ *    that now belongs to someone else, whose sync uploads it. So this tab reloads, always.
+ *  - ANOTHER TAB CHANGED A STORE THIS TAB'S SCREENS HOLD, while signed in: its pull of another
+ *    device's week, say. This tab's own sync then finds nothing to pull, so it is never told, and its
+ *    next save writes the old week back as the newest edit, erasing the other device's change on
+ *    every device. So this tab reloads too (at most once per 30 s; otherwise its screens are told).
+ * A sign-out or a refreshed token in another tab changes neither, and disturbs nothing here. With
+ * nobody signed in, another tab's edit stays on this device, as it always has.
+ */
+export function watchOtherTabs(on: { reload: () => void; refresh: () => void }): () => void {
+  if (!accountConfig() || typeof window === "undefined") return () => {};
+  const whose = () => loadSyncOwner() ?? currentSession()?.userId ?? null;
+  tabOwner = tabOwner ?? whose();
+  const offSignIn = onSignInChangedElsewhere(() => {
+    if (tabOwner !== null && whose() !== tabOwner) on.reload();
+  });
+  const offStores = onStoresChangedElsewhere((names) => {
+    if (!currentSession()) return;
+    if (names.some((n) => HELD_BY_SCREENS.has(n)) && claimSyncReload()) on.reload();
+    else on.refresh();
+  });
+  return () => {
+    offSignIn();
+    offStores();
+  };
+}
 
 /** Stop the running sync WITHOUT sending what is waiting, and invalidate any sync in flight. */
 function stopRunning(): void {
@@ -296,10 +394,13 @@ export function startSync(): Promise<SyncReport | null> {
     saveSyncOwner(userId);
   }
 
+  // From here this tab's screens show this account's data (see `watchOtherTabs`).
+  tabOwner = userId;
+
   const gen = ++generation;
   const isCurrent = () => gen === generation;
   // Pinned: every request asks for THIS account's session, never whichever one another tab stored.
-  const remote = supabaseRemote(cfg, () => liveSession(cfg, userId));
+  const remote = supabaseRemote(cfg, (o) => liveSession(cfg, userId, o));
   // What is being kept on this device only, and why — mirrored from the mirror so the status line can
   // keep naming it until it actually syncs, rather than a later "saved" quietly erasing the warning.
   let held: ReadonlyMap<StoreName, HeldReason> = new Map();
@@ -574,6 +675,7 @@ export async function forgetThisBrowser(): Promise<void> {
     await signOutRemote(cfg, live);
   }
   clearAll();
+  tabOwner = null;
   setStatus({ state: cfg ? "signed-out" : "off" });
 }
 
@@ -605,7 +707,7 @@ export async function deleteAccount(): Promise<void> {
   }
   stopRunning(); // do NOT send: pending edits must not recreate rows we are about to delete
   try {
-    await deleteAccountRemote(cfg, s);
+    await deleteAccountRemote(cfg, (o) => (o?.renew ? liveSession(cfg, mine, o) : Promise.resolve(s)));
   } catch (e) {
     // Nothing was deleted, so the account is still live: resume mirroring it before reporting.
     void startSync();

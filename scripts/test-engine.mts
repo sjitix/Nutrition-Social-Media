@@ -19,7 +19,7 @@ import { MealSchema, WeekPlanSchema } from "@/lib/types";
 import { FEED_RECIPES, filterFeed, sortFeed, HIGH_PROTEIN_G, type FeedFilter } from "@/lib/feed";
 import { videoPlatform, extractVideoText } from "@/lib/videoImport";
 import { aisleFor, groupByAisle, AISLE_ORDER } from "@/lib/grocery";
-import { currentStreak, prevDay, isoDay } from "@/lib/streak";
+import { currentStreak, prevDay, isoDay, requestDay } from "@/lib/streak";
 import { expandConstrain, applyRemember, applyPrimitives, memoryContext, AssistantTurnV2Schema, allergensInFact, type PrimitiveOp } from "@/lib/primitives";
 import { assistantV2SystemPrompt } from "@/lib/promptV2";
 import { redFlag, CRISIS_REPLY } from "@/lib/safety";
@@ -29,7 +29,7 @@ import { generateExamples } from "@/lib/genV2";
 import { microsForIngredients } from "@/lib/nutrients";
 import { bulkGroceriesFromWeek, formatBulkQuantity, batchEfficiency } from "@/lib/batchGrocery";
 import { haystackBlocked, dietTagConflicts, parseExclusionTokens, expandExclusion, EXCLUSION_CATEGORIES } from "@/lib/exclusions";
-import { bmr, computeTargets, hydrationTarget, CALORIE_FLOOR, DEFAULT_CALORIE_FLOOR, BODY_LIMITS } from "@/lib/targets";
+import { bmr, computeTargets, hydrationTarget, CALORIE_FLOOR, DEFAULT_CALORIE_FLOOR, BODY_LIMITS, bodyStatMessage, referenceWeightKg } from "@/lib/targets";
 import { composeReply, planWasChanged, describeOperations, READ_ONLY_TOOLS, claimsChange, NOTHING_CHANGED_REPLY } from "@/lib/reply";
 import { SUBSTITUTES } from "@/lib/substitutions";
 import { NUTRIENT_TABLE } from "@/lib/nutrientTable.generated";
@@ -167,6 +167,14 @@ function invariants(
 ): string[] {
   const v: string[] = [];
   const tokens = tokensOf(p);
+  // A DISLIKE of olives is not a dislike of olive oil, the cooking fat (nor of peppers black pepper,
+  // nor of cherries cherry tomatoes): the engine's rule since the D5b review, when a dislike of olives
+  // removed 203 of 501 recipes. An ALLERGY keeps the over-block, so only dislikes are exempted here.
+  const dislikeTokens = new Set((p.dislikes ?? "").toLowerCase().split(",").map((s) => s.trim()).filter(Boolean));
+  const NOT_MEMBERS: Record<string, string[]> = {
+    olive: ["olive oil"], olives: ["olive oil"], pepper: ["black pepper", "white pepper"], peppers: ["black pepper", "white pepper"],
+    cherry: ["cherry tomato"], cherries: ["cherry tomato"],
+  };
   for (const d of plan.days) {
     const effectiveDiet = dayDiet[d.day] ?? p.diet;
     // A pinned meal is an explicit instruction by name. It outranks PREFERENCES (cook time), and
@@ -182,8 +190,10 @@ function invariants(
       seen.add(m.name);
 
       const hay = mealHay(m);
-      for (const t of tokens)
-        if (hay.includes(t)) v.push(`I2 ${d.day} "${m.name}": contains excluded/allergen "${t}"`);
+      for (const t of tokens) {
+        const h = dislikeTokens.has(t) ? (NOT_MEMBERS[t] ?? []).reduce((acc, ex) => acc.split(ex).join(" "), hay) : hay;
+        if (h.includes(t)) v.push(`I2 ${d.day} "${m.name}": contains excluded/allergen "${t}"`);
+      }
 
       // Only a violation if a compliant recipe actually existed to choose instead — and never for
       // a meal the user pinned by name.
@@ -876,6 +886,101 @@ console.log("\n--- COMPUTE_TARGETS (the engine does the arithmetic) ---");
   check("full facts -> profile targets are set", full.profile.targetCalories > 2900 && full.profile.proteinGrams === 152, `${full.profile.targetCalories} kcal, ${full.profile.proteinGrams}g protein`);
   check("compute_targets explains itself in plain English", full.notes.some((n) => /resting burn/.test(n)), (full.notes[0] ?? "").slice(0, 90));
 }
+// ---------------------------------------------------------------- allergen review (D5b, second pass)
+// An adversarial review of D5b's parser (2026-10-03, every finding reproduced end to end) showed the
+// first fix dropping whole allergy clauses as "allowances": "I can eat anything without gluten" was
+// served 41 gluten meals in 5 weeks, "Shellfish - everything else is fine" 10 shellfish meals, and
+// "Neither dairy nor eggs are ok" 26 egg meals. A clause is now dropped only when it plainly allows a
+// SPECIFIC food. These are the review's own inputs.
+console.log("\n--- ALLERGEN REVIEW (the inputs that lost an allergy, or blocked far too much) ---");
+{
+  const T = (a: string) => parseExclusionTokens(a, "");
+  const D = (d: string) => parseExclusionTokens("", d);
+  const count = (tokens: string[]) => RECIPES.filter((r) => haystackBlocked(recipeHay(r), tokens)).length;
+  const MUST: [string, string][] = [
+    ["Everything is fine with the exception of peanuts", "peanut butter"], ["Everything's fine besides nuts", "almonds"],
+    ["I'm ok with all foods besides shellfish", "shrimp"], ["I can eat anything aside from nuts", "walnuts"],
+    ["I can eat anything that doesn't contain nuts", "almonds"], ["I can eat anything without gluten", "orzo"],
+    ["None of the nuts are safe for me", "peanut butter"], ["I can eat nothing with nuts", "almonds"],
+    ["Besides gluten I can eat anything", "pasta"], ["I can barely tolerate dairy", "cheddar"], ["I tolerate gluten poorly", "bread"],
+    ["Shellfish - everything else is fine", "prawns"], ["peanuts - fine with tree nuts", "peanut butter"],
+    ["Apart from shellfish I can eat anything", "shrimp"], ["Except nuts everything is fine", "peanut butter"],
+    ["Neither dairy nor eggs are ok for me", "eggs"], ["Neither dairy nor eggs are ok for me", "cheddar"],
+    ["Nuts or shellfish - neither is ok", "shrimp"], ["Nuts or shellfish - neither is ok", "almonds"],
+    ["shell fish", "shrimp"], ["shell-fish", "crab"], ["sea food", "salmon"], ["sea-food", "prawns"], ["treenuts", "almonds"],
+    ["egg's", "eggs"], ["nut's", "almonds"], ["Celiac's disease", "bread"], ["casein", "cheddar"], ["whey", "protein powder"],
+    ["tahini", "hummus"], ["CMPA", "greek yogurt"], ["bad reaction to cottage cheese", "cottage cheese"],
+    ["avocado - life threatening", "avocado"], ["mushrooms make me sick", "mushrooms"], ["strong mushroom allergy", "mushrooms"],
+  ];
+  let leak = "";
+  for (const [a, food] of MUST) if (!haystackBlocked(food, T(a))) leak += ` ${JSON.stringify(a)}->${food} ${JSON.stringify(T(a))}`;
+  check("allergen review: every phrasing the review caught now blocks its food", leak === "", leak || `${MUST.length} cases`);
+
+  const ALLOWED: [string, string][] = [
+    ["fine with almonds but allergic to peanuts", "almonds"], ["i can eat almonds but not peanuts", "almonds"],
+    ["almonds are fine however peanuts are not", "almonds"], ["peanuts but fine with almonds", "almonds"],
+    ["I'm not allergic to almonds, but peanuts yes", "almonds"], ["nuts are fine except peanuts", "walnuts"],
+    ["allergic to shellfish but I love fish", "salmon"], ["allergic to peanuts but I eat almonds all the time", "almonds"],
+  ];
+  let over = "";
+  for (const [a, food] of ALLOWED) if (haystackBlocked(food, T(a))) over += ` ${JSON.stringify(a)}->${food}`;
+  check("allergen review: a food the person plainly allows is not blocked", over === "", over || `${ALLOWED.length} cases`);
+
+  // Over-blocks: [input, the most recipes it may block]. "fries" used to remove 63 stir-fries (the
+  // reverse -ies rule reached the verb "fry"); "onions unless cooked" added the word "cooked" (130).
+  const OVER: [string, number][] = [
+    ["fries", 5], ["cherries", 3], ["onions unless cooked", 40], ["tomatoes unless cooked", 140], ["carrots except roasted", 15],
+    ["spinach (cooked)", 50], ["peppers (green)", 45], ["white or brown rice", 45], ["olives", 35], ["goat cheese", 5],
+    ["smoked salmon", 10], ["shrimp paste", 3], ["tortilla chips", 3], ["don't like olives", 35], ["hate mushrooms", 10],
+  ];
+  let wide = "";
+  for (const [d, max] of OVER) { const n = count(D(d)); if (n > max) wide += ` "${d}" ${n} > ${max} ${JSON.stringify(D(d))}`; }
+  check("allergen review: no dislike blocks far more than the food it names", wide === "", wide || `${OVER.length} dislikes`);
+  check("allergen review: a dislike of olives keeps olive oil; an olive ALLERGY does not",
+    !haystackBlocked("olive oil", D("olives")) && haystackBlocked("olive oil", T("olives")) && haystackBlocked("olive oil", T("allergic to olives")));
+  check("allergen review: a pronoun is never a token ('Shellfish. I cannot eat them.')", !T("Shellfish. I cannot eat them.").includes("them"), JSON.stringify(T("Shellfish. I cannot eat them.")));
+  let lost = "";
+  for (const [d, food] of [["don't like olives", "olives"], ["hate mushrooms", "mushrooms"], ["not a fan of mushrooms", "mushrooms"], ["I dislike mushrooms", "mushrooms"]] as const)
+    if (!haystackBlocked(food, D(d))) lost += ` "${d}" ${JSON.stringify(D(d))}`;
+  check("allergen review: ordinary dislike phrasings still exclude the food", lost === "", lost);
+
+  // The allergen path and the diet path agree in the other direction too: a dish the library verifies
+  // as gluten_free (check:recipes) is not removed by a gluten allergy. 17 were: method text said
+  // "tortillas" where the ingredients say corn tortillas, which is now spelled out.
+  const gfBlocked = RECIPES.filter((r) => r.dietTags.includes("gluten_free") && haystackBlocked(recipeHay(r), T("gluten")));
+  check("allergen review: no gluten_free-tagged recipe is blocked by a gluten allergy", gfBlocked.length === 0, gfBlocked.map((r) => r.name).join(" | "));
+  let verb = "";
+  for (const s of ["Toast pine nuts in a dry pan.", "Toast cumin seeds, then grind.", "Wrap with foil and bake.", "Wrap and chill for an hour."])
+    if (haystackBlocked(s, ["gluten"])) verb += ` "${s}"`;
+  check("allergen review: an instruction to toast or wrap is not a gluten food", verb === "", verb);
+  check("allergen review: ...while toast as food still blocks", haystackBlocked("Avocado Toast. Serve on whole-grain toast.", ["gluten"]));
+  let flagged = "";
+  for (const [t, n] of [["vegetarian", "soy chorizo"], ["vegetarian", "duck sauce"], ["gluten_free", "rice noodle"], ["gluten_free", "pizza sauce"], ["vegan", "veggie stock"], ["vegan", "honeydew melon"], ["vegan", "butternut squash"]] as const)
+    if (dietTagConflicts(t, [n]).length) flagged += ` ${t}:${n}`;
+  check("allergen review: the diet path does not flag these plant foods", flagged === "", flagged);
+
+  // The remembered-fact path: what is stored is what the person said, and nothing they love.
+  const facts: [string, string[]][] = [
+    ["I'm allergic to shellfish but I love fish", ["shellfish"]], ["I am allergic to shell fish", ["shellfish"]],
+    ["Heads up, I am allergic to sea food", ["seafood"]], ["allergic to egg's", ["egg"]], ["I have a strong mushroom allergy", ["mushroom"]],
+  ];
+  for (const [fact, want] of facts) {
+    const got = allergensInFact(fact);
+    check(`allergen review: remembered "${fact}" stores ${want.join(", ")}`, JSON.stringify([...got].sort()) === JSON.stringify([...want].sort()), JSON.stringify(got));
+  }
+
+  // End to end, five seeded weeks each: none may serve what the person named.
+  for (const [a, meaning] of [["I can eat anything without gluten", "gluten"], ["Shellfish - everything else is fine", "shellfish"], ["Neither dairy nor eggs are ok for me", "eggs"], ["shell fish", "shellfish"], ["casein", "dairy"]] as const) {
+    const p: UserProfile = { ...BASE, allergies: a };
+    let served = "";
+    for (let s = 1; s <= 5 && !served; s++) {
+      const w = withSeed(s, () => freshWeek(p));
+      for (const d of w.days) for (const m of d.meals) if (haystackBlocked(mealHay(m), T(meaning))) served = `${d.day} ${m.name}`;
+    }
+    check(`allergen review, end to end: "${a}" serves no ${meaning}`, served === "", served);
+  }
+}
+
 // ---------------------------------------------------------------- energy targets as properties (D5b)
 console.log("\n--- TARGETS: properties (Mifflin-St Jeor, activity factors, floor, macro sum, hydration, body limits) ---");
 {
@@ -1002,6 +1107,19 @@ console.log("\n--- TARGETS: properties (Mifflin-St Jeor, activity factors, floor
         r.profile.proteinGrams === 150 && r.profile.bodyStats === undefined && !r.notes.some((n) => /resting burn/.test(n)),
       `${r.profile.targetCalories} kcal; ${r.notes[0] ?? "(none)"}`);
   }
+  // A real body outside the validated range is told the truth, not that it made a typo (D5b review).
+  for (const [label, stats, re] of [
+    ["115 cm", { age: 30, heightCm: 115, weightKg: 45 }, /isn't validated for a height of 115 cm/],
+    ["101 years", { age: 101, heightCm: 170, weightKg: 70 }, /isn't validated for an age of 101 years/],
+    ["310 kg", { age: 40, heightCm: 180, weightKg: 310 }, /isn't validated for a weight of 310 kg/],
+  ] as const) {
+    const r = applyOperations(BASE, wk, [op({ tool: "compute_targets", ...stats, sex: "female", activity: "moderate" } as never)]);
+    check(`compute_targets: a real body of ${label} is told the equation isn't validated for it, and nothing is stored`,
+      r.notes.some((n) => re.test(n) && /GP or a registered dietitian/.test(n)) && !r.notes.some((n) => /doesn't look right/.test(n)) && r.profile.bodyStats === undefined,
+      r.notes[0] ?? "(none)");
+  }
+  check("bodyStatMessage: two typos read as a list, with 'don't'",
+    /^Your age and height don't look right/.test(bodyStatMessage(["age", "heightCm"], { age: 0, heightCm: 1.8 })), bodyStatMessage(["age", "heightCm"], { age: 0, heightCm: 1.8 }));
   const teen = applyOperations(BASE, wk, [op({ tool: "compute_targets", age: 15, heightCm: 165, weightKg: 55, sex: "female", activity: "light", goal: "lose_weight" } as never)]);
   check("compute_targets will not set a deficit for someone under 18, and says who should",
     teen.profile.targetCalories === 2000 && teen.profile.bodyStats === undefined && teen.notes.some((n) => /adults.*GP|dietitian/.test(n)), teen.notes[0] ?? "(none)");
@@ -1048,6 +1166,18 @@ console.log("\n--- TARGETS: properties (Mifflin-St Jeor, activity factors, floor
   });
   check("hydrationTarget: 35 mL/kg + allowance, 80% to drink in 50 mL steps, band brackets it, monotone", hydErr.length === 0, hydErr[0] ?? "");
   check("hydrationTarget: never negative, whatever weight it is handed", [-80, NaN, 0, 1e9].every((w) => hydrationTarget(w, "sedentary").drinksMl > 0));
+  // Body water follows lean mass, as protein does: above BMI 30 (when the height is known) fluid is
+  // worked from the same reference weight, and the note says so. 300 kg was told 8.4 L a day.
+  {
+    const tall: UserProfile = { ...BASE, bodyStats: { age: 40, heightCm: 170, weightKg: 150, sex: "female", activity: "sedentary" } };
+    const r = applyOperations(tall, wk, [op({ tool: "hydration" } as never)]);
+    const ref = Math.round(referenceWeightKg(150, 170));
+    check("hydration: above BMI 30 it is worked from the reference weight, and says so",
+      ref < 150 && r.notes.some((n) => n.includes(`I worked it from ${ref} kg rather than 150`)), r.notes[0] ?? "(none)");
+    const real = applyOperations(BASE, wk, [op({ tool: "hydration", weightKg: 310 } as never)]);
+    check("hydration: a real weight above the range is told the rule isn't validated, not that it looks wrong",
+      real.notes.some((n) => /isn't validated at 310 kg/.test(n)) && real.profile.bodyStats?.weightKg === undefined, real.notes[0] ?? "(none)");
+  }
   for (const w of [-80, 5000, 10]) {
     const r = applyOperations(BASE, wk, [op({ tool: "hydration", weightKg: w } as never)]);
     check(`hydration refuses a weight of ${w} kg and does not store it`,
@@ -1128,7 +1258,8 @@ console.log("\n--- UNIT CONVERSION LAWS (gramsFor + unitGrams.generated) ---");
     const sp = u === "count" ? "" : " " + u;
     const one = gramsFor(x, `1${sp}`);
     pairs++;
-    if (one == null) { scaleBad.push(`${x}|${u}: 1 -> null`); continue; }
+    // A size word on an item counted by its PARTS (a clove, a slice, a leaf) has no honest weight (D5b review).
+    if (one == null) { if (!["small", "medium", "large"].includes(u)) scaleBad.push(`${x}|${u}: 1 -> null`); continue; }
     const two = gramsFor(x, `2${sp}`), mixed = gramsFor(x, `1 1/2${sp}`), half = gramsFor(x, `1/2${sp}`);
     const dec = gramsFor(x, `0.5${sp}`), q1 = gramsFor(x, `1/4${sp}`), q3 = gramsFor(x, `3/4${sp}`);
     const loud = gramsFor(`  ${x.toUpperCase()} `, `  1 / 2${sp.toUpperCase()}  `);
@@ -1144,9 +1275,10 @@ console.log("\n--- UNIT CONVERSION LAWS (gramsFor + unitGrams.generated) ---");
 
   // 5. A unit it does not know is null, never a guess — including near-misses of known units
   //    ("tablespoon", "cans", "lbs") and the T/t ambiguity, which must not silently pick one.
-  const unknownQ = ["1 tablespoon", "2 tablespoons", "1 teaspoon", "1 pinch", "1 handful", "1 bunch", "2 grams",
-    "1 litre", "1 ounce", "1 pound", "1 dash", "2 sprigs", "1 tin", "1 packet", "2 cans", "1 lbs", "1 T", "1 t",
-    "1 c", "1 fl-oz", "1 to 2 cups", "2-3 cloves", "2 eggs", "1 head", "1 stick"];
+  // (Unambiguous spellings — "tablespoons", "grams", "lbs", "cans" — are aliases since the D5b review;
+  // "T", "t" and "c" stay unknown, because tablespoon against teaspoon is a 3x error either way.)
+  const unknownQ = ["1 pinch", "1 handful", "1 bunch", "1 dash", "2 sprigs", "1 tin", "1 packet", "1 T", "1 t",
+    "1 c", "1 fl-oz", "1 to 2 cups", "2-3 cloves", "2 eggs", "1 head", "1 stick", "1 large head", "2 small bulbs"];
   const guessed = unknownQ.filter((q) => gramsFor("rice", q) !== null || gramsFor("eggs", q) !== null);
   check("units: an unknown unit returns null, never a guess", guessed.length === 0, guessed.join(", "));
 
@@ -1210,7 +1342,9 @@ console.log("\n--- UNIT CONVERSION LAWS (gramsFor + unitGrams.generated) ---");
     const t = P[x] as Record<string, number | undefined>;
     if (t.count != null || t.piece != null || t.pieces != null) {
       if (!(g("1") === g("1 piece") && g("1 piece") === g("1 pieces"))) unitLaw.push(`${x}: count ${g("1")} / piece ${g("1 piece")} / pieces ${g("1 pieces")}`);
-      if (!((g("1 small") ?? NaN) <= (g("1") ?? NaN) && (g("1") ?? NaN) <= (g("1 large") ?? NaN))) unitLaw.push(`${x}: small ${g("1 small")} / count ${g("1")} / large ${g("1 large")}`);
+      // Both null is the honest answer for an item counted by its parts (garlic by the clove, bread by the slice).
+      const sizesNull = g("1 small") === null && g("1 large") === null && [t.clove, t.cloves, t.slice, t.slices, t.leaves].some((p) => p != null && p === g("1"));
+      if (!sizesNull && !((g("1 small") ?? NaN) <= (g("1") ?? NaN) && (g("1") ?? NaN) <= (g("1 large") ?? NaN))) unitLaw.push(`${x}: small ${g("1 small")} / count ${g("1")} / large ${g("1 large")}`);
     }
   }
   check("units: per ingredient, tbsp = 3 tsp = 15 ml, cup = 16 tbsp, l = 1000 ml, singular = plural, count = piece, small <= one <= large",
@@ -1227,6 +1361,26 @@ console.log("\n--- UNIT CONVERSION LAWS (gramsFor + unitGrams.generated) ---");
     gramsFor("rice", "1,000 g") === 1000 && gramsFor("rice", "2 ½ cups") === 600 && gramsFor("rice", "½ cup") === 120);
   check("units: a unit may still be followed by words (\"70 g dry\", \"2 pieces, beaten\")",
     gramsFor("rice", "70 g dry") === 70 && gramsFor("eggs", "2 pieces, beaten") === 100);
+
+  // 11. From the D5b review. A European decimal is never read as thousands ("0,250 l" of milk was
+  //     257 kg). Recipe-site punctuation after a unit still weighs ("2 tbsp.", "200g/7oz"). A size word
+  //     before another unit noun has no honest weight ("1 large head" of lettuce was 7.8 g), nor does
+  //     one on an item whose count is a part of it (a clove, a slice, a leaf).
+  check("units review: '0,250 l' and '0,500 kg' are not read as thousands",
+    gramsFor("milk", "0,250 l") === null && gramsFor("rice", "0,500 kg") === null, `${gramsFor("milk", "0,250 l")}`);
+  const punct: [string, string, number][] = [["olive oil", "2 tbsp.", 27], ["chicken breast", "1 lb.", 453.6], ["rice", "100g.", 100],
+    ["rice", "200g/7oz", 200], ["rice", "2 cups)", 480], ["rice", "1 cup:", 240], ["onion", "2, diced", 220]];
+  const punctBad = punct.filter(([i, q, g]) => Math.abs((gramsFor(i, q) ?? NaN) - g) > 1e-6);
+  check("units review: punctuation after a unit, and 'N, diced', still weigh", punctBad.length === 0, punctBad.map(([i, q]) => `${i} "${q}" -> ${gramsFor(i, q)}`).join("; "));
+  check("units review: '1 (about 150 g)' is still not one of anything", gramsFor("onion", "1 (about 150 g)") === null);
+  const sized = [["romaine", "1 large head"], ["lettuce", "1 small head"], ["garlic", "1 large head"], ["garlic", "1 medium bulb"], ["garlic", "1 large"], ["sourdough bread", "1 large"]];
+  const sizedBad = sized.filter(([i, q]) => gramsFor(i, q) !== null);
+  check("units review: a size word with no honest weight is null, never a leaf or a clove scaled up", sizedBad.length === 0, sizedBad.map(([i, q]) => `${i} "${q}" -> ${gramsFor(i, q)}`).join("; "));
+  check("units review: egg whites use USDA-scaled sizes (3 large = 99 g)", gramsFor("egg whites", "3 large") === 99);
+  const aliases: [string, string, string][] = [["olive oil", "2 tablespoons", "2 tbsp"], ["cumin", "3 teaspoons", "3 tsp"], ["rice", "200 grams", "200 g"],
+    ["chicken breast", "1 lbs", "1 lb"], ["chicken breast", "2 pounds", "2 lb"], ["milk", "1 litre", "1 l"], ["chickpeas", "2 cans", "2 can"], ["protein powder", "2 scoops", "2 scoop"]];
+  const aliasBad = aliases.filter(([i, a, b]) => gramsFor(i, a) === null || gramsFor(i, a) !== gramsFor(i, b));
+  check("units review: unambiguous unit spellings weigh the same as the short form", aliasBad.length === 0, aliasBad.map(([i, a]) => `${i} "${a}" -> ${gramsFor(i, a)}`).join("; "));
 }
 
 // ---------------------------------------------------------------- USDA table + Atwater (D5b)
@@ -2738,10 +2892,13 @@ console.log("--- ALLERGEN LAWS (D5b: properties, swept over the whole library) -
   };
   const sweepLeaks: string[] = [];
   let pairsSeen = 0;
+  // The diet path's own gluten-free foods (corn tortillas, chickpea flour, rice noodles, oat flour) are
+  // safe for a coeliac, and the allergen path agrees since the D5b review.
+  const GF_SAFE = /^(rice noodles|corn tortillas|chickpea flour|oat flour)$/;
   for (const [token, re] of Object.entries(ORACLE)) {
     const tokens = T(token);
     for (const r of RECIPES) {
-      const hit = r.ingredients.map((i) => i.name.toLowerCase()).find((n) => re.test(n));
+      const hit = r.ingredients.map((i) => i.name.toLowerCase()).find((n) => re.test(n) && !(token === "gluten" && GF_SAFE.test(n)));
       if (!hit) continue;
       pairsSeen++;
       if (!haystackBlocked(recipeHay(r), tokens)) sweepLeaks.push(`${token}: ${r.name} <- ${hit}`);
@@ -3690,6 +3847,22 @@ console.log("--- STREAK (daily-use habit hook) ---");
   check("streak: empty history is 0", currentStreak([], today) === 0);
   check("streak: duplicates don't inflate it", currentStreak(["2026-08-04", "2026-08-04", "2026-08-03"], today) === 2);
 }
+{
+  // The assistant's "today" is the person's own calendar day when the browser sends a believable one.
+  // From the server alone it was the UTC day, already tomorrow on a US evening, so "I had pasta
+  // tonight" was logged against the wrong day. Believable = a date some time zone is in right now.
+  const usEvening = new Date("2026-10-04T02:00:00Z"); // 22:00 on Oct 3 in New York
+  check("requestDay: a US evening keeps its own day, not UTC's tomorrow", requestDay("2026-10-03", usEvening) === "2026-10-03");
+  const noonUtc = new Date("2026-10-04T12:00:00Z"); // UTC+14 is already at 02:00 on Oct 5; UTC-12 at 00:00 on Oct 4
+  check("requestDay: a day ahead is believed when UTC+14 is really there", requestDay("2026-10-05", noonUtc) === "2026-10-05");
+  check("requestDay: ...and a day no zone is in is not (Oct 3 at 12:00 UTC on Oct 4)", requestDay("2026-10-03", noonUtc) === "2026-10-04");
+  check("requestDay: Oct 5 is not believed at 02:00 UTC, when no zone has reached it", requestDay("2026-10-05", usEvening) === "2026-10-04");
+  const bad: unknown[] = [undefined, null, 12345, "", "2026-10-3", "2026-02-31", "2026-10-03T00:00", "2026-10-06", "1999-01-01", "not a date"];
+  const believed = bad.filter((b) => requestDay(b, usEvening) !== "2026-10-04");
+  check("requestDay: anything missing, malformed, impossible or out of range falls back to the server's day",
+    believed.length === 0, believed.map((b) => JSON.stringify(b)).join(", "));
+  check("requestDay: a leap day is a real day", requestDay("2028-02-29", new Date("2028-02-29T12:00:00Z")) === "2028-02-29");
+}
 
 console.log("--- VIDEO IMPORT (Phase 2: read a recipe from a reel's caption) ---");
 {
@@ -4534,6 +4707,52 @@ if (violations.size === 0) {
       check("false claim: with no step left to retry, the claim is still never shown",
         r.reply === NOTHING_CHANGED_REPLY && r.steps === 1, r.reply.slice(0, 60));
     }
+  }
+
+  // The models lane's gaps from the 550B reasoning-off run (2026-10-03): passive claims slipped past
+  // claimsChange, and an EMPTY day-scoped constrain re-rolled the weekend silently, so the model's
+  // "Saturday and Sunday have been scaled down" was the whole reply. Their strings, verbatim.
+  {
+    const CLAIMS = [
+      "Your weekend meals are now lighter — Saturday and Sunday have been scaled down to match your lower activity.",
+      "Saturday and Sunday have been lightened.",
+      "Your dinners are now quicker.",
+      "Breakfast has been swapped for a high-protein option.",
+      "Wednesday now has 2000 kcal and 144g protein.",
+      "Done — dinner is now a lighter portion of Chicken & Vegetable Stir-Fry with Rice.",
+      "Done — breakfast is off the menu.",
+      "No eggs, no problem — I've swapped them out of tomorrow's breakfast",
+    ];
+    const NOT_CLAIMS = [
+      "I'd be glad to help. The plan right now averages about 2000 kcal a day. Do you have a calorie target in mind?",
+      "Your plan currently averages 2000 kcal a day.",
+      "Thursday dinner is a Turkey & Bean Chilli: turkey, kidney beans, tomatoes, peppers.",
+      "Want me to make Wednesday vegetarian too?",
+      "I can't remove breakfast entirely yet — plans run on 3 or 4 meals a day.",
+      "Your meals are currently lighter on the weekend.",
+      "Should the weekend be lighter? I can make Saturday and Sunday smaller if you'd like.",
+      "Your Tuesday is already vegetarian, so nothing needed to change.",
+    ];
+    const missed = CLAIMS.filter((t) => !claimsChange(t));
+    const tripped = NOT_CLAIMS.filter((t) => claimsChange(t));
+    check("false claim: passive claims are caught too ('has been swapped', 'are now quicker')", missed.length === 0, missed.join(" | "));
+    check("false claim: ...and descriptions and offers are not ('currently lighter', 'should it be lighter?')", tripped.length === 0, tripped.join(" | "));
+
+    const wk = freshWeek(BASE);
+    const empty = applyPrimitives(BASE, wk, [{ op: "constrain", scope: { days: ["Saturday", "Sunday"] }, preserveMacros: false } as PrimitiveOp]);
+    check("empty constrain: a day-scoped constrain that names nothing changes nothing",
+      empty.planChanged === false && JSON.stringify(empty.plan) === JSON.stringify(wk), `planChanged ${empty.planChanged}`);
+    check("empty constrain: ...and says what it needs, so the model's prose cannot claim a change",
+      empty.notes.some((n) => /didn't say what to change about Saturday and Sunday, so nothing changed/.test(n)), empty.notes.join(" | "));
+    const emptyWeek = applyPrimitives(BASE, wk, [{ op: "constrain", preserveMacros: true } as PrimitiveOp]);
+    check("empty constrain: the same for the whole week", emptyWeek.planChanged === false && emptyWeek.notes.some((n) => /about your week, so nothing changed/.test(n)), emptyWeek.notes.join(" | "));
+    // A bare DAY constrain is how the model asks for different meals on a day: it still re-plans, and now says where it landed.
+    const reroll = applyPrimitives(BASE, wk, [{ op: "constrain", scope: { days: ["Saturday"] } } as PrimitiveOp]);
+    check("empty constrain: a bare day re-plan still happens (the only re-roll the vocabulary has), and says where the day landed",
+      reroll.notes.some((n) => /^Saturday now has/.test(n)) && !reroll.notes.some((n) => /didn't say what to change/.test(n)), reroll.notes.join(" | "));
+    const veg = applyPrimitives(BASE, wk, [{ op: "constrain", scope: { days: ["Saturday"] }, diet: "vegetarian", preserveMacros: false } as PrimitiveOp]);
+    check("day re-plan: a real change with preserveMacros false still says where the day landed",
+      veg.planChanged === true && veg.notes.some((n) => /^Saturday now has/.test(n)), veg.notes.join(" | "));
   }
 
   // the loop must not quietly break the contract the rest of the app depends on

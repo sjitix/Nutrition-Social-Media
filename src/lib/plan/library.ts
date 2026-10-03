@@ -7,9 +7,9 @@
  * milestone A3). The public surface is ./index.ts; an export here that index.ts does not re-export
  * is internal to this folder, and check:boundaries fails anything outside the folder that imports it.
  */
-import { type Meal } from "../types";
-import { NUTRIENT_TABLE } from "../nutrientTable.generated";
-import { microsForIngredients, gramsFor } from "../nutrients";
+import { type Meal } from "../core/types";
+import { NUTRIENT_TABLE } from "../data/nutrientTable.generated";
+import { microsForIngredients, gramsFor } from "../nutrition/nutrients";
 import { SEED_RECIPES, type Recipe, type RecipeSeed } from "../data/seeds";
 import { tableKey } from "../data/ingredients";
 

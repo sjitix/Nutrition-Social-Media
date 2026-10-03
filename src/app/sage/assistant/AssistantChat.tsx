@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { summariseWeek } from "../weekStats";
 import { loadMyWeek } from "../myPlan";
 import { savePlan, saveProfile } from "@/lib/storage";
+import { isoDay } from "@/lib/streak";
 import type { ChatMessage, PlanSnapshot, UserProfile, WeekPlan } from "@/lib/types";
 
 /**
@@ -130,7 +131,8 @@ export default function AssistantChat({
       const res = await fetch("/api/assistant-v2", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profile: prof, plan, history, previous }),
+        // The LOCAL day: the server only knows UTC, which is already tomorrow on a US evening.
+        body: JSON.stringify({ profile: prof, plan, history, previous, today: isoDay(new Date()) }),
       });
 
       // A static export answers with an HTML 404, which is not JSON. That is a missing SERVER, not

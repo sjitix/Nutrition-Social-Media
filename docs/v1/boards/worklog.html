@@ -170,8 +170,8 @@
       the schedule ahead.</p>
     <div class="stamp">
       <b><i>source</i> docs/worklog/</b>
-      <b><i>synced</i> 2026-10-03, afternoon</b>
-      <b><i>commit</i> 4e3be01+</b>
+      <b><i>synced</i> 2026-10-03, 19:30</b>
+      <b><i>commit</i> 9aaff8d+</b>
     </div>
   </header>
 
@@ -190,9 +190,9 @@
   <section id="totals">
     <div class="stats">
       <div class="stat"><div class="v">3</div><div class="l">days logged</div></div>
-      <div class="stat"><div class="v">7</div><div class="l">milestones done</div></div>
-      <div class="stat"><div class="v">12</div><div class="l">days to V1</div></div>
-      <div class="stat"><div class="v">5</div><div class="l">open deferrals</div></div>
+      <div class="stat"><div class="v">9</div><div class="l">milestones done</div></div>
+      <div class="stat"><div class="v">10</div><div class="l">days to V1</div></div>
+      <div class="stat"><div class="v">9</div><div class="l">open deferrals</div></div>
     </div>
   </section>
 
@@ -203,10 +203,122 @@
       Nothing planned appears here — the schedule ahead is in its own collapsed block below.</p>
     <div class="tl" style="margin-top:20px">
 
+      <article class="entry" id="d-2026-10-03-review">
+        <div class="box">
+          <div class="ehead">
+            <span class="date">2026-10-03 &middot; 16:40&ndash;19:30</span>
+            <span class="pill done">solved &middot; done</span>
+          </div>
+          <h3>A review of the review &mdash; and the assistant stops claiming changes it did not make</h3>
+          <p class="sub">Eleven reviewers re-ran every claim against the real planner. The allergy fix from two hours
+            earlier had a hole of its own, and it is closed.</p>
+          <div class="blocks">
+            <div class="blk">
+              <h4>What moved</h4>
+              <ul>
+                <li><b>The assistant can no longer say it changed your plan when it did not.</b> A fast model was caught
+                  writing &ldquo;Wednesday now has 2000 kcal&rdquo; with nothing changed. Now it gets one chance to do it
+                  properly, and otherwise you read &ldquo;I haven't changed anything yet&rdquo;.</li>
+                <li><b>Allergies typed in sentences hold.</b> &ldquo;I can eat anything without gluten&rdquo; had been served
+                  gluten 41 times in five weeks; &ldquo;Neither dairy nor eggs are ok&rdquo; was served eggs. Both block now,
+                  as do &ldquo;shell fish&rdquo;, &ldquo;sea food&rdquo;, &ldquo;egg's&rdquo; and &ldquo;casein&rdquo;.</li>
+                <li><b>Dislikes stay dislikes.</b> Disliking &ldquo;goat cheese&rdquo; no longer removes every cheese, and
+                  &ldquo;fries&rdquo; no longer removes every stir-fry.</li>
+                <li>A gluten allergy no longer hides dishes that are gluten-free: their methods now say
+                  &ldquo;corn tortillas&rdquo; where they meant it.</li>
+                <li><b>&ldquo;Today&rdquo; is your day.</b> The assistant used the server's clock, which on a US evening is already
+                  tomorrow, so &ldquo;I had pasta tonight&rdquo; landed on the wrong day.</li>
+                <li><b>&ldquo;Make the weekend lighter&rdquo;, said vaguely, no longer reshuffles it silently.</b> It now changes
+                  nothing and asks what you want, and every re-planned day says where it landed.</li>
+              </ul>
+            </div>
+            <div class="blk found">
+              <h4>Found while testing</h4>
+              <ul>
+                <li>My own shipping script reported &ldquo;all clean&rdquo; while a file was left half-merged. Nothing was
+                  lost, and the script now stops and says so.</li>
+                <li>Someone 115 cm tall was told their height &ldquo;doesn't look right&rdquo;. They are now told the
+                  equation was not made for them, and who can do better.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="gate">GATE &middot; every review input is a test &middot; five seeded weeks end to end for the worst cases &middot; test:engine as the ship gate</div>
+        </div>
+      </article>
+
+      <article class="entry" id="d-2026-10-03-d5b">
+        <div class="box">
+          <div class="ehead">
+            <span class="date">2026-10-03 &middot; 15:30</span>
+            <span class="pill done">solved &middot; done</span>
+          </div>
+          <h3>The maths, written down as laws &mdash; and they found real harm</h3>
+          <p class="sub">Your comment on L2 said this part has to work perfectly. So instead of testing examples, the rules
+            themselves were written down (83 of them) and checked against the code. 30 were broken.</p>
+          <div class="blocks">
+            <div class="blk">
+              <h4>What moved</h4>
+              <ul>
+                <li><b>Allergies are much harder to lose.</b> &ldquo;peanuts.&rdquo;, a line break, &ldquo;dairy-free&rdquo;,
+                  &ldquo;severe peanut allergy&rdquo; and &ldquo;prawns&rdquo; (meaning shrimp) all used to let the food through. Whey
+                  protein powder passed a milk allergy, and a pizza base passed a coeliac. All of them block now.</li>
+                <li><b>Silly body stats are refused.</b> Someone typing age 500 was told they burn &minus;570 kcal at rest.
+                  Under 18, it now points to a GP or a dietitian.</li>
+                <li><b>Units agree with each other,</b> and seven recipes are re-weighed. Raw shrimp gets its vitamin B12.</li>
+                <li>These checks now run on every save to GitHub, without anyone having to remember them.</li>
+              </ul>
+            </div>
+            <div class="blk found">
+              <h4>Found while testing</h4>
+              <ul>
+                <li><b>The worst bug was mine, from two hours earlier.</b> A fix for &ldquo;peanuts but fine with almonds&rdquo;
+                  broke the same sentence turned around. &ldquo;Fine with almonds but allergic to peanuts&rdquo; was served
+                  peanuts. Fixed, and written down as a lesson.</li>
+                <li>Five recipes carried the wrong diet tag, for example a &ldquo;vegan&rdquo; curry made with a cream sauce.</li>
+                <li><b>Two questions for you:</b> targets are refused under 18 (it could be 16), and the kimchi dishes stay vegan
+                  with a note to buy vegan kimchi.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="gate">GATE &middot; 83 laws as tests &middot; check:recipes, check:ingredients and check:boundaries green &middot; test:engine as the ship gate</div>
+        </div>
+      </article>
+
+      <article class="entry" id="d-2026-10-03-d5">
+        <div class="box">
+          <div class="ehead">
+            <span class="date">2026-10-03 &middot; 13:48</span>
+            <span class="pill done">solved &middot; done</span>
+          </div>
+          <h3>Day 5 done &mdash; every ingredient has a permanent id</h3>
+          <p class="sub">Recipes used to name their ingredients in free text. Now each ingredient has an id that never
+            changes, and a misspelled one stops the build.</p>
+          <div class="blocks">
+            <div class="blk">
+              <h4>What moved</h4>
+              <ul>
+                <li>All 2,296 ingredient references in the 501 recipes carry the id.</li>
+                <li>One rule decides which ingredient a name means, everywhere.</li>
+                <li>Things you told the assistant started to bind. A remembered allergy is now enforced, and a request it
+                  cannot do says so instead of pretending.</li>
+              </ul>
+            </div>
+            <div class="blk found">
+              <h4>Found while testing</h4>
+              <ul>
+                <li>A review by thirteen agents found six real problems before shipping. The worst: every plan saved before
+                  this change would have been reported as changed. All six were fixed, with a test each.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="gate">GATE &middot; check:ingredients &middot; behaviour fingerprint identical &middot; test:engine as the ship gate</div>
+        </div>
+      </article>
+
       <article class="entry" id="d-2026-10-04-safety">
         <div class="box">
           <div class="ehead">
-            <span class="date">2026-10-03 &middot; after midnight</span>
+            <span class="date">2026-10-03 &middot; 13:46</span>
             <span class="pill done">solved &middot; done</span>
           </div>
           <h3>The crisis check now works &mdash; done early, because the old one failed</h3>
@@ -241,7 +353,7 @@
       <article class="entry" id="d-2026-10-03-late">
         <div class="box">
           <div class="ehead">
-            <span class="date">2026-10-03 &middot; late night</span>
+            <span class="date">2026-10-03 &middot; 13:17</span>
             <span class="pill done">solved &middot; done</span>
           </div>
           <h3>Day 4 done &mdash; the app's pages stop downloading the whole recipe library</h3>
@@ -275,7 +387,7 @@
       <article class="entry" id="d-2026-10-03-night">
         <div class="box">
           <div class="ehead">
-            <span class="date">2026-10-03 &middot; night</span>
+            <span class="date">2026-10-03 &middot; 12:59</span>
             <span class="pill done">solved &middot; done</span>
           </div>
           <h3>Day 3 done &mdash; the engine is nine readable modules</h3>
@@ -309,7 +421,7 @@
       <article class="entry" id="d-2026-10-03-eve">
         <div class="box">
           <div class="ehead">
-            <span class="date">2026-10-03 &middot; evening</span>
+            <span class="date">2026-10-03 &middot; 12:10</span>
             <span class="pill done">solved &middot; done</span>
           </div>
           <h3>Day 2 done &mdash; the recipes get their own file</h3>
@@ -352,7 +464,7 @@
       <article class="entry" id="d-2026-10-03-pm">
         <div class="box">
           <div class="ehead">
-            <span class="date">2026-10-03 &middot; afternoon</span>
+            <span class="date">2026-10-03 &middot; 11:35</span>
             <span class="pill done">solved &middot; done</span>
           </div>
           <h3>Day 1 done &mdash; and seven of your comments, answered two weeks late</h3>

@@ -91,14 +91,14 @@ and `test:engine` as the ship gate. The order is chosen so each step is independ
   were the ONLY change. The recipe ingredient type now REQUIRES `slug: IngredientSlug`; a probe with
   `"brown-rise"` failed `tsc` with "Did you mean 'brown-rice'?". A slug-blind 105-point fingerprint
   is identical before and after, and `check:ingredients` / `check:recipes` / `check:boundaries` pass.
-- **Steps 4–5 done 2026-10-04.** `tableKey(ing)` in `data/ingredients.ts` is the one lookup rule (slug
+- **Steps 4–5 done 2026-10-03.** `tableKey(ing)` in `data/ingredients.ts` is the one lookup rule (slug
   first, then name, then today's trim-lowercase fallback for an ingredient we do not curate);
   `deriveMacros` and `microsForIngredients` use it. `IngredientSchema` gains an OPTIONAL `slug`, so a
   library meal carries it through `recipeToMeal`, it survives a stored-plan parse, and a plan saved
   before D5 (no slugs) still parses. Micronutrients are identical with or without the slug; the
   slug-blind fingerprint is identical across steps 3–5. **D5 is done.** What it leaves for later is
   in "Not in D5" below, plus the curation list `check:ingredients` prints.
-- **Adversarial review before shipping (a 13-agent workflow, 2026-10-04) — 6 findings confirmed, 1
+- **Adversarial review before shipping (a 13-agent workflow, 2026-10-03) — 6 findings confirmed, 1
   refuted, all fixed in the same commit:**
   1. *(medium)* **A plan saved before D5 was reported as changed by a no-op.** `rebalance_day` and the
      executor's `planChanged` compared plans with `JSON.stringify`; any meal the engine rebuilt now
