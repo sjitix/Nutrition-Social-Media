@@ -93,7 +93,14 @@ onto main) and `models-exp` (experiments in v1-owned files; never merged without
 - **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`, this block, the
   lane file. Does not edit v1's files; asks v1 first. Touches no accounts files.
 
-### >>> V1 LANE — 2026-10-03 (late): Days 1–3 DONE, Day 4 DONE for /sage (steps 2–3 in their ship gate). TRACK A IS A GATE. Next: D5 (ingredient ids). <<<
+### >>> V1 LANE — 2026-10-03 (after midnight): Days 1–4 DONE; the CRISIS PRE-SCAN (C2) done early. TRACK A IS A GATE. Next: D5 (ingredient ids). <<<
+
+**C2 pre-scan (safety, pulled forward):** `src/lib/safety.ts` `redFlag` runs on the user's RAW
+message in both assistant routes before any model AND before demo mode; `symptomNote` shares it.
+If not on `origin/main`, its gate failed — check `git log`. **Owner decision #8** is open (which way
+it errs on 5 food lines; whether to add eating-disorder/hopelessness phrasings — `01-…md` §5).
+**`test:api` has 18 new pre-scan checks NOT yet run as a suite** (LM Studio was busy with the models
+lane; the same checks passed as a direct probe) — run `npm run test:api` when LM Studio is free.
 
 **Day 4 (A4):** `/sage/plan` 226 → **129 kB** (`7efbe9b`), `/sage/groceries` 123 → **113 kB**,
 `/sage/explore` 212 → **114 kB** first-load JS (steps 2–3: if not on `origin/main`, the gate failed).
