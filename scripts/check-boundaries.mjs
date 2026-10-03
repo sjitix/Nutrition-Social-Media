@@ -42,6 +42,7 @@ const LAYER_NAMES = ["L0 contracts", "L1 data", "L2 pure computation", "L3 plan 
 const LIB_LAYERS = {
   "types.ts": 0, "slots.ts": 0,
   "nutrientTable.generated.ts": 1, "substitutions.ts": 1, "symptoms.ts": 1, "conditions.ts": 1,
+  "data/": 1, // the recipe seeds and their vocabulary (A2, 2026-10-03); imports nothing
   "nutrients.ts": 2, "targets.ts": 2, "exclusions.ts": 2, "grocery.ts": 2, "streak.ts": 2,
   "recipeDb.ts": 3,
   "primitives.ts": 4, "agentTools.ts": 4, "agentLoop.ts": 4, "reply.ts": 4, "promptV2.ts": 4,
