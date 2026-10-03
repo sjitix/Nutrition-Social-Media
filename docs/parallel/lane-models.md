@@ -7,17 +7,17 @@ Protocol: [`README.md`](README.md). Worktree: `../NutriFlow-models/`, branch `mo
 
 ## Now doing
 
-**2026-10-03 (late afternoon) — the read-tool fix is ON MAIN (`3392461`); the date line is approved and
-queued behind v1's D5; now making the 550B faster and finding a big free host.**
+**2026-10-03 (late afternoon) — the read-tool fix (`3392461`) and the date line (`4f53468`) are ON MAIN;
+now making the 550B faster and finding a big free host.**
 
 Owner's direction (twice today): big models first; find the biggest free model with an optimal response
 time; no more effort on 20–30B. Memory: `big-hosted-model-first`.
 
 1. **Landed:** the read-tool fix and prompt work (`3392461`, applied by v1 from `models-exp` 543bcb2).
    v1's engine fixes for the three bugs this lane found (`98747f6`).
-2. **Approved, landing after v1's D5 commit:** `models-exp-date` 3c30e90, "Today is Monday (…)" in the
-   prompt. 550B logs "today" 3/3 with it, 0/4 without. Gate 750/0. v1 follows up with the browser's local
-   date instead of UTC.
+2. **Landed:** the date line (`4f53468`, from `models-exp-date` 3c30e90, now retired). 550B logs "today"
+   3/3 with it, 0/4 without. v1 follows up with the browser's local date instead of UTC.
+   `models-exp` equals main; new prompt experiments branch from there.
 3. **The conversation eval decides model size.** 550B 12/14 (corrected), 20B 6/14 with either prompt.
 4. **Free-provider search (25 agents, verified):** no free tier gives big + fast + volume at once.
    Report: `docs/models/free-providers-2026-10.md`. The owner's to-do is rewritten and ranked: Vercel AI
@@ -62,7 +62,6 @@ time; no more effort on 20–30B. Memory: `big-hosted-model-first`.
 
 ## Asks of the other lanes
 
-- **v1: land `models-exp-date` 3c30e90** after your D5 commit (agreed 2026-10-03, before D5a).
 - **v1, when the numbers are in:** reasoning off for hosts that accept it (one request field in the
   adapter), and an early stop in `runAgent` when the engine's notes are the reply. Proposals with
   numbers, not branches.

@@ -78,12 +78,12 @@ in the main folder (`2fd6f02`). Its WORKPLAN lesson was renumbered 38 → 48 bec
 
 #### PARALLEL LANE — models (written by the models agent only)
 
-**2026-10-03 (afternoon) — the read-tool fix is LANDING (v1 applied `models-exp` 543bcb2), and the
-search for the biggest free fast model goes on.** Live status: `docs/parallel/lane-models.md`. Data and
+**2026-10-03 (late afternoon) — the read-tool fix (`3392461`) and the date line (`4f53468`) are ON
+MAIN; the free-provider search is done (`docs/models/free-providers-2026-10.md`: no free tier gives big
++ fast + volume at once); making the 550B faster is in progress (survey Round 5).** Live status: `docs/parallel/lane-models.md`. Data and
 decisions: `docs/models/` (README "Decisions on record", then `survey.md` Round 4). Owner to-do:
 `docs/models/OWNER-TODO.md`. Branches: `models` (ships my paths onto main), `models-exp` (the prompt and
-schema work; v1 is landing it on main), `models-exp-date` ("today is Monday (2026-10-05)" in the prompt,
-being measured on the 550B, offered to v1 next).
+schema work, landed; now equal to main), `models-exp-date` (the date line, landed as `4f53468`; retired).
 
 - **Owner's direction (2026-10-03, twice):** big models first ("like the 550B"); find the biggest FREE
   model, ~100B+, with an optimal response time; no more effort on training or using 20–30B except as
