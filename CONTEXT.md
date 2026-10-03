@@ -54,19 +54,29 @@ changed). Its WORKPLAN lesson was renumbered 38 → 48 because 38–47 were take
 
 #### PARALLEL LANE — models (written by the models agent only)
 
-**2026-10-03 — lane created; model survey + latency/quality sweep starting.** Live status, plan and
-asks: `docs/parallel/lane-models.md`. Research + decisions: `docs/models/`. Owner to-do (so this lane
-never blocks on the owner): `docs/models/OWNER-TODO.md`.
+**2026-10-03 (evening) — searching for the largest free model that is fast enough; a read-tool fix for
+v1 to land.** Live status: `docs/parallel/lane-models.md`. Data + decisions: `docs/models/` (start with
+`survey.md`). Owner to-do: `docs/models/OWNER-TODO.md`. Branches on GitHub: `models` (ships my paths
+onto main) and `models-exp` (experiments in v1-owned files; never merged without v1).
 
-- **The question:** which LLM is the best assistant brain on BOTH quality and response time. Baseline to
-  beat: `gpt-oss-20b` (84% on the 45 hard cases, ~2.8s/call on NVIDIA free). K3 is ruled out for live
-  use (too slow on free, over-acts) — see `docs/v1/03-kimi-decision.md`.
-- **Approach:** survey high-parameter models (NVIDIA NIM free first), measure per-call latency, run the
-  hard-case eval, build the loop-level eval (does the model read before it writes / stop vs burn 8
-  steps). Prototype the over-act prompt fix on branch `models`.
+- **Owner's direction:** 20B is too small; find the biggest free model with a good response time that
+  can do everything. `gpt-oss-20b` is only a control.
+- **Found, confirmed by v1: the agent loop could never use its read tools** (not in the turn schema or
+  the prompt; the prompt never explained the loop). Fix = `models-exp` (3 files, +80/−11), engine gate
+  680/0, check-boundaries clean. On Ultra-550B: read-before-write 0/2 → 2/2, give-ups 1 → 0, worst
+  message 106 s → 47 s. v1's review caught a safety hole in my draft (it steered models off `symptom`,
+  the only path to the crisis guard until C2) — fixed. Final before/after + v8 run, then "ready to land".
+- **Models so far:** Nemotron-Ultra-550B (NVIDIA free) 73–84% depending on run, honest declines, but
+  17–21 s/message and a rate limit that varies through the day; GLM-5.3 82% (v2) given room to think,
+  but 25–90 s/call; local Qwen3-30B 50 s/message on one 8 GB card; **keyless OVHcloud serves
+  gpt-oss-120b in 3.4 s and Llama-3.3-70B in 2.7 s** but locks an IP out after a burst — an OVH key
+  (400/min) is the top owner to-do.
+- **Methodology learned the hard way:** latency only from the real loop (short-prompt sweeps flatter
+  every model 3–10×); reasoning models need a big output budget; free-tier rate limits void parallel
+  runs (evals run one at a time now); the hard-case eval swings ~9 points between identical runs
+  (`docs/models/eval-variance.md`), so read it as a range.
 - **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`, this block, the
-  lane file. **Does not edit** `promptV2.ts` / `ai.ts` / `agentLoop.ts` / `eval-hardcases.mts` (v1's) —
-  runs them, and asks v1 before landing any change to them on `main`. Touches no accounts files.
+  lane file. Does not edit v1's files; asks v1 first. Touches no accounts files.
 
 ### >>> V1 LANE — 2026-10-03 (night): Days 1–3 DONE, swap fix LANDED. TRACK A IS A GATE. Next: Day 4 (A4 payload). <<<
 
