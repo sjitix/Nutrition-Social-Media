@@ -68,7 +68,7 @@ never blocks on the owner): `docs/models/OWNER-TODO.md`.
   lane file. **Does not edit** `promptV2.ts` / `ai.ts` / `agentLoop.ts` / `eval-hardcases.mts` (v1's) —
   runs them, and asks v1 before landing any change to them on `main`. Touches no accounts files.
 
-### >>> V1 LANE — 2026-10-03 (afternoon): Day 1 DONE (`check:boundaries`). TRACK A IS NOW A GATE. Next: Day 2. <<<
+### >>> V1 LANE — 2026-10-03 (evening): Days 1 + 2 DONE. TRACK A IS NOW A GATE. Next: the scoped-swap fix, then Day 3. <<<
 
 **State:** `main` pushed (`4e3be01` + docs). `check:boundaries` passes (0 new, **9 known debts**) ·
 `test:engine` **660/0** · `test:ui` **51/0** · `test:api` **60/0** · `tsc` clean. Live lane status:
@@ -120,9 +120,28 @@ C4**, every Track E button gets a chat primitive. Reasoning: `02-module-map.md` 
   v1's; answer its asks when they come (likely first: the over-act prompt fix). Tell it when any of
   those, the assistant routes or the primitives' contract change.
 
-**NEXT: V1 Day 2 — A2, split `recipeDb.ts` part 1: the 501 seeds out of the engine**, behind a
-barrel so no call site changes. Gate: `test:engine` **660/0 identical**, `check:boundaries` 0 new.
-Run `npm run check:boundaries` before AND after — a split that points a dependency upward fails it.
+- **D2 done** — the seeds are in `src/lib/data/seeds.ts` (imports nothing); `recipeDb.ts` 11,062 →
+  3,317 lines; fingerprint of the computed library + a seeded week identical before/after. Module
+  folders live under **`src/lib/`** (decided). **Add a recipe in `data/seeds.ts` now.**
+- **`eval-hardcases.mts` reports `actedRightV2`** beside v1 (a hold may `remember`/`answer`); v1 kept
+  so the 84% baseline stays comparable.
+
+- **Scoped-swap fix — written, in its ship gate** (if it is not on `origin/main`, the gate failed:
+  check `git log`): both swap paths call `rebalanceDay(..., { replaceOthers: false })` — resize the
+  other meals, never replace them; the single-day path OFFERS the upgrade by name; `achievementNote`
+  gained `keptByChoice` so the shortfall is not blamed on the library. 9 tests in a new SCOPED CHANGES
+  block of `test-engine.mts`. **Decision in VISION.md** (constraint layer 2): the user's scope
+  outranks macro fit. `ship.mjs` also re-fetches after the gate now (`35a1265`).
+
+**NEXT, in order:**
+1. **Confirm the scoped-swap fix landed** (`git log origin/main`), then tell the models lane the sha so
+   they run `ONLY=single-slot` against it.
+2. **Land the models lane's read-tool diff** (`origin/models-exp`, = `d3d0a18`, merged up to date;
+   3 files: `primitives.ts`, `promptV2.ts`, `ai.ts`) when they send "ready to land". Reviewed: the
+   safety bullet was fixed in `5336ab1`. Land it in its own commit, between Track A days.
+3. **V1 Day 3 — A3, the executor out**: `applyOperations` + `previewOperations` + their note-writers
+   (`recipeDb.ts` ~1266–3212) → `src/lib/plan/execute.ts`; the selection privates it uses become
+   folder-internal exports, NOT barrel exports. Gate: `test:engine` identical, `check:boundaries`.
 
 #### 2. TRACK E IS COMPLETE — what the app can now do with NO model
 

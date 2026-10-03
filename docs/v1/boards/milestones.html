@@ -286,6 +286,11 @@
         <p class="desc">The 501 recipe seeds (≈7,685 lines, <b>71% of the file</b>) move to their own module;
           selection and rebalancing stay. A barrel re-exports today's eighteen consumed names unchanged, so
           <b>no call site is touched</b>.</p>
+        <div class="callout" style="margin:12px 0 0;border-color:var(--accent-line);background:var(--accent-soft)">
+          <b>Done 2026-10-03.</b> The recipes now live in their own file, <span class="mono">src/lib/data/seeds.ts</span>,
+          which depends on nothing. <span class="mono">recipeDb.ts</span> went from <b>11,062 to 3,317 lines</b> and
+          no other file had to change. Proven, not assumed: a fingerprint of all 501 computed recipes and of a generated
+          week came out <b>identical</b> before and after.</div>
         <div class="meta">
           <div><span class="k">Usable when</span><span class="mono">test:engine</span> returns an identical result and no importer changed.</div>
           <div><span class="k">Depends on</span>D1</div>

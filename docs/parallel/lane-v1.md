@@ -156,3 +156,9 @@ Shipped this session, so free again: `scripts/test-engine.mts`, `scripts/test-ui
   schema and the prompt never name them. Fix in flight on `models-exp`; I land it on `main`.
 - **Nothing tells the model today's date** (models lane): "I ate a burger for lunch today" makes the
   model ask which day it is. After the read-tool fix.
+- **FIXED (in its gate now): a scoped change is not respected** (models lane's loop eval): "swap JUST
+  Wednesday's dinner" also replaced breakfast — and often lunch (24 of 24 probe scenarios). Both swap
+  paths now resize the other meals but never replace them (`rebalanceDay(..., { replaceOthers: false })`),
+  the single-day path OFFERS the upgrade by name, and the shortfall note says "keeping the other meals
+  you had" instead of the now-false "the most these recipes allow". 9 engine tests; your
+  `ONLY=single-slot` row should go green against it. Decision recorded in VISION.md (constraint layer 2).

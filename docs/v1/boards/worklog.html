@@ -203,6 +203,46 @@
       Nothing planned appears here — the schedule ahead is in its own collapsed block below.</p>
     <div class="tl" style="margin-top:20px">
 
+      <article class="entry" id="d-2026-10-03-eve">
+        <div class="box">
+          <div class="ehead">
+            <span class="date">2026-10-03 &middot; evening</span>
+            <span class="pill done">solved &middot; done</span>
+          </div>
+          <h3>Day 2 done &mdash; the recipes get their own file</h3>
+          <p class="sub">The 501 recipes were 71% of the engine's file. They now live on their own, and the engine is a file
+            you can read.</p>
+          <div class="blocks">
+            <div class="blk">
+              <h4>What moved</h4>
+              <ul>
+                <li><span class="mono">recipeDb.ts</span>: <b>11,062 &rarr; 3,317 lines</b>. The recipes are in
+                  <span class="mono">src/lib/data/seeds.ts</span>, which depends on nothing. No other file had to change.</li>
+                <li><b>Proven identical</b>: a fingerprint of all 501 computed recipes and of a generated week matched
+                  before and after.</li>
+                <li>The boundaries gate caught the new folder on its first real use, as it should.</li>
+                <li>The model-scoring eval now grades fairly: remembering a fact or answering a question no longer counts
+                  as &ldquo;acting&rdquo; on cases that ask the assistant to hold. The old score is kept beside it.</li>
+              </ul>
+            </div>
+            <div class="blk found">
+              <h4>A real bug, found by the models lane</h4>
+              <ul>
+                <li>&ldquo;Swap <b>just</b> Wednesday's dinner&rdquo; also replaced Wednesday's breakfast &mdash; often lunch
+                  too. Reproduced in <b>24 of 24</b> scenarios. The engine chased the protein target by swapping meals you
+                  never mentioned.</li>
+                <li><b>Fixed the same evening:</b> a change to one meal may resize the others, never replace them, and
+                  it <i>offers</i> the upgrade by name &mdash; &ldquo;I could swap your breakfast to X, just say so.&rdquo;
+                  After the fix: <b>0 of 24</b>. Your scope now outranks macro fit; that is written into the vision.</li>
+                <li><b>A safety hole caught in review:</b> the other agent's prompt change would have stopped models
+                  reporting symptoms to the crisis guard. Fixed before it landed, with tests.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="gate">GATE &middot; fingerprint identical &middot; check:recipes OK &middot; check:boundaries 0 new &middot; tsc clean &middot; test:engine as the ship gate</div>
+        </div>
+      </article>
+
       <article class="entry" id="d-2026-10-03-pm">
         <div class="box">
           <div class="ehead">
