@@ -65,6 +65,11 @@ export class FakeSupabase {
   failPulls = 0;
   /** Make pulls take this long, so a test can act while one is in flight. */
   pullDelayMs = 0;
+  /**
+   * Make only the NEXT pull take this long. One-shot, so one tab's pull can still be in flight while
+   * another tab's sync runs at full speed: delaying both would only reorder them back.
+   */
+  nextPullDelayMs = 0;
   /** Lifetime of the next issued access token, in seconds (negative = already expired). */
   nextExpiresIn = 3600;
   /** How far the SERVER's clock is from this process's: `expires_at` is stamped on the server's. */
@@ -78,6 +83,16 @@ export class FakeSupabase {
    * user's first link ("Confirm email" on) is 300 s, counted from the request; Infinity unless set.
    */
   codeTtlMs = Infinity;
+  /**
+   * Delay the ANSWER to the next token renewal by this long, after applying it at once, as GoTrue does
+   * (the old refresh token is spent the moment the request arrives). One-shot. Delaying the whole
+   * request instead would spend the token late and hide the race this exists to reproduce.
+   */
+  refreshAnswerDelayMs = 0;
+  /** Run once, right after the next pull is answered: "another device writes between a pull and a push". */
+  afterPull: (() => void) | null = null;
+  /** Make writes (upsert_state) take this long, so a test can act while a push is in flight. */
+  pushDelayMs = 0;
   writes = 0;
   logouts = 0;
   private n = 0;
@@ -146,7 +161,13 @@ export class FakeSupabase {
       const id = this.refresh.get(body?.refresh_token);
       if (!id || this.refuseRefresh || !this.users.has(id)) return reply(400, { error: "invalid_grant", error_description: "Invalid Refresh Token" });
       this.refresh.delete(body.refresh_token); // rotation: an old refresh token works once
-      return reply(200, this.issue(id));
+      const renewed = this.issue(id);
+      if (this.refreshAnswerDelayMs) {
+        const wait = this.refreshAnswerDelayMs;
+        this.refreshAnswerDelayMs = 0;
+        await new Promise((r) => setTimeout(r, wait));
+      }
+      return reply(200, renewed);
     }
     const uid = this.access.get((headers.Authorization ?? "").replace(/^Bearer /, ""));
     if (url.pathname === "/auth/v1/logout") {
@@ -162,6 +183,7 @@ export class FakeSupabase {
       return reply(204);
     }
     if (url.pathname === "/rest/v1/rpc/upsert_state" && method === "POST") {
+      if (this.pushDelayMs) await new Promise((r) => setTimeout(r, this.pushDelayMs));
       const incoming = (body?.rows ?? []) as { key: string; value: unknown; updated_at: string }[];
       // One SQL statement: refused whole.
       if (this.refuseKey && incoming.some((r) => r.key === this.refuseKey)) return reply(400, { code: "22P05", message: "unsupported Unicode escape sequence" });
@@ -184,8 +206,15 @@ export class FakeSupabase {
           this.failPulls--;
           return reply(503, { message: "upstream timeout" });
         }
-        if (this.pullDelayMs) await new Promise((r) => setTimeout(r, this.pullDelayMs));
-        return reply(200, [...mine.entries()].map(([key, r]) => ({ key, value: r.value, updated_at: r.updated_at })));
+        const once = this.nextPullDelayMs;
+        this.nextPullDelayMs = 0;
+        const wait = Math.max(this.pullDelayMs, once);
+        if (wait) await new Promise((r) => setTimeout(r, wait));
+        const answer = reply(200, [...mine.entries()].map(([key, r]) => ({ key, value: r.value, updated_at: r.updated_at })));
+        const then = this.afterPull;
+        this.afterPull = null;
+        then?.();
+        return answer;
       }
       if (method === "DELETE") {
         this.rows.delete(uid);

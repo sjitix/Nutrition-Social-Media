@@ -25,6 +25,15 @@ creates a Supabase project; with no keys configured the app behaves exactly as i
    one, which then works). If you leave it on, expect that.
    **Keep CAPTCHA protection off** (Authentication → Attack Protection). This app sends no captcha
    token, so with it on every sign-in fails.
+   **Authentication → Configuration → Audit Logs:** turn **off "Write audit logs to the database"**.
+   Every sign-in, and every automatic renewal of it (about once an hour while the app is open), writes
+   an audit entry holding the person's email and IP address. In the database (`auth.audit_log_entries`)
+   nothing ever removes those entries, not even deleting the account. With the switch off they are
+   kept only in Supabase's log storage, for the plan's log retention: 1 day on Free, 7 on Pro, 28 on
+   Team, 90 on Enterprise. That is what the app's privacy note promises ("for as long as the provider's
+   log settings keep them"), so leaving the switch on makes the note untrue.
+   Sources: <https://supabase.com/docs/guides/auth/audit-logs> ·
+   <https://supabase.com/docs/guides/telemetry/logs>
 4. **Authentication → Emails → SMTP settings: switch on a custom SMTP provider. Without this step
    nobody but you can sign in.** Supabase's built-in mailer is for trying things out only: it sends
    **only to members of your Supabase organisation** (everyone else gets `email_address_not_authorized`)
@@ -72,7 +81,9 @@ Two functions:
   another device. It runs as the calling user (`security invoker`), so every RLS policy still applies, and
   it takes the user id from the verified token, never from the request.
 - **`delete_my_account()`** (0001) — a signed-in user deletes themselves; every row of theirs goes with
-  them by cascade. The sign-in provider's own audit log of past sign-ins is kept for its retention period.
+  them by cascade. The sign-in audit log is not part of the account and is not deleted with it: with
+  step 3's "Write audit logs to the database" off, it ages out of Supabase's log storage at the plan's
+  retention; left on, its copy in the database stays until someone deletes it by hand.
 
 **Grants.** A new Supabase project grants every privilege on a new `public` table to both API roles.
 0001 takes all of it back: signed-in users then hold exactly `select`, `insert`, `update` and `delete`,

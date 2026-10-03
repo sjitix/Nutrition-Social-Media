@@ -29,7 +29,7 @@ message each other are in `docs/parallel/README.md`.
 
 #### PARALLEL LANE — accounts (written by the accounts agent only)
 
-**2026-10-03 — accounts are built up to the keys, adversarially reviewed, and the SQL has run.**
+**2026-10-03 — accounts are built up to the keys, adversarially reviewed twice, and the SQL has run.**
 Live status, the plan and the asks: `docs/parallel/lane-accounts.md`. Design: **local-first, the
 account is a mirror** — `storage.ts`'s load/save API did not change, so no screen had to; underneath,
 every real save stamps a write time and notifies listeners, and a sync layer mirrors each store to one
@@ -60,8 +60,8 @@ Supabase row per user under RLS.
   - "Put it back" lost the restored copy.
   Now every write is stamped later than what it replaces (`nextStamp`, the logical-clock rule), so raw
   clocks decide only true conflicts, where the backup applies.
-- **A second adversarial review, of the hardening itself, found more. Batches 1–3 are fixed
-  (lessons 58–59):**
+- **A second adversarial review, of the hardening itself, found more. All four batches are fixed
+  (lessons 58, 59 and 63):**
   - "Delete my account" in a stale tab deleted the OTHER account another tab had signed in;
   - a failed first sync left the browser unowned, so the next person's sign-in uploaded the previous
     person's data;
@@ -69,22 +69,30 @@ Supabase row per user under RLS.
   - a push could replace the account's copy with no copy kept anywhere (now rule 6);
   - a tab left open across another tab's pull or sign-in wrote stale or someone else's data back;
   - every 401 signed people out;
-  - a first link opened after five minutes, or after a network blip, could not be finished.
-  Still open (batch 4, in the lane file): late callbacks after "delete everything", notes the reload
-  wipes, untested guards in the React layer, and accessibility. The security lens is still reporting.
-- **Gate for this lane:** `node scripts/test-account.mjs` runs two suites: **286 checks** in one tab,
+  - a first link opened after five minutes, or after a network blip, could not be finished;
+  - **batch 4:** a tab still holding the data from before another tab switched accounts (or cleared
+    the browser) could write it into the new person's storage, or record the previous account as
+    the owner, so that person's next sign-in here would upload the new person's data. **THE WRITE
+    FENCE** in `storage.ts` now refuses every write from such a tab. Also: answers that land after a
+    stop change nothing; a crafted file or row can no longer crash Week, the meal sheet or Today;
+    both account surfaces work by keyboard and screen reader; the privacy note says what is logged.
+  Batch 4's own adversarial review ran out of usage before it reported; it is re-run against `main`.
+- **Gate for this lane:** `node scripts/test-account.mjs` runs two suites: **315 checks** in one tab,
   including the real `client.ts` end to end against an in-memory Supabase (RLS, PKCE, conditional
-  writes, jsonb order, skewed clocks, token expiry), and **10 checks across tabs** of one browser ·
-  `node scripts/test-account-sql.mjs --mutate` — **37 checks in real Postgres, 15/15 broken guards
-  caught** · `node scripts/mutate-account.mjs` — **38/38**.
+  writes, jsonb order, skewed clocks, token expiry), and **25 checks across tabs** of one browser
+  (stale tabs, the write fence, a tab that hears late) · `node scripts/test-account-sql.mjs --mutate`
+  — **37 checks in real Postgres, 15/15 broken guards caught** · `node scripts/mutate-account.mjs` —
+  **60/60** (`--only "text"` re-checks one guard in seconds).
 - **Owner, to switch accounts on:** `supabase/README.md` — create a project, run **both** migrations,
-  **configure custom SMTP** (without it only your own organisation receives sign-in emails), then put
-  `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` in `.env.local` and Vercel. Never the
-  `service_role` key.
+  set the Site URL to the account page, turn off "Confirm email" and "Write audit logs to the
+  database", **configure custom SMTP** (without it only your own organisation receives sign-in
+  emails), then put `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in
+  `.env.local` and Vercel. Never the `service_role` key.
 - **Asked of the v1 lane (lane file has the detail):** make `AssistantChat` re-read on
-  `PLAN_CHANGED_EVENT` and drop `actions.ts`'s undo snapshot when sync pulls — until then
-  `<AccountSync/>` reloads the tab once when the week or profile comes down. `storage.ts` now owns the
-  theme key, so ThemeSwitch's boundaries debt can be paid.
+  `PLAN_CHANGED_EVENT`, and drop `actions.ts`'s undo snapshot when sync pulls or the browser is
+  cleared — until then `<AccountSync/>` reloads the tab once when the week or profile comes down.
+  **D5a, answered yes:** `storage.ts` and `savedStore.ts` may move to `persistence/` once batch 4's sha
+  is in the lane file. `storage.ts` already owns the theme key, so ThemeSwitch's debt can be paid.
 
 One-time handoff carried through this lane: the `modelFailed` fix an earlier session left uncommitted
 in the main folder (`2fd6f02`). Its WORKPLAN lesson was renumbered 38 → 48 because 38–47 were taken.

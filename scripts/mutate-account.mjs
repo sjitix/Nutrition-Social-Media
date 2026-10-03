@@ -160,16 +160,10 @@ const MUTATIONS = [
   },
   // Review 2, batch 2: other tabs (scripts/test-account-tabs.mts).
   {
-    name: "a tab is not reloaded when the browser changes hands in another tab",
-    file: "src/lib/account/client.ts",
-    from: "    if (tabOwner !== null && whose() !== tabOwner) on.reload();",
-    to: "    if (false) on.reload();",
-  },
-  {
-    name: "a tab reloads on every sign-in change elsewhere, even a refreshed token or a sign-out",
-    file: "src/lib/account/client.ts",
-    from: "    if (tabOwner !== null && whose() !== tabOwner) on.reload();",
-    to: "    if (tabOwner !== null) on.reload();",
+    name: "a tab reloads on every change elsewhere, even a refreshed token or a sign-out",
+    file: "src/lib/storage.ts",
+    from: "    if (e.key === INTERNAL.epoch || e.key === null) fn();",
+    to: "    fn();",
   },
   {
     name: "a tab is not reloaded when another tab replaces a store its screens hold",
@@ -244,11 +238,157 @@ const MUTATIONS = [
     from: "  setStatus({ state: \"syncing\", email: s.email, userId: s.userId });",
     to: "",
   },
+  // Review 2, batch 4.
+  {
+    name: "a renewal answered after a sign-out or a clear brings the session back",
+    file: "src/lib/account/client.ts",
+    from: "  if (!stored) throw new AccountError(\"You're signed out.\", \"auth\");",
+    to: "  if (!stored) { saveSessionRaw(next); return next; }",
+  },
+  {
+    name: "a push answered after the sync stopped writes its bookkeeping anyway",
+    file: "src/lib/account/client.ts",
+    from: "      if (!isCurrent()) return;\n      for (const r of rows) markSynced(r.name, r.at);",
+    to: "      for (const r of rows) markSynced(r.name, r.at);",
+  },
+  {
+    name: "a re-sync waiting behind a push runs in a stopped tab and shows \"Syncing…\"",
+    file: "src/lib/account/client.ts",
+    from: "    if (!isCurrent()) return null;\n    const first = !everSynced;",
+    to: "    const first = !everSynced;",
+  },
+  {
+    name: "a skipped full-sync push is left until the next focus (no follow-up pull)",
+    file: "src/lib/account/client.ts",
+    from: "      if (report.skipped.length) wantFollowUp = true; // the account moved on mid-sync: see `resync`",
+    to: "",
+  },
+  {
+    name: "a full sync's push answered after the browser was cleared still marks its stores synced",
+    file: "src/lib/account/sync.ts",
+    from: "    if (o.stillCurrent && !o.stillCurrent()) return { ...report, cancelled: true };\n  }\n  const heldBack",
+    to: "  }\n  const heldBack",
+  },
+  {
+    name: "THE WRITE FENCE is gone: a stale tab's save lands in the new account's storage",
+    file: "src/lib/storage.ts",
+    from: "  if (!fenceHolds()) return; // THE WRITE FENCE: the browser changed hands in another tab",
+    to: "",
+  },
+  {
+    name: "an account switch starts no new data generation",
+    file: "src/lib/storage.ts",
+    from: "  window.localStorage.removeItem(INTERNAL.synced);\n  newEpoch();\n}",
+    to: "  window.localStorage.removeItem(INTERNAL.synced);\n}",
+  },
+  {
+    name: "\"Delete everything\" starts no new data generation",
+    file: "src/lib/storage.ts",
+    from: "  Object.values(INTERNAL).forEach((k) => window.localStorage.removeItem(k));\n  newEpoch();",
+    to: "  Object.values(INTERNAL).forEach((k) => window.localStorage.removeItem(k));",
+  },
+  {
+    name: "a tab is not reloaded when the browser changes hands (or is cleared) in another tab",
+    file: "src/lib/account/client.ts",
+    from: "  const offHands = onBrowserChangedHandsElsewhere(() => on.reload());",
+    to: "  const offHands = () => {};",
+  },
+  {
+    name: "what a sync said is lost in the reload it caused",
+    file: "src/lib/account/client.ts",
+    from: "      const carried = first ? takeCarriedNote() : null;",
+    to: "      const carried = null;",
+  },
+  {
+    name: "pinned meals in the wrong shape pass validation (the Week board crashes on every device)",
+    file: "src/lib/account/validate.ts",
+    from: "  if (!optList(v.lockedMeals, (m) => isObj(m) && isDay(m.day) && isMealType(m.mealType) && isStr(m.name))) {",
+    to: "  if (false) {",
+  },
+  {
+    name: "a meal description that is not text passes validation (Today crashes)",
+    file: "src/lib/account/validate.ts",
+    from: "    optStr(m.description) &&",
+    to: "",
+  },
+  {
+    name: "a week's notes in the wrong shape pass validation",
+    file: "src/lib/account/validate.ts",
+    from: "  if (!optList(v.notes, isStr)) return",
+    to: "  if (false) return",
+  },
+  {
+    name: "a stale tab's sync can still mark stores synced in the new generation",
+    file: "src/lib/storage.ts",
+    from: "  if (!fenceHolds()) return; // a stale tab's sync must not write into the new generation's bookkeeping",
+    to: "",
+  },
+  {
+    name: "a stale tab can still put a copy back into the new generation",
+    file: "src/lib/storage.ts",
+    from: "  if (!b || !fenceHolds()) return false;",
+    to: "  if (!b) return false;",
+  },
+  {
+    name: "a stale tab can still take a copy, which can push the set-aside data out of the three kept",
+    file: "src/lib/storage.ts",
+    from: "  if (!fenceHolds()) throw new Error(CHANGED_HANDS);",
+    to: "",
+  },
+  {
+    name: "a stale tab's late sync can still make the previous account this browser's owner",
+    file: "src/lib/storage.ts",
+    from: "  if (!fenceHolds()) return; // a stale tab's late sync must not make the previous account the owner",
+    to: "",
+  },
+  {
+    name: "a tab that has only listed the copies adopts the new generation at its first write",
+    file: "src/lib/storage.ts",
+    from: "    knowEpoch(); // what a tab has read is what it may write back: THE WRITE FENCE\n",
+    to: "",
+  },
+  {
+    name: "a browser with storage blocked crashes on load (the read pin outside readKey's try)",
+    file: "src/lib/storage.ts",
+    from: "  try {\n    // Inside the try:",
+    to: "  knowEpoch();\n  try {\n    // Inside the try:",
+  },
+  {
+    name: "saving a recipe that is already saved un-saves it (add is a toggle)",
+    file: "src/lib/savedStore.ts",
+    from: "    if ((await this.list()).includes(name)) return;\n",
+    to: "",
+  },
+  {
+    name: "removing a recipe that isn't saved saves it (remove is a toggle)",
+    file: "src/lib/savedStore.ts",
+    from: "    if (!(await this.list()).includes(name)) return;\n",
+    to: "",
+  },
+  {
+    name: "anything in the saved list is shown as a saved recipe, names or not",
+    file: "src/lib/savedStore.ts",
+    from: 'raw.filter((x): x is string => typeof x === "string")',
+    to: "(raw as string[])",
+  },
+  {
+    name: "saves say 'in this browser' even when signed in",
+    file: "src/lib/savedStore.ts",
+    from: '  return signedIn ? { ...localSavedStore, kind: "account" } : localSavedStore;',
+    to: "  return localSavedStore;",
+  },
 ];
 
-const root = process.argv[2] ?? process.cwd();
-let allCaught = true;
-for (const m of MUTATIONS) {
+// node scripts/mutate-account.mjs [root] [--only "text|other text"]: --only runs the mutations whose
+// name contains any of the |-separated texts, so re-checking one guard does not take the whole run.
+const args = process.argv.slice(2);
+const onlyAt = args.indexOf("--only");
+const only = onlyAt >= 0 ? args.splice(onlyAt, 2)[1].split("|") : null;
+const root = args[0] ?? process.cwd();
+const chosen = only ? MUTATIONS.filter((m) => only.some((t) => m.name.includes(t))) : MUTATIONS;
+if (only) console.log(`--only: ${chosen.length} of ${MUTATIONS.length} mutations`);
+let allCaught = chosen.length > 0;
+for (const m of chosen) {
   const path = `${root}/${m.file}`;
   const original = readFileSync(path, "utf8");
   const normalised = original.replace(/\r\n/g, "\n");

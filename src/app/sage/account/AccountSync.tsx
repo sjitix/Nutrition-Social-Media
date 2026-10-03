@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { onPulled, startSync, watchOtherTabs } from "@/lib/account/client";
+import { carryNoteAcrossReload, onPulled, startSync, watchOtherTabs } from "@/lib/account/client";
 import { claimSyncReload } from "@/lib/storage";
 import { notifyPlanChanged } from "../myPlan";
 
@@ -38,6 +38,7 @@ export function AccountSync() {
     const off = onPulled((report) => {
       const touched = [...report.pulled, ...report.merged].some((n) => HELD_BY_SCREENS.has(n));
       if (touched && claimSyncReload()) {
+        carryNoteAcrossReload(); // what the sync just said must outlive the reload it causes
         reload();
         return;
       }

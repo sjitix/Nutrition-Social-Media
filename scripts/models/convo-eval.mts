@@ -39,6 +39,7 @@ import { dietTagConflicts, haystackBlocked } from "@/lib/exclusions";
 import { isReadTool } from "@/lib/agentTools";
 import { claimsChange } from "@/lib/reply";
 import { withFastFinish, fastFinishModeFromEnv } from "./fast-finish";
+import { withErrorCapture, isInfraError, hollowReply } from "./eval-common";
 import type { UserProfile, WeekPlan, Meal, PlanSnapshot } from "@/lib/types";
 
 const MODEL = process.env.LOCAL_AI_MODEL ?? "(unset)";
@@ -76,7 +77,8 @@ const kcal = (ms: Meal[]) => ms.reduce((s, m) => s + m.calories, 0);
 const dayKcal = (p: WeekPlan, d: string) => kcal(day(p, d)?.meals ?? []);
 const slot = (p: WeekPlan, t: string) => p.days.map((d) => d.meals.find((m) => m.type === t)).filter((m): m is Meal => !!m);
 const nonVegOn = (p: WeekPlan, d: string) => (day(p, d)?.meals ?? []).filter((m) => !isVeg(m)).map((m) => m.name);
-const holding = (r: AgentRunResult) => (r.planChanged ? "changed the plan when it should have held" : null);
+const holding = (r: AgentRunResult) =>
+  r.planChanged ? "changed the plan when it should have held" : hollowReply(r.reply) ? `held, but said nothing ("${r.reply.trim()}")` : null;
 const opsOf = (r: AgentRunResult) =>
   r.transcript.flatMap((e) => (e.role === "assistant" ? e.turn.operations.map((o) => String((o as { op?: string }).op)) : []));
 /** The fact is somewhere in the profile — memory, allergies or dislikes (whichever the engine wrote). */
@@ -177,14 +179,16 @@ const CONVOS: Convo[] = [
   },
   {
     id: "it-pronoun", skill: "reference",
+    // Monday, not Thursday: the fixed week's Thursday dinner is already vegetarian, so a model that did
+    // nothing passed (a do-nothing stub scored it, 2026-10-03). Monday's is Chicken & Vegetable Stir-Fry.
     turns: [
-      { user: "what's in thursday's dinner?", want: "hold", check: (r) => holding(r) },
+      { user: "what's in monday's dinner?", want: "hold", check: (r) => holding(r) },
       { user: "swap it for something vegetarian", want: "act",
         check: (r, c) => {
-          const now = meal(r.plan, "Thursday", "dinner"), was = meal(c.before, "Thursday", "dinner");
-          if (!now || !isVeg(now)) return `Thursday dinner not vegetarian ("${now?.name}")`;
-          if (now.name === was?.name && !isVeg(was)) return "Thursday dinner unchanged";
-          const other = c.before.days.filter((d) => d.day !== "Thursday")
+          const now = meal(r.plan, "Monday", "dinner"), was = meal(c.before, "Monday", "dinner");
+          if (!now || !isVeg(now)) return `Monday dinner not vegetarian ("${now?.name}")`;
+          if (now.name === was?.name) return "Monday dinner unchanged";
+          const other = c.before.days.filter((d) => d.day !== "Monday")
             .flatMap((d) => d.meals.filter((m) => sig(meal(r.plan, d.day, m.type)) !== sig(m)));
           return other.length ? `${other.length} meal(s) on other days changed too` : null;
         } },
@@ -305,7 +309,16 @@ const baseModel = (agentModelFn as (o?: { today?: string }) => ReturnType<typeof
 // FAST_FINISH=reply adds v1's rule: skip only when the write step also carried a reply.
 const FAST_FINISH_MODE = fastFinishModeFromEnv(process.env.FAST_FINISH);
 const FAST_FINISH = FAST_FINISH_MODE !== "off";
-const { fn: model, stats: ff } = withFastFinish(baseModel, FAST_FINISH_MODE);
+const cap = withErrorCapture(baseModel);
+const { fn: model, stats: ff } = withFastFinish(cap.fn, FAST_FINISH_MODE);
+/** What this run actually sent, beyond the prompt: the prompt sha cannot tell these arms apart. */
+const RUN_CONFIG = {
+  today: TODAY,
+  endpoint: process.env.LOCAL_AI_URL ?? null,
+  extraBody: process.env.LOCAL_AI_EXTRA_BODY ?? null,
+  fastFinish: FAST_FINISH_MODE,
+  clock: process.env.PACE_STATS ? "upstream seconds via pace-proxy /stats (pacing and 429 waits excluded)" : "wall clock (includes the adapter's own retry back-off)",
+};
 const promptText = (assistantV2SystemPrompt as (p: UserProfile, w: WeekPlan, o?: { agent?: boolean }) => string)(PROFILE, PLAN, { agent: true });
 const PROMPT = {
   sha: createHash("sha256").update(promptText).digest("hex").slice(0, 12),
@@ -322,7 +335,7 @@ console.log(`\nconversation eval · model ${MODEL} · ${convos.length} conversat
 const writesOf = (r: AgentRunResult) =>
   JSON.stringify(r.transcript.flatMap((e) => (e.role === "assistant" ? e.turn.operations : []))
     .filter((o) => !isReadTool(String((o as { op?: string }).op)))).slice(0, 800);
-interface TurnRow { user: string; want: "act" | "hold"; pass: boolean; infra: boolean; reason: string | null; steps: number; gaveUp: boolean; seconds: number; ops: string[]; writes: string; reply: string; emoji: boolean; modelCalls: number; falseClaim: boolean; guardRetried: boolean; guardCaught: boolean }
+interface TurnRow { user: string; want: "act" | "hold"; pass: boolean; infra: boolean; reason: string | null; steps: number; gaveUp: boolean; seconds: number; ops: string[]; writes: string; reply: string; emoji: boolean; modelCalls: number; falseClaim: boolean; guardRetried: boolean; guardCaught: boolean; wallSeconds?: number }
 interface ConvoRow { id: string; skill: Skill; pass: boolean; infra: boolean; turns: TurnRow[] }
 const EMOJI = /\p{Extended_Pictographic}/u;
 const rows: ConvoRow[] = [];
@@ -340,14 +353,17 @@ for (const c of convos) {
     let up0 = await upstreamSeconds();
     let r: AgentRunResult | null = null;
     let sk0 = ff.skipped;
+    cap.reset();
     try {
       r = await go();
-      for (let attempt = 1; r.modelFailed && attempt <= LOOP_RETRIES; attempt++) {
+      // Only a TRANSPORT failure is re-run. Unusable model output (bad JSON, schema miss) is the model's miss.
+      for (let attempt = 1; r.modelFailed && isInfraError(cap.lastError()) && attempt <= LOOP_RETRIES; attempt++) {
         console.log(`   … ${c.id}: model unreachable, retry ${attempt}/${LOOP_RETRIES} in ${30 * attempt}s`);
         await new Promise((res) => setTimeout(res, 30_000 * attempt));
         t0 = performance.now();
         up0 = await upstreamSeconds();
         sk0 = ff.skipped;
+        cap.reset();
         r = await go();
       }
     } catch (e) {
@@ -357,19 +373,20 @@ for (const c of convos) {
     const up1 = await upstreamSeconds();
     const seconds = up0 != null && up1 != null ? up1 - up0 : wallSeconds;
     if (!r || r.modelFailed) {
-      turns.push({ user: t.user, want: t.want, pass: false, infra: true, reason: "model unreachable (infra)", steps: r?.steps ?? 0, gaveUp: false, seconds, ops: [], writes: "", reply: "", emoji: false, modelCalls: 0, falseClaim: false, guardRetried: false, guardCaught: false });
+      const infra = !r || isInfraError(cap.lastError());
+      turns.push({ user: t.user, want: t.want, pass: false, infra, reason: infra ? "model unreachable (infra)" : `unusable model output: ${cap.lastError().slice(0, 120)}`, steps: r?.steps ?? 0, gaveUp: false, seconds, ops: [], writes: "", reply: "", emoji: false, modelCalls: 0, falseClaim: false, guardRetried: false, guardCaught: false, wallSeconds });
       break; // the rest of the conversation depends on this turn
     }
     const claimed = falseClaim(r);
     let reason = claimed ? "claimed a change it did not make" : t.check(r, { before, beforeProfile, start: PLAN });
-    // A slot-scoped constrain is a silent no-op in the engine as of 2026-10-03 (`expandConstrain`
-    // returns [] for it; reported to v1). Still a miss for the user, but say whose.
+    // A slot-scoped constrain: the engine does not support per-meal scope and (since 98747f6) says so in a
+    // note. The prompt no longer teaches it, so sending one is now the MODEL's miss; the tag only explains it.
     const slotConstrain = r.transcript.some((e) => e.role === "assistant" && e.turn.operations.some((o) => {
       const x = o as { op?: string; scope?: unknown };
       return x.op === "constrain" && typeof x.scope === "object" && x.scope !== null && "slot" in x.scope;
     }));
-    if (reason && slotConstrain && !r.planChanged) reason += " [engine: slot-scoped constrain is a no-op]";
-    turns.push({ user: t.user, want: t.want, pass: reason === null, infra: false, reason, steps: r.steps, gaveUp: r.gaveUp, seconds, ops: opsOf(r), writes: writesOf(r), reply: r.reply.replace(/\s+/g, " ").slice(0, 600), emoji: EMOJI.test(r.reply), modelCalls: r.steps - (ff.skipped - sk0), falseClaim: claimed, guardRetried: Boolean(guard(r).falseClaimRetried), guardCaught: Boolean(guard(r).falseClaimCaught) });
+    if (reason && slotConstrain && !r.planChanged) reason += " [the model sent a slot-scoped constrain, which the engine does not support]";
+    turns.push({ user: t.user, want: t.want, pass: reason === null, infra: false, reason, steps: r.steps, gaveUp: r.gaveUp, seconds, ops: opsOf(r), writes: writesOf(r), reply: r.reply.replace(/\s+/g, " ").slice(0, 600), emoji: EMOJI.test(r.reply), modelCalls: r.steps - (ff.skipped - sk0), falseClaim: claimed, guardRetried: Boolean(guard(r).falseClaimRetried), guardCaught: Boolean(guard(r).falseClaimCaught), wallSeconds });
     // Carry state forward exactly as the client does between requests.
     profile = r.profile;
     plan = r.plan;
@@ -418,6 +435,9 @@ const summary = {
   /** Skips the "reply" rule withheld because the write step's reply was empty. */
   fastFinishBlockedByEmptyReply: ff.blockedByEmptyReply,
   medianSecondsPerTurn: q(0.5),
+  /** The same turns on the wall clock (includes proxy pacing and retry waits): compare like with like. */
+  medianWallSecondsPerTurn: (() => { const w = gradedTurns.map((t) => t.wallSeconds ?? t.seconds).sort((x, y) => x - y); return w.length ? +w[Math.floor(w.length / 2)].toFixed(1) : null; })(),
+  unusableOutput: rows.flatMap((r) => r.turns).filter((t) => /^unusable model output/.test(t.reason ?? "")).length,
   p90SecondsPerTurn: q(0.9),
   maxSecondsPerTurn: secs.length ? +secs[secs.length - 1].toFixed(1) : null,
 };
@@ -430,5 +450,5 @@ const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
 const dir = join(process.cwd(), "data", "eval-runs");
 mkdirSync(dir, { recursive: true });
 const out = join(dir, `${ts}-convo-${MODEL.replace(/[^a-z0-9.-]+/gi, "-")}.json`);
-writeFileSync(out, JSON.stringify({ kind: "convo-eval", ranAt: new Date().toISOString(), model: MODEL, endpoint: process.env.LOCAL_AI_URL, prompt: PROMPT, summary, rows }, null, 2));
+writeFileSync(out, JSON.stringify({ kind: "convo-eval", ranAt: new Date().toISOString(), model: MODEL, endpoint: process.env.LOCAL_AI_URL, prompt: PROMPT, config: RUN_CONFIG, summary, rows }, null, 2));
 console.log(`wrote ${out}`);

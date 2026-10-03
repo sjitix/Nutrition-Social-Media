@@ -12,9 +12,9 @@
  */
 import {
   STORE_NAMES, claimSyncReload, clearAll, clearPendingSignIn, loadPendingSignIn, loadSessionRaw, loadSignInCode,
-  loadStoreMeta, loadSyncedAt, loadSyncOwner, markSynced, onSignInChangedElsewhere, onStoreChange,
-  onStoresChangedElsewhere, readStore, resetStoresSilently, savePendingSignIn, saveSessionRaw, saveSignInCode,
-  saveSyncOwner, takeBackup, writeStore, type StoreName,
+  loadStoreMeta, loadSyncedAt, loadSyncOwner, markSynced, onBrowserChangedHandsElsewhere, onSignInChangedElsewhere,
+  onStoreChange, onStoresChangedElsewhere, readStore, resetStoresSilently, saveCarriedNote, savePendingSignIn,
+  saveSessionRaw, saveSignInCode, saveSyncOwner, takeBackup, takeCarriedNote, writeStore, type StoreName,
 } from "../storage";
 import { createMirror, syncNow, type HeldReason, type LocalAccess, type Mirror, type SyncReport } from "./sync";
 import {
@@ -116,9 +116,22 @@ async function liveSession(cfg: AccountConfig, forUser?: string, opts: { renew?:
   // `renew`: the server refused this access token although this device judged it fresh (supabase.ts
   // `authorized`). Renew it whatever the expiry says. Only a refused renewal means signed out.
   const next = opts.renew ? await refreshSession(cfg, s.refreshToken) : await freshSession(cfg, s);
-  // Saved only if the stored session is still the one renewed: a renewal landing after a sign-out or
-  // "Delete everything in this browser" must not bring the session back.
-  if (next !== s && currentSession()?.refreshToken === s.refreshToken) saveSessionRaw(next);
+  if (next === s) return s;
+  // A renewal takes a round trip, and storage may have moved on meanwhile. Its result is kept only if
+  // storage still holds the session it renewed (review 2, found by two lenses; the same race was
+  // filed against Supabase's own Swift SDK).
+  const stored = currentSession();
+  // Signed out, or the browser cleared: a late answer must not bring the session back. PostgREST
+  // would honour its token for an hour, and the next page load would pull the account down again.
+  if (!stored) throw new AccountError("You're signed out.", "auth");
+  // Another account signed in meanwhile: stop, never overwrite their session.
+  if (stored.userId !== s.userId) {
+    throw new AccountError("This browser signed in to a different account in another tab, so this tab stopped syncing. Reload it to carry on.", "superseded");
+  }
+  // Another request renewed it first: use that one. Saving this one would bring back a token the
+  // server has since moved past.
+  if (stored.refreshToken !== s.refreshToken) return stored;
+  saveSessionRaw(next);
   return next;
 }
 
@@ -277,12 +290,6 @@ let running: Running | null = null;
  */
 let generation = 0;
 
-/**
- * Whose data this tab's screens were showing: the browser's owner when `watchOtherTabs` started, and
- * then whichever account this tab itself syncs. Null until known, and after this tab clears the browser.
- */
-let tabOwner: string | null = null;
-
 /** The stores the screens keep a copy of while mounted: the assistant, the one-step undo. */
 const HELD_BY_SCREENS: ReadonlySet<StoreName> = new Set<StoreName>(["plan", "batchPlan", "profile"]);
 
@@ -290,11 +297,14 @@ const HELD_BY_SCREENS: ReadonlySet<StoreName> = new Set<StoreName>(["plan", "bat
  * Watch what OTHER tabs of this browser do, for as long as this tab is open. `<AccountSync/>` calls
  * this once per tab: `reload` reloads the page, `refresh` tells mounted screens to re-read.
  *
- * Two things make a tab's screens unsafe to keep running as they are (review 2, found by two lenses):
- *  - THE BROWSER CHANGED HANDS. Another tab signed someone else in, so the switch guard set this
- *    data aside and brought theirs down, or another tab cleared the browser. This tab's screens
- *    still hold the previous person's week and profile, and their next save writes it into storage
- *    that now belongs to someone else, whose sync uploads it. So this tab reloads, always.
+ * Two things make a tab's screens unsafe to keep running as they are (review 2, found by three lenses):
+ *  - THE BROWSER CHANGED HANDS. Another tab signed someone else in (the switch guard set this data
+ *    aside and brought theirs down), or another tab cleared the browser. This tab's screens still
+ *    hold the previous person's week and profile, and their next save would write them into storage
+ *    that now belongs to someone else, whose sync would upload them. So this tab reloads, always. The
+ *    signal is the browser's data generation (storage.ts, THE WRITE FENCE), which also refuses any
+ *    save this tab makes before the reload. It is watched with accounts switched off too, where
+ *    "Delete everything in this browser" in one tab was otherwise undone by another tab's next save.
  *  - ANOTHER TAB CHANGED A STORE THIS TAB'S SCREENS HOLD, while signed in: its pull of another
  *    device's week, say. This tab's own sync then finds nothing to pull, so it is never told, and its
  *    next save writes the old week back as the newest edit, erasing the other device's change on
@@ -303,21 +313,27 @@ const HELD_BY_SCREENS: ReadonlySet<StoreName> = new Set<StoreName>(["plan", "bat
  * nobody signed in, another tab's edit stays on this device, as it always has.
  */
 export function watchOtherTabs(on: { reload: () => void; refresh: () => void }): () => void {
-  if (!accountConfig() || typeof window === "undefined") return () => {};
-  const whose = () => loadSyncOwner() ?? currentSession()?.userId ?? null;
-  tabOwner = tabOwner ?? whose();
-  const offSignIn = onSignInChangedElsewhere(() => {
-    if (tabOwner !== null && whose() !== tabOwner) on.reload();
-  });
+  if (typeof window === "undefined") return () => {};
+  const offHands = onBrowserChangedHandsElsewhere(() => on.reload());
+  if (!accountConfig()) return offHands;
   const offStores = onStoresChangedElsewhere((names) => {
     if (!currentSession()) return;
     if (names.some((n) => HELD_BY_SCREENS.has(n)) && claimSyncReload()) on.reload();
     else on.refresh();
   });
   return () => {
-    offSignIn();
+    offHands();
     offStores();
   };
+}
+
+/**
+ * Keep this tab's status sentence across the reload it is about to do. `<AccountSync/>` calls it just
+ * before reloading for a pull, so what the sync just did ("set aside", "your account had newer data")
+ * is still said afterwards: the reload used to wipe it before anyone could read it (review 2).
+ */
+export function carryNoteAcrossReload(): void {
+  if (status.message) saveCarriedNote(status.message);
 }
 
 /** Stop the running sync WITHOUT sending what is waiting, and invalidate any sync in flight. */
@@ -394,9 +410,6 @@ export function startSync(): Promise<SyncReport | null> {
     saveSyncOwner(userId);
   }
 
-  // From here this tab's screens show this account's data (see `watchOtherTabs`).
-  tabOwner = userId;
-
   const gen = ++generation;
   const isCurrent = () => gen === generation;
   // Pinned: every request asks for THIS account's session, never whichever one another tab stored.
@@ -432,16 +445,31 @@ export function startSync(): Promise<SyncReport | null> {
     onHeld: (h) => {
       held = h;
     },
+    // Both are answers to pushes that may arrive after this sync was stopped ("delete everything", a
+    // sign-out): then they must neither write bookkeeping into the emptied browser nor restart the
+    // stopped sync and show it as "Syncing…" (review 2).
     onSaved: (rows) => {
+      if (!isCurrent()) return;
       for (const r of rows) markSynced(r.name, r.at);
     },
     // The account already had a newer write for these stores: pull before sending them again.
-    onStale: () => void resync(),
+    onStale: () => {
+      if (isCurrent()) void resync();
+    },
   });
 
   // Every local edit from here on is queued. Subscribed BEFORE the first sync, so an edit made while it
   // runs is not missed.
   const unsubscribe = onStoreChange((c) => mirror.enqueue(c.name, c.value, c.at));
+
+  // The account moved on while a full sync was pushing (a push was skipped): pull again as soon as
+  // this sync finishes. It used to be queued as a microtask, which ran while `inFlight` was still set
+  // and so only joined the finishing sync: it never ran at all, and the status said "saved" over a
+  // store the account held differently (review 2). Bounded, so a store that keeps being skipped
+  // cannot loop.
+  let wantFollowUp = false;
+  let followUps = 0;
+  const MAX_FOLLOW_UPS = 2;
 
   function resync(): Promise<SyncReport | null> {
     if (inFlight) return inFlight;
@@ -451,12 +479,23 @@ export function startSync(): Promise<SyncReport | null> {
       .then(() => runSync())
       .finally(() => {
         inFlight = null;
+        if (wantFollowUp && isCurrent() && followUps < MAX_FOLLOW_UPS) {
+          wantFollowUp = false;
+          followUps++;
+          void resync();
+        } else {
+          wantFollowUp = false;
+          followUps = 0;
+        }
       });
     if (running && running.userId === userId) running.ready = inFlight;
     return inFlight;
   }
 
   async function runSync(): Promise<SyncReport | null> {
+    // Not for a sync that was stopped while this one waited its turn: its status would claim a
+    // stopped tab is "Syncing…" for an account it no longer shows (review 2).
+    if (!isCurrent()) return null;
     const first = !everSynced;
     setStatus({ state: "syncing", email, userId });
     try {
@@ -469,6 +508,10 @@ export function startSync(): Promise<SyncReport | null> {
       mirror.dropSynced(loadSyncedAt());
       mirror.resume();
       const notes: string[] = [];
+      // What the previous page's sync said, if a reload for it wiped the sentence before anyone could
+      // read it ("set aside", "your account had newer data": the very things that must not be silent).
+      const carried = first ? takeCarriedNote() : null;
+      if (carried) notes.push(carried);
       if (first && switchedFrom) {
         notes.push("This browser held data from a different account. It is set aside on the account page, not added to this one.");
       }
@@ -495,7 +538,7 @@ export function startSync(): Promise<SyncReport | null> {
         message: notes.join(" ") || undefined,
       });
       announcePulled(report);
-      if (report.skipped.length) void Promise.resolve().then(() => resync()); // the account moved on mid-sync
+      if (report.skipped.length) wantFollowUp = true; // the account moved on mid-sync: see `resync`
       return report;
     } catch (e) {
       if (isCurrent()) handleFailure(e, email, userId);
@@ -675,7 +718,6 @@ export async function forgetThisBrowser(): Promise<void> {
     await signOutRemote(cfg, live);
   }
   clearAll();
-  tabOwner = null;
   setStatus({ state: cfg ? "signed-out" : "off" });
 }
 
@@ -716,6 +758,6 @@ export async function deleteAccount(): Promise<void> {
   saveSessionRaw(null);
   setStatus({
     state: "signed-out",
-    message: "Your account and everything stored in it are deleted. (The sign-in service keeps its own record of past sign-ins for a limited time.) This browser still has its copy. If anyone signs in here again, you with a new account included, it is set aside as a copy rather than added to that account.",
+    message: "Your account and everything stored in it are deleted. (Sign-in logs are not part of the account: they keep your email address for as long as the provider's log settings keep them.) This browser still has its copy. If anyone signs in here again, you with a new account included, it is set aside as a copy rather than added to that account.",
   });
 }
