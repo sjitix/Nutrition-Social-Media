@@ -279,5 +279,19 @@ scenarios:
 - the crisis reply written without the `symptom` op (covered by C2).
 
 In conversation it twice claimed changes it never made. v1's guard (`361b2e1`, built from this lane's
-detector) now nudges and then replaces such replies. The deciding run, reasoning off + guard + fast finish,
-is running.
+detector) now nudges and then replaces such replies.
+
+**The deciding run: reasoning off + v1's guard + fast finish** (`2026-10-03T15-49-58-convo-…`), seconds
+measured as pure upstream time:
+
+| 550B, 14 conversations | passed | false claims | model calls per turn | median / p90 s per turn |
+|---|---|---|---|---|
+| reasoning on (today's default) | 11/14 | 0 | ~2 | 22.7 / 73 |
+| **reasoning off + guard + fast finish** | **12/14** | **0** | **1.39** | **5.2 / 22** |
+
+About 4× faster per turn with no loss of quality.
+- **The guard earned its place.** On "wednesday too" the model again claimed "Wednesday now has 2000
+  kcal…" without acting. The guard nudged it, and it then sent the vegetarian constrain for Wednesday.
+- **The two misses were empty constrains** ("shake up the week" and "make my meals bigger" sent with
+  nothing to change). v1's `85e684b` now answers those honestly instead of re-solving silently.
+- **Free-tier outliers remain.** 25 of 28 turns took 1.5–11 s, and three spiked to 22–43 s.
