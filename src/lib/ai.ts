@@ -916,6 +916,10 @@ export function agentModelFn(): import("./agentLoop").ModelFn {
         "agent_turn",
         [{ role: "system", content: assistantV2SystemPrompt(p, state.plan, { agent: true }) }, ...turns],
         0,
+        // Double cast ON PURPOSE: AgentTurn types operations as PrimitiveOp[], but read ops are not
+        // PrimitiveOps. The loop routes them by name (isReadTool) and never hands them to the engine, so
+        // the runtime is sound; the honest fix is widening AgentTurn's operation type in agentLoop.ts
+        // (v1's, after this lands) — ModelFn itself must not change.
       ) as unknown as Promise<import("./agentLoop").AgentTurn>;
     }
 
