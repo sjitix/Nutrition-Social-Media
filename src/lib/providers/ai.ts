@@ -18,6 +18,9 @@ import {
   type UserProfile,
   type WeekPlan,
 } from "../core";
+// Host-specific request fields from configuration (LOCAL_AI_EXTRA_BODY): see ./extraBody.
+import { localExtraBody } from "./extraBody";
+export { localExtraBody };
 
 type MealType = (typeof MEAL_TYPES)[number];
 
@@ -148,6 +151,7 @@ const LOCAL_AI_URL = process.env.LOCAL_AI_URL ?? "http://localhost:1234/v1";
 const LOCAL_AI_MODEL = process.env.LOCAL_AI_MODEL ?? "local-model";
 // Optional: for OpenAI-compatible endpoints that require auth (e.g. OpenRouter)
 const LOCAL_AI_API_KEY = process.env.LOCAL_AI_API_KEY;
+
 
 // ---------------------------------------------------------------------------
 // Shared prompts
@@ -371,6 +375,8 @@ async function localStructuredChatOnce<T>(
               },
             }
           : {}),
+        // Host-specific switches from configuration (reasoning off on the 550B); empty when unset.
+        ...localExtraBody(),
       }),
     });
   } catch {

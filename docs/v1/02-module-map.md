@@ -524,7 +524,9 @@ import it.
 **`providers/ai`** — *"One provider interface over Claude, any OpenAI-compatible server, or demo
 mode."*
 - **Public:** `resolveProvider`, `generatePlan`, `agentModelFn`, `parseAssistantTurn`,
-  `assistantTurnSystemPrompt`, `withTargetDefaults`, `extractRecipeFromText`.
+  `assistantTurnSystemPrompt`, `withTargetDefaults`, `extractRecipeFromText`, and `localExtraBody`
+  (`providers/extraBody.ts`: `LOCAL_AI_EXTRA_BODY`, a JSON object merged last into the local chat body —
+  how reasoning is switched off on the 550B as configuration, not code; unset = the body unchanged).
 - **Private / to seal:** `withPlanDefaults`, `Provider`, `ExtractedRecipeSchema`, `ExtractedRecipe`,
   `parseAssistantTurnV2`. **To delete:** `runAssistant` (no caller).
 - **Invariants:** the env vars it reads are exactly `AI_PROVIDER`, `ANTHROPIC_API_KEY`,

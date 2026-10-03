@@ -189,7 +189,9 @@ nothing (measured: without it, 3–7 kB per route) — a module that must run on
 - `src/lib/ai.ts` — provider system. `resolveProvider()` picks claude/local/demo. Local path
   generates one day per request (schema-validated), with retries, model fallback and JSON repair.
   Env vars it actually reads: `AI_PROVIDER`, `ANTHROPIC_API_KEY`, `CLAUDE_MODEL`, `LOCAL_AI_URL`,
-  `LOCAL_AI_MODEL`, `LOCAL_AI_API_KEY`, `PLAN_ENGINE`. (An earlier version of this file documented
+  `LOCAL_AI_MODEL`, `LOCAL_AI_API_KEY`, `LOCAL_AI_EXTRA_BODY` (a JSON object merged into the chat request
+  body, e.g. `{"chat_template_kwargs":{"enable_thinking":false}}` to turn reasoning off on the 550B),
+  `PLAN_ENGINE`. (An earlier version of this file documented
   `LOCAL_AI_CONCURRENCY`; nothing reads it.)
 - `src/lib/import.ts` — deterministic recipe import from a URL via schema.org JSON-LD, SSRF-guarded.
   Never guesses macros: no nutrition block means zero plus an honest UI note.
