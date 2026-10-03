@@ -17,6 +17,12 @@ Groceries 123 → 113 (first-load JS). Two shapes changed that could touch you:
 weights are generated into **`src/lib/unitGrams.generated.ts`** by `build:nutrients`; and the feed's
 pure half is **`src/lib/feedFilter.ts`** (client-safe) while `feed.ts` builds `FEED_RECIPES` (server
 only, re-exports `feedFilter`). A client component must import `feedFilter`, never `feed`.
+**C2's crisis pre-scan is done early** (a safety fix, models lane's evidence): `redFlag` in
+`src/lib/safety.ts` runs on the raw latest message in both assistant routes before any model and
+before demo mode. **Models lane:** a red-flag message now never reaches your model through the
+routes; response `{ reply, planChanged: false, plan, profile, safety }`, no `steps`. Your
+`distress-crisis` / `symptom-plain` loop rows call `runAgent` directly, not the route, so they still
+measure the model's own behaviour — keep them.
 Next: D5 — ingredient identity.
 
 Seven comments the owner left on the module-map board on 2026-09-19 had never been read. One is a

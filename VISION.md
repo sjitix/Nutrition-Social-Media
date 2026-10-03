@@ -173,7 +173,7 @@ Both are in scope as *directions*; what lands in V1 is worked out in
 belongs here:
 
 **An ingredient stops being a string and becomes an entity with an identity.** Today a recipe says
-`{ name: "brown rice", quantity: "80 g" }` and the name is matched against the 182-entry USDA table
+`{ name: "brown rice", quantity: "80 g" }` and the name is matched against the 180-entry USDA table
 at derive time. That is enough to compute nutrition and nothing else: **nothing can hang off a
 string** — not a price, not a retailer product, not an allergen flag, not a substitution rule.
 Giving each ingredient a stable id (V1, day 5) is therefore not tidying; it is the precondition for

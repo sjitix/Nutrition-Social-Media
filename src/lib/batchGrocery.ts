@@ -1,7 +1,9 @@
 /**
  * Meal-prep bulk shopping + efficiency, derived from a batch WeekPlan. PURE and client-safe (only
- * `gramsFor` from nutrients + `groupByAisle` from grocery), so it runs in the browser without pulling
- * the 501-recipe engine into the bundle.
+ * `gramsFor` from units + `groupByAisle` from grocery), so it runs in the browser without pulling
+ * the 501-recipe engine into the bundle. It was "client-safe" by this comment for months while it
+ * shipped the whole USDA table — gramsFor came from nutrients.ts, which carries it. Measured and
+ * fixed in V1 A4; check:boundaries rule 4 now keeps it true.
  *
  * The fresh grocery list (myPlan.groceriesFromWeek) counts how many SLOTS reference an ingredient. A
  * meal-prep list is different: you cook each batch to `totalServings`, so you buy `totalServings`
@@ -13,7 +15,7 @@
  * FIRST, or a `servings: 3` recipe over-shops 3x.
  */
 import type { WeekPlan, Meal, CookingSession } from "./types";
-import { gramsFor } from "./nutrients";
+import { gramsFor } from "./units"; // not ./nutrients: that module carries the USDA table, and this runs in the browser (A4)
 import { groupByAisle, type Aisle } from "./grocery";
 
 export interface BulkRow {

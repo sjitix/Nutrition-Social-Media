@@ -9,7 +9,8 @@
 import { type DayPlan, type Meal, type UserProfile, type WeekPlan } from "../types";
 import { haystackBlocked, dietTagConflicts, wordMatches } from "../exclusions";
 import { SUBSTITUTES, INGREDIENT_ALIASES } from "../substitutions";
-import { SYMPTOMS, URGENT_FLAGS, CRISIS_FLAGS, PHRASE_NOISE } from "../symptoms";
+import { SYMPTOMS } from "../symptoms";
+import { redFlag } from "../safety";
 import { NUTRIENT_TABLE } from "../nutrientTable.generated";
 import { microsForIngredients, gramsFor, MICRO_KEYS, MICRO_LABEL, MICRO_UNIT, DAILY_REFERENCE, type MicroKey } from "../nutrients";
 import { type Recipe } from "../data/seeds";
@@ -132,44 +133,13 @@ export function symptomNote(plan: WeekPlan, p: UserProfile, reported: string): {
   const hasWord = (t: string) => words.some((w) => same(w, t));
   const phraseIn = (phrase: string) => phrase.split(/\s+/).every(hasWord);
 
-  // RED FLAGS match on ADJACENCY, not on a scattered set. "blood in stool" contains the word
-  // "in"; as a word set it would fire on "my blood test was low and I sat on a stool in the
-  // kitchen". Noise words are dropped from both sides, then the phrase must appear as
-  // consecutive words — which still lets "coughing up blood" find "coughing blood".
-  const signal = words.filter((w) => !PHRASE_NOISE.has(w.replace(/'/g, "")));
-  const flagIn = (phrase: string) => {
-    const want = phrase.split(/\s+/).filter((w) => !PHRASE_NOISE.has(w.replace(/'/g, "")));
-    if (!want.length) return false;
-    // Adjacent but ORDER-FREE: "a pain in my chest" and "my speech is slurred" are the same
-    // emergency as "chest pain" and "slurred speech". Strict ordering missed both.
-    for (let i = 0; i + want.length <= signal.length; i++) {
-      const window = signal.slice(i, i + want.length);
-      const taken = new Array(window.length).fill(false);
-      const all = want.every((t) => {
-        const j = window.findIndex((w, k) => !taken[k] && same(w, t));
-        if (j < 0) return false;
-        taken[j] = true;
-        return true;
-      });
-      if (all) return true;
-    }
-    return false;
-  };
-
-  // Crisis first. Nothing else in this function runs.
+  // RED FLAGS first: a crisis, then a medical emergency. Nothing else in this function runs.
   // `override` means: the model's own words are DISCARDED and this text is the entire reply. A
-  // 1.5B must not be able to prepend "sounds like low iron!" to a chest-pain warning.
-  if (CRISIS_FLAGS.some(flagIn))
-    return {
-      text: "I'm not the right help for this, and I don't want to talk to you about food right now. Please contact your local emergency number or a crisis line straight away — in the US and Canada you can call or text 988, in the UK call 116 123. If you're in danger, call emergency services.",
-      override: true,
-    };
-
-  if (URGENT_FLAGS.some(flagIn))
-    return {
-      text: "That isn't something I should be answering with food. Please contact a doctor or urgent care now — I'll look at your nutrition once you've had it seen to.",
-      override: true,
-    };
+  // 1.5B must not be able to prepend "sounds like low iron!" to a chest-pain warning. The matching
+  // lives in safety.ts so the assistant routes' pre-scan (which runs on the user's RAW message,
+  // before any model) and this tool can never disagree about what a red flag is.
+  const flag = redFlag(reported);
+  if (flag) return { text: flag.text, override: true };
 
   const hit = SYMPTOMS.find((sym) => sym.triggers.some(phraseIn));
   if (!hit)

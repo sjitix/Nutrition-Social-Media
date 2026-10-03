@@ -7,41 +7,33 @@ Protocol: [`README.md`](README.md). Worktree: `../NutriFlow-models/`, branch `mo
 
 ## Now doing
 
-**2026-10-03 — the big-model search, and a read-tool fix for v1 to land.**
+**2026-10-03 (afternoon) — the big-model search, and the read-tool fix ready for v1 to land.**
 
 Owner's mandate: find **the largest model that is free, fast enough, and can do everything the
-assistant needs** (decide, use every app function, write like a nutritionist). **`gpt-oss-20b` is only
-a control now** — the owner judged 20B too small for the job; every comparison runs on big models.
+assistant needs**. Owner, 2026-10-03: "work with the bigger models first, like the 550B". So the
+**Nemotron-3-Ultra-550B gets the NVIDIA tier first**, one run at a time (the free tier's rate limit
+voids parallel runs). gpt-oss-20b runs only on the local GPU, as the regression check v1 asked for.
 
-Branches (both on GitHub): **`models`** (worktree `../NutriFlow-models`) ships my own paths onto main;
-**`models-exp`** (worktree `../NutriFlow-models-exp`) holds experiments in v1-owned files — reviewed
-by v1, never merged without it.
+Branches: **`models`** (worktree `../NutriFlow-models`) ships my own paths onto main; **`models-exp`**
+(worktree `../NutriFlow-models-exp`) holds the prompt/schema change in v1-owned files, reviewed by v1;
+**`models-exp-date`** adds "today is Monday (2026-10-05)" to the prompt (not yet measured, offered after).
 
-Done so far:
-1. Round-1 survey of NVIDIA free (`docs/models/survey.md`): only 6 of 42 chat models answer; the one big
-   one is **Nemotron-3-Ultra-550B** — 82% on the 45 hard cases, `trustworthy` (0 infra), decline 5/6
-   (honest) but clarify 4/7 (over-acts on feelings); latency a 7–46 s queue lottery.
-2. **Loop-level eval built** (`scripts/models/loop-eval.mts`): drives the production loop, scores
-   engine-verified outcomes, steps, read-before-write and seconds per message. gpt-oss-20b control:
-   9/14, median 7.3 s/message, **read-before-write 0/2**.
-3. **Found: the loop can never use its read tools** — they're in neither the turn schema nor the
-   prompt, and the prompt never explains the loop. v1 confirmed and will land the fix. Prototype on
-   `models-exp`; before/after on Nemotron-Ultra-550B + the engine gate running now.
-4. The 128 GB answer (below, "Answers to other lanes").
-
-5. **v1 reviewed the diff** and caught a BLOCKING safety issue in my draft prompt (it steered models
-   away from `symptom`, the only path to the crisis guard until C2) — fixed in `5336ab1`, with two
-   safety rows added to the loop eval. v1 also added `actedRightV2` to the hard-case eval on my report
-   that the old grading penalised `remember`/`answer` on hold cases.
-6. `models-exp` merged with main (`d3d0a18`): the landing diff is exactly `primitives.ts`, `promptV2.ts`,
-   `ai.ts` (+79/−10); check-boundaries clean, tsc clean. Final before/after + gate running, then v8 in
-   LM Studio (old vs new prompt), then "ready to land" to v1.
-7. Local `qwen3-30b-a3b` on the desktop's single 2070: 8.5 s/call — as fast as cloud 20B; loop eval
-   running. Lightning-30B ruled out (chain of thought leaks). GLM-5.3 69% with 10/45 unparseable.
-
-Next: the free-key providers (Groq gpt-oss-120b, OpenRouter Qwen3-235B, GitHub Models GPT-4.1/
-Llama-4, Gemini Flash) the moment the owner adds any key (`docs/models/OWNER-TODO.md`); until then,
-everything big that NVIDIA serves free (GLM-5.3 eval running).
+Where it stands (details and every number: `docs/models/survey.md`, Round 4):
+1. **Read-tool fix**: `models-exp` `543bcb2`, 3 files vs main (`primitives.ts`, `promptV2.ts`, `ai.ts`).
+   550B hard cases 84 -> 96% (v2). gpt-oss-20b 80–84 -> 91–96%. Engine gate 680/0 on `7298a28`; the
+   gate on `543bcb2` is running. "Ready to land" goes to v1 once `543bcb2` is measured.
+2. **The single-turn ruler no longer separates a 20B from a 550B.** New instrument:
+   `scripts/models/convo-eval.mts` (14 two-turn conversations). It runs on the 550B next, then
+   gpt-oss-20b locally.
+3. **Three engine bugs found by grading what the engine did, not what the model sent**: slot-scoped
+   constrain is a silent no-op (and the reply claims success), a remembered allergy is not enforced,
+   and a day-scoped constrain drops `exclude`. Reported; v1 is fixing all three. The prompt stopped
+   teaching the slot form.
+4. Proposal for v1's ruler: `scripts/models/regrade-hardcases.mjs` (v3 = DO counts only if the engine
+   changed something).
+5. Big models reachable for free today: the 550B (best; 17–22 s median per message), GLM-5.3 (25–90 s
+   per call), Kimi K3 (slow queue). Everything else big is 404, times out, or is keyless-OVH blocked.
+   The fast big options (Groq/OVH gpt-oss-120b, Gemini Flash) need a free key: `docs/models/OWNER-TODO.md`.
 
 ## Files I'm editing right now
 
@@ -77,12 +69,23 @@ everything big that NVIDIA serves free (GLM-5.3 eval running).
 
 ## Asks of the other lanes
 
-*(none open yet. Likely soon: ask v1 to apply the over-act prompt fix to `promptV2.ts` once proven on
-my branch.)*
+- **v1: land the read-tool fix** (`models-exp`, 3 files). The "ready to land" message, with ranges,
+  follows once `543bcb2` is measured. Agreed by v1 in principle.
+- **v1: the three engine fixes** (remembered allergy enforced, slot-scoped constrain says "nothing
+  changed", day scope passes `exclude`/`use`). Accepted by v1 2026-10-03, in progress. I merge the shas
+  into `models-exp` when they land.
+- **v1, optional: the v3 ruler** (`scripts/models/regrade-hardcases.mjs`), for v1 to decide.
 
 ## Shipped
 
 | sha | what |
 |---|---|
 | `3565e71` | lane set up: this file, the CONTEXT block, the README lane row, the owner to-do |
-| (this) | round 1 survey: `scripts/models/latency-sweep.mjs`, its scorecard, `docs/models/survey.md` — the free NVIDIA tier serves only one big model (Nemotron-Ultra-550B) and its latency is a 7–46 s queue lottery |
+| `cc1aadb` | round 1 survey — the free NVIDIA tier can't do "big and fast" at once |
+| `189057a` · `2e14433` · `8cd1428` | the loop-level eval, the 550B score, the 128 GB answer, the read-tool fix and its evidence |
+| `b7e8296` · `578019c` | the free tier's rate limit is the real ceiling; the hard-case eval swings 9 points with no change, so every score is a range |
+| `9649c7d` · `b181d3c` · `7a70eb2` | GLM-5.3 re-measured with room to think; keyless OVH; local Qwen3-30B; Lightning ruled out |
+| `b197cec` | the read-tool fix lifts the 550B 84% -> 96%, beyond the noise |
+| `e600722` | crisis-phrasing test set for v1's C2 pre-scan |
+| `fe21518` · `3a248db` | v8 and gpt-oss-20b old-vs-new prompt; `convo-eval.mts` |
+| (this) | Round 4 in the survey; the v3 regrade proposal; eval rows record operation arguments |

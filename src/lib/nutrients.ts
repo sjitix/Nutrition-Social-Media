@@ -11,7 +11,12 @@
  * unmapped ingredient contributes nothing, so callers can refuse to show a number they'd be
  * guessing at.
  */
-import { NUTRIENT_TABLE, UNIT_GRAMS, type Per100g } from "./nutrientTable.generated";
+import { NUTRIENT_TABLE, type Per100g } from "./nutrientTable.generated";
+// Unit conversion lives in ./units (A4): it needs only the unit weights, and the browser's grocery
+// list should not download this module's USDA table to add up grams. Re-exported, so every caller
+// that imports gramsFor from here is unchanged; client code imports it from ./units directly.
+import { gramsFor } from "./units";
+export { gramsFor };
 
 export const MICRO_KEYS = [
   "iron", "calcium", "magnesium", "potassium", "zinc", "vitD", "vitC", "folate", "b12",
@@ -21,21 +26,6 @@ export type Micros = Record<MicroKey, number>;
 
 export const emptyMicros = (): Micros =>
   Object.fromEntries(MICRO_KEYS.map((k) => [k, 0])) as Micros;
-
-/** Units a human writes: "70 g dry", "1 tbsp", "2" (a count), "1/2 piece", "1 can". */
-export function gramsFor(ingredient: string, quantity: string): number | null {
-  // Optional leading whole number so MIXED numbers parse ("1 1/2 cups" = 1.5). Without it the whole
-  // was read as the amount and the "1/2" fell through to unit="count" -> a silent 100 g misparse
-  // (common on imported recipe pages). Groups: [1] whole, [2] number/numerator, [3] denominator, [4] unit.
-  const m = quantity.trim().match(/^(?:(\d+)\s+)?(\d+(?:\.\d+)?)(?:\s*\/\s*(\d+))?\s*([a-zA-Z-]+)?/);
-  if (!m) return null;
-  const amount = (m[1] ? Number(m[1]) : 0) + (m[3] ? Number(m[2]) / Number(m[3]) : Number(m[2]));
-  if (!Number.isFinite(amount) || amount <= 0) return null;
-  const unit = (m[4] ?? "count").toLowerCase();
-  const key = ingredient.trim().toLowerCase();
-  const g = UNIT_GRAMS.perIngredient[key]?.[unit] ?? UNIT_GRAMS.default[unit];
-  return g == null ? null : amount * g;
-}
 
 export interface MicroResult {
   micros: Micros;

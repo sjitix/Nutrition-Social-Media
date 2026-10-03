@@ -205,7 +205,7 @@ symptom, substitution and condition tools."*
 - **Invariants:** `CRISIS_FLAGS` is safety data — it may only grow, and anything reading it must
   fail loud, never silently miss.
 
-**L1 is built to grow — "expand by a lot"** *(owner, 2026-09-19, said twice).* Today: **182
+**L1 is built to grow — "expand by a lot"** *(owner, 2026-09-19, said twice).* Today: **180
 ingredients, 501 recipes.** Target recorded in the schedule's owner-gated table: **400 ingredients /
 900 recipes** (a default until the owner names a number). The order is deliberate, because growing
 the library on today's shape would multiply today's weakness:
@@ -247,6 +247,17 @@ micros, report coverage against a daily reference."*
   `eggplant`). **Every matcher in this module gets the same fix** — the sibling-path miss is
   lesson 14 and it has cost three separate incidents.
 
+**`nutrition/safety`** (`src/lib/safety.ts`, **added 2026-10-03, C2**) — *"Is there a crisis or a
+medical emergency in what this person wrote?"*
+- **Public:** `redFlag(message)` → `{ kind: "crisis" | "urgent", text }` or null; `CRISIS_REPLY`,
+  `URGENT_REPLY`. **Private:** the matcher (noise-stripped, adjacent, order-free; a multi-word flag that
+  noise removal shrinks to one word must appear word for word; curly apostrophes normalised).
+- **Invariants:** it runs on the user's **raw** words in both assistant routes **before any model and
+  before demo mode**; the reply it returns is the **entire** reply (nothing is prepended or appended);
+  `symptomNote` calls the same function, so the tool and the pre-scan cannot disagree. The flag lists
+  (`symptoms.ts`) may only grow. Which way it errs on food phrases that contain a crisis phrase, and
+  what else it should catch, is **owner decision #8** — asserted as-is in `test:engine` until then.
+
 **`nutrition/grocery`, `presentation/streak`** — *"Aisle categorisation"* and *"local-day streak
 arithmetic."* Public: `groupByAisle`, `aisleFor`, `AISLE_ORDER`, `Aisle`; `currentStreak`,
 `isoDay`, `prevDay`. Invariant: streaks key on the **local** day, never UTC.
@@ -279,7 +290,7 @@ not just spot-checked. **Measured state on 2026-10-03:**
    conversion round-trips (`1 cup` = `16 tbsp` = `48 tsp` in grams); `bmr` reproduces the published
    Mifflin-St Jeor worked examples exactly; the calorie floor always holds; an allergen matches in
    both directions and never matches a substring of a different word (`egg` / `eggplant`).
-2. **Every table entry checks itself.** Each of the 182 (soon 400) USDA entries: macros within
+2. **Every table entry checks itself.** Each of the 180 (soon 400) USDA entries: macros within
    physical bounds (protein + carbs + fat ≤ 100 g per 100 g), its kcal consistent with its own
    4/4/9, every unit any recipe uses has a weight.
 3. **Refuse, never skip.** `deriveMacros` reports an unknown ingredient instead of silently
@@ -691,10 +702,10 @@ until its entry is deleted, so the list never claims a problem that is gone.
 
 | # | Debt | Owed to |
 |---|---|---|
-| 1 | Explore → `feed.ts` → `recipeDb` (the whole library ships) | A4 |
+| 1 | ~~Explore → `feed.ts` → `recipeDb` (the whole library ships)~~ — **PAID 2026-10-03**: `feed.ts` split into the client-safe `feedFilter.ts` and a server `feed.ts`; the cards arrive as a prop. `/sage/explore` **189 → 114 kB** first-load JS (the HTML grew 32 → 80 kB gz — net ≈ −26 kB) | A4 |
 | 2 | `/plan` → `feed.ts` → `recipeDb` | A4 / B2 |
 | 3 | ~~`WeekBoard` → `../demo` (for `SLOTS`) → `recipeDb`~~ — **PAID 2026-10-03**: `SLOT_LABELS` moved to `@/lib/slots`; `/sage/plan` first-load JS **226 → 129 kB** | A4 |
-| 4 | **`GroceriesClient` → `batchGrocery` → `nutrients` → the USDA table** — *new, found on the first run*. **Verified real by build measurement** (`fdcId` in the route's chunks; 45 kB raw / 11 kB gz), not a module-granularity false positive | A4 |
+| 4 | ~~**`GroceriesClient` → `batchGrocery` → `nutrients` → the USDA table**~~ — *new, found on the first run*; **verified real by build measurement** (`fdcId` in the route's chunks; 45 kB raw / 11 kB gz), then **PAID 2026-10-03**: the generator emits the unit weights into their own `unitGrams.generated.ts`, `gramsFor` lives in `units.ts`, `batchGrocery` imports that. `/sage/groceries` **123 → 113 kB** | A4 |
 | 5 | **`/plan` → `import.ts`** (a pure converter living inside the network adapter) — *new* | B2 / A6 |
 | 6 | **`agentTools` (L4) → `feed` (L6)** — searching the library is engine work, the query moves down — *new* | A6 |
 | 7 | **`conditions`, `symptoms` (L1) → `nutrients` (L2)** — the micronutrient vocabulary is a contract and moves to L0 — *new* | A6 |

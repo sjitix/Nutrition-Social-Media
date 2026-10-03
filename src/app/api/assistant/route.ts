@@ -10,6 +10,7 @@ import {
 import { applyOperations } from "@/lib/recipeDb";
 import { composeReply, describeOperations } from "@/lib/reply";
 import { DEMO_ASSISTANT_REPLY } from "@/lib/demo";
+import { redFlag } from "@/lib/safety";
 import type { ChatMessage, PlanSnapshot, UserProfile, WeekPlan } from "@/lib/types";
 
 export const maxDuration = 300;
@@ -51,6 +52,19 @@ export async function POST(request: Request) {
   const message = [...body.history].reverse().find((m) => m.role === "user")?.text?.trim();
   if (!message) {
     return NextResponse.json({ error: "No message to act on." }, { status: 400 });
+  }
+
+  // SAFETY PRE-SCAN (V1 C2) — the same check, for the same reason, as /api/assistant-v2: on the
+  // user's raw words, before any model and before demo mode; no model call, no change, no log line.
+  const flag = redFlag(message);
+  if (flag) {
+    return NextResponse.json({
+      reply: flag.text,
+      planChanged: false,
+      plan: body.plan,
+      profile: body.profile,
+      safety: flag.kind,
+    });
   }
 
   const provider = resolveProvider();
