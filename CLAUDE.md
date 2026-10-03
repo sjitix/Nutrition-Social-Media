@@ -112,13 +112,22 @@ disabled) — good for showing the UI without any AI.
   arithmetic and cannot claim a change the engine did not make.
 - `src/lib/types.ts` — zod schemas (WeekPlan, Meal, AssistantResponse) = the data contract.
 - `src/lib/storage.ts` — **the only place that knows a localStorage key name.** Every persisted
-  thing (profile, plan, chat, imports, saved, grocery check-offs, visits) is a key in `KEYS` here.
-  Do not invent a key elsewhere: a second saved-recipes key was added once and the two lists drifted
-  apart silently until an audit caught it.
-- `src/lib/savedStore.ts` — the seam accounts will land on. A three-method async interface
-  (`list`/`add`/`remove`) over saved recipes, delegating to `storage.ts` today. **Async on purpose
-  even though localStorage is not**: a synchronous interface would have to change shape the moment
-  a network sat behind it, and every call site with it.
+  thing (profile, plan, batchPlan, chat, imports, saved, grocery check-offs, visits) is a store in
+  `KEYS` here. Do not invent a key elsewhere: a second saved-recipes key was added once and the two
+  lists drifted apart silently until an audit caught it — and since accounts, **a key named anywhere
+  else is also invisible to sync and export**. Every save stamps a write time and notifies
+  `onStoreChange` listeners; that is the whole seam sync hangs off, and why its load/save API never
+  had to change. Owned by the accounts lane (`docs/parallel/`).
+- `src/lib/account/` — **accounts: local-first, the account is a mirror.** `portable.ts` (the export
+  file: build, validate, apply), `merge.ts` (the pure sync rules), `sync.ts` (`syncNow` + the
+  debounced mirror, both ends injected), `supabase.ts` (raw REST to Supabase auth + the `user_state`
+  table — **no SDK**), `client.ts` (browser glue: session, the one running sync, status). With no
+  `NEXT_PUBLIC_SUPABASE_*` keys every entry point is a no-op. Server side: `supabase/` (the SQL, RLS,
+  setup steps, an RLS test plan). Tested by `node scripts/test-account.mjs` with no network at all.
+- `src/lib/savedStore.ts` — a three-method async interface (`list`/`add`/`remove`) over saved
+  recipes, delegating to `storage.ts`. **Async on purpose even though localStorage is not**: a
+  synchronous interface would have to change shape the moment a network sat behind it, and every
+  call site with it.
 
 **AI and import**
 
@@ -188,6 +197,11 @@ disabled) — good for showing the UI without any AI.
   RESERVES a pinned dish; `reimposeLocks`, which places it, is internal and runs inside the
   executor. The demo profile pins one photographed dish so the photography-led screens have a
   photograph on them without any component special-casing a recipe.
+- `src/app/sage/account/` — **`/sage/account`, "Your data"**: download / bring back / delete
+  everything in this browser, sign in by email link, sync status, sign out, delete the account, and a
+  plain-words note on what is kept where (each claim checked against the code — keep it that way).
+  `AccountSync.tsx` renders nothing and keeps a signed-in browser mirrored; it belongs mounted once
+  in `sage/layout.tsx`.
 - `src/app/onboarding/page.tsx`, `src/app/recipes/page.tsx`.
 - `src/app/api/` — **six** routes: `plan`, `assistant`, `assistant-v2`, `import`, `operation`,
   `candidates`. **`operation` is the NO-MODEL route the direct-manipulation layer runs on** — a
@@ -252,6 +266,7 @@ npm run test:engine     # THE gate. Scenarios + adversarial + invariants + fuzz.
 npm run check:recipes   # every ingredient priced, every dish plausible, Atwater holds
 npm run check:data      # gates the training data
 npm run test:api        # HTTP route integration tests
+node scripts/test-account.mjs  # accounts: export file, sync rules + engine, REST client — no network
 npm run export:recipes  # library -> NutriFlow-recipes.xls, incl. a coverage/gaps report
 npm run build:nutrients # regenerate the USDA table (needs --emit to write)
 ```

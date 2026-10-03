@@ -7,33 +7,45 @@
 
 ## Now doing
 
-**2026-10-03 — lane set up.** Next: building A1–A3 below (no Supabase keys needed for any of them).
+**2026-10-03 — A1–A4 built and shipped; keys pending.** The account page (`/sage/account`), export /
+import / delete-my-data, the sync rules and engine, the SQL schema with RLS, and the Supabase client
+(sign-in by email link, sync, sign-out, delete account) are all in. Without keys, the page says
+accounts are off and offers the file instead. **Next:** hardening the client, and the two asks below.
 
 ## Files I'm editing right now
 
 *(the v1 agent: if you need one of these, message me first)*
 
-- `scripts/ship.mjs` — adding `--onto` (additive; default behaviour unchanged). Shipping in the setup commit.
-- `docs/parallel/**`, `CONTEXT.md` (my block only), `CLAUDE.md` (one rule), `WORKPLAN.md` (RESUME pointer + lesson 48)
-- One-time handoff, NOT accounts work: the `modelFailed` fix from a previous session (below).
+- `src/lib/storage.ts`, `src/lib/account/**`, `src/app/sage/account/**`, `scripts/test-account.*`,
+  `supabase/**` — all mine; nothing of yours.
 
 ## Heads-up for the other lane
 
-- **The unshipped `modelFailed` fix is moving through this lane once, then the files are yours again.**
-  It was left uncommitted in the main folder by an earlier session and has been moved into this
-  worktree so your folder starts clean. It touches `src/lib/agentLoop.ts`,
-  `src/app/api/assistant-v2/route.ts`, `src/app/sage/assistant/AssistantChat.tsx`,
-  `scripts/test-engine.mts` (+8 loop tests), `ASSISTANT-SCHEMA.md`, `CLAUDE.md`, `CONTEXT.md`,
-  `WORKPLAN.md` (lesson 48). What it does: when the model is unreachable, `/api/assistant-v2` answers
-  **503 offline** if nothing changed, or **200 + `modelFailed: true`** if the engine already changed
-  something. It is very likely why CONTEXT records the `assistant offline` API tests getting 502
-  instead of 503 — re-run `test:api` after it lands. **Pull before you touch any of those files.**
-- **`storage.ts`'s API will not change shape.** Keep calling `loadPlan`/`savePlan`/etc. exactly as you
-  do. Sync is added underneath, so your callers need no edits.
+- **`storage.ts` changed underneath, NOT in shape.** Every `load*`/`save*` you call is identical. New
+  beside them: `STORE_NAMES`, `readStore`/`writeStore`, `onStoreChange`, `loadStoreMeta`,
+  `takeBackup`/`restoreBackup`/`loadBackup`/`discardBackup`, `loadSessionRaw`/`saveSessionRaw`. Every
+  save now also stamps a write time and notifies listeners — that is how sync sees your edits, with no
+  change on your side. **If you add a new persisted thing, add it as a store in `KEYS` in storage.ts
+  (message me) so it syncs and exports; a key named anywhere else would be invisible to accounts.**
+- **`clearAll()` is now silent** (it no longer notifies), so clearing a browser can never empty an account.
+- **`modelFailed` fix landed** (`2fd6f02`, engine 636/0). Those assistant files are yours again.
+  Re-run `test:api` with LM Studio up — the `assistant offline` tests should now see 503.
+- **`/sage/account` exists** (new folder, no file of yours touched). Not linked from the nav yet — see Asks.
+- **A privacy finding in your files, for you and the owner (not changed by me):** both assistant
+  routes append every turn — the user's message and the whole agent transcript — to
+  `data/edit-log*.jsonl` on the server, unconditionally (best-effort; it likely fails silently on
+  Vercel's read-only filesystem, but logs on any writable host). The account page now says the server
+  *may* keep a log of each conversation, which is the truth today. Before a public V1 this probably
+  wants an owner decision: keep it opt-in, keep it dev-only, or keep it and say so at the chat box.
 
 ## Asks of the other lane
 
-*(none yet)*
+1. **Mount `<AccountSync />` once in `src/app/sage/layout.tsx`** (one import + one element, it renders
+   nothing): `import { AccountSync } from "./account/AccountSync";` then `<AccountSync />` inside the
+   shell. Without it, sync only runs while the account page is open. With no keys it is a no-op.
+2. **Add an "Account" entry to the nav** (`SideNav.tsx` `TABS`, and `MobileNav`) pointing at
+   `/sage/account`, with an SVG icon (a person outline fits). Or tell me to do it and I will, in one
+   small commit, after you say the files are free.
 
 ---
 
@@ -74,4 +86,8 @@ each key to their row in the database and pulls it back on another device. Conse
 
 ## Shipped
 
-*(nothing yet)*
+| sha | what |
+|---|---|
+| `301a2a8` | the parallel-lanes protocol, `ship --onto` |
+| `2fd6f02` | one-time handoff: the `modelFailed` fix (not accounts work) |
+| `eac9bb8` | A1–A4: storage bookkeeping, export/import/delete, sync rules + engine, SQL + RLS, the REST client, `/sage/account` — `node scripts/test-account.mjs` 94/0 |

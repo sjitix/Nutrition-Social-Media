@@ -25,16 +25,28 @@ in `docs/parallel/README.md`.
 
 #### PARALLEL LANE — accounts (written by the accounts agent only)
 
-**2026-10-03:** lane set up. Plan and live status: `docs/parallel/lane-accounts.md`. Design in one
-line: **local-first, the account is a mirror** — `storage.ts`'s API does not change, so no screen has
-to; a sync layer underneath mirrors each storage key to one Supabase row per user (RLS). Milestones
-A1–A3 (export/import + delete-my-data, the sync seam, the SQL schema) need **no keys** and come first;
-A4+ wait on the owner's **Supabase Project URL + anon key**.
+**2026-10-03 — accounts are built up to the keys.** Live status, the plan and the asks:
+`docs/parallel/lane-accounts.md`. Design: **local-first, the account is a mirror** — `storage.ts`'s
+load/save API did not change, so no screen had to; underneath, every save stamps a write time and
+notifies listeners, and a sync layer mirrors each store to one Supabase row per user under RLS.
 
-One-time handoff carried through this lane: the uncommitted `modelFailed` fix an earlier session left
-in the main folder (assistant-v2 now answers 503 when the model is unreachable and nothing changed).
-It was moved out of the main folder so the v1 lane starts clean, and its WORKPLAN lesson was renumbered
-38 → 48 because 38–47 were taken.
+- **Works today, no keys:** `/sage/account` — download all your data as one file, bring it back
+  (validated, previewed, backed up first so it can be undone), delete everything in this browser, and
+  a plain-words note on what is kept where.
+- **Built and tested, waiting on keys:** sign-in by email link, sync (newest write wins; visit history
+  and imports unioned; anything a pull would replace is backed up first), sign-out that keeps local
+  data, delete-account. No Supabase SDK — raw REST over `fetch`. `supabase/README.md` has the
+  ten-minute setup, the SQL to run, and an RLS test plan.
+- **Gate for this lane:** `node scripts/test-account.mjs` (94 checks, plain node, no network).
+- **Owner, to switch accounts on:** create a Supabase project, run `supabase/migrations/0001_user_state.sql`,
+  and put `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` in `.env.local` and Vercel. Never
+  the `service_role` key.
+- **Asked of the v1 lane:** mount `<AccountSync/>` in `sage/layout.tsx` (so sync runs on every
+  screen, not only the account page) and add an Account entry to the nav.
+
+One-time handoff carried through this lane: the `modelFailed` fix an earlier session left uncommitted
+in the main folder (`2fd6f02`; assistant-v2 answers 503 when the model is unreachable and nothing
+changed). Its WORKPLAN lesson was renumbered 38 → 48 because 38–47 were taken.
 
 ### >>> READ THIS FIRST — 2026-10-03 (shutdown): TRACK E IS DONE. Tomorrow starts with the test debt. <<<
 

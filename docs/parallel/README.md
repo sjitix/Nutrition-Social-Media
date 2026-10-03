@@ -31,8 +31,8 @@ folder.** Each one's work reaches the other only through `origin/main`.
 **The accounts lane owns** (the v1 agent does not edit these; ask instead):
 
 - `src/lib/storage.ts`, `src/lib/savedStore.ts` — the persistence seam
-- `src/lib/account/**` (new), `src/app/account/**` (new), `supabase/**` (new — SQL schema, RLS)
-- `scripts/test-account.mts` (new) and its `npm run test:account` script
+- `src/lib/account/**` (new), `src/app/sage/account/**` (new — the account page, inside the /sage shell), `supabase/**` (new — SQL schema, RLS)
+- `scripts/test-account.mts` + `scripts/test-account.mjs` (run with `node scripts/test-account.mjs`; no package.json change needed)
 - `.env.local.example` — only the account-related lines
 - `docs/parallel/lane-accounts.md`, `docs/worklog/*-accounts.md`
 
