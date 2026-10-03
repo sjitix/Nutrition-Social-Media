@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { agentModelFn, resolveProvider, withTargetDefaults } from "@/lib/ai";
 import { runAgent, MAX_STEPS, type TranscriptEntry } from "@/lib/agentLoop";
 import { DEMO_ASSISTANT_REPLY } from "@/lib/demo";
+import { redFlag } from "@/lib/safety";
 import type { ChatMessage, PlanSnapshot, UserProfile, WeekPlan } from "@/lib/types";
 
 export const maxDuration = 300;
@@ -64,6 +65,22 @@ export async function POST(request: Request) {
   const message = [...body.history].reverse().find((m) => m.role === "user")?.text?.trim();
   if (!message) {
     return NextResponse.json({ error: "No message to act on." }, { status: 400 });
+  }
+
+  // SAFETY PRE-SCAN (V1 C2), on the user's RAW words, before any model — and before demo mode, which
+  // is what the public URL runs. The crisis guard used to live only inside the `symptom` tool, so it
+  // fired only when a model chose that tool AND quoted the user verbatim; a measured crisis message
+  // got neither. Nothing below this line runs on a red flag: no model call, no plan change, and
+  // deliberately no edit-log line, because that log is training data and this message is not.
+  const flag = redFlag(message);
+  if (flag) {
+    return NextResponse.json({
+      reply: flag.text,
+      planChanged: false,
+      plan: body.plan,
+      profile: body.profile,
+      safety: flag.kind,
+    });
   }
 
   const provider = resolveProvider();

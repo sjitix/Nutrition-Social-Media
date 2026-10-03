@@ -247,6 +247,17 @@ micros, report coverage against a daily reference."*
   `eggplant`). **Every matcher in this module gets the same fix** — the sibling-path miss is
   lesson 14 and it has cost three separate incidents.
 
+**`nutrition/safety`** (`src/lib/safety.ts`, **added 2026-10-03, C2**) — *"Is there a crisis or a
+medical emergency in what this person wrote?"*
+- **Public:** `redFlag(message)` → `{ kind: "crisis" | "urgent", text }` or null; `CRISIS_REPLY`,
+  `URGENT_REPLY`. **Private:** the matcher (noise-stripped, adjacent, order-free; a multi-word flag that
+  noise removal shrinks to one word must appear word for word; curly apostrophes normalised).
+- **Invariants:** it runs on the user's **raw** words in both assistant routes **before any model and
+  before demo mode**; the reply it returns is the **entire** reply (nothing is prepended or appended);
+  `symptomNote` calls the same function, so the tool and the pre-scan cannot disagree. The flag lists
+  (`symptoms.ts`) may only grow. Which way it errs on food phrases that contain a crisis phrase, and
+  what else it should catch, is **owner decision #8** — asserted as-is in `test:engine` until then.
+
 **`nutrition/grocery`, `presentation/streak`** — *"Aisle categorisation"* and *"local-day streak
 arithmetic."* Public: `groupByAisle`, `aisleFor`, `AISLE_ORDER`, `Aisle`; `currentStreak`,
 `isoDay`, `prevDay`. Invariant: streaks key on the **local** day, never UTC.

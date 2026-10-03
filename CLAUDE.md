@@ -98,6 +98,12 @@ disabled) — good for showing the UI without any AI.
 - `src/lib/nutrients.ts` — micronutrient maths, `gramsFor` unit conversion, coverage reporting.
 - `src/lib/exclusions.ts` — allergen/diet matching. Word-aware, in both directions. Read the
   header before touching it; the comments record real allergen exposures this code has caused.
+- **`src/lib/safety.ts` — `redFlag`: crisis / medical-emergency detection on the user's RAW words.**
+  Both assistant routes call it on the latest message **before any model and before demo mode**, and
+  return its reply as the whole answer (no model call, no plan change, no edit-log line); the `symptom`
+  tool calls the same function. Do not move this check behind a model: the old guard fired only when
+  a model chose the `symptom` tool AND quoted the user verbatim, and both failed on a measured crisis
+  message. Which way it errs is owner decision #8 (`docs/v1/01-…md` §5).
 - `src/lib/targets.ts` — Mifflin-St Jeor, hydration. `src/lib/substitutions.ts`,
   `src/lib/symptoms.ts` — curated data for those tools.
 - `src/lib/units.ts` + `unitGrams.generated.ts` — `gramsFor` and the unit weights, **kept apart from

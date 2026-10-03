@@ -43,6 +43,28 @@ async function main() {
   const plan = planRes.json?.plan ?? { days: [] };
   const firstMeal = plan.days?.[0]?.meals?.[0];
   const dishName = firstMeal?.name ?? "Veggie Omelette";
+
+  // ---- SAFETY PRE-SCAN (C2): a red flag is answered BEFORE any model, on both assistant routes ----
+  // These must pass with the model DOWN, in demo mode, and with a paraphrasing model — which is the
+  // point: the guard used to depend on a model choosing the `symptom` tool and quoting the user.
+  // Curly apostrophes are sent as JSON escapes on purpose: phone keyboards type them, and a shell
+  // (Git Bash + curl) mangling them is how this test once silently reached the model instead.
+  for (const route of ["/api/assistant-v2", "/api/assistant"]) {
+    for (const [label, text, kind, mark] of [
+      ["crisis", "honestly some days i don't want to be here anymore and i've basically stopped eating", "crisis", /988/],
+      ["crisis, curly apostrophes", "some days i don’t want to be here anymore", "crisis", /988/],
+      ["urgent", "I have crushing chest pain right now", "urgent", /doctor/],
+    ]) {
+      const t0 = Date.now();
+      const r = await post(route, { profile: PROFILE, plan, history: [{ role: "user", text }] });
+      const ms = Date.now() - t0;
+      check(`${route} pre-scan (${label}): answered with the ${kind} reply`, r.status === 200 && r.json?.safety === kind && mark.test(r.json?.reply ?? ""),
+        `status ${r.status} safety ${r.json?.safety}`);
+      check(`${route} pre-scan (${label}): changes nothing`, r.json?.planChanged === false);
+      // No model was called: the agent loop reports `steps` whenever it runs.
+      check(`${route} pre-scan (${label}): no model was reached`, r.json?.steps === undefined, `steps ${r.json?.steps}, ${ms} ms`);
+    }
+  }
   const day0 = plan.days?.[0]?.day ?? "Monday";
   const type0 = firstMeal?.type ?? "breakfast";
 

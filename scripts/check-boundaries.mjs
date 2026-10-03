@@ -45,6 +45,7 @@ const LIB_LAYERS = {
   "data/": 1, // the recipe seeds and their vocabulary (A2, 2026-10-03); imports nothing
   "unitGrams.generated.ts": 1, // grams per unit, generated apart from the USDA table (A4)
   "units.ts": 2, // gramsFor, needing only the unit weights — client-safe (A4)
+  "safety.ts": 2, // redFlag: crisis / urgent detection on the user's raw words (C2, 2026-10-03)
   "feedFilter.ts": 6, // the feed's card type + pure filter/sort, client-safe (A4)
   "nutrients.ts": 2, "targets.ts": 2, "exclusions.ts": 2, "grocery.ts": 2, "streak.ts": 2,
   "recipeDb.ts": 3, // since A3 a one-line barrel over plan/
