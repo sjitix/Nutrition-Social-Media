@@ -188,7 +188,7 @@ keyed to a real `fdc_id`."*
   a real FDC id, because auto-matching produced `salmon fillet → Salmonberries`.
 
 **`data/ingredients`** (`src/lib/data/ingredients.ts` + the generated `ingredients.generated.ts`,
-**D5, 2026-10-04**) — *"Which curated ingredient is this, by its permanent id?"*
+**D5, 2026-10-03**) — *"Which curated ingredient is this, by its permanent id?"*
 - **Public:** `IngredientSlug` (a union of all 180 — what makes a misspelled recipe ingredient fail
   `tsc`), `INGREDIENT_SLUGS`, `INGREDIENTS` (slug → curated name + fdc_id), `resolveIngredient`,
   `ingredientName`, and **`tableKey`** — the ONE rule every nutrition lookup uses: the NAME first, the
@@ -244,20 +244,53 @@ micros, report coverage against a daily reference."*
 - **Invariants:** an unknown ingredient lowers **coverage**; it never silently contributes zero as
   though it were measured.
 
+**`nutrition/units`** (`src/lib/units.ts`, split out in A4) — *"Grams from a written quantity."*
+- **Public:** `gramsFor` (`nutrients.ts` re-exports it). **Private:** the parser, the unit fallbacks.
+- **Invariants (D5b):** per ingredient, every unit agrees with the ones it overrides — tbsp = 3 tsp =
+  15 ml, cup = 16 tbsp, l = 1000 ml, singular = plural, a bare count = a piece; a size word is relative
+  to the item (0.75× / 1.3× its count; eggs use USDA's 38 / 44 / 50 g); a number followed by anything
+  that is not a unit is **null**, never "count"; a whole number is a mixed number only before a real
+  fraction; recipe-site punctuation after a unit ("2 tbsp.", "200g/7oz") still weighs; unambiguous
+  spellings ("tablespoons", "lbs", "cans") are aliases while "T"/"t"/"c" stay unknown; a size word
+  before another unit noun ("1 large head") or on an item counted by its parts is null; "0,250" is
+  never thousands. Grams are linear in the amount.
+
 **`nutrition/targets`** — *"Mifflin-St Jeor targets and hydration from body stats, with a floor."*
 - **Public:** `computeTargets`, `bmr`, `hydrationTarget`, `explainTargets`, `explainHydration`,
-  `CALORIE_FLOOR`, `DEFAULT_CALORIE_FLOOR`, `Activity`. **Private:** `Sex`, `Goal`, `TargetInput`,
-  `Targets`, `Hydration` (structural aliases, inferable from the functions).
-- **Invariants:** garbage body stats are rejected, not extrapolated; the calorie floor applies to an
-  unknown/other sex too.
+  `CALORIE_FLOOR`, `DEFAULT_CALORIE_FLOOR`, `Activity`, and (D5b) `BODY_LIMITS`, `bodyStatProblems`,
+  `bodyStatMessage`, `isRealBody`, `referenceWeightKg`. **Private:** `Sex`, `Goal`, `TargetInput`, `Targets`, `Hydration` (structural
+  aliases, inferable from the functions).
+- **Invariants:** a body stat outside `BODY_LIMITS` (18–100 y, 120–230 cm, 30–300 kg) is **refused by
+  every caller** — the executor and onboarding say the range, and under 18 points to a GP or dietitian —
+  and `computeTargets` clamps into the limits as a floor under a caller that forgets, so it never
+  returns NaN or a negative; a stat that is a real body outside the limits (115 cm, 101 y, 310 kg) is
+  told the equation is not validated for it, never that it "doesn't look right"; the calorie floor
+  applies to an unknown/other sex too; protein AND fluid are per kg of `referenceWeightKg` (weight
+  capped at BMI 30), so 4P + 4C + 9F is within 7 kcal of the target everywhere in the limits.
 
 **`nutrition/exclusions`** — *"Allergen and diet matching, word-aware, in both directions."*
-- **Public:** `haystackBlocked`, `parseExclusionTokens`, `dietTagConflicts`, `wordMatches`.
-  **Private:** `expandExclusion`, `ingredientHasGluten`, `CATEGORY_TERMS`, `VEGAN_EXCEPTIONS`.
+- **Public:** `haystackBlocked`, `parseExclusionTokens`, `dietTagConflicts`, `wordMatches`,
+  `expandExclusion` and `EXCLUSION_CATEGORIES` (read by `primitives.ts` and the property tests).
+  **Private:** `ingredientHasGluten`, `CATEGORY_TERMS` and the food lists, `VEGAN_EXCEPTIONS`.
 - **Invariants:** **I2 — an allergen or excluded ingredient never reaches a plate.** Matching is
   word-aware in *both* directions (`peanuts` must match `peanut butter`; `egg` must not match
-  `eggplant`). **Every matcher in this module gets the same fix** — the sibling-path miss is
-  lesson 14 and it has cost three separate incidents.
+  `eggplant`), including -y/-ies. **Every matcher in this module gets the same fix** — the
+  sibling-path miss is lesson 14 and it has cost three separate incidents. Since D5b: **every clause**
+  of a typed allergy is read, and one is dropped only when it plainly allows a SPECIFIC food: an
+  allowance phrase, nothing restrictive, no "everything/anything", no neither/nor/none in its
+  segment (lesson 60; the first version's broader drop lost "I can eat anything without gluten",
+  found by the D5b review); punctuation, curly apostrophes, line breaks, "or", "-free", adjectives and
+  coeliac/celiac never lose an allergy; synonyms and label terms are category keys (prawn/shrimp,
+  soya, crustaceans, molluscs, yoghurt, groundnut); a phrase is mined for the allergens it names, but
+  a carrier ("butter" in "peanut butter", "milk" in "oat milk") is not one; ALLERGIES are mined for
+  every curated food a phrase names, DISLIKES only for the long-standing category words; olive oil
+  and black pepper are exceptions for a DISLIKE only (an allergy adds them as tokens of its own and
+  still over-blocks), and cherry tomatoes are never cherries; a lone
+  non-food word ("cooked", "white", "them") is never a token; compound foods carry
+  their usual allergens (whey protein powder, pizza base, tikka masala, kimchi, granola, sausages);
+  and the allergen path blocks everything the diet-tag path calls gluten or dairy, across the library,
+  while no recipe tagged gluten_free is removed by a gluten allergy (the two paths share the
+  gluten-free exceptions: corn tortillas, chickpea flour, rice noodles…).
 
 **`nutrition/safety`** (`src/lib/safety.ts`, **added 2026-10-03, C2**) — *"Is there a crisis or a
 medical emergency in what this person wrote?"*
@@ -315,6 +348,27 @@ not just spot-checked. **Measured state on 2026-10-03:**
 
 **Where A7 sits in the order:** after D5 (ingredient identity — the property tests key on ids) and
 before any library expansion. The schedule in `01-…md` carries it as **D5b**.
+
+**D5b DONE 2026-10-03** — the five, as built (`fdc6e3a` the automation, then the laws):
+
+1. **Properties.** Five families of laws (units, macro derivation, targets, the USDA table,
+   allergens) were derived by a workflow, run against the code, and every failing law judged by
+   three adversarial verifiers. 83 laws, 30 failing, every real one fixed — and its cases kept as
+   tests, so `test:engine` now holds the laws themselves, not examples of them. The worst find was
+   my own regression from the same afternoon (lesson 60).
+2. **Every table entry checks itself:** physical bounds, fiber ≤ carbs, no value above the SR Legacy
+   maximum for its nutrient (unit slips), kcal within 4/4/9 or its own USDA specific factors (eight
+   reviewed spice/cocoa/citrus outliers), and **every missing nutrient is a documented gap**:
+   `build:nutrients` fails on one that is neither filled from another SR Legacy entry for the same
+   food (shrimp's B12) nor listed with a reason (tempeh and soba fiber: not reported, so those dishes
+   understate fiber — not invented).
+3. **Refuse, never skip:** the library will not load with an unpriced ingredient, so `next build`
+   fails and it cannot deploy.
+4. **Automatic:** `check:recipes` + `check:ingredients` in `ship.mjs` and in CI
+   (`.github/workflows/gates.yml`).
+5. **Atwater 20% → 16%**, the tightest the library passes — and it was found that Atwater *cannot*
+   catch a wrong quantity (every number derives from the same table), so `check:recipes` gained what
+   can: a per-slot calorie **ceiling** beside the floor.
 
 ### L3 · Plan engine — the split (see §5)
 
@@ -403,7 +457,11 @@ computes, it never writes.
   `SubstituteOp`, `SymptomOp`, `HydrationOp`, `UndoOp`, `AnswerOp`, `VerbOp`, `Day`, `MealType`,
   `Nutrient`, `Scope`, `verbToOperation`, `PrimitiveOpSchema` — **22 names, none imported anywhere.**
 - **Invariants:** every write reaches the engine through `applyOperations`; this module adds no
-  arithmetic of its own.
+  arithmetic of its own. A constrain that names nothing to change (`isEmptyConstrain`) is an honest
+  no-op with a note when it is week-scoped or carries only `preserveMacros: false`
+  (`noOpConstrain`, `emptyConstrainNote`); a BARE day-scoped constrain stays a re-plan, because it is
+  the vocabulary's only re-roll (all three bare day constrains in the 2026-10-03 stored turns were
+  "shake up the rest of the week").
 
 **The vocabulary will grow — milestone C4** *(owner, 2026-09-19: "we will definitely need to expand
 more on the primitives").* The model may emit 17 primitives plus any raw engine operation. Since
@@ -445,17 +503,21 @@ never sees."*
 
 **`assistant/loop`** (`agentLoop.ts`) — *"Call the model, execute what it asked for, feed the result
 back, call again, stop."*
-- **Public:** `runAgent`, `ModelFn`, `TranscriptEntry`, `AgentTurn`, `MAX_STEPS`.
+- **Public:** `runAgent`, `ModelFn`, `TranscriptEntry`, `AgentTurn`, `MAX_STEPS`, `FALSE_CLAIM_NUDGE`.
 - **Private:** step bookkeeping, transcript shaping, where the undo snapshot is taken.
 - **Invariants:** **the model is injected as a `ModelFn`** — that is what makes the loop testable
   with no model at all, and it is the most important line in the file. `MAX_STEPS = 8` is a cap, not
   a target; hitting it sets `gaveUp` and the user is told. One undo snapshot per user turn, taken
-  before the first write.
+  before the first write. A reply that claims a change nothing made gets one nudge and one retry,
+  then never reaches the user (`falseClaimRetried` / `falseClaimCaught`).
 
 **`assistant/reply`** — *"Compose the user-facing answer; engine notes are authoritative."*
-Public: `composeReply`, `describeOperations`, `READ_ONLY_TOOLS`, `planWasChanged`. Invariant: a
-read-only tool may never report a plan change; a `replyOverride` silences the model by **presence,
-not truthiness**.
+Public: `composeReply`, `describeOperations`, `READ_ONLY_TOOLS`, `planWasChanged`, `claimsChange`,
+`NOTHING_CHANGED_REPLY`. Invariant: a read-only tool may never report a plan change; a `replyOverride`
+silences the model by **presence, not truthiness**; when the caller knows nothing changed
+(`profileChanged: false` passed) and the engine is silent, model prose that `claimsChange` is
+replaced by `NOTHING_CHANGED_REPLY`. `claimsChange` is the only copy of that detector, and the evals
+import it.
 
 ### L5 · Adapters
 

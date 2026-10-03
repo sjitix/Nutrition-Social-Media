@@ -180,6 +180,18 @@ reply = composeReply(turn.reply, engine notes)
   route now follows: **model failed and nothing changed → `503 offline`; model failed after the
   engine had already changed something → `200` (that work is real and is kept) carrying
   `modelFailed: true`, so the client can say the turn did not finish.**
+- **A reply may not claim a change the engine did not make** (2026-10-03, the models lane's proposal).
+  With reasoning off, a fast model copied the engine's note style and wrote "Wednesday now has 2000
+  kcal…" with no operation at all. When the model stops, nothing changed, the engine wrote no notes
+  (so the model's prose IS the reply) and that prose `claimsChange` (`reply.ts`), the loop puts
+  `FALSE_CLAIM_NUDGE` in the transcript as the result of the write it should have sent and calls the
+  model ONCE more. It can send the operation or retract. If it still claims a change, `composeReply`
+  replaces the reply with `NOTHING_CHANGED_REPLY`. The result reports `falseClaimRetried` and
+  `falseClaimCaught` so the evals can count both. `claimsChange` is the ONE copy of the detector (active
+  and passive voice: "I've swapped", "has been swapped", "are now quicker"), and the models lane's evals
+  import it. Its blind spot is a claim made when the plan DID change, so the engine closes that from
+  its side: a day re-plan always writes "<day> now has …", and an empty constrain changes nothing and
+  says so (a week-scoped one, or a day scope whose only field is preserveMacros: false).
 
 ## Testing it with no model at all (RULE 2)
 
@@ -192,6 +204,8 @@ The loop is ordinary code and is tested with a scripted provider that returns ca
 | never stops asking | `MAX_STEPS` holds and the user is told honestly |
 | emits invalid JSON / an unknown op | the loop degrades to a plain reply rather than throwing |
 | emits ops the engine refuses | the refusal reaches the model and it can change course |
+| claims a change with no operation | one nudge and one retry; then the honest line, never the claim |
+| sends an EMPTY constrain (week scope, or only preserveMacros:false) | nothing changes, and the engine says what it needs; a bare day constrain still re-plans that day and says where it landed |
 
 No GPU, no keys, no fine-tune. This belongs in `npm run test:engine`, and it must exist BEFORE a
 real model is wired in — otherwise a harness bug and a model weakness look identical.

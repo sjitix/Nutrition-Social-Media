@@ -1413,6 +1413,41 @@ Each of these was discovered by doing the work, and each earned its place.
     Write the fake from the platform's source, and give the suite as many actors as production has:
     tabs, devices, and the next person to use the browser.
 
+60. **A parser fix tested only on the sentence that exposed the bug can break the same sentence turned
+    around — so test the law, not the example.** "peanuts but fine with almonds" became one phrase that
+    blocked nothing, so the fix cut each allergy at its contrast word and kept the first half. It
+    shipped green (98747f6, 14:33): every test put the allergen BEFORE the "but". Within the hour, a
+    property sweep (state the law, generate cases, judge each failure) found the mirror image: "fine
+    with almonds but allergic to peanuts" kept "fine with almonds", and the planner served peanut
+    dishes 7 times in 5 weeks. The same sweep found 15 of 17 ordinary ways of typing an allergy
+    ("peanuts.", a curly apostrophe, a line break, "dairy-free", "severe peanut allergy") already losing
+    it. The fix reads EVERY clause and drops only one that explicitly allows a food, so anything unclear
+    over-blocks. **For a parser, write down the law first ("a contrast clause never cancels an
+    allergy, on either side of the word"), then generate its cases: both orders, punctuation, case,
+    the ways real people type. Never only the reported sentence.**
+
+61. **A test that checks one unseeded random week against a threshold is a biased coin. Measure the
+    rate before blaming the change.** "Go vegetarian keeps the already-vegetarian dishes" passed both
+    fast runs (6/8, 5/10) and then failed the ship gate at 3/8. That looked like D5b had broken edit
+    preservation. Measuring over 60 seeded weeks showed it had not: 64.6% kept before the change,
+    63.8% after, with 1–2 weeks in 60 below the line either way. The test now judges the total over
+    eleven weeks. **When a randomised check fails, compute its rate over many seeds on both commits
+    (a throwaway worktree at the old commit makes that a five-minute job) before touching the code,
+    then make the test judge an aggregate or a pinned seed, never one draw.**
+
+62. **A rebase that "succeeded" can still leave the working tree in conflict — and a file edited while a
+    gate runs can fail that gate.** Two things went wrong in one hour. First, `ship.mjs` ends with
+    `git pull --rebase --autostash`. The rebase of the commit was clean, so it reported success, but
+    re-applying the AUTOSTASH (my uncommitted docs) conflicted with the accounts lane's new lesson 58
+    in WORKPLAN.md. Git kept the stash, staged the rest, and left WORKPLAN.md unmerged, and nothing
+    said so. Any later commit would have refused to run or, worse, swept staged files in. `ship.mjs`
+    now checks for unmerged paths and a leftover autostash after every pull and stops, naming them.
+    Second, I edited `scripts/food-units.json` while the next commit's gate was running. The suite
+    bundles the generated unit table at start but reads the JSON at runtime, so the two disagreed and
+    the gate failed on a change that was not even in that commit. **While a gate runs, edit nothing
+    the gate reads, not only the files being committed. After every ship, run `git status` and
+    `git stash list` and expect both to be clean.**
+
 ---
 
 ## 4. Training track (runs in parallel, never blocked by the above)
