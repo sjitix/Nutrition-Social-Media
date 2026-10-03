@@ -205,7 +205,7 @@ symptom, substitution and condition tools."*
 - **Invariants:** `CRISIS_FLAGS` is safety data — it may only grow, and anything reading it must
   fail loud, never silently miss.
 
-**L1 is built to grow — "expand by a lot"** *(owner, 2026-09-19, said twice).* Today: **182
+**L1 is built to grow — "expand by a lot"** *(owner, 2026-09-19, said twice).* Today: **180
 ingredients, 501 recipes.** Target recorded in the schedule's owner-gated table: **400 ingredients /
 900 recipes** (a default until the owner names a number). The order is deliberate, because growing
 the library on today's shape would multiply today's weakness:
@@ -290,7 +290,7 @@ not just spot-checked. **Measured state on 2026-10-03:**
    conversion round-trips (`1 cup` = `16 tbsp` = `48 tsp` in grams); `bmr` reproduces the published
    Mifflin-St Jeor worked examples exactly; the calorie floor always holds; an allergen matches in
    both directions and never matches a substring of a different word (`egg` / `eggplant`).
-2. **Every table entry checks itself.** Each of the 182 (soon 400) USDA entries: macros within
+2. **Every table entry checks itself.** Each of the 180 (soon 400) USDA entries: macros within
    physical bounds (protein + carbs + fat ≤ 100 g per 100 g), its kcal consistent with its own
    4/4/9, every unit any recipe uses has a weight.
 3. **Refuse, never skip.** `deriveMacros` reports an unknown ingredient instead of silently

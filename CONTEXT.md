@@ -110,7 +110,7 @@ cards now travel in the HTML (32 → 80 kB gz; net ≈ −26 kB). **Follow-up:**
 ingredients+steps lazily. `/plan` still ships everything — owner decision #2. `check:boundaries`:
 6 debts left. The measuring worktree `../NutriFlow-v1-measure` (detached, node_modules junction) can
 be deleted with `git worktree remove ../NutriFlow-v1-measure` — or kept for D5's measurements.
-`build:nutrients` reports **180** ingredients, docs say 182 — not chased yet.
+The ingredient count is **180** (verified against `build:nutrients`: 180 curated, 180 resolved, 153 exact); the docs said 182 and are corrected.
 
 **Day 3 (A3) LANDED `ff93b99`, test:engine 680/0 identical:** the engine is now **`src/lib/plan/`** —
 nine modules + `index.ts` (the public surface, the same 22 names); `recipeDb.ts` is a 10-line
@@ -195,6 +195,13 @@ C4**, every Track E button gets a chat primitive. Reasoning: `02-module-map.md` 
 3. ~~V1 Day 3~~ — done (see above).
 4. ~~V1 Day 4~~ — done for `/sage` (see the block above). Next is **D5 — ingredient identity**
    (`01-…md` D5), then D5a (barrels + folders, coordinated with the lanes) and D5b (the maths proven).
+   **D5 brief, measured 2026-10-03 from the engine itself:** 501 recipes carry **2,296** ingredient
+   references (the schedule's "~3,000" is an estimate — correct it), naming **179 distinct**
+   ingredients, all of which resolve to the **180**-entry curated map (`scripts/ingredient-map.json`
+   → `nutrientTable.generated.ts`; one curated entry is unused). **103** references only resolve after
+   case/whitespace normalisation — that fragility is what an id removes. The rewrite of
+   `src/lib/data/seeds.ts` must be scripted with asserted anchors, and fingerprinted before/after like
+   D2/D3 (`RECIPES` must not change by a byte except the new id field).
    *(What follows is the Day 4 brief, kept for the record.)* The target is measured (`01-…md` D4: markers
    `Shakshuka`, `Miso-Glazed Cod`, `fdcId`, `approxCost` in `.next/static/chunks/*.js`; first-load
    `/sage/plan` 216 kB, `/sage/explore` 212 kB). `check:boundaries`' rule-4 debts ARE the work list:
@@ -356,7 +363,7 @@ touching a board.
    ahead sits beside it in a collapsed block. A log that mixes the two is a record of intentions.
 2. *V1 schedule* — **expand the library a lot; think about an ingredients database and wiring it to
    real retailer products (Lidl)**. Worked up as `01-…md` **§8** and recorded in VISION. The facts
-   that reframed it: 501 recipes stand on only **182 curated ingredients**, a recipe references one
+   that reframed it: 501 recipes stand on only **180 curated ingredients** (182 was quoted until 2026-10-03; `build:nutrients` counts 180), a recipe references one
    as **free text with no id**, and **no price/product layer exists** (`approxCost` is 1–3 and never
    exceeds 3, so `budget: high` == `medium`). Outcome: **ingredient identity is now day 5** (the
    schedule grew 12 → 13 days), the retailer layer is recommended for immediately **after** V1, and

@@ -203,6 +203,41 @@
       Nothing planned appears here — the schedule ahead is in its own collapsed block below.</p>
     <div class="tl" style="margin-top:20px">
 
+      <article class="entry" id="d-2026-10-04-safety">
+        <div class="box">
+          <div class="ehead">
+            <span class="date">2026-10-03 &middot; after midnight</span>
+            <span class="pill done">solved &middot; done</span>
+          </div>
+          <h3>The crisis check now works &mdash; done early, because the old one failed</h3>
+          <p class="sub">The other agent showed a real crisis message slipping past the safety check. It was moved ahead of
+            the schedule: safety does not wait for its turn.</p>
+          <div class="blocks">
+            <div class="blk">
+              <h4>What moved</h4>
+              <ul>
+                <li>Every message is now checked on the person's <b>own words, before any AI sees it</b>. The old check only
+                  worked if the AI picked the right tool and repeated the person exactly &mdash; it did neither.</li>
+                <li>The public site is covered too. It runs without an AI and was answering crisis messages with a canned
+                  demo reply.</li>
+                <li>All 15 test phrasings are caught, including 5 typed with a phone's curly apostrophe, which the old check
+                  missed entirely.</li>
+              </ul>
+            </div>
+            <div class="blk found">
+              <h4>Found while testing</h4>
+              <ul>
+                <li>Any sentence with the word &ldquo;end&rdquo; &mdash; &ldquo;at the end of the day I want pasta&rdquo; &mdash;
+                  was being treated as a suicide crisis. Fixed.</li>
+                <li><b>Two questions for you</b> (decision #8 on the schedule): five ordinary gym and food sentences still get the
+                  crisis reply, and eating-disorder messages are not caught yet.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="gate">GATE &middot; 15/15 + 5/5 curly caught &middot; 5 known conflicts asserted as-is &middot; both routes probed with no AI reached &middot; test:engine as the ship gate</div>
+        </div>
+      </article>
+
       <article class="entry" id="d-2026-10-03-late">
         <div class="box">
           <div class="ehead">
