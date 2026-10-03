@@ -17,7 +17,7 @@
  * stemmer — so "a pain in my chest" finds "chest pain", while "my blood test … a stool" never finds
  * "blood in stool". The lists live in symptoms.ts and may only grow.
  */
-import { CRISIS_FLAGS, URGENT_FLAGS, PHRASE_NOISE } from "../data/symptoms";
+import { CRISIS_FLAGS, URGENT_FLAGS, PHRASE_NOISE } from "../data";
 import { wordMatches } from "./exclusions";
 
 export const CRISIS_REPLY =

@@ -103,7 +103,7 @@ const KNOWN_DEBT = {
   "client-server:src/app/plan/page.tsx->src/lib/recipeDb.ts":
     "A4 (D4) / B2 (D8): the legacy /plan page imports feed.ts the same way. Fixed by the card projection, or retired by the one-app decision.",
   // rule 1 — layering (milestone A6 moves these pieces to the layer they belong in)
-  "layer:src/lib/assistant/agentTools.ts->src/lib/presentation/feed.ts":
+  "layer:src/lib/assistant/agentTools.ts->src/lib/presentation/index.ts":
     "A6 (D5a): the assistant's find_recipes uses the Explore feed's filter and sort. Searching the library is engine work: the query moves down to the plan layer, and feed.ts keeps only the card projection.",
   // rule 3 — storage
   "storage-api:src/components/ThemeSwitch.tsx":
@@ -216,12 +216,18 @@ export function check(sources) {
     }
   }
 
-  // rule 2 — barrels. A folder holding an index.ts is a module; from outside it, only the index.
+  // rule 2 — barrels. A folder holding an index.ts is a module; from outside it, only its entry
+  // points: index.ts (the whole surface) and client.ts (the browser-safe subset, where the module has
+  // one — the second axis of the boundary, map §6). A D5a re-export left at an old flat path is exempt:
+  // it exists only so other lanes' imports keep working until they move, and it is recognised by its
+  // exact shape (two comment lines and one `export * from`), not by name.
   const moduleDirs = files.filter((f) => /\/index\.tsx?$/.test(f)).map((f) => f.slice(0, f.lastIndexOf("/") + 1));
+  const isShim = (f) => /^src\/lib\/[^/]+\.ts$/.test(f) && /^\/\/ Moved to [^\n]*\n\/\/[^\n]*\nexport \* from "\.\/[^"]+";\s*$/.test(sources.get(f).replace(/\r\n/g, "\n"));
   for (const f of files) {
+    if (isShim(f)) continue;
     for (const imp of info.get(f).all) {
       const dir = moduleDirs.find((d) => imp.to.startsWith(d));
-      if (!dir || f.startsWith(dir) || /\/index\.tsx?$/.test(imp.to.slice(dir.length - 1))) continue;
+      if (!dir || f.startsWith(dir) || /\/(index|client)\.tsx?$/.test(imp.to.slice(dir.length - 1))) continue;
       add(2, `barrel:${f}->${imp.to}`, f,
         `${f} reaches inside the module ${dir} to ${imp.to}, line ${imp.line}. Import from ${dir.slice(0, -1)} (its index) instead — only the index is the contract, everything else may change tonight.`);
     }
@@ -342,6 +348,11 @@ function selfTest() {
     "src/lib/account/index.ts": `export { sync } from "./sync";`,
     "src/lib/account/sync.ts": `export const sync = 1;`,
     "src/app/deep.ts": `import { sync } from "@/lib/account/sync";\nexport const d = sync;`,
+    // rule 2: the browser-safe entry is an entry too; a D5a shim (exact shape) is exempt; a look-alike is not
+    "src/lib/account/client.ts": `export { sync } from "./sync";`,
+    "src/app/viaClient.ts": `import { sync } from "@/lib/account/client";\nexport const c = sync;`,
+    "src/lib/syncShim.ts": `// Moved to account/sync.ts (V1 D5a). This re-export keeps imports working.\n// Add nothing here.\nexport * from "./account/sync";\n`,
+    "src/lib/notAShim.ts": `// Moved to account/sync.ts\nexport * from "./account/sync";\nexport const extra = 1;\n`,
     // rule 6
     "src/app/emoji.tsx": `export const E = () => "Done \u{1F389}";`,
   }));
@@ -351,6 +362,9 @@ function selfTest() {
     ["rule 0 catches an unplaced file", "unclassified:src/lib/mystery.ts", true],
     ["rule 1 catches L0 importing L3", "layer:src/lib/slots.ts->src/lib/recipeDb.ts", true],
     ["rule 2 catches a deep import past a barrel", "barrel:src/app/deep.ts->src/lib/account/sync.ts", true],
+    ["rule 2 allows the browser-safe client.ts entry", "barrel:src/app/viaClient.ts->src/lib/account/client.ts", false],
+    ["rule 2 exempts a D5a re-export of exactly that shape", "barrel:src/lib/syncShim.ts->src/lib/account/sync.ts", false],
+    ["rule 2 does NOT exempt a look-alike that adds code", "barrel:src/lib/notAShim.ts->src/lib/account/sync.ts", true],
     ["rule 3 catches a second storage key", "storage-key:src/app/sage/thing.ts:nutriflow.saved2", true],
     ["rule 3 catches direct localStorage access", "storage-api:src/app/sage/thing.ts", true],
     ["rule 3 ignores a key mentioned in a comment", "storage-key:src/app/sage/thing.ts:nutriflow.comment", false],

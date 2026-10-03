@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { importRecipeFromUrl } from "@/lib/import";
-import { videoPlatform, importRecipeFromVideo } from "@/lib/videoImport";
+import { importRecipeFromUrl } from "@/lib/providers";
+import { videoPlatform, importRecipeFromVideo } from "@/lib/providers";
 
 // The video path makes a model call after fetching the page, so allow more headroom than the
 // deterministic JSON-LD path needs.

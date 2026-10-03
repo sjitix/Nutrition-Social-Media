@@ -85,7 +85,12 @@ agentTools, agentLoop, reply, promptV2), `providers/` (ai, import, videoImport) 
 feedFilter, recipes, batchGrocery, streak). **The old flat paths are one-line re-exports**, so
 `@/lib/exclusions` still works; new code inside `src/lib` imports the real path. The accounts lane's
 `storage.ts`, `savedStore.ts` and `account/` have not moved. A path below written flat (`src/lib/x.ts`) means
-the module, wherever its folder is; `docs/v1/02-module-map.md` §2 is the exact map.
+the module, wherever its folder is; `docs/v1/02-module-map.md` §2 is the exact map. **Import a folder through its
+barrel** — `@/lib/nutrition` (`index.ts`, the whole public surface) or, from a client component,
+`@/lib/nutrition/client` (the browser-safe subset; `core/` and `presentation/` have one too) — never a file inside it:
+`check:boundaries` rule 2 fails a deep import. A name missing from a barrel is private until someone needs it;
+add it to `index.ts` deliberately. `package.json` declares `"sideEffects": ["*.css"]` so barrels cost the browser
+nothing (measured: without it, 3–7 kB per route) — a module that must run on import would have to be listed there.
 
 **The engine (pure TypeScript, no network, no model — this is where correctness lives)**
 
@@ -156,7 +161,10 @@ the module, wherever its folder is; `docs/v1/02-module-map.md` §2 is the exact 
   lists drifted apart silently until an audit caught it — and since accounts, **a key named anywhere
   else is also invisible to sync and export**. Every save stamps a write time and notifies
   `onStoreChange` listeners; that is the whole seam sync hangs off, and why its load/save API never
-  had to change. Owned by the accounts lane (`docs/parallel/`).
+  had to change. **THE WRITE FENCE:** once another tab switches the browser to a different account or
+  clears it, a tab still working from the earlier data can write nothing (stores, write times, the
+  owner, the copies): its saves are dropped with a console warning, `takeBackup` throws, and
+  `<AccountSync/>` reloads it (lesson 63). Owned by the accounts lane (`docs/parallel/`).
 - `src/lib/account/` — **accounts: local-first, the account is a mirror.** `portable.ts` (the export
   file), `validate.ts` (ONE zod-free check per store, for files AND rows pulled from the account),
   `merge.ts` (the pure sync rules — key-order-blind, because Postgres jsonb reorders keys; and every
@@ -171,7 +179,7 @@ the module, wherever its folder is; `docs/v1/02-module-map.md` §2 is the exact 
   network: two suites, one tab (`test-account.mts`) and several tabs of one browser
   (`test-account-tabs.mts`, the real modules bundled once per tab), over ONE shared fake Supabase
   (`scripts/account-fakes.ts`). `node scripts/mutate-account.mjs` proves each guard's test can fail
-  (lessons 52–55, 59).
+  (lessons 52–55, 59, 63).
   **The SQL itself is executed** by `node scripts/test-account-sql.mjs`: real Postgres (PGlite, in
   WebAssembly) with Supabase's default grants stubbed in, so no project is needed (lesson 56).
 - `src/lib/savedStore.ts` — a three-method async interface (`list`/`add`/`remove`) over saved
@@ -184,7 +192,9 @@ the module, wherever its folder is; `docs/v1/02-module-map.md` §2 is the exact 
 - `src/lib/ai.ts` — provider system. `resolveProvider()` picks claude/local/demo. Local path
   generates one day per request (schema-validated), with retries, model fallback and JSON repair.
   Env vars it actually reads: `AI_PROVIDER`, `ANTHROPIC_API_KEY`, `CLAUDE_MODEL`, `LOCAL_AI_URL`,
-  `LOCAL_AI_MODEL`, `LOCAL_AI_API_KEY`, `PLAN_ENGINE`. (An earlier version of this file documented
+  `LOCAL_AI_MODEL`, `LOCAL_AI_API_KEY`, `LOCAL_AI_EXTRA_BODY` (a JSON object merged into the chat request
+  body, e.g. `{"chat_template_kwargs":{"enable_thinking":false}}` to turn reasoning off on the 550B),
+  `PLAN_ENGINE`. (An earlier version of this file documented
   `LOCAL_AI_CONCURRENCY`; nothing reads it.)
 - `src/lib/import.ts` — deterministic recipe import from a URL via schema.org JSON-LD, SSRF-guarded.
   Never guesses macros: no nutrition block means zero plus an honest UI note.
@@ -320,7 +330,7 @@ npm run check:boundaries # the module map enforced: layers, client payload, stor
 npm run check:data      # gates the training data
 npm run test:api        # HTTP route integration tests
 node scripts/test-account.mjs  # accounts: export file, sync, REST client, client.ts end to end vs a fake Supabase, and across tabs — no network
-node scripts/mutate-account.mjs  # accounts: removes each guard in turn and proves a test goes red
+node scripts/mutate-account.mjs [--only "text"]  # accounts: removes each guard in turn and proves a test goes red
 node scripts/test-account-sql.mjs [--mutate]  # accounts: the migrations + RLS plan in real Postgres (PGlite; installs once to the OS temp dir)
 npm run export:recipes  # library -> NutriFlow-recipes.xls, incl. a coverage/gaps report
 npm run build:nutrients # regenerate the USDA table (needs --emit to write)

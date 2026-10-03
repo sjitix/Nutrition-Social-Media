@@ -1,12 +1,12 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
-import { agentModelFn, resolveProvider, withTargetDefaults } from "@/lib/ai";
-import { runAgent, MAX_STEPS, type TranscriptEntry } from "@/lib/agentLoop";
+import { agentModelFn, resolveProvider, withTargetDefaults } from "@/lib/providers";
+import { runAgent, MAX_STEPS, type TranscriptEntry } from "@/lib/assistant";
 import { DEMO_ASSISTANT_REPLY } from "@/lib/demo";
-import { redFlag } from "@/lib/safety";
-import { requestDay } from "@/lib/streak";
-import type { ChatMessage, PlanSnapshot, UserProfile, WeekPlan } from "@/lib/types";
+import { redFlag } from "@/lib/nutrition";
+import { requestDay } from "@/lib/presentation/client";
+import type { ChatMessage, PlanSnapshot, UserProfile, WeekPlan } from "@/lib/core";
 
 export const maxDuration = 300;
 

@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { RECIPES, type Recipe } from "@/lib/recipeDb";
-import { imageForMeal, cutoutForMeal, gradientForMeal, PHOTOGRAPHED_RECIPES } from "@/lib/recipes";
+import { imageForMeal, cutoutForMeal, gradientForMeal, PHOTOGRAPHED_RECIPES } from "@/lib/presentation/client";
 // `shot` below counts photographs that resolve to a REAL recipe, and every count on this page is
 // taken from it rather than from the map's length. A key that no longer matches a recipe (a
 // rename) would otherwise make the page claim a photograph that never renders.

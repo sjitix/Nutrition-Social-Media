@@ -56,6 +56,7 @@ import {
   startSync, signOut, deleteAccount, completeSignInFromUrl, sendSignInLink, forgetThisBrowser, onPulled,
   accountStatus, currentSession, retrySignIn, canRetrySignIn,
 } from "@/lib/account/client";
+import { localSavedStore, savedStore } from "@/lib/savedStore";
 import type { StoreName } from "@/lib/storage";
 import type { UserProfile, WeekPlan } from "@/lib/types";
 
@@ -137,6 +138,27 @@ async function mayThrow<T>(p: Promise<T>): Promise<T | null> {
   check("storage: an imported recipe is stamped with when it was imported", typeof (imp[0] as { importedAt?: number }).importedAt === "number");
 }
 
+// A browser where touching storage throws at all (Safari with site data blocked, some private modes):
+// every load comes back empty rather than crashing the screen. The write fence's read pin once sat
+// outside readKey's try, and every load threw (batch 4, found by re-reading the change).
+{
+  const plain = Object.getOwnPropertyDescriptor(fakeWindow, "localStorage")!;
+  Object.defineProperty(fakeWindow, "localStorage", {
+    configurable: true,
+    get() {
+      throw new DOMException("The operation is insecure.", "SecurityError");
+    },
+  });
+  let loads: string;
+  try {
+    loads = json([storage.loadPlan(), storage.loadProfile(), storage.loadSaved(), storage.loadBackups(), storage.loadSyncOwner()]);
+  } catch (e) {
+    loads = `threw ${(e as Error).name}`;
+  }
+  Object.defineProperty(fakeWindow, "localStorage", plain);
+  check("storage: with storage blocked, every load comes back empty instead of throwing", loads === json([null, null, [], [], null]), loads);
+}
+
 // restore — and the rule that a restore never creates a deletion
 {
   memory.clear();
@@ -175,8 +197,12 @@ async function mayThrow<T>(p: Promise<T>): Promise<T | null> {
   const off = storage.onStoreChange((c) => seen.push(c.name));
   storage.clearAll();
   off();
-  check("clearAll: empties every nutriflow key, including backups, meta, synced, owner and session", memory.keys().length === 0,
-    memory.keys().join());
+  // Everything but the new data generation (storage.ts, THE WRITE FENCE): a random id, no data, and
+  // the very thing that stops another tab writing the old data back.
+  check("clearAll: empties every nutriflow key, including backups, meta, synced, owner and session",
+    memory.keys().every((k) => k === "nutriflow.epoch"), memory.keys().join());
+  check("clearAll: …and starts a new data generation, so a tab still holding the old data can't write it back",
+    memory.keys().join() === "nutriflow.epoch", memory.keys().join());
   check("clearAll: is SILENT — clearing a device must never empty the account as a side effect", seen.length === 0);
 }
 
@@ -323,6 +349,38 @@ async function mayThrow<T>(p: Promise<T>): Promise<T | null> {
     json(told));
 
   check("validate: a cleared store (null) is always acceptable", checkStore("plan", null) === null);
+
+  // Review 2 (security-4): these shapes passed, were mirrored to the account, were pulled by every
+  // device, and crashed the Week board, the meal sheet and Today on all of them.
+  const bad = (name: StoreName, v: unknown) => checkStore(name, v) !== null;
+  check("validate: a profile whose pinned meals are not a list is refused (the Week board calls .some on them)",
+    bad("profile", { ...PROFILE, lockedMeals: { Monday: "dinner" } }));
+  check("validate: a profile whose ratings are not a list is refused (the meal sheet calls .find on them)",
+    bad("profile", { ...PROFILE, mealRatings: "loved the stew" }));
+  check("validate: remembered notes and body measurements in the wrong shape are refused",
+    bad("profile", { ...PROFILE, memory: ["IBS"] }) && bad("profile", { ...PROFILE, bodyStats: { weightKg: "70" } }));
+  const oddMeal = { ...week("ODD"), days: [{ day: "Monday", meals: [{ ...week("ODD").days[0].meals[0], description: { note: "x" } }] }] };
+  check("validate: a meal whose description is not text is refused (Today renders it as text)", bad("plan", oddMeal));
+  check("validate: a week whose notes are not a list of sentences is refused", bad("batchPlan", { ...week("N"), notes: "cook sunday" }));
+  check("validate: a meal-prep schedule in the wrong shape is refused", bad("batchPlan", { ...week("S"), sessions: [{ id: 1 }] }));
+  const fullProfile = {
+    ...PROFILE, name: "Ana", planMode: "batch", batchCadence: "weekly", fiberGrams: 30,
+    lockedMeals: [{ day: "Sunday", mealType: "dinner", name: "Roast chicken" }],
+    mealRatings: [{ name: "Tofu stir-fry", rating: 1 }],
+    memory: [{ fact: "IBS, avoids onions", kind: "condition", since: "2026-10-01" }],
+    bodyStats: { age: 34, heightCm: 170, weightKg: 68, sex: "female", activity: "moderate" },
+  };
+  check("validate: a real, complete profile still passes", checkStore("profile", fullProfile) === null, String(checkStore("profile", fullProfile)));
+  const prep = {
+    ...week("PREP"), planMode: "batch", notes: ["Cook on Sunday"],
+    sessions: [{ id: "s1", cookDay: "Sunday", coversDays: ["Monday", "Tuesday"] }],
+    batches: [{
+      id: "b1", sessionId: "s1", recipeName: "Chili", slot: "dinner", totalServings: 4, servingFactor: 1,
+      perServing: { calories: 600, proteinGrams: 40, carbsGrams: 50, fatGrams: 20 },
+      placements: [{ day: "Monday", slot: "dinner" }, { day: "Tuesday", slot: "dinner", frozen: true }],
+    }],
+  };
+  check("validate: a real meal-prep week still passes", checkStore("batchPlan", prep) === null, String(checkStore("batchPlan", prep)));
   check("validate: a real week and a real import pass",
     checkStore("plan", week("OK")) === null && checkStore("imports", [{ name: "R", sourceUrl: "https://e.com/r", ingredients: [], steps: [] }]) === null);
 }
@@ -532,6 +590,50 @@ await (async () => {
   try { await syncNow(d, flaky, 20); } catch { threw = true; }
   check("engine: a failed push surfaces as an error (the caller shows 'offline')", threw);
   check("engine: …and the device still holds its data", json(d.read("saved")) === json(["Shakshuka"]));
+})();
+
+// A push the account SKIPPED (another device wrote between this sync's pull and its push) is not
+// marked synced, so the follow-up pull that replaces it backs it up first (review 2, ui-tests-5 Y1).
+await (async () => {
+  const device = new FakeDevice();
+  device.edit("plan", "MINE", 100);
+  device.synced.plan = 50;
+  let raced = false;
+  const racing: Remote = {
+    rows: new Map<StoreName, RemoteRow>([["plan", { name: "plan", value: "OLD", at: 50 }]]),
+    async pull() {
+      const out = [...(this as { rows: Map<StoreName, RemoteRow> }).rows.values()].map((r) => ({ ...r }));
+      if (!raced) { raced = true; (this as { rows: Map<StoreName, RemoteRow> }).rows.set("plan", { name: "plan", value: "OTHER-DEVICE", at: 150 }); }
+      return out;
+    },
+    async push(rows: RemoteRow[]) {
+      const skipped: StoreName[] = [];
+      const table = (this as { rows: Map<StoreName, RemoteRow> }).rows;
+      for (const r of rows) { const cur = table.get(r.name); if (cur && cur.at >= r.at) skipped.push(r.name); else table.set(r.name, r); }
+      return { skipped };
+    },
+    async removeAll() {},
+  } as Remote & { rows: Map<StoreName, RemoteRow> };
+  const first = await syncNow(device, racing, 200);
+  await syncNow(device, racing, 210); // the follow-up client.ts runs after a skip
+  check("engine: an edit the account skipped stays unsynced, so the follow-up pull backs it up before replacing it",
+    first.skipped.includes("plan") && device.read("plan") === "OTHER-DEVICE" && device.backups.length === 1,
+    json({ skipped: first.skipped, now: device.read("plan"), backups: device.backups.length }));
+})();
+
+// Routine pulls of another device's edits take no backup, however many (review 1 fix 9; ui-tests-5 Y12).
+await (async () => {
+  const server = new FakeServer();
+  const device = new FakeDevice();
+  device.edit("plan", "V1", 100);
+  device.synced.plan = 100;
+  server.rows.set("plan", { name: "plan", value: "V1", at: 100 });
+  server.rows.set("plan", { name: "plan", value: "V2-FROM-PHONE", at: 200 });
+  await syncNow(device, server, 210);
+  server.rows.set("plan", { name: "plan", value: "V3-FROM-PHONE", at: 300 });
+  await syncNow(device, server, 310);
+  check("engine: two routine pulls in a row take no backup (each pull records what it agreed on)",
+    device.backups.length === 0 && device.read("plan") === "V3-FROM-PHONE", json({ backups: device.backups.length, now: device.read("plan") }));
 })();
 
 // Clocks, through the whole engine: one device's clock runs a day fast (lesson 57).
@@ -1244,7 +1346,7 @@ await (async () => {
   await new Promise((r) => setTimeout(r, 80));
   sb.pullDelayMs = 0;
   check("forget mid-pull: a pull landing after 'delete everything' does NOT refill the browser (review)",
-    storage.loadSaved().length === 0 && kiosk.keys().filter((k) => !k.startsWith("nutriflow.pkce")).length === 0, kiosk.keys().join());
+    storage.loadSaved().length === 0 && kiosk.keys().filter((k) => !k.startsWith("nutriflow.pkce") && k !== "nutriflow.epoch").length === 0, kiosk.keys().join());
   fakeWindow.localStorage = desk;
 
   // ---- forget this browser: stop syncing first, end the sign-in, clear ----
@@ -1252,7 +1354,8 @@ await (async () => {
   await startSync();
   const carolRows = sb.table("uid-carol").size;
   await forgetThisBrowser();
-  check("forget: the browser is emptied and signed out", currentSession() === null && storage.loadSaved().length === 0 && desk.keys().length === 0);
+  check("forget: the browser is emptied and signed out (only the new data generation remains)",
+    currentSession() === null && storage.loadSaved().length === 0 && desk.keys().every((k) => k === "nutriflow.epoch"), desk.keys().join());
   check("forget: the account is untouched", sb.table("uid-carol").size === carolRows);
   storage.toggleSaved("after-forget");
   await leaveAndReturn();
@@ -1372,6 +1475,194 @@ await (async () => {
   const quin = await mayThrow(completeSignInFromUrl());
   check("sign-in: a link asked for while another sign-in was finishing still works (its verifier was kept)",
     quin?.userId === "uid-quin");
+  await signOut();
+
+  // ---- review 2, batch 4 ----
+  // A token renewal answered after "Delete everything in this browser" must not bring the session back
+  // (found by two lenses; the same race was filed against Supabase's own Swift SDK).
+  fakeWindow.localStorage = new MemoryStorage();
+  sb.nextExpiresIn = 30; // the session the link gives has under a minute left: the next request renews it
+  await signIn("rex@example.com");
+  sb.refreshAnswerDelayMs = 120; // GoTrue renews at once; its answer is slow to arrive
+  const rexSyncing = startSync();
+  await settle();
+  await forgetThisBrowser();
+  await mayThrow(rexSyncing);
+  await new Promise((r) => setTimeout(r, 160));
+  check("renewal race: an answer arriving after 'Delete everything' does not bring the session back",
+    currentSession() === null && fakeWindow.localStorage.getItem("nutriflow.session") === null,
+    json({ session: currentSession()?.userId ?? null }));
+
+  // A full sync's push the account skipped is followed by a second pull at once (review 2: the follow-up
+  // was queued so that it only joined the finishing sync, and never ran).
+  fakeWindow.localStorage = new MemoryStorage();
+  await signIn("sky@example.com");
+  await startSync();
+  sb.table("uid-sky").set("saved", { value: ["OLD"], updated_at: new Date(Date.now() - 3_600_000).toISOString() });
+  storage.writeStore("saved", ["MINE"], { at: Date.now(), silent: true }); // newer here, and not queued to send
+  sb.afterPull = () => sb.table("uid-sky").set("saved", { value: ["OTHER"], updated_at: new Date(Date.now() + 60_000).toISOString() });
+  fakeWindow.dispatch("online"); // a full sync: it plans to push MINE, and the push is skipped
+  await settle();
+  await settle();
+  await settle();
+  check("skipped push: the follow-up pull runs at once and brings the other device's newer write down",
+    json(storage.loadSaved()) === json(["OTHER"]), json(storage.loadSaved()));
+  check("skipped push: …and this device's edit is kept as a copy", storage.loadBackups().some((b) => json(b.data.saved) === json(["MINE"])));
+  await signOut();
+
+  // An edit's push answered after "Delete everything": no bookkeeping comes back into the emptied browser.
+  const cleared = new MemoryStorage();
+  fakeWindow.localStorage = cleared;
+  await signIn("tia@example.com");
+  await startSync();
+  sb.pushDelayMs = 80;
+  storage.toggleSaved("Shakshuka");
+  fakeDocument.visibilityState = "hidden";
+  fakeDocument.dispatch("visibilitychange"); // the push goes out, and is slow
+  await new Promise((r) => setTimeout(r, 10));
+  await forgetThisBrowser();
+  await new Promise((r) => setTimeout(r, 140));
+  fakeDocument.visibilityState = "visible";
+  sb.pushDelayMs = 0;
+  check("late answers: a push answered after 'Delete everything' writes nothing into the emptied browser, and the tab stays signed out",
+    cleared.keys().every((k) => k === "nutriflow.epoch") && accountStatus().state === "signed-out",
+    json({ keys: cleared.keys(), status: accountStatus().state }));
+
+  // A full sync's push answered after "Delete everything": the same, through the sync itself.
+  const cleared2 = new MemoryStorage();
+  fakeWindow.localStorage = cleared2;
+  await signIn("uma@example.com");
+  await startSync();
+  storage.writeStore("saved", ["Dal"], { at: Date.now(), silent: true }); // only a full sync will send it
+  sb.pushDelayMs = 80;
+  fakeWindow.dispatch("online");
+  await new Promise((r) => setTimeout(r, 20)); // the full sync has pulled, and its push is in flight
+  await forgetThisBrowser();
+  await new Promise((r) => setTimeout(r, 140));
+  sb.pushDelayMs = 0;
+  check("late answers: a full sync's push answered after 'Delete everything' writes nothing into the emptied browser",
+    cleared2.keys().every((k) => k === "nutriflow.epoch"), json(cleared2.keys()));
+
+  // A re-sync queued behind a push in flight, in a tab then signed out: it must not run and claim
+  // "Syncing…" for an account the tab no longer shows (review 2). Signing out HERE waits for the push
+  // before it stops anything, so the re-sync starts while the tab is still current, and the sign-out's
+  // own sentence comes last either way: the stop that does not wait is the next check.
+  fakeWindow.localStorage = new MemoryStorage();
+  await signIn("vi@example.com");
+  await startSync();
+  sb.pushDelayMs = 80;
+  storage.toggleSaved("Tofu");
+  fakeDocument.visibilityState = "hidden";
+  fakeDocument.dispatch("visibilitychange"); // the push is in flight
+  fakeDocument.visibilityState = "visible";
+  fakeWindow.dispatch("online"); // a re-sync waits behind it
+  await new Promise((r) => setTimeout(r, 10));
+  await signOut();
+  await new Promise((r) => setTimeout(r, 140));
+  sb.pushDelayMs = 0;
+  check("stopped tab: a re-sync that was waiting does not run afterwards and show 'Syncing…'",
+    accountStatus().state === "signed-out", json(accountStatus()));
+
+  // The same, stopped at once: another tab signs out while the push is in flight (as "Delete
+  // everything" and a switch also do). The re-sync waiting behind the push then started in a tab that
+  // had stopped, and said "Syncing…" for an account it no longer showed.
+  fakeWindow.localStorage = new MemoryStorage();
+  await signIn("wyn@example.com");
+  await startSync();
+  sb.pushDelayMs = 80;
+  storage.toggleSaved("Tempeh");
+  fakeDocument.visibilityState = "hidden";
+  fakeDocument.dispatch("visibilitychange"); // the push is in flight
+  fakeDocument.visibilityState = "visible";
+  fakeWindow.dispatch("online"); // a re-sync waits behind it
+  await new Promise((r) => setTimeout(r, 10));
+  storage.saveSessionRaw(null);
+  fakeWindow.dispatch("storage", { key: "nutriflow.session" }); // another tab signed out: this one stops now
+  await new Promise((r) => setTimeout(r, 140));
+  sb.pushDelayMs = 0;
+  check("stopped tab: a re-sync waiting when another tab signed out does not start afterwards and show 'Syncing…'",
+    accountStatus().state === "signed-out" && (accountStatus().message ?? "").includes("another tab"), json(accountStatus()));
+
+  // ui-tests-5, ported from the reviewer's scenarios: guards no test could see.
+  // Switching into an account that already HAS data keeps that account's data.
+  fakeWindow.localStorage = new MemoryStorage();
+  const bosHour = new Date(Date.now() - 3_600_000).toISOString();
+  sb.table("uid-bo").set("profile", { value: { ...PROFILE, name: "Bo" }, updated_at: bosHour });
+  sb.table("uid-bo").set("plan", { value: week("BO"), updated_at: bosHour });
+  storage.saveProfile({ ...PROFILE, name: "Al" });
+  storage.savePlan(week("AL"));
+  await signIn("al@example.com");
+  await startSync();
+  await signOut();
+  await signIn("bo@example.com");
+  await startSync();
+  await settle();
+  const boProfile = sb.table("uid-bo").get("profile")?.value as UserProfile | undefined;
+  check("switch: an account that already has data keeps it (the reset also forgets the previous account's write times)",
+    boProfile?.name === "Bo" && summary(sb.table("uid-bo").get("plan")?.value) === "week BO",
+    json({ profile: boProfile?.name ?? null, plan: summary(sb.table("uid-bo").get("plan")?.value) ?? null }));
+  await signOut();
+
+  // With no room for a safety copy, a switch empties nothing.
+  const tight = new MemoryStorage();
+  fakeWindow.localStorage = tight;
+  storage.saveProfile(PROFILE);
+  storage.savePlan(week("CY-ONLY-COPY"));
+  await signIn("cy@example.com");
+  await startSync();
+  await signOut();
+  tight.quota = tight.keys().reduce((n, k) => n + k.length + (tight.getItem(k) ?? "").length, 0) + 1500;
+  await signIn("dy@example.com");
+  await startSync();
+  await settle();
+  check("switch: with no room for a safety copy, nothing is emptied",
+    summary(storage.loadPlan()) === "week CY-ONLY-COPY" || storage.loadBackups().some((b) => summary(b.data.plan) === "week CY-ONLY-COPY"),
+    json({ plan: summary(storage.loadPlan()) ?? null, copies: storage.loadBackups().length, status: accountStatus() }));
+  tight.quota = Infinity;
+  await signOut();
+
+  // After a token renewal the next requests still work: the ROTATED refresh token is the one kept.
+  fakeWindow.localStorage = new MemoryStorage();
+  storage.saveProfile(PROFILE);
+  sb.nextExpiresIn = 30;
+  await signIn("cal@example.com");
+  await startSync();
+  storage.savePlan(week("CAL"));
+  await leaveAndReturn();
+  check("token rotation: after a renewal, later requests still work (the rotated refresh token is the one kept)",
+    accountStatus().state !== "signed-out" && summary(sb.table("uid-cal").get("plan")?.value) === "week CAL", json(accountStatus()));
+  await signOut();
+
+  // "Your sign-in expired…" survives the account page opening and calling startSync again.
+  fakeWindow.localStorage = new MemoryStorage();
+  sb.nextExpiresIn = -10;
+  await signIn("eda@example.com");
+  sb.refresh.clear(); // the renewal is refused: the sign-in is over
+  await startSync();
+  const why = accountStatus().message ?? "";
+  await startSync();
+  check("signed out: the reason survives the account page's own startSync", why.includes("expired") && (accountStatus().message ?? "") === why,
+    json({ before: why.slice(0, 40), after: accountStatus() }));
+
+  // ---- savedStore: the seam Explore saves through (review 2: no test ever imported it) ----
+  // Both add and remove go through a TOGGLE, so each must check the list first: adding a recipe that is
+  // already saved would un-save it, and removing one that isn't would save it.
+  fakeWindow.localStorage = new MemoryStorage();
+  await localSavedStore.add("Dal");
+  await localSavedStore.add("Dal");
+  check("savedStore: saving a recipe that is already saved keeps it saved",
+    json(await localSavedStore.list()) === json(["Dal"]), json(await localSavedStore.list()));
+  await localSavedStore.remove("Tofu");
+  check("savedStore: removing a recipe that isn't saved changes nothing",
+    json(await localSavedStore.list()) === json(["Dal"]), json(await localSavedStore.list()));
+  await localSavedStore.remove("Dal");
+  check("savedStore: …and removing one that is saved removes it", (await localSavedStore.list()).length === 0);
+  fakeWindow.localStorage.setItem("nutriflow.saved", JSON.stringify(["Dal", 7, null, { x: 1 }, "Tofu"]));
+  check("savedStore: anything but a name in storage is not shown as a saved recipe",
+    json(await localSavedStore.list()) === json(["Dal", "Tofu"]), json(await localSavedStore.list()));
+  check("savedStore: says 'local' when nobody is signed in", savedStore().kind === "local");
+  await signIn("sol@example.com");
+  check("savedStore: says 'account' when signed in, so Explore can say where saves go", savedStore().kind === "account");
   await signOut();
 
   // ---- a SECOND device pulls the account down, and listeners hear it ----

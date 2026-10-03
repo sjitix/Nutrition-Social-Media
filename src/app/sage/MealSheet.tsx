@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Sheet } from "./Sheet";
 import { actions, ActionError, slotCandidates, type ActionResult, type CandidateList } from "./actions";
-import type { DayPlan, Meal, Operation, UserProfile } from "@/lib/types";
+import type { DayPlan, Meal, Operation, UserProfile } from "@/lib/core";
 
 /**
  * Tap a meal, change it. Everything you can do to one plate, in one panel.

@@ -29,7 +29,7 @@ message each other are in `docs/parallel/README.md`.
 
 #### PARALLEL LANE — accounts (written by the accounts agent only)
 
-**2026-10-03 — accounts are built up to the keys, adversarially reviewed, and the SQL has run.**
+**2026-10-03 — accounts are built up to the keys, adversarially reviewed twice, and the SQL has run.**
 Live status, the plan and the asks: `docs/parallel/lane-accounts.md`. Design: **local-first, the
 account is a mirror** — `storage.ts`'s load/save API did not change, so no screen had to; underneath,
 every real save stamps a write time and notifies listeners, and a sync layer mirrors each store to one
@@ -60,8 +60,8 @@ Supabase row per user under RLS.
   - "Put it back" lost the restored copy.
   Now every write is stamped later than what it replaces (`nextStamp`, the logical-clock rule), so raw
   clocks decide only true conflicts, where the backup applies.
-- **A second adversarial review, of the hardening itself, found more. Batches 1–3 are fixed
-  (lessons 58–59):**
+- **A second adversarial review, of the hardening itself, found more. All four batches are fixed
+  (lessons 58, 59 and 63):**
   - "Delete my account" in a stale tab deleted the OTHER account another tab had signed in;
   - a failed first sync left the browser unowned, so the next person's sign-in uploaded the previous
     person's data;
@@ -69,22 +69,30 @@ Supabase row per user under RLS.
   - a push could replace the account's copy with no copy kept anywhere (now rule 6);
   - a tab left open across another tab's pull or sign-in wrote stale or someone else's data back;
   - every 401 signed people out;
-  - a first link opened after five minutes, or after a network blip, could not be finished.
-  Still open (batch 4, in the lane file): late callbacks after "delete everything", notes the reload
-  wipes, untested guards in the React layer, and accessibility. The security lens is still reporting.
-- **Gate for this lane:** `node scripts/test-account.mjs` runs two suites: **286 checks** in one tab,
+  - a first link opened after five minutes, or after a network blip, could not be finished;
+  - **batch 4:** a tab still holding the data from before another tab switched accounts (or cleared
+    the browser) could write it into the new person's storage, or record the previous account as
+    the owner, so that person's next sign-in here would upload the new person's data. **THE WRITE
+    FENCE** in `storage.ts` now refuses every write from such a tab. Also: answers that land after a
+    stop change nothing; a crafted file or row can no longer crash Week, the meal sheet or Today;
+    both account surfaces work by keyboard and screen reader; the privacy note says what is logged.
+  Batch 4's own adversarial review ran out of usage before it reported; it is re-run against `main`.
+- **Gate for this lane:** `node scripts/test-account.mjs` runs two suites: **315 checks** in one tab,
   including the real `client.ts` end to end against an in-memory Supabase (RLS, PKCE, conditional
-  writes, jsonb order, skewed clocks, token expiry), and **10 checks across tabs** of one browser ·
-  `node scripts/test-account-sql.mjs --mutate` — **37 checks in real Postgres, 15/15 broken guards
-  caught** · `node scripts/mutate-account.mjs` — **38/38**.
+  writes, jsonb order, skewed clocks, token expiry), and **25 checks across tabs** of one browser
+  (stale tabs, the write fence, a tab that hears late) · `node scripts/test-account-sql.mjs --mutate`
+  — **37 checks in real Postgres, 15/15 broken guards caught** · `node scripts/mutate-account.mjs` —
+  **60/60** (`--only "text"` re-checks one guard in seconds).
 - **Owner, to switch accounts on:** `supabase/README.md` — create a project, run **both** migrations,
-  **configure custom SMTP** (without it only your own organisation receives sign-in emails), then put
-  `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` in `.env.local` and Vercel. Never the
-  `service_role` key.
+  set the Site URL to the account page, turn off "Confirm email" and "Write audit logs to the
+  database", **configure custom SMTP** (without it only your own organisation receives sign-in
+  emails), then put `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in
+  `.env.local` and Vercel. Never the `service_role` key.
 - **Asked of the v1 lane (lane file has the detail):** make `AssistantChat` re-read on
-  `PLAN_CHANGED_EVENT` and drop `actions.ts`'s undo snapshot when sync pulls — until then
-  `<AccountSync/>` reloads the tab once when the week or profile comes down. `storage.ts` now owns the
-  theme key, so ThemeSwitch's boundaries debt can be paid.
+  `PLAN_CHANGED_EVENT`, and drop `actions.ts`'s undo snapshot when sync pulls or the browser is
+  cleared — until then `<AccountSync/>` reloads the tab once when the week or profile comes down.
+  **D5a, answered yes:** `storage.ts` and `savedStore.ts` may move to `persistence/` once batch 4's sha
+  is in the lane file. `storage.ts` already owns the theme key, so ThemeSwitch's debt can be paid.
 
 One-time handoff carried through this lane: the `modelFailed` fix an earlier session left uncommitted
 in the main folder (`2fd6f02`). Its WORKPLAN lesson was renumbered 38 → 48 because 38–47 were taken.
@@ -120,7 +128,19 @@ schema work, landed; now equal to main), `models-exp-date` (the date line, lande
 - **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`, this block, the
   lane file. Does not edit v1's files; asks v1 first. Touches no accounts files.
 
-### >>> V1 LANE — 2026-10-03 ~19:45: Days 1–5 DONE, D5b DONE + its review fixed, false-claim guard, local date and empty-constrain fix LANDED. TRACK A IS A GATE. Next: D5a (barrels + folders) — ask both lanes for a date first. <<<
+### >>> V1 LANE — 2026-10-03 ~20:45: TRACK A DONE except the shims — D1–D5, D5a (folders + barrels) and D5b all landed. Next: LOCAL_AI_EXTRA_BODY, the D5a review's findings, then the models lane's fast finish + wording when they say "ready". <<<
+
+**D5a — DONE** (`c50d58d` the move, `cc38524` two contracts to `core/`, `1dff171` the barrels; test:engine 924/0).
+`src/lib` is `core/ data/ nutrition/ plan/ assistant/ providers/ presentation/`, each with an `index.ts` carrying
+only what outsiders use and, for core/nutrition/presentation, a browser-safe `client.ts`. **Every old flat path
+is a one-line `export *` shim** so the other lanes' code never broke; they go when the models lane (switching to
+the barrels) and the accounts lane (asked in lane-v1.md, not yet answered; its `storage.ts`, `savedStore.ts`,
+`account/` have not moved) are both off them. `check:boundaries` rule 2 is enforced (shims exempt by exact
+shape); 3 debts left. **`package.json` declares `"sideEffects": ["*.css"]`** — without it the barrels cost every
+route 3–7 kB (measured); a module that must run on import has to be listed there. An adversarial review of D5a
+(workflow, 4 lenses + skeptics) was running when this was written — its findings are the next work.
+**Unexplained, recorded:** Explore's first-load JS is 132 kB on main against 114 kB after Day 4 (it predates D5a).
+
 
 **D5b — DONE** (`fdc6e3a` the automation, `889f667` the laws, test:engine 864/0). A workflow derived 83
 laws over five families; 30 failed; every real one is fixed and every law is a test. Then an
@@ -155,9 +175,13 @@ reported "rebased cleanly" with WORKPLAN.md unmerged. After every ship, `git sta
    a re-roll, as the lane's stored turns confirm), regenerate_day always
    writes "<day> now has…", and the passive pattern OR'd into `claimsChange`, with the lane's 8/8 strings
    as tests. If it is not on main, re-apply it from this description.
-3. **D5a** — every module behind its barrel, in folders under `src/lib/`. It moves files the other
-   lanes use: ask both lanes for a date FIRST, leave a one-line re-export at every old path, never move
-   a file in the same commit as a behaviour change.
+3. **The models lane's speed proposal (accepted):** (1) `LOCAL_AI_EXTRA_BODY` — a JSON object shallow-merged
+   into the local chat body (reasoning off on the 550B = `{"chat_template_kwargs":{"enable_thinking":false}}`);
+   the patch is written, next to land. (2) **Fast finish** in `runAgent` (end after a writes-only step that
+   changed something and has engine notes) — HOLD until the lane reports its "reply" variant (finish only if
+   that step's turn also carried a reply). Measured so far: the 550B at 5.2 s/turn and 12/14 (was 22.7 s, 11/14).
+4. **The models lane's two wording lines in `assistant/promptV2.ts`** (reserve + rate; branch `models-wording`):
+   land the merge-base diff when they say "ready to land".
 **Waiting on the owner:** decisions #7 (swap default) and #8 (crisis guard), plus two from D5b
 (targets refused under 18 — one constant if they want 16; kimchi kept vegan with a note).
 

@@ -83,6 +83,12 @@ the conflict detector, and it fires most often on the shared docs. When it does:
 (accounts lane: `git rebase origin/main`), re-read the other agent's change, re-apply yours by hand,
 ship again. **Never force-push, never resolve a conflict by taking one side wholesale.**
 
+**Never `git stash` by hand in any lane.** The stash stack belongs to the repository, not to a
+worktree: a stash pushed in one worktree is `stash@{0}` in every other, so the next lane to run
+`git stash pop` applies YOUR work to ITS tree. To get uncommitted work out of the way (a fast-forward,
+say), copy the changed files aside, check the copies byte for byte, and copy them back afterwards.
+(`ship`'s own `--autostash` is short-lived and checked, so it is the one exception.)
+
 ## 4. The shared documents
 
 `CONTEXT.md` and friends are edited by both lanes, so:

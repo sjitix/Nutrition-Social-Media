@@ -24,10 +24,10 @@ import {
   XIcon,
   ZapIcon,
 } from "@/components/icons";
-import { FEED_RECIPES, filterFeed, sortFeed, type FeedFilter, type FeedDiet, type FeedSort } from "@/lib/feed";
-import { groupByAisle } from "@/lib/grocery";
-import { currentStreak, isoDay } from "@/lib/streak";
-import { importedToMeal, type ImportedRecipe } from "@/lib/core/imported";
+import { FEED_RECIPES, filterFeed, sortFeed, type FeedFilter, type FeedDiet, type FeedSort } from "@/lib/presentation";
+import { groupByAisle } from "@/lib/nutrition/client";
+import { currentStreak, isoDay } from "@/lib/presentation/client";
+import { importedToMeal, type ImportedRecipe } from "@/lib/core/client";
 import {
   loadChat,
   loadGroceriesChecked,
@@ -43,7 +43,7 @@ import {
   saveProfile,
   toggleSaved,
 } from "@/lib/storage";
-import { DAYS, type ChatMessage, type Meal, type Operation, type PlanSnapshot, type UserProfile, type WeekPlan } from "@/lib/types";
+import { DAYS, type ChatMessage, type Meal, type Operation, type PlanSnapshot, type UserProfile, type WeekPlan } from "@/lib/core";
 
 type View = "home" | "week" | "explore" | "groceries" | "assistant";
 

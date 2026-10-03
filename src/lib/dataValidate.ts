@@ -5,8 +5,8 @@
  * training set is behaviorally CORRECT, not merely plausible. Realistic phrasing gets us variety;
  * this gets us truth.
  */
-import type { UserProfile, WeekPlan } from "./core/types";
-import { AssistantTurnV2Schema, applyPrimitives, type PrimitiveOp } from "./assistant/primitives";
+import type { UserProfile, WeekPlan } from "./core";
+import { AssistantTurnV2Schema, applyPrimitives, type PrimitiveOp } from "./assistant";
 
 export interface TrainingExample {
   /** Optional starting state; defaults are used when omitted. */

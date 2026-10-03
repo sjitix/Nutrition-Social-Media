@@ -6,9 +6,9 @@
  * milestone A3). The public surface is ./index.ts; an export here that index.ts does not re-export
  * is internal to this folder, and check:boundaries fails anything outside the folder that imports it.
  */
-import { type Operation, type UserProfile } from "../core/types";
-import { haystackBlocked, parseExclusionTokens } from "../nutrition/exclusions";
-import { type Cuisine, type Recipe } from "../data/seeds";
+import { type Operation, type UserProfile } from "../core";
+import { haystackBlocked, parseExclusionTokens } from "../nutrition";
+import { type Cuisine, type Recipe } from "../data";
 
 // --- Selection engine ------------------------------------------------------
 

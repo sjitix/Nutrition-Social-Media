@@ -2,8 +2,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import { buildWeek } from "../recipeDb";
-import { AssistantTurnV2Schema, AgentTurnSchema, type AssistantTurnV2 } from "../assistant/primitives";
-import { assistantV2SystemPrompt } from "../assistant/promptV2";
+import { AssistantTurnV2Schema, AgentTurnSchema, type AssistantTurnV2 } from "../assistant";
+import { assistantV2SystemPrompt } from "../assistant";
 import {
   AssistantResponseSchema,
   AssistantTurnSchema,
@@ -17,7 +17,10 @@ import {
   type Meal,
   type UserProfile,
   type WeekPlan,
-} from "../core/types";
+} from "../core";
+// Host-specific request fields from configuration (LOCAL_AI_EXTRA_BODY): see ./extraBody.
+import { localExtraBody } from "./extraBody";
+export { localExtraBody };
 
 type MealType = (typeof MEAL_TYPES)[number];
 
@@ -148,6 +151,7 @@ const LOCAL_AI_URL = process.env.LOCAL_AI_URL ?? "http://localhost:1234/v1";
 const LOCAL_AI_MODEL = process.env.LOCAL_AI_MODEL ?? "local-model";
 // Optional: for OpenAI-compatible endpoints that require auth (e.g. OpenRouter)
 const LOCAL_AI_API_KEY = process.env.LOCAL_AI_API_KEY;
+
 
 // ---------------------------------------------------------------------------
 // Shared prompts
@@ -371,6 +375,8 @@ async function localStructuredChatOnce<T>(
               },
             }
           : {}),
+        // Host-specific switches from configuration (reasoning off on the 550B); empty when unset.
+        ...localExtraBody(),
       }),
     });
   } catch {

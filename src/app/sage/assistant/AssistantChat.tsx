@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { summariseWeek } from "../weekStats";
 import { loadMyWeek } from "../myPlan";
 import { savePlan, saveProfile } from "@/lib/storage";
-import { isoDay } from "@/lib/streak";
-import type { ChatMessage, PlanSnapshot, UserProfile, WeekPlan } from "@/lib/types";
+import { isoDay } from "@/lib/presentation/client";
+import type { ChatMessage, PlanSnapshot, UserProfile, WeekPlan } from "@/lib/core";
 
 /**
  * The assistant screen, live against `/api/assistant-v2` — the AGENT LOOP.

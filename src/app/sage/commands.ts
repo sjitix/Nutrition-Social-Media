@@ -1,5 +1,5 @@
-import { DAYS, MEAL_TYPES } from "@/lib/slots";
-import type { DayPlan, Meal, Operation } from "@/lib/types";
+import { DAYS, MEAL_TYPES } from "@/lib/core/client";
+import type { DayPlan, Meal, Operation } from "@/lib/core";
 
 /**
  * Turn a typed line into an engine operation, deterministically.

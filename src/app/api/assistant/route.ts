@@ -6,12 +6,12 @@ import {
   parseAssistantTurn,
   resolveProvider,
   withTargetDefaults,
-} from "@/lib/ai";
+} from "@/lib/providers";
 import { applyOperations } from "@/lib/recipeDb";
-import { composeReply, describeOperations } from "@/lib/reply";
+import { composeReply, describeOperations } from "@/lib/assistant";
 import { DEMO_ASSISTANT_REPLY } from "@/lib/demo";
-import { redFlag } from "@/lib/safety";
-import type { ChatMessage, PlanSnapshot, UserProfile, WeekPlan } from "@/lib/types";
+import { redFlag } from "@/lib/nutrition";
+import type { ChatMessage, PlanSnapshot, UserProfile, WeekPlan } from "@/lib/core";
 
 export const maxDuration = 300;
 

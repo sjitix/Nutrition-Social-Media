@@ -168,7 +168,7 @@
     <div class="stamp">
       <b><i>source</i> docs/v1/01-dimensions-and-milestones.md</b>
       <b><i>synced</i> 2026-10-03</b>
-      <b><i>commit</i> 9aaff8d+</b>
+      <b><i>commit</i> 1dff171+</b>
     </div>
   </header>
 
@@ -376,6 +376,12 @@
       <div class="rail"><div class="num">5a</div><span class="tk" style="background:var(--accent-soft);color:var(--t-a)">A6</span></div>
       <div class="bd">
         <h3>Every module behind its barrel, in its folder</h3>
+        <div class="callout" style="margin:12px 0 0;border-color:var(--accent-line);background:var(--accent-soft)">
+          <b>Done 2026-10-03.</b> The code now has the shape the map describes: seven folders, each with one front door
+          listing what it offers, and a second, lighter door for the parts the browser needs. Nothing the other two
+          agents use broke, because every old address still forwards to the new one. A fingerprint of every module's
+          behaviour came out identical. The doors first made each page 3&ndash;7&nbsp;kB heavier; one line in the build
+          settings removed that, and the old /plan page got 21&nbsp;kB lighter too.</div>
         <p class="desc">One <span class="mono">index.ts</span> per module carrying only its public names, and the
           folders: <span class="mono">core · data · nutrition · plan · assistant · providers · persistence ·
           presentation</span>. The gate's &ldquo;no deep imports&rdquo; rule switches from reporting to failing. This

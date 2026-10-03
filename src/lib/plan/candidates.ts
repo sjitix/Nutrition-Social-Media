@@ -6,7 +6,7 @@
  * milestone A3). The public surface is ./index.ts; an export here that index.ts does not re-export
  * is internal to this folder, and check:boundaries fails anything outside the folder that imports it.
  */
-import { type DayPlan, type Meal, type UserProfile, type WeekPlan } from "../core/types";
+import { type DayPlan, type Meal, type UserProfile, type WeekPlan } from "../core";
 import { budgetCap, exclusionTokens } from "./rules";
 import { SCALE_HI, macroDistance, mealMacros, recipeMacros, slotTargetMacros } from "./rebalance";
 import { batchCandidates } from "./select";

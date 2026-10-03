@@ -3,8 +3,8 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { loadMyWeek, PLAN_CHANGED_EVENT } from "../myPlan";
-import { imageForMeal, cutoutForMeal } from "@/lib/recipes";
-import type { Meal } from "@/lib/types";
+import { imageForMeal, cutoutForMeal } from "@/lib/presentation/client";
+import type { Meal } from "@/lib/core";
 
 export interface DayMeal {
   name: string;
