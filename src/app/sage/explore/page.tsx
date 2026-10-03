@@ -1,4 +1,4 @@
-import { FEED_RECIPES } from "@/lib/feed";
+import { FEED_RECIPES } from "@/lib/presentation";
 import { ExploreClient } from "./ExploreClient";
 
 /** The library. Heading is server-rendered; the filtering below it is live in the browser. */

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { generatePlan, resolveProvider } from "@/lib/ai";
+import { generatePlan, resolveProvider } from "@/lib/providers";
 import { buildDemoPlan } from "@/lib/demo";
-import type { UserProfile } from "@/lib/types";
+import type { UserProfile } from "@/lib/core";
 
 export const maxDuration = 300;
 

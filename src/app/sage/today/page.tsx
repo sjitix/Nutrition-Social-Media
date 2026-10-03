@@ -1,4 +1,4 @@
-import { cutoutForMeal, imageForMeal } from "@/lib/recipes";
+import { cutoutForMeal, imageForMeal } from "@/lib/presentation/client";
 import { DEMO, demoWeek } from "../demo";
 import { TodayClient, type DayMeal } from "./TodayClient";
 

@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import type { Aisle } from "@/lib/grocery";
+import type { Aisle } from "@/lib/nutrition/client";
 import { loadGroceriesChecked, saveGroceriesChecked } from "@/lib/storage";
 import { loadMyWeek, groceriesFromWeek, PLAN_CHANGED_EVENT, type GroceryRow } from "../myPlan";
-import { bulkGroceriesFromWeek, batchEfficiency, type SessionGroceries, type BatchEfficiency } from "@/lib/batchGrocery";
+import { bulkGroceriesFromWeek, batchEfficiency, type SessionGroceries, type BatchEfficiency } from "@/lib/presentation/client";
 
 // A batch tick is keyed by session so the same staple in two cook sessions ticks independently.
 const bkey = (sessionId: string, name: string) => `${sessionId}::${name}`;

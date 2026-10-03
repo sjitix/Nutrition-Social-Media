@@ -14,9 +14,9 @@
  * Bulk grams therefore = gramsFor(quantity) / (meal.servings ?? 1) * batch.totalServings — divide
  * FIRST, or a `servings: 3` recipe over-shops 3x.
  */
-import type { WeekPlan, Meal, CookingSession } from "../core/types";
-import { gramsFor } from "../nutrition/units"; // not ./nutrients: that module carries the USDA table, and this runs in the browser (A4)
-import { groupByAisle, type Aisle } from "../nutrition/grocery";
+import type { WeekPlan, Meal, CookingSession } from "../core";
+import { gramsFor } from "../nutrition/client"; // not ./nutrients: that module carries the USDA table, and this runs in the browser (A4)
+import { groupByAisle, type Aisle } from "../nutrition/client";
 
 export interface BulkRow {
   name: string;

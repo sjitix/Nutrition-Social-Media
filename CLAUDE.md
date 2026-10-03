@@ -85,7 +85,12 @@ agentTools, agentLoop, reply, promptV2), `providers/` (ai, import, videoImport) 
 feedFilter, recipes, batchGrocery, streak). **The old flat paths are one-line re-exports**, so
 `@/lib/exclusions` still works; new code inside `src/lib` imports the real path. The accounts lane's
 `storage.ts`, `savedStore.ts` and `account/` have not moved. A path below written flat (`src/lib/x.ts`) means
-the module, wherever its folder is; `docs/v1/02-module-map.md` §2 is the exact map.
+the module, wherever its folder is; `docs/v1/02-module-map.md` §2 is the exact map. **Import a folder through its
+barrel** — `@/lib/nutrition` (`index.ts`, the whole public surface) or, from a client component,
+`@/lib/nutrition/client` (the browser-safe subset; `core/` and `presentation/` have one too) — never a file inside it:
+`check:boundaries` rule 2 fails a deep import. A name missing from a barrel is private until someone needs it;
+add it to `index.ts` deliberately. `package.json` declares `"sideEffects": ["*.css"]` so barrels cost the browser
+nothing (measured: without it, 3–7 kB per route) — a module that must run on import would have to be listed there.
 
 **The engine (pure TypeScript, no network, no model — this is where correctness lives)**
 
@@ -184,7 +189,9 @@ the module, wherever its folder is; `docs/v1/02-module-map.md` §2 is the exact 
 - `src/lib/ai.ts` — provider system. `resolveProvider()` picks claude/local/demo. Local path
   generates one day per request (schema-validated), with retries, model fallback and JSON repair.
   Env vars it actually reads: `AI_PROVIDER`, `ANTHROPIC_API_KEY`, `CLAUDE_MODEL`, `LOCAL_AI_URL`,
-  `LOCAL_AI_MODEL`, `LOCAL_AI_API_KEY`, `PLAN_ENGINE`. (An earlier version of this file documented
+  `LOCAL_AI_MODEL`, `LOCAL_AI_API_KEY`, `LOCAL_AI_EXTRA_BODY` (a JSON object merged into the chat request
+  body, e.g. `{"chat_template_kwargs":{"enable_thinking":false}}` to turn reasoning off on the 550B),
+  `PLAN_ENGINE`. (An earlier version of this file documented
   `LOCAL_AI_CONCURRENCY`; nothing reads it.)
 - `src/lib/import.ts` — deterministic recipe import from a URL via schema.org JSON-LD, SSRF-guarded.
   Never guesses macros: no nutrition block means zero plus an honest UI note.

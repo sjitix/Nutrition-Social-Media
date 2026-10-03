@@ -9,11 +9,11 @@
  * See ASSISTANT-SCHEMA.md for the full design.
  */
 import { z } from "zod";
-import type { Operation, UserProfile, UserFact, WeekPlan, PlanSnapshot } from "../core/types";
-import { DAYS, MEAL_TYPES } from "../core/types";
+import type { Operation, UserProfile, UserFact, WeekPlan, PlanSnapshot } from "../core";
+import { DAYS, MEAL_TYPES } from "../core";
 import { applyOperations } from "../recipeDb";
-import { parseExclusionTokens, EXCLUSION_CATEGORIES } from "../nutrition/exclusions";
-import { INGREDIENTS } from "../data/ingredients";
+import { parseExclusionTokens, EXCLUSION_CATEGORIES } from "../nutrition";
+import { INGREDIENTS } from "../data";
 
 /** What counts as a FOOD word below: an allergen category, or any word of a curated ingredient. */
 const CATEGORIES = new Set(EXCLUSION_CATEGORIES);

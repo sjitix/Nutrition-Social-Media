@@ -7,8 +7,8 @@
  * passes them in as props, and the browser imports only this file. feed.ts re-exports everything
  * here, so the assistant's find_recipes and the test suite import exactly what they did before.
  */
-import type { DietTag } from "../data/seeds";
-import type { Meal } from "../core/types";
+import type { DietTag } from "../data";
+import type { Meal } from "../core";
 
 export interface FeedItem {
   meal: Meal;

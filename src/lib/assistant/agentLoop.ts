@@ -28,7 +28,7 @@
 import { runReadTool, isReadTool, type AgentContext } from "./agentTools";
 import { applyPrimitives, type PrimitiveOp } from "./primitives";
 import { claimsChange, composeReply } from "./reply";
-import type { PlanSnapshot, UserProfile, WeekPlan } from "../core/types";
+import type { PlanSnapshot, UserProfile, WeekPlan } from "../core";
 
 /** A cap, not a target. Reaching it is a bug to investigate, not a normal outcome. */
 export const MAX_STEPS = 8;

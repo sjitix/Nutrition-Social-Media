@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { swapCandidates } from "@/lib/recipeDb";
-import type { DayPlan, Meal, UserProfile, WeekPlan } from "@/lib/types";
+import type { DayPlan, Meal, UserProfile, WeekPlan } from "@/lib/core";
 
 export const maxDuration = 30;
 

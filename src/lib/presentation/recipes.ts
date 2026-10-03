@@ -1,4 +1,4 @@
-import type { Meal } from "../core/types";
+import type { Meal } from "../core";
 
 // Explore-page demo recipes. Each is a full Meal so "Add to plan" produces
 // real plan entries that flow into macros and the grocery list.

@@ -1,4 +1,4 @@
-import { DAYS, type Meal, type UserProfile, type WeekPlan } from "./core/types";
+import { DAYS, type Meal, type UserProfile, type WeekPlan } from "./core";
 
 // Demo mode: used when no ANTHROPIC_API_KEY is configured, so the app can be
 // demoed end-to-end without AI costs. Meals rotate from a small pool.

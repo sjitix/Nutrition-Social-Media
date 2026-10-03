@@ -43,6 +43,7 @@ import {
   runReadTool, isReadTool, READ_TOOL_NAMES, MAX_ROWS,
 } from "@/lib/agentTools";
 import { runAgent, MAX_STEPS, FALSE_CLAIM_NUDGE, type AgentTurn, type ModelFn } from "@/lib/agentLoop";
+import { localExtraBody } from "@/lib/providers/extraBody";
 
 // ---------------------------------------------------------------- harness
 let pass = 0;
@@ -3862,6 +3863,17 @@ console.log("--- STREAK (daily-use habit hook) ---");
   check("requestDay: anything missing, malformed, impossible or out of range falls back to the server's day",
     believed.length === 0, believed.map((b) => JSON.stringify(b)).join(", "));
   check("requestDay: a leap day is a real day", requestDay("2028-02-29", new Date("2028-02-29T12:00:00Z")) === "2028-02-29");
+}
+
+console.log("--- LOCAL_AI_EXTRA_BODY (a host switch as configuration, not code) ---");
+{
+  // Reasoning off on the NVIDIA-hosted 550B is one JSON field; the models lane measured it ~4x faster
+  // with the false-claim guard in place. Unset must leave the request body exactly as it was.
+  check("extra body: unset or blank adds nothing", JSON.stringify(localExtraBody(undefined)) === "{}" && JSON.stringify(localExtraBody("  ")) === "{}");
+  const off = localExtraBody('{"chat_template_kwargs":{"enable_thinking":false}}');
+  check("extra body: a JSON object is passed through as given", JSON.stringify(off) === '{"chat_template_kwargs":{"enable_thinking":false}}', JSON.stringify(off));
+  check("extra body: anything that is not a JSON object is ignored, never a crash",
+    ["not json", "[1,2]", "42", "null", "\"text\""].every((raw) => JSON.stringify(localExtraBody(raw)) === "{}"));
 }
 
 console.log("--- VIDEO IMPORT (Phase 2: read a recipe from a reel's caption) ---");

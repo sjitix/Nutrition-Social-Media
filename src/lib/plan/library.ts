@@ -7,11 +7,11 @@
  * milestone A3). The public surface is ./index.ts; an export here that index.ts does not re-export
  * is internal to this folder, and check:boundaries fails anything outside the folder that imports it.
  */
-import { type Meal } from "../core/types";
-import { NUTRIENT_TABLE } from "../data/nutrientTable.generated";
-import { microsForIngredients, gramsFor } from "../nutrition/nutrients";
-import { SEED_RECIPES, type Recipe, type RecipeSeed } from "../data/seeds";
-import { tableKey } from "../data/ingredients";
+import { type Meal } from "../core";
+import { NUTRIENT_TABLE } from "../data";
+import { microsForIngredients, gramsFor } from "../nutrition";
+import { SEED_RECIPES, type Recipe, type RecipeSeed } from "../data";
+import { tableKey } from "../data";
 
 /** Public Recipe -> Meal, for surfaces (the browse feed) that show library recipes as plan-ready. */
 export const recipeToMeal = (r: Recipe): Meal => toMeal(r);

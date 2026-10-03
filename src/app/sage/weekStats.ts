@@ -1,4 +1,4 @@
-import type { WeekPlan } from "@/lib/types";
+import type { WeekPlan } from "@/lib/core";
 
 /**
  * Derive the display figures for a week — totals per day, weekly averages, the weakest day.

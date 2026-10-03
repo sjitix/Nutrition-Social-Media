@@ -171,7 +171,7 @@
     <div class="stamp">
       <b><i>source</i> docs/worklog/</b>
       <b><i>synced</i> 2026-10-03, 19:30</b>
-      <b><i>commit</i> 9aaff8d+</b>
+      <b><i>commit</i> 1dff171+</b>
     </div>
   </header>
 
@@ -190,8 +190,8 @@
   <section id="totals">
     <div class="stats">
       <div class="stat"><div class="v">3</div><div class="l">days logged</div></div>
-      <div class="stat"><div class="v">9</div><div class="l">milestones done</div></div>
-      <div class="stat"><div class="v">10</div><div class="l">days to V1</div></div>
+      <div class="stat"><div class="v">10</div><div class="l">milestones done</div></div>
+      <div class="stat"><div class="v">9</div><div class="l">days to V1</div></div>
       <div class="stat"><div class="v">9</div><div class="l">open deferrals</div></div>
     </div>
   </section>
@@ -202,6 +202,38 @@
     <p class="lede">Only days that actually happened, each with its date, appended at the end of every work-day.
       Nothing planned appears here — the schedule ahead is in its own collapsed block below.</p>
     <div class="tl" style="margin-top:20px">
+
+      <article class="entry" id="d-2026-10-03-d5a">
+        <div class="box">
+          <div class="ehead">
+            <span class="date">2026-10-03 &middot; 19:45&ndash;20:30</span>
+            <span class="pill done">solved &middot; done</span>
+          </div>
+          <h3>Day 5a done &mdash; the code is now built the way the map says</h3>
+          <p class="sub">Your first ruling on the map was &ldquo;modularise first, then build on it&rdquo;. Today the folders became real.</p>
+          <div class="blocks">
+            <div class="blk">
+              <h4>What moved</h4>
+              <ul>
+                <li><b>Seven folders, each with one front door.</b> Anything not listed at the door is private, and the
+                  checker now fails any code that reaches around it.</li>
+                <li><b>A lighter second door for the browser,</b> so a page never downloads the recipe library or the
+                  nutrition tables by accident.</li>
+                <li>Nothing the other two agents use broke: every old address forwards to the new one until they move.</li>
+              </ul>
+            </div>
+            <div class="blk found">
+              <h4>Found while testing</h4>
+              <ul>
+                <li>The doors made every page 3&ndash;7&nbsp;kB heavier. One line in the build settings fixed it, and the old
+                  /plan page got 21&nbsp;kB lighter as a bonus.</li>
+                <li>Explore had grown from 114 to 132&nbsp;kB before today, not because of this. To investigate.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="gate">GATE &middot; a fingerprint of every module identical through all three steps &middot; production build &middot; test:engine</div>
+        </div>
+      </article>
 
       <article class="entry" id="d-2026-10-03-review">
         <div class="box">

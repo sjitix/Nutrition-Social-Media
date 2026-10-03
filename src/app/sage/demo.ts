@@ -1,6 +1,6 @@
 import { applyOperations, selectWeekFromDb } from "@/lib/recipeDb";
 import { summariseWeek } from "./weekStats";
-import type { UserProfile } from "@/lib/types";
+import type { UserProfile } from "@/lib/core";
 
 /**
  * The fixed profile every /sage screen renders from.
@@ -50,7 +50,7 @@ export const DEMO: UserProfile = {
 
 // The labels live in the client-safe @/lib/slots now (a client component importing them from here
 // shipped the engine). Re-exported under the old name so the server pages that use it are unchanged.
-export { SLOT_LABELS as SLOTS } from "@/lib/slots";
+export { SLOT_LABELS as SLOTS } from "@/lib/core/client";
 
 /**
  * Computed ONCE at module load, not per call.

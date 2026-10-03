@@ -7,4 +7,4 @@
 export * from "./plan";
 // The recipe vocabulary lives with the data it describes (src/lib/data/seeds.ts). Re-exported so
 // every "@/lib/recipeDb" import that used these names keeps working unchanged.
-export type { Cuisine, DietTag, MainProtein, Recipe } from "./data/seeds";
+export type { Cuisine, DietTag, MainProtein, Recipe } from "./data";

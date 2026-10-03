@@ -6,7 +6,7 @@
  * output shape ({thinking, reply, operations}), the primitives (see ASSISTANT-SCHEMA.md), the four
  * honest outcomes, and folds in the user's remembered facts + current plan.
  */
-import type { UserProfile, WeekPlan } from "../core/types";
+import type { UserProfile, WeekPlan } from "../core";
 import { memoryContext } from "./primitives";
 
 /** Taught only in agent mode: the loop runs these, then calls the model again with the results. */
