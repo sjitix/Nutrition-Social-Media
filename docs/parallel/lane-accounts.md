@@ -7,7 +7,7 @@
 
 ## Now doing
 
-**2026-10-03, night: review 2 is fully fixed, and so is the review of that work (batch 6, shipping).**
+**2026-10-03, night: review 2 is fully fixed, and so is the review of that work (batch 6, `ea71ca6`).**
 Keys are still pending, so everything runs against fakes that behave like GoTrue and PostgREST, and
 against real Postgres (PGlite). The history of the day is in `docs/worklog/2026-10-03-accounts.md`.
 
@@ -16,7 +16,7 @@ against real Postgres (PGlite). The history of the day is in `docs/worklog/2026-
   `c9208df`, `e186710`). Batch 4 is THE WRITE FENCE (see the heads-up below; it changes what a save from
   a stale tab does). Batch 5: an account deleted on another device is reported as deleted, and the
   "expired link" sentence says only the newest link works (GoTrue keeps one per person).
-- **Batch 6 (shipping), the review of batches 4–5:** who is signed in is re-checked after every wait in
+- **Batch 6 (`ea71ca6`), the review of batches 4–5:** who is signed in is re-checked after every wait in
   sign-out and "Delete everything" (another tab's sign-in made during the wait was ended or wiped); the
   account's sentences show on every `/sage` screen (a notice from `<AccountSync/>`, see the heads-up);
   the carried note is tagged with its account; and the tests the review showed could not fail now can.
@@ -189,4 +189,4 @@ whose claims were each checked against the code (and corrected twice by the revi
 | `e4b927f` | review 2, batches 2–3: stale tabs (`watchOtherTabs` + a real two-tab suite); a 401 renews instead of signing out; device-clock token expiry; the 5-minute first link; "Try again" after a transient failure; verifier reuse; one shared fake (`account-fakes.ts`); setup guide for today's Supabase — 286 + 10 checks, 38/38 mutations, engine 879/0, lesson 59 |
 | `c9208df` | review 2, batch 4: THE WRITE FENCE (a stale tab writes nothing into the new generation: stores, bookkeeping, owner, copies); late answers after a stop change nothing; a renewal can't revive a signed-out session; the sync's sentence survives its reload; `validate.ts` covers every optional field the screens read; accessibility on both account surfaces; `savedStore` tested; the audit-log setup step — 315 + 25 checks, 60/60 mutations, engine 927/0, lesson 63 |
 | `e186710` | batch 5: an account deleted on another device is reported as deleted (409 + Postgres 23503 → `gone`), proven in PGlite; the fake answers a deleted account, `/logout` and a re-signup as GoTrue and PostgREST do; the "expired link" sentence says only the newest link works (GoTrue keeps one per person), and batch 3's claim otherwise is corrected — 320 + 25 checks, 63/63 mutations, SQL 39/0 with 16/16, engine 927/0 |
-| *(next)* | batch 6, the review of batches 4–5: sign-out and "Delete everything" re-check who is signed in after every wait (another tab's sign-in was ended or wiped); the account's sentences on every `/sage` screen (`<AccountSync/>` notice, `notice.ts`); the carried note tagged with its account; after a deletion elsewhere, true sentences on sign-out and in other tabs; the tests the review showed could not fail; the mutation runner recovers from an interrupted run — 333 + 43 checks, 85/85 mutations, lesson 64 |
+| `ea71ca6` | batch 6, the review of batches 4–5: sign-out and "Delete everything" re-check who is signed in after every wait (another tab's sign-in was ended or wiped); the account's sentences on every `/sage` screen (`<AccountSync/>` notice, `notice.ts`); the carried note tagged with its account; after a deletion elsewhere, true sentences on sign-out and in other tabs; the tests the review showed could not fail; the mutation runner recovers from an interrupted run — 333 + 43 checks, 85/85 mutations, engine 927/0, lesson 64 |
