@@ -29,7 +29,7 @@ message each other are in `docs/parallel/README.md`.
 
 #### PARALLEL LANE — accounts (written by the accounts agent only)
 
-**2026-10-03 — accounts are built up to the keys, adversarially reviewed twice, and the SQL has run.**
+**2026-10-03 — accounts are built up to the keys, adversarially reviewed three times, and the SQL has run.**
 Live status, the plan and the asks: `docs/parallel/lane-accounts.md`. Design: **local-first, the
 account is a mirror** — `storage.ts`'s load/save API did not change, so no screen had to; underneath,
 every real save stamps a write time and notifies listeners, and a sync layer mirrors each store to one
@@ -81,16 +81,21 @@ Supabase row per user under RLS.
     week" for up to an hour, then "your sign-in expired". Its token stays valid until it expires, so
     its write breaks the foreign key (Postgres 23503, proven in PGlite); it now says the account was
     deleted, and stops. And only the newest sign-in link works (GoTrue keeps one per person), which
-    the "expired" sentence now says instead of sending people to ask for yet another link.
-  Batch 4's own adversarial review ran out of usage before it reported; a leaner re-run covers
-  batches 4 and 5.
-- **Gate for this lane:** `node scripts/test-account.mjs` runs two suites: **320 checks** in one tab,
+    the "expired" sentence now says instead of sending people to ask for yet another link
+    (`e186710`).
+- **A third review, of batches 4–5, found no regression; its fixes are batch 6 (lesson 64).** Sign-out
+  and "Delete everything" now re-check who is signed in after every wait: someone signing in in
+  another tab meanwhile used to be signed out, or have their sign-in and freshly pulled week wiped.
+  The account's sentences ("your account had newer data…", "this account was deleted…") now show on
+  every `/sage` screen, as a small notice from `<AccountSync/>`, instead of only on the account page.
+  And several guards the review showed no test could catch are now tested.
+- **Gate for this lane:** `node scripts/test-account.mjs` runs two suites: **333 checks** in one tab,
   including the real `client.ts` end to end against an in-memory Supabase (RLS, PKCE, conditional
-  writes, jsonb order, skewed clocks, token expiry, a deleted account), and **25 checks across tabs**
-  of one browser (stale tabs, the write fence, a tab that hears late) ·
-  `node scripts/test-account-sql.mjs --mutate` — **39 checks in real Postgres, 16/16 broken guards
-  caught** · `node scripts/mutate-account.mjs` — **63/63** (`--only "text"` re-checks one guard in
-  seconds).
+  writes, jsonb order, skewed clocks, token expiry, a deleted account), and **43 checks across tabs**
+  of one browser (stale tabs, the write fence, a tab that hears late, races between tabs signing in
+  and out) · `node scripts/test-account-sql.mjs --mutate` — **39 checks in real Postgres, 16/16
+  broken guards caught** · `node scripts/mutate-account.mjs` — **85/85** (`--only "text"` re-checks
+  one guard in seconds; an interrupted run is undone on the next start).
 - **Owner, to switch accounts on:** `supabase/README.md` — create a project, run **both** migrations,
   set the Site URL to the account page, turn off "Confirm email" and "Write audit logs to the
   database", **configure custom SMTP** (without it only your own organisation receives sign-in

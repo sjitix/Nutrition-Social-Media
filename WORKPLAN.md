@@ -1468,6 +1468,18 @@ Each of these was discovered by doing the work, and each earned its place.
     that function's `try`, so a browser with storage blocked crashed on every load. That was found
     only by re-reading the change.
 
+64. **An identity check is good until the next `await`.** The accounts lane's sign-out and "Delete
+    everything in this browser" checked who was signed in, then sent what was waiting, renewed the
+    token and called /logout. If another tab signed someone else in during any of those waits, the
+    action landed on that person: their sign-in ended, and their freshly pulled week was wiped
+    (reproduced by the review of batches 4-5). Sign-out also fell back to "whatever session is stored
+    now", which undid the very pin the first check was for. **Re-check after every wait, never fall
+    back to a different person's session, and expect the first check to become redundant once the
+    later one exists.** Batch 1's check before the wait was exactly that: its mutation survived, no
+    order made it necessary, and it was folded into the later one. And a long-running tool needs the
+    same care about being interrupted: a mutation run killed with its session left a guard broken
+    in `merge.ts`, so the runner now journals each original and restores it on its next start.
+
 ---
 
 ## 4. Training track (runs in parallel, never blocked by the above)

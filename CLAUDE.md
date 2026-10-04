@@ -260,8 +260,10 @@ nothing (measured: without it, 3–7 kB per route) — a module that must run on
 - `src/app/sage/account/` — **`/sage/account`, "Your data"**: download / bring back / delete
   everything in this browser, sign in by email link, sync status, sign out, delete the account, and a
   plain-words note on what is kept where (each claim checked against the code — keep it that way).
-  `AccountSync.tsx` renders nothing and keeps a signed-in browser mirrored; it belongs mounted once
-  in `sage/layout.tsx`.
+  `AccountSync.tsx` keeps a signed-in browser mirrored, mounted once in `sage/layout.tsx`. It renders
+  one small fixed notice (out of the page's layout) only while the account has something to say ("your
+  account had newer data…", "this account was deleted…"), hidden on the account page; what is kept and
+  for how long is pure and tested in `notice.ts`.
 - `src/app/onboarding/page.tsx`, `src/app/recipes/page.tsx`.
 - `src/app/api/` — **six** routes: `plan`, `assistant`, `assistant-v2`, `import`, `operation`,
   `candidates`. **`operation` is the NO-MODEL route the direct-manipulation layer runs on** — a

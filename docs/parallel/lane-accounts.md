@@ -7,22 +7,19 @@
 
 ## Now doing
 
-**2026-10-03, night: review 2 is fully fixed (batches 1–5); its follow-up review is running.** Keys
-are still pending, so everything runs against fakes that behave like GoTrue and PostgREST, and
+**2026-10-03, night: review 2 is fully fixed, and so is the review of that work (batch 6, shipping).**
+Keys are still pending, so everything runs against fakes that behave like GoTrue and PostgREST, and
 against real Postgres (PGlite). The history of the day is in `docs/worklog/2026-10-03-accounts.md`.
 
 - **Shipped today:** the first review's fixes (`8190c2b`), the SQL executed (`a42a97e`), byte-counted
-  store sizes (`5c6c80c`), clock skew (`b4492e3`), and review 2's batches 1–4 (`d219a1f`, `e4b927f`,
-  `c9208df`). Batch 4 is THE WRITE FENCE (see the heads-up below; it changes what a save from a stale
-  tab does), plus late answers, validation, accessibility and the audit-log setup step.
-- **Batch 5 (shipping):** an account deleted on another device. That device's token stays valid at
-  PostgREST until it expires, so its next push breaks the foreign key (Postgres 23503, proven in
-  PGlite), which it reported as "couldn't store your week" for up to an hour, then "your sign-in
-  expired". It now says the account was deleted and stops. The fake ends a session on `/logout` as
-  GoTrue does and gives a re-signup a new id. And only the newest sign-in link works (GoTrue keeps one
-  per person): the "expired" sentence now says so, and batch 3's note claiming otherwise is corrected.
-- **The review of batches 4–5** (the first attempt ran out of usage before it reported) is re-running,
-  leaner. Whatever it confirms is fixed next.
+  store sizes (`5c6c80c`), clock skew (`b4492e3`), and review 2's batches 1–5 (`d219a1f`, `e4b927f`,
+  `c9208df`, `e186710`). Batch 4 is THE WRITE FENCE (see the heads-up below; it changes what a save from
+  a stale tab does). Batch 5: an account deleted on another device is reported as deleted, and the
+  "expired link" sentence says only the newest link works (GoTrue keeps one per person).
+- **Batch 6 (shipping), the review of batches 4–5:** who is signed in is re-checked after every wait in
+  sign-out and "Delete everything" (another tab's sign-in made during the wait was ended or wiped); the
+  account's sentences show on every `/sage` screen (a notice from `<AccountSync/>`, see the heads-up);
+  the carried note is tagged with its account; and the tests the review showed could not fail now can.
 - **Then:** wait on the owner's Supabase project for a live run.
 
 ## Files I'm editing right now
@@ -34,9 +31,19 @@ against real Postgres (PGlite). The history of the day is in `docs/worklog/2026-
   `scripts/account-fakes.ts`, `scripts/test-account-sql.mjs`, `scripts/mutate-account.mjs`,
   `supabase/**` — all mine; nothing of yours.
 - **Except for D5a's move: `storage.ts` and `savedStore.ts` are yours to move to `persistence/` now**
-  (batch 4 is `c9208df`, and batch 5 touches neither). I won't edit either until you post the move's sha.
+  (batch 4 is `c9208df`; batches 5 and 6 touch neither). I won't edit either until you post the move's sha.
 
 ## Heads-up for the other lanes
+
+- **`<AccountSync/>` now RENDERS something (batch 6).** While the account has something to say ("your
+  account had newer data, so it replaced some of what was on this device", "this account was deleted"),
+  it shows one small notice, `fixed` at the bottom right (full width on a phone), out of the page's
+  layout, with "Account page" and "Dismiss"; hidden on `/sage/account`, which says it itself. With no
+  keys, or nothing to say, it is an empty `sr-only` live region. **Your `sage/layout.tsx` comment says
+  it "renders nothing"; that is now out of date.** Restyle or move it as you like; the rules are in
+  `notice.ts` and tested. Measured: the production build passes, `/sage/plan` 131 kB first load.
+- **When another tab's sign-in ends,** a tab now says "This browser was signed out in another tab", not
+  "You signed out": the other tab may have found the account deleted, or the sign-in expired.
 
 - **THE WRITE FENCE (`storage.ts`, batch 4).** When another tab switches the browser to a different
   account or clears it, a tab still working from the earlier data can no longer write anything into
@@ -181,4 +188,5 @@ whose claims were each checked against the code (and corrected twice by the revi
 | `d219a1f` | review 2, batch 1: destructive actions pinned to the shown account (a stale tab deleted the OTHER account); owner at sync start and kept after delete (cross-account upload); put back the oldest copy; honest import preview; rule 6 (keep the account copy a push replaces) — 269/0, 24/24 mutations (the commit message says 25: one was counted twice), engine 752/0, lesson 58 |
 | `e4b927f` | review 2, batches 2–3: stale tabs (`watchOtherTabs` + a real two-tab suite); a 401 renews instead of signing out; device-clock token expiry; the 5-minute first link; "Try again" after a transient failure; verifier reuse; one shared fake (`account-fakes.ts`); setup guide for today's Supabase — 286 + 10 checks, 38/38 mutations, engine 879/0, lesson 59 |
 | `c9208df` | review 2, batch 4: THE WRITE FENCE (a stale tab writes nothing into the new generation: stores, bookkeeping, owner, copies); late answers after a stop change nothing; a renewal can't revive a signed-out session; the sync's sentence survives its reload; `validate.ts` covers every optional field the screens read; accessibility on both account surfaces; `savedStore` tested; the audit-log setup step — 315 + 25 checks, 60/60 mutations, engine 927/0, lesson 63 |
-| *(next)* | batch 5: an account deleted on another device is reported as deleted (409 + Postgres 23503 → `gone`), proven in PGlite; the fake answers a deleted account, `/logout` and a re-signup as GoTrue and PostgREST do; the "expired link" sentence says only the newest link works (GoTrue keeps one per person), and batch 3's claim otherwise is corrected — 320 + 25 checks, 63/63 mutations, SQL 39/0 with 16/16 |
+| `e186710` | batch 5: an account deleted on another device is reported as deleted (409 + Postgres 23503 → `gone`), proven in PGlite; the fake answers a deleted account, `/logout` and a re-signup as GoTrue and PostgREST do; the "expired link" sentence says only the newest link works (GoTrue keeps one per person), and batch 3's claim otherwise is corrected — 320 + 25 checks, 63/63 mutations, SQL 39/0 with 16/16, engine 927/0 |
+| *(next)* | batch 6, the review of batches 4–5: sign-out and "Delete everything" re-check who is signed in after every wait (another tab's sign-in was ended or wiped); the account's sentences on every `/sage` screen (`<AccountSync/>` notice, `notice.ts`); the carried note tagged with its account; after a deletion elsewhere, true sentences on sign-out and in other tabs; the tests the review showed could not fail; the mutation runner recovers from an interrupted run — 333 + 43 checks, 85/85 mutations, lesson 64 |

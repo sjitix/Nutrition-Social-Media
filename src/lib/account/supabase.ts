@@ -289,10 +289,12 @@ export async function signOutRemote(cfg: AccountConfig, s: Session, f: Fetch = f
     // person out of every device, silently stopping sync on their phone because they left a laptop.
     const res = await call(f, `${cfg.url}/auth/v1/logout?scope=local`, { method: "POST", headers: authed(cfg, s) });
     if (res.ok) return true;
-    // Already ended on the server (another tab or device signed it out): the outcome asked for, not a
-    // failure to report. Any other refusal (403 bad_jwt: an expired access token) leaves it alive.
+    // Already ended on the server: another tab or device signed it out (session_not_found), or the
+    // account itself was deleted, and every session with it (user_not_found: GoTrue loads the token's
+    // user first, auth.go). The outcome asked for, not a failure to report. Any other refusal (403
+    // bad_jwt: an expired access token) leaves it alive.
     const code = await res.json().then((d: { error_code?: string; code?: string }) => d?.error_code ?? d?.code, () => undefined);
-    return (res.status === 403 || res.status === 404) && code === "session_not_found";
+    return (res.status === 403 || res.status === 404) && (code === "session_not_found" || code === "user_not_found");
   } catch {
     return false; // offline — the local session is dropped regardless
   }

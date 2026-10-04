@@ -8,8 +8,9 @@
  * Each mutation names its anchor exactly; if the code moves and an anchor stops matching, it is reported
  * as SKIP rather than silently passing, and the exit code is non-zero.
  */
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
+import { dirname, join } from "node:path";
 
 const MUTATIONS = [
   {
@@ -125,20 +126,14 @@ const MUTATIONS = [
   {
     name: "deleting the account clears the owner again",
     file: "src/lib/account/client.ts",
-    from: "  saveSessionRaw(null);\n  setStatus({\n    state: \"signed-out\",\n    message: \"Your account and everything",
-    to: "  saveSessionRaw(null);\n  saveSyncOwner(null);\n  setStatus({\n    state: \"signed-out\",\n    message: \"Your account and everything",
+    from: "  saveSessionRaw(null);\n  takeCarriedNote();\n  setStatus({\n    state: \"signed-out\",\n    message: \"Your account and everything",
+    to: "  saveSessionRaw(null);\n  takeCarriedNote();\n  saveSyncOwner(null);\n  setStatus({\n    state: \"signed-out\",\n    message: \"Your account and everything",
   },
   {
     name: "\"Delete my account\" acts on whatever session is stored (unpinned)",
     file: "src/lib/account/client.ts",
     from: "    s = await liveSession(cfg, mine);",
     to: "    s = await liveSession(cfg);",
-  },
-  {
-    name: "sign-out ends a sign-in this tab isn't showing",
-    file: "src/lib/account/client.ts",
-    from: "  if (stored && stored.userId !== mine) {",
-    to: "  if (false) {",
   },
   {
     name: "\"Delete everything in this browser\" clears an account this tab isn't showing",
@@ -223,7 +218,7 @@ const MUTATIONS = [
   {
     name: "a sign-out of a session the server had already ended is reported as a failure",
     file: "src/lib/account/supabase.ts",
-    from: "    return (res.status === 403 || res.status === 404) && code === \"session_not_found\";",
+    from: "    return (res.status === 403 || res.status === 404) && (code === \"session_not_found\" || code === \"user_not_found\");",
     to: "    return false;",
   },
   {
@@ -296,8 +291,8 @@ const MUTATIONS = [
   {
     name: "what a sync said is lost in the reload it caused",
     file: "src/lib/account/client.ts",
-    from: "      const carried = first ? takeCarriedNote() : null;",
-    to: "      const carried = null;",
+    from: "      const oneOff: string[] = first ? takeCarriedNotes(userId) : [];",
+    to: "      const oneOff: string[] = [];",
   },
   {
     name: "pinned meals in the wrong shape pass validation (the Week board crashes on every device)",
@@ -396,6 +391,145 @@ const MUTATIONS = [
     from: "    ended = s ? await signOutRemote(cfg, s) : false;",
     to: "    ended = false;",
   },
+  // ---- batch 6: the review of batches 4-5 ----
+  {
+    name: "a renewal answered after another account signed in hands back THAT account's session",
+    file: "src/lib/account/client.ts",
+    from: "  if (stored.userId !== s.userId) {",
+    to: "  if (false) {",
+  },
+  {
+    name: "a sync that found its account deleted keeps running (a later edit says 'expired')",
+    file: "src/lib/account/client.ts",
+    from: "    stopRunning();\n    if (currentSession()?.userId === userId) saveSessionRaw(null);",
+    to: "    if (currentSession()?.userId === userId) saveSessionRaw(null);",
+  },
+  {
+    name: "finding the account deleted signs out whoever is signed in now, in any tab",
+    file: "src/lib/account/client.ts",
+    from: "    if (currentSession()?.userId === userId) saveSessionRaw(null);",
+    to: "    saveSessionRaw(null);",
+  },
+  {
+    name: "with accounts switched off, a tab is not reloaded when another tab clears the browser",
+    file: "src/lib/account/client.ts",
+    from: "  const offHands = onBrowserChangedHandsElsewhere(() => on.reload());\n  if (!accountConfig()) return offHands;",
+    to: "  if (!accountConfig()) return () => {};\n  const offHands = onBrowserChangedHandsElsewhere(() => on.reload());",
+  },
+  {
+    name: "'Delete everything' goes through the fenced write, so a stale tab's clear leaves data behind",
+    file: "src/lib/storage.ts",
+    from: "  for (const n of STORE_NAMES) window.localStorage.removeItem(KEYS[n]);\n  Object.values(INTERNAL)",
+    to: "  for (const n of STORE_NAMES) write(n, null, { silent: true });\n  Object.values(INTERNAL)",
+  },
+  {
+    name: "sign-out falls back to whatever session is stored, and ends another person's sign-in",
+    file: "src/lib/account/client.ts",
+    from: ".catch(() => (currentSession()?.userId === mine ? currentSession() : null));",
+    to: ".catch(() => currentSession());",
+  },
+  {
+    name: "sign-out does not look again after sending, and ends a sign-in made meanwhile",
+    file: "src/lib/account/client.ts",
+    from: "  if (now.userId !== mine) {",
+    to: "  if (false) {",
+  },
+  {
+    name: "sign-out forgets whatever sign-in is stored after /logout answers",
+    file: "src/lib/account/client.ts",
+    from: "  if (currentSession()?.userId === mine) saveSessionRaw(null);",
+    to: "  saveSessionRaw(null);",
+  },
+  {
+    name: "sign-out after the send found the account deleted says 'your changes go up next time'",
+    file: "src/lib/account/client.ts",
+    from: "  if (!now) {\n    // The send itself ended the sign-in (the account turned out to have been deleted), or another tab\n    // signed out meanwhile. What was said about that stands; there is nothing left here to end.\n    takeCarriedNote();\n    if (!(status.state === \"signed-out\" && status.message)) setStatus({ state: cfg ? \"signed-out\" : \"off\" });\n    return;\n  }\n  if (now.userId !== mine) {",
+    to: "  if (now && now.userId !== mine) {",
+  },
+  {
+    name: "'Delete everything' does not look again after /logout, and wipes a sign-in made meanwhile",
+    file: "src/lib/account/client.ts",
+    from: "  if (now && now.userId !== s?.userId) {",
+    to: "  if (false) {",
+  },
+  {
+    name: "a note carried for one account is shown to the next account in that tab",
+    file: "src/lib/account/client.ts",
+    from: "return c.userId === userId && Array.isArray(c.oneOff) ?",
+    to: "return Array.isArray(c.oneOff) ?",
+  },
+  {
+    name: "the whole status line is carried across the reload, so a held store is named twice",
+    file: "src/lib/account/client.ts",
+    from: "  if (lastNotes && lastNotes.userId === status.userId && lastNotes.oneOff.length) saveCarriedNote(JSON.stringify(lastNotes));",
+    to: "  if (status.message) saveCarriedNote(JSON.stringify({ userId: status.userId, oneOff: [status.message] }));",
+  },
+  {
+    name: "signing out after the account was deleted claims the server couldn't be reached",
+    file: "src/lib/account/supabase.ts",
+    from: '(code === "session_not_found" || code === "user_not_found")',
+    to: 'code === "session_not_found"',
+  },
+  {
+    name: "other tabs say 'You signed out' when the account was deleted",
+    file: "src/lib/account/client.ts",
+    from: '"This browser was signed out in another tab. Everything is still on this device."',
+    to: '"You signed out in another tab. Everything is still on this device."',
+  },
+  {
+    name: "a meal's recipe link need not be http(s)",
+    file: "src/lib/account/validate.ts",
+    from: "    (m.sourceUrl === undefined || isHttpUrl(m.sourceUrl))",
+    to: "    true",
+  },
+  {
+    name: "a week's planning mode may be anything",
+    file: "src/lib/account/validate.ts",
+    from: '  if (!optOneOf(v.planMode, ["fresh", "batch"])) return',
+    to: "  if (false) return",
+  },
+  {
+    name: "a profile's meal-prep settings may be anything",
+    file: "src/lib/account/validate.ts",
+    from: '  if (!optOneOf(v.planMode, ["fresh", "batch"], true) || !optOneOf(v.batchCadence, ["weekly", "every3days"], true)) {',
+    to: "  if (false) {",
+  },
+  {
+    name: "a profile's targets need not be numbers",
+    file: "src/lib/account/validate.ts",
+    from: '    if (!optNum(v[k])) return "the profile has a target that is not a number";',
+    to: '    if (false) return "the profile has a target that is not a number";',
+  },
+  {
+    name: "notice: being offline is kept like a one-off note, so it outlives the reconnection",
+    file: "src/app/sage/account/notice.ts",
+    from: "  if (s.message && !isCondition(s)) {",
+    to: "  if (s.message) {",
+  },
+  {
+    name: "notice: a note said while signed in is still shown after signing out",
+    file: "src/app/sage/account/notice.ts",
+    from: "  if (prev.kept && prev.kept.signedIn !== isSignedIn(s)) return { ...prev, kept: null };",
+    to: "",
+  },
+  {
+    name: "notice: a new note stays hidden because an earlier one with the same words was dismissed",
+    file: "src/app/sage/account/notice.ts",
+    from: "    return { kept: { text: s.message, signedIn: isSignedIn(s) }, dismissed: null };",
+    to: "    return { kept: { text: s.message, signedIn: isSignedIn(s) }, dismissed: prev.dismissed };",
+  },
+  {
+    name: "notice: dismissing does nothing",
+    file: "src/app/sage/account/notice.ts",
+    from: "  return text && text !== state.dismissed ? text : null;",
+    to: "  return text || null;",
+  },
+  {
+    name: "notice: a kept note hides what is true now (offline)",
+    file: "src/app/sage/account/notice.ts",
+    from: "  const text = (isCondition(s) && s.message) || state.kept?.text || null;",
+    to: "  const text = state.kept?.text || (isCondition(s) && s.message) || null;",
+  },
 ];
 
 // node scripts/mutate-account.mjs [root] [--only "text|other text"]: --only runs the mutations whose
@@ -404,6 +538,20 @@ const args = process.argv.slice(2);
 const onlyAt = args.indexOf("--only");
 const only = onlyAt >= 0 ? args.splice(onlyAt, 2)[1].split("|") : null;
 const root = args[0] ?? process.cwd();
+
+// A run killed mid-mutation (a closed terminal, a session that ended) used to leave that mutation IN the
+// source, silently: the next test run then tested broken code, and the next commit could have shipped
+// it. It happened once (rule 6's backup check, left broken in merge.ts). So each file's original is
+// journalled before it is mutated, and a journal left behind is put back first thing on the next run.
+const journal = join(root, "node_modules", ".cache", "mutate-account.journal.json");
+if (existsSync(journal)) {
+  const left = JSON.parse(readFileSync(journal, "utf8"));
+  writeFileSync(left.path, left.original, "utf8");
+  rmSync(journal);
+  console.log(`RESTORED ${left.path}: the run before this one was interrupted while that file was mutated\n`);
+}
+mkdirSync(dirname(journal), { recursive: true });
+
 const chosen = only ? MUTATIONS.filter((m) => only.some((t) => m.name.includes(t))) : MUTATIONS;
 if (only) console.log(`--only: ${chosen.length} of ${MUTATIONS.length} mutations`);
 let allCaught = chosen.length > 0;
@@ -416,6 +564,7 @@ for (const m of chosen) {
     allCaught = false;
     continue;
   }
+  writeFileSync(journal, JSON.stringify({ path, original }), "utf8");
   writeFileSync(path, normalised.replace(m.from, m.to), "utf8");
   let out = "";
   let crashed = false;
@@ -428,6 +577,7 @@ for (const m of chosen) {
     crashed = !out.split("\n").some((l) => l.startsWith("FAIL"));
   } finally {
     writeFileSync(path, original, "utf8");
+    rmSync(journal, { force: true });
   }
   const fails = out.split("\n").filter((l) => l.startsWith("FAIL"));
   const caught = fails.length > 0 || crashed;

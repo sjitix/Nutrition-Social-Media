@@ -185,6 +185,9 @@ export class FakeSupabase {
     const uid = this.access.get(token);
     if (url.pathname === "/auth/v1/logout") {
       if (!uid) return reply(403, { error_code: "bad_jwt" });
+      // GoTrue loads the token's user before anything else (auth.go): for a deleted account that is a
+      // 403 user_not_found, though every one of its sessions went with it.
+      if (this.deleted.has(uid)) return reply(403, { code: 403, error_code: "user_not_found", msg: "User from sub claim in JWT does not exist" });
       this.logouts++;
       // GoTrue ends THIS session (scope=local): its refresh tokens stop working at once. The access
       // token stays valid at PostgREST until it expires, as every JWT does.

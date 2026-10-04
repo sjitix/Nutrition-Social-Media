@@ -47,13 +47,14 @@ export function AccountPanel({ onChange }: { onChange: () => void }) {
   // ...and once a step closes, or the control that was pressed is gone: back to the control that
   // opened the step, or to the note that says what happened. Focus used to fall to the page body, so
   // the next Tab started again from the top of the page (review 2, ui-tests-8).
-  const [focusOn, setFocusOn] = useState<"note" | "delete" | "signOut" | null>(null);
+  const [focusOn, setFocusOn] = useState<"note" | "delete" | "signOut" | "alert" | null>(null);
   const statusNote = useRef<HTMLParagraphElement>(null);
   const deleteButton = useRef<HTMLButtonElement>(null);
   const signOutButton = useRef<HTMLButtonElement>(null);
+  const alertBox = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!focusOn) return;
-    ({ note: statusNote, delete: deleteButton, signOut: signOutButton })[focusOn].current?.focus();
+    ({ note: statusNote, delete: deleteButton, signOut: signOutButton, alert: alertBox })[focusOn].current?.focus();
     setFocusOn(null);
   }, [focusOn]);
 
@@ -103,17 +104,25 @@ export function AccountPanel({ onChange }: { onChange: () => void }) {
 
   async function retry() {
     setBusy(true);
-    setError(null);
+    // The alert stays up while this runs, its button reading "Trying…": clearing it first unmounted the
+    // very button that was pressed, and focus fell to the page body. The form gives way to "Signing you
+    // in…" meanwhile, since asking for another link mid-retry can only confuse it (review of batches 4-5).
+    setSigningIn(true);
     try {
       await retrySignIn();
+      setError(null);
       setCanRetry(false);
       await startSync();
       onChange();
+      if (!accountStatus().message) setSaid(`Signed in as ${accountStatus().email || "your account"}.`);
+      setFocusOn("note");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Sign-in didn't complete. Ask for a new link.");
       setCanRetry(canRetrySignIn());
+      setFocusOn("alert");
     } finally {
       setBusy(false);
+      setSigningIn(false);
     }
   }
 
@@ -128,11 +137,17 @@ export function AccountPanel({ onChange }: { onChange: () => void }) {
       onChange();
     } catch (e) {
       failed = true;
-      setError(e instanceof Error ? e.message : "That didn't go through.");
+      const message = e instanceof Error ? e.message : "That didn't go through.";
+      // A refusal can already have said exactly this in the note (a delete refused in a stale tab signs
+      // the tab out and says why): once is enough, and an alert would repeat it, assertively.
+      if (message !== accountStatus().message) setError(message);
     } finally {
       setBusy(false);
       setConfirmDelete(false);
-      setFocusOn(failed ? failedFocus : "note");
+      // Back to the control pressed, if it is still there. A refusal that signed this tab out took that
+      // control away with the signed-in view, so the note saying why takes focus instead.
+      const stillSignedIn = !["off", "signed-out"].includes(accountStatus().state);
+      setFocusOn(failed && stillSignedIn ? failedFocus : "note");
     }
   }
 
@@ -160,9 +175,10 @@ export function AccountPanel({ onChange }: { onChange: () => void }) {
 
       {configured === false && (
         <p className="mt-2 max-w-[70ch] text-[13px] leading-relaxed text-white/85">
-          Accounts aren&apos;t switched on for this copy of the app yet, so nothing about you is stored
-          anywhere but this browser (what is sent to work out your plan is explained below). Until they
-          are, the file download below is how you move your plan to another device.
+          Accounts aren&apos;t switched on for this copy of the app yet, so nothing about you is kept in an
+          account: your data stays in this browser. What is sent to the server to work out your plan,
+          and what the server may log, is explained below. Until accounts are on, the file download
+          below is how you move your plan to another device.
         </p>
       )}
 
@@ -280,7 +296,7 @@ export function AccountPanel({ onChange }: { onChange: () => void }) {
       )}
 
       {error && (
-        <div role="alert" className="mt-3 flex flex-wrap items-center gap-3 rounded-[10px] bg-white px-4 py-3 text-[12.5px] text-red-700">
+        <div ref={alertBox} tabIndex={-1} role="alert" className="mt-3 flex flex-wrap items-center gap-3 rounded-[10px] bg-white px-4 py-3 text-[12.5px] text-red-700 outline-none">
           <span>{error}</span>
           {canRetry && (
             <button
@@ -306,7 +322,7 @@ function SyncLine({ status }: { status: AccountStatus }) {
       ? `Everything is saved to your account (${new Date(status.lastSyncedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}).`
       : "Everything is saved to your account.",
     offline: "Offline — your changes are kept here and will be sent.",
-    error: "Syncing needs your attention — see below.",
+    error: "Syncing needs your attention: see the note above.",
   };
   return <span>{text[status.state] ?? ""}</span>;
 }

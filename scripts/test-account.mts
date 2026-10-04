@@ -57,6 +57,8 @@ import {
   accountStatus, currentSession, retrySignIn, canRetrySignIn,
 } from "@/lib/account/client";
 import { localSavedStore, savedStore } from "@/lib/savedStore";
+import { NO_NOTICE, nextNotice, noticeText } from "@/app/sage/account/notice";
+import type { AccountStatus } from "@/lib/account/client";
 import type { StoreName } from "@/lib/storage";
 import type { UserProfile, WeekPlan } from "@/lib/types";
 
@@ -363,6 +365,14 @@ async function mayThrow<T>(p: Promise<T>): Promise<T | null> {
   check("validate: a meal whose description is not text is refused (Today renders it as text)", bad("plan", oddMeal));
   check("validate: a week whose notes are not a list of sentences is refused", bad("batchPlan", { ...week("N"), notes: "cook sunday" }));
   check("validate: a meal-prep schedule in the wrong shape is refused", bad("batchPlan", { ...week("S"), sessions: [{ id: 1 }] }));
+  // The review of batches 4-5 found these four untested: each check could be removed, suites still green.
+  const withMeal = (extra: object) => ({ ...week("M"), days: [{ day: "Monday", meals: [{ ...week("M").days[0].meals[0], ...extra }] }] });
+  check("validate: a meal whose recipe link is not http(s) is refused (/plan renders it as a link)",
+    bad("plan", withMeal({ sourceUrl: "javascript:alert(1)" })));
+  check("validate: a week with a planning mode this app doesn't know is refused", bad("plan", { ...week("PM"), planMode: "monthly" }));
+  check("validate: a profile with meal-prep settings this app doesn't know is refused",
+    bad("profile", { ...PROFILE, planMode: "monthly" }) && bad("profile", { ...PROFILE, batchCadence: "hourly" }));
+  check("validate: a profile whose targets are not numbers is refused", bad("profile", { ...PROFILE, carbsGrams: "lots" }));
   const fullProfile = {
     ...PROFILE, name: "Ana", planMode: "batch", batchCadence: "weekly", fiberGrams: 30,
     lockedMeals: [{ day: "Sunday", mealType: "dinner", name: "Roast chicken" }],
@@ -383,6 +393,34 @@ async function mayThrow<T>(p: Promise<T>): Promise<T | null> {
   check("validate: a real meal-prep week still passes", checkStore("batchPlan", prep) === null, String(checkStore("batchPlan", prep)));
   check("validate: a real week and a real import pass",
     checkStore("plan", week("OK")) === null && checkStore("imports", [{ name: "R", sourceUrl: "https://e.com/r", ingredients: [], steps: [] }]) === null);
+}
+
+// =================================================================================================
+// notice.ts — what the account says on every /sage screen (the review of batches 4-5)
+// =================================================================================================
+{
+  const inState = (state: AccountStatus["state"], message?: string): AccountStatus => ({ state, email: "a@e.com", userId: "uid-a", message });
+  const out = (message?: string): AccountStatus => ({ state: "signed-out", message });
+  const replaced = "Your account had newer data, so it replaced some of what was on this device.";
+  let n = nextNotice(NO_NOTICE, inState("saved", replaced));
+  n = nextNotice(n, inState("pending"));
+  n = nextNotice(n, inState("saved"));
+  check("notice: a one-off note outlives the routine 'pending' and 'saved' that follow it", noticeText(n, inState("saved")) === replaced);
+  const dismissed = { ...n, dismissed: replaced };
+  check("notice: …until it is dismissed", noticeText(dismissed, inState("saved")) === null);
+  check("notice: a NEW note shows even if an earlier one with the same words was dismissed",
+    noticeText(nextNotice(dismissed, inState("saved", replaced)), inState("saved")) === replaced);
+  check("notice: a note said while signed in is dropped once the person signs out", noticeText(nextNotice(n, out()), out()) === null);
+  const offline = inState("offline", "Couldn't reach your account.");
+  const whileOffline = nextNotice(NO_NOTICE, offline);
+  check("notice: a condition (offline) shows while it lasts", noticeText(whileOffline, offline) === "Couldn't reach your account.");
+  check("notice: …and goes by itself when it is over: it is not kept like a one-off note",
+    noticeText(nextNotice(whileOffline, inState("saved")), inState("saved")) === null);
+  check("notice: a condition wins over a kept note: it is what is true now", noticeText(n, offline) === "Couldn't reach your account.");
+  check("notice: a dismissed condition stays dismissed while it repeats itself",
+    noticeText(nextNotice({ ...whileOffline, dismissed: "Couldn't reach your account." }, offline), offline) === null);
+  const why = "This account was deleted, perhaps on another device.";
+  check("notice: a sign-out's reason is kept while signed out", noticeText(nextNotice(NO_NOTICE, out(why)), out()) === why);
 }
 
 // =================================================================================================

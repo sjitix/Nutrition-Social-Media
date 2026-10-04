@@ -329,12 +329,33 @@ export function watchOtherTabs(on: { reload: () => void; refresh: () => void }):
 }
 
 /**
- * Keep this tab's status sentence across the reload it is about to do. `<AccountSync/>` calls it just
- * before reloading for a pull, so what the sync just did ("set aside", "your account had newer data")
- * is still said afterwards: the reload used to wipe it before anyone could read it (review 2).
+ * Keep what the last sync DID across the reload it is about to cause. `<AccountSync/>` calls it just
+ * before reloading for a pull, so "set aside" or "your account had newer data" is still said afterwards:
+ * the reload used to wipe it before anyone could read it (review 2).
+ *
+ * Only the one-off sentences, and tagged with the account they were about (review of batches 4-5).
+ * The whole status line used to be carried: a held-back store's sentence, which the next sync says again
+ * by itself, then appeared twice, and a note left waiting by a page whose next sync never succeeded was
+ * shown to whichever account signed in next in that tab.
  */
 export function carryNoteAcrossReload(): void {
-  if (status.message) saveCarriedNote(status.message);
+  if (lastNotes && lastNotes.userId === status.userId && lastNotes.oneOff.length) saveCarriedNote(JSON.stringify(lastNotes));
+}
+
+/** The one-off sentences the last successful sync said, and whose account they were about. */
+let lastNotes: { userId: string; oneOff: string[] } | null = null;
+const unique = (xs: string[]) => [...new Set(xs)];
+
+/** What a reload carried for THIS account. A note about anyone else is dropped, unread. */
+function takeCarriedNotes(userId: string): string[] {
+  const raw = takeCarriedNote();
+  if (!raw) return [];
+  try {
+    const c = JSON.parse(raw) as { userId?: unknown; oneOff?: unknown };
+    return c.userId === userId && Array.isArray(c.oneOff) ? c.oneOff.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return []; // a bare sentence carried by an earlier version: no account attached, so not shown
+  }
 }
 
 /** Stop the running sync WITHOUT sending what is waiting, and invalidate any sync in flight. */
@@ -508,35 +529,39 @@ export function startSync(): Promise<SyncReport | null> {
       // Edits the full sync just sent are already in the account; start sending everything newer.
       mirror.dropSynced(loadSyncedAt());
       mirror.resume();
-      const notes: string[] = [];
-      // What the previous page's sync said, if a reload for it wiped the sentence before anyone could
-      // read it ("set aside", "your account had newer data": the very things that must not be silent).
-      const carried = first ? takeCarriedNote() : null;
-      if (carried) notes.push(carried);
+      // Two kinds of sentence (review of batches 4-5). ONE-OFF notes say what this sync DID ("set
+      // aside", "your account had newer data"): nothing will say them again, so they are what a reload
+      // must carry. CONDITIONS say what is still true (a store held back, a row this version can't
+      // read): the next sync works them out afresh, and carrying them only made them appear twice.
+      // What the previous page's sync said comes first, if a reload for it wiped it before anyone could
+      // read it, and only if it was said about THIS account.
+      const oneOff: string[] = first ? takeCarriedNotes(userId) : [];
       if (first && switchedFrom) {
-        notes.push("This browser held data from a different account. It is set aside on the account page, not added to this one.");
+        oneOff.push("This browser held data from a different account. It is set aside on the account page, not added to this one.");
       }
       if (report.backedUp) {
-        notes.push("Your account had newer data, so it replaced some of what was on this device. The previous copy is kept on the account page.");
+        oneOff.push("Your account had newer data, so it replaced some of what was on this device. The previous copy is kept on the account page.");
       }
       if (report.keptAccountCopy?.length) {
-        notes.push(`This device's newer changes replaced ${list(report.keptAccountCopy)} in your account. The account's previous copy is kept on the account page.`);
+        oneOff.push(`This device's newer changes replaced ${list(report.keptAccountCopy)} in your account. The account's previous copy is kept on the account page.`);
       }
+      const conditions: string[] = [];
       if (report.invalid.length) {
-        notes.push(`${capital(list(report.invalid))} in your account couldn't be read by this version of the app, so this device kept its own copy.`);
+        conditions.push(`${capital(list(report.invalid))} in your account couldn't be read by this version of the app, so this device kept its own copy.`);
       }
       // The full sync's verdict on each store feeds the mirror's held-back set, so the warning
       // persists until that store genuinely gets through.
       for (const n of report.tooLarge) mirror.hold(n, "too-large");
       for (const n of report.refused) mirror.hold(n, "refused");
       for (const n of [...report.pushed, ...report.merged]) mirror.release(n);
-      if (held.size) notes.push(heldMessage(held));
+      if (held.size) conditions.push(heldMessage(held));
+      lastNotes = { userId, oneOff: unique(oneOff) };
       setStatus({
         state: held.size ? "error" : "saved",
         email,
         userId,
         lastSyncedAt: Date.now(),
-        message: notes.join(" ") || undefined,
+        message: unique([...oneOff, ...conditions]).join(" ") || undefined,
       });
       announcePulled(report);
       if (report.skipped.length) wantFollowUp = true; // the account moved on mid-sync: see `resync`
@@ -564,7 +589,10 @@ export function startSync(): Promise<SyncReport | null> {
       setStatus({ state: "signed-out", message: "This browser signed in to a different account in another tab. Reloading to show it." });
       if (typeof window.location.reload === "function") window.location.reload();
     } else {
-      setStatus({ state: "signed-out", message: "You signed out in another tab. Everything is still on this device." });
+      // Not "you signed out": the other tab may have found the account deleted, or the sign-in expired
+      // (review of batches 4-5). This tab cannot tell which; what it can say is true either way, and
+      // the tab that knows says why.
+      setStatus({ state: "signed-out", message: "This browser was signed out in another tab. Everything is still on this device." });
     }
   });
   window.addEventListener("online", onOnline);
@@ -690,23 +718,35 @@ async function stopSync(): Promise<boolean> {
 export async function signOut(): Promise<void> {
   const cfg = accountConfig();
   const mine = shownUser();
-  const stored = currentSession();
-  if (stored && stored.userId !== mine) {
-    // The browser is signed in as an account this tab isn't showing: another tab signed in, and this
-    // one missed it. Signing out here would end THEIR sign-in. Stop this tab, and leave theirs alone.
-    stopRunning();
+  const unsent = await stopSync();
+  // Who is signed in is checked AFTER the wait, and again after each one below (review of batches 4-5):
+  // the sign-in can change while this tab sends what was waiting, or while /logout answers. This one
+  // check also covers a tab that missed another tab's sign-in before it ever started (review 2); a
+  // separate check before the wait added nothing this one doesn't do, so it went. The send itself
+  // cannot carry this tab's edits to the other account: each request is pinned to this tab's account.
+  const now = currentSession();
+  if (!now) {
+    // The send itself ended the sign-in (the account turned out to have been deleted), or another tab
+    // signed out meanwhile. What was said about that stands; there is nothing left here to end.
+    takeCarriedNote();
+    if (!(status.state === "signed-out" && status.message)) setStatus({ state: cfg ? "signed-out" : "off" });
+    return;
+  }
+  if (now.userId !== mine) {
+    // Someone else signed in, in another tab, while this one was sending. Not this tab's to end.
     setStatus({ state: "signed-out", message: `${ANOTHER_TAB}, so this tab stopped and left that sign-in alone. Reload it to see which account it is.` });
     return;
   }
-  const unsent = await stopSync();
   let ended = true;
-  if (cfg && currentSession()) {
+  if (cfg) {
     // /logout refuses an expired access token, which would leave the server session alive while the
-    // page said "signed out". Renew it first; if that fails too, use what there is.
-    const s = await liveSession(cfg, mine ?? undefined).catch(() => currentSession());
+    // page said "signed out". Renew it first; if that fails too, use the stored one, but only while it
+    // is still THIS account's. Falling back to whatever was stored ended another person's sign-in.
+    const s = await liveSession(cfg, mine ?? undefined).catch(() => (currentSession()?.userId === mine ? currentSession() : null));
     ended = s ? await signOutRemote(cfg, s) : false;
   }
-  saveSessionRaw(null);
+  if (currentSession()?.userId === mine) saveSessionRaw(null);
+  takeCarriedNote(); // a sentence waiting for this account's next page load is not for whoever comes next
   const notes = [
     unsent ? "Your latest changes hadn't reached your account yet. They are kept on this device and go up the next time you sign in to this account here." : "",
     ended ? "" : "The account server couldn't be reached to end the sign-in there as well.",
@@ -729,10 +769,17 @@ export async function forgetThisBrowser(): Promise<void> {
   }
   stopRunning();
   if (cfg && s) {
-    const live = await liveSession(cfg).catch(() => s);
+    const live = await liveSession(cfg, s.userId).catch(() => s);
     await signOutRemote(cfg, live);
   }
+  // Checked again after the wait (review of batches 4-5): if another tab signed someone in while
+  // /logout answered, clearing now would wipe THEIR sign-in and the data that just came down for them.
+  const now = currentSession();
+  if (now && now.userId !== s?.userId) {
+    throw new AccountError(`${ANOTHER_TAB} while this one was signing out, so nothing was deleted. Reload this page to see it first.`, "superseded");
+  }
   clearAll();
+  takeCarriedNote();
   setStatus({ state: cfg ? "signed-out" : "off" });
 }
 
@@ -771,8 +818,9 @@ export async function deleteAccount(): Promise<void> {
     throw e;
   }
   saveSessionRaw(null);
+  takeCarriedNote();
   setStatus({
     state: "signed-out",
-    message: "Your account and everything stored in it are deleted. (Sign-in logs are not part of the account: they keep your email address for as long as the provider's log settings keep them.) This browser still has its copy. If anyone signs in here again, you with a new account included, it is set aside as a copy rather than added to that account.",
+    message: "Your account and everything stored in it are deleted. (Sign-in logs and the email service's records are not part of the account: they keep your email address for as long as those services' log settings keep them.) This browser still has its copy. If anyone signs in here again, you with a new account included, it is set aside as a copy rather than added to that account.",
   });
 }
