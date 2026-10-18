@@ -4281,6 +4281,39 @@ console.log("\n--- THE ASSISTANT'S WORDS BIND THE ENGINE ---");
     check(`label-blind allergy: "${fact}" stores no carrier word on its own and replaces no dish`,
       !stored.some((t) => /^(?:oils?|powders?)$/.test(t)) && names(r.plan) === names(aw), r.profile.allergies);
   }
+  // The review's under-blocks the narrow cue list closes, unlabelled: plurals of the cue words, the
+  // misspellings people type, a plural category word, and a SECOND cue in the same fact (which was
+  // missed even labelled). The wide forms the review tried are guarded against below: "allergist" and
+  // "allergen-aware" must not become allergies.
+  for (const [fact, want] of [
+    ["food intolerances: lactose", ["lactose"]],
+    ["Allergens: peanuts, sesame", ["peanut", "sesame"]],
+    ["both kids are coeliacs", ["gluten"]],
+    ["alergic to peanuts", ["peanut"]],
+    ["lactose intolerent", ["lactose"]],
+    ["celiak disease", ["gluten"]],
+    ["allergic to crustaceans", ["crustacean"]],
+    ["Allergic to peanuts. Also allergic to sesame.", ["peanut", "sesame"]],
+    ["Peanut allergy. Sesame allergy.", ["peanut", "sesame"]],
+  ] as [string, string[]][]) {
+    const r = remembering(fact);
+    check(`label-blind allergy, the review's under-block: "${fact}" binds ${want.join(" + ")}`,
+      want.every((w) => new RegExp(w).test(r.profile.allergies ?? "")), r.profile.allergies);
+  }
+  for (const fact of ["allergist cleared him to eat eggs again", "kids' school is allergen-aware, packs cheese sandwiches", "no known intolerances"]) {
+    const r = remembering(fact, "context");
+    check(`label-blind allergy: "${fact}" binds nothing (the closed cue list, and the denial check that shares it)`,
+      (r.profile.allergies ?? "") === "" && r.planChanged === false, r.profile.allergies);
+  }
+  {
+    // The before-cue phrase is found in one pass: the lazy regex it replaced re-scanned from every
+    // start position, 3.2 s on a 40k-character fact that says "allergic" but never "allergy".
+    const long = "allergic to peanuts " + Array.from({ length: 8000 }, (_, i) => "word" + (i % 10)).join(" ");
+    const t0 = performance.now();
+    const got = allergensInFact(long);
+    const ms = performance.now() - t0;
+    check("allergen extraction: a 40k-character fact is read in linear time (< 1 s)", ms < 1000 && got.includes("peanuts"), `${ms.toFixed(0)} ms`);
+  }
 
   // (1) A slot-scoped constrain is not built yet — so it must change nothing AND say so.
   const slot = applyPrimitives(BASE, aw, [{ op: "constrain", scope: { slot: "breakfast" }, targets: { protein: 40 } } as PrimitiveOp]);

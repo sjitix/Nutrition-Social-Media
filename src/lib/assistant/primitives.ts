@@ -21,10 +21,21 @@ const CURATED_NAMES = new Set(Object.values(INGREDIENTS).map((i) => i.name.toLow
 const FOOD_WORDS = new Set(
   [...CURATED_NAMES].flatMap((n) => n.split(/[^a-z]+/)).filter((w) => w.length >= 3),
 );
+// Plural-tolerant for categories as well as ingredient words: "allergic to crustaceans", "groundnuts"
+// and "soybeans" were dropped by the unlabelled filter because only "crustacean" is a category key.
 const isFood = (w: string) =>
-  CATEGORIES.has(w) || FOOD_WORDS.has(w) || FOOD_WORDS.has(w.replace(/(es|s)$/, ""));
-/** The words that make a remembered fact an allergy whatever the model labelled it. */
-const ALLERGY_CUE = /\ballerg(?:ic|y|ies)\b|\bintoleran(?:t|ce)\b|\bc(?:o)?eliac\b|\banaphyla/i;
+  [w, w.replace(/ies$/, "y"), w.replace(/es$/, ""), w.replace(/s$/, "")].some((s) => CATEGORIES.has(s) || FOOD_WORDS.has(s));
+/**
+ * The words that make a remembered fact an allergy whatever the model labelled it: one closed list,
+ * shared by the gate, the denial check and the coeliac rule so the three cannot drift apart. It takes
+ * the plurals ("allergens", "intolerances", "coeliacs") and the misspellings people actually type
+ * ("alergic", "allergie", "intolerent", "intollerant", "celiak"). It is a CLOSED list on purpose: the
+ * wide forms the review tried (\ballerg\w*) read "allergist cleared him to eat eggs" as an egg allergy.
+ */
+const CUE_WORDS = String.raw`al+erg(?:ic|y|ies|ie|ens?)|intol+er[ae]n(?:t|ces?)|c(?:o)?eli(?:ac|ak)s?`;
+const ALLERGY_CUE = new RegExp(String.raw`\b(?:${CUE_WORDS})\b|\banaphyla`, "i");
+const COELIAC = /\bc(?:o)?eli(?:ac|ak)s?\b/;
+const COELIAC_WORD = /^c(?:o)?eli(?:ac|ak)s?$/;
 /** A phrase we recognise whole: an allergen category ("tree nuts") or a curated name ("peanut butter"). */
 const knownPhrase = (t: string) => CATEGORIES.has(t) || CURATED_NAMES.has(t) || CURATED_NAMES.has(t.replace(/s$/, ""));
 
@@ -59,7 +70,7 @@ const NOT_ALONE = new Set([
  * labelled or not. It applies to kind "allergy" too: "I'm not lactose intolerant" labelled as an allergy
  * used to store lactose.
  */
-const CUE_AT = /\b(?:allerg(?:ic|y|ies)|intoleran(?:t|ce)|c(?:o)?eliac|anaphyla\w*)\b/g;
+const CUE_AT = new RegExp(String.raw`\b(?:${CUE_WORDS}|anaphyla\w*)\b`, "g");
 /** Up to three plain words, never across punctuation or a contrast or connective word. */
 const RUN = String.raw`(?:(?!(?:but|though|although|yet|however|and|or|so|because|as|since|while)\b)[a-z']+\s+){0,3}$`;
 /** A negation that governs the cue after it: "not lactose intolerant", "no known food allergies",
@@ -103,18 +114,40 @@ function everyCueDenied(fact: string): boolean {
  * keep only tokens that name a food. An allergen we do not stock ("lupin") is still kept when the cue
  * names it, so it is enforced the day a recipe with it arrives.
  */
+/** "allergic to X", "intolerant to X", "allergens: X" — every one of them, not just the first. */
+const AFTER_CUE = /\b(?:allerg(?:ic|y|ies|ens?)|intoleran(?:t|ces?))[\s,]+(?:to\s+)?([^.;:!?]+)/g;
+/** "X allergy", "X intolerance", "X allergens". */
+const BEFORE_CUE = /\b(?:allerg(?:y|ies|ens?)|intoleran(?:t|ces?))\b/g;
+/**
+ * The phrase BEFORE each cue: the text back to the last punctuation mark, or to the end of the previous
+ * cue. This is what /([^.,;:!?]*?)\s*\bcue\b/g captured, found in ONE pass. The lazy regex re-scanned
+ * from every start position, so a long fact that says "allergic" but never "allergy" took 1.5 s at 20k
+ * characters, inside the route (the review measured it quadratic).
+ */
+function beforeCuePhrases(text: string): string[] {
+  const out: string[] = [];
+  let from = 0;
+  for (const m of text.matchAll(BEFORE_CUE)) {
+    const i = m.index ?? 0;
+    let start = from;
+    for (let k = i - 1; k >= from; k--) if (".,;:!?".includes(text[k])) { start = k + 1; break; }
+    out.push(text.slice(start, i).replace(/\s+$/, ""));
+    from = i + m[0].length;
+  }
+  return out;
+}
+
 export function allergensInFact(fact: string): string[] {
   const text = fact.toLowerCase().replace(/[‘’]/g, "'");
   const out = new Set<string>();
   // Coeliac disease is a gluten rule whatever words surround it.
-  if (/\bc(?:o)?eliac\b/.test(text)) out.add("gluten");
-  // Both sides of the cue. AFTER it is an explicit list ("allergic to X", "allergy, also eggs");
-  // BEFORE it is often an adjective ("severe allergy to …"), so when an AFTER list exists, words
-  // before the cue count only if they name a food ("shellfish allergy, also eggs" keeps both).
-  const after = text.match(/\b(?:allerg(?:ic|y|ies)|intoleran(?:t|ce))[\s,]+(?:to\s+)?([^.;:!?]+)/);
-  const before = text.match(/([^.,;:!?]*?)\s*\b(?:allerg(?:y|ies)|intoleran(?:t|ce))\b/);
-  const afterTokens = after?.[1] ? parseExclusionTokens(after[1], "") : [];
-  const beforeTokens = before?.[1]?.trim() ? parseExclusionTokens(before[1], "") : [];
+  if (COELIAC.test(text)) out.add("gluten");
+  // Both sides of EVERY cue: "Allergic to peanuts. Also allergic to sesame." used to bind peanuts and
+  // leave all five sesame dishes, even labelled. AFTER a cue is an explicit list ("allergic to X",
+  // "allergy, also eggs"); BEFORE it is often an adjective ("severe allergy to …"), so when an AFTER
+  // list exists, words before a cue count only if they name a food ("shellfish allergy, also eggs").
+  const afterTokens = [...text.matchAll(AFTER_CUE)].flatMap((m) => (m[1] ? parseExclusionTokens(m[1], "") : []));
+  const beforeTokens = beforeCuePhrases(text).flatMap((p) => (p.trim() ? parseExclusionTokens(p, "") : []));
   const fromCue = afterTokens.length
     ? [...afterTokens, ...beforeTokens.filter((t) => t.split(/\s+/).some(isFood))]
     : beforeTokens;
@@ -125,7 +158,7 @@ export function allergensInFact(fact: string): string[] {
   for (const t of tokens) {
     // "coeliac" is now an exclusion word in its own right (it blocks what "gluten" blocks), but the
     // rule above already stored it AS gluten — keeping both would tell the user "gluten and coeliac".
-    if (/^c(?:o)?eliac$/.test(t)) continue;
+    if (COELIAC_WORD.test(t)) continue;
     if (!t.includes(" ")) {
       if (cue || isFood(t)) out.add(t); // an explicitly named allergen we do not stock ("lupin") is kept
       continue;
@@ -133,7 +166,7 @@ export function allergensInFact(fact: string): string[] {
     if (knownPhrase(t)) { out.add(t); continue; } // "tree nuts", "peanut butter"
     // "severe peanut" -> "peanut"; "my son has nut" -> "nut". Never a carrier or modifier on its own
     // (NOT_ALONE), and never "coeliac", which the gluten rule above already stored as gluten.
-    const foods = t.split(/\s+/).filter((w) => isFood(w) && !NOT_ALONE.has(w) && !/^c(?:o)?eliac$/.test(w));
+    const foods = t.split(/\s+/).filter((w) => isFood(w) && !NOT_ALONE.has(w) && !COELIAC_WORD.test(w));
     if (foods.length) foods.forEach((f) => out.add(f));
     else if (cue) out.add(t); // an unknown multi-word allergen the user named: keep it whole
   }
