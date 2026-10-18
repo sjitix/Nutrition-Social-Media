@@ -29,7 +29,7 @@ import { agentModelFn, resolveProvider } from "@/lib/providers";
 import { selectWeekFromDb, rebalanceWeek, withSeed } from "@/lib/plan";
 import { dietTagConflicts, haystackBlocked } from "@/lib/nutrition";
 import { withFastFinish, fastFinishModeFromEnv } from "./fast-finish";
-import { withErrorCapture, isInfraError, holdFailure, scriptedModel, scriptLabel } from "./eval-common";
+import { withErrorCapture, isInfraError, holdFailure, scriptedModel, scriptLabel, reseedEngine, engineSeedConfig } from "./eval-common";
 import type { UserProfile, WeekPlan, Meal } from "@/lib/core";
 
 const SCRIPT = process.env.MODEL_SCRIPT ?? "";
@@ -404,6 +404,7 @@ const RUN_CONFIG = {
   today: TODAY,
   endpoint: SCRIPT ? null : (process.env.LOCAL_AI_URL ?? null),
   modelScript: SCRIPT || null,
+  engineSeed: engineSeedConfig(),
   extraBody: process.env.LOCAL_AI_EXTRA_BODY ?? null,
   fastFinish: FAST_FINISH_MODE,
   clock: process.env.PACE_STATS ? "upstream seconds via pace-proxy /stats (pacing and 429 waits excluded)" : "wall clock (includes the adapter's own retry back-off)",
@@ -463,6 +464,7 @@ for (const s of scenarios) {
     // wait, up to LOOP_RETRIES times — the app's adapter gives up after ~12 s of 429s, and on a free tier
     // that turned a whole run into infra failures (2026-10-03: 20/21). Only the final attempt is timed,
     // so the latency reported is a real answer's, not one padded by our own back-off.
+    reseedEngine(s.id); // the same dice for the same scenario, every run and every arm (bundle.mjs)
     r = await runAgent({ profile: structuredClone(PROFILE), plan: structuredClone(PLAN), message: s.message, history, today: TODAY, model });
     // Only a TRANSPORT failure is re-run. Unusable model output (bad JSON, schema miss) is the model's miss.
     for (let attempt = 1; r.modelFailed && isInfraError(cap.lastError()) && attempt <= LOOP_RETRIES; attempt++) {
@@ -473,6 +475,7 @@ for (const s of scenarios) {
       up0 = await upstreamSeconds();
       sk0 = ff.skipped;
       cap.reset();
+      reseedEngine(s.id);
       r = await runAgent({ profile: structuredClone(PROFILE), plan: structuredClone(PLAN), message: s.message, history, today: TODAY, model });
     }
   } catch (e) {

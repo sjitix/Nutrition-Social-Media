@@ -33,7 +33,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { build } from "esbuild";
+import { bundleEval } from "./bundle.mjs";
 
 const HARNESS = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -128,16 +128,9 @@ mkdirSync(bundleDir, { recursive: true });
 const bundles = {};
 for (const kind of new Set(arms.map((a) => ARMS[a].evalKind))) {
   const outfile = join(bundleDir, `models-fair-${kind}-${codeSha}-${stamp}.mjs`);
-  await build({
-    entryPoints: [join(HARNESS, "scripts", "models", `${kind}-eval.mts`)],
-    bundle: true,
-    platform: "node",
-    format: "esm",
-    tsconfig: join(code, "tsconfig.json"),
-    absWorkingDir: code,
-    outfile,
-    logLevel: "warning",
-  });
+  // Seeded (bundle.mjs): every arm sees the same engine dice per scenario, so arms differ only by the
+  // model's behaviour. ENGINE_SEED from the shell is cleared below; the evals then use seed 1.
+  await bundleEval({ entry: join(HARNESS, "scripts", "models", `${kind}-eval.mts`), code, outfile });
   bundles[kind] = { file: outfile, sha256: createHash("sha256").update(readFileSync(outfile)).digest("hex") };
 }
 
@@ -156,7 +149,7 @@ if (dryRun) {
 }
 
 // ── run ─────────────────────────────────────────────────────────────────────────────────────────
-const CLEARED = /^(AI_PROVIDER|LOCAL_AI_\w+|FAST_FINISH|ONLY|PACE_STATS|PROMPT_VERSION|LOOP_RETRIES|ANTHROPIC_API_KEY|CLAUDE_MODEL)$/;
+const CLEARED = /^(AI_PROVIDER|LOCAL_AI_\w+|FAST_FINISH|ONLY|PACE_STATS|PROMPT_VERSION|LOOP_RETRIES|ANTHROPIC_API_KEY|CLAUDE_MODEL|ENGINE_SEED|MODEL_SCRIPT)$/;
 const scoreDir = join(out, "data", "eval-runs");
 mkdirSync(scoreDir, { recursive: true });
 const modelSlug = model.replace(/[^a-z0-9.-]+/gi, "-").toLowerCase();
@@ -175,6 +168,7 @@ const pick = (kind, s) =>
 
 const manifest = {
   kind: "fair-arms", ranAt: new Date().toISOString(), model, endpoint: url, clock: "wall clock, direct to the host (PACE_STATS cleared)",
+  engineSeed: "seeded bundle (bundle.mjs): seed 1, reseeded per scenario",
   code: { dir: code, sha: codeSha, dirty: Boolean(codeDirty) }, harness: { sha: harnessSha, dirty: Boolean(harnessDirty) },
   bundles: Object.fromEntries(Object.entries(bundles).map(([k, b]) => [k, b.sha256])),
   only: only || null, repeat, gapSeconds, arms: [],

@@ -1,0 +1,12 @@
+{
+  "dinner reservation on friday": {
+    "reply": "Saved room for Friday dinner.",
+    "operations": [
+      {
+        "op": "reserve",
+        "day": "Friday",
+        "slot": "dinner"
+      }
+    ]
+  }
+}

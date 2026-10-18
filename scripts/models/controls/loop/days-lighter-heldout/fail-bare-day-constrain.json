@@ -1,0 +1,16 @@
+{
+  "go easy on the portions": {
+    "reply": "Thursday and Friday have been scaled down.",
+    "operations": [
+      {
+        "op": "constrain",
+        "scope": {
+          "days": [
+            "Thursday",
+            "Friday"
+          ]
+        }
+      }
+    ]
+  }
+}

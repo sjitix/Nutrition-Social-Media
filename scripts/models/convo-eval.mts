@@ -38,7 +38,7 @@ import { agentModelFn, resolveProvider } from "@/lib/providers";
 import { selectWeekFromDb, rebalanceWeek, withSeed } from "@/lib/plan";
 import { dietTagConflicts, haystackBlocked } from "@/lib/nutrition";
 import { withFastFinish, fastFinishModeFromEnv } from "./fast-finish";
-import { withErrorCapture, isInfraError, holdFailure, scriptedModel, scriptLabel } from "./eval-common";
+import { withErrorCapture, isInfraError, holdFailure, scriptedModel, scriptLabel, reseedEngine, engineSeedConfig } from "./eval-common";
 import type { UserProfile, WeekPlan, Meal, PlanSnapshot } from "@/lib/core";
 
 const SCRIPT = process.env.MODEL_SCRIPT ?? "";
@@ -320,6 +320,7 @@ const RUN_CONFIG = {
   today: TODAY,
   endpoint: SCRIPT ? null : (process.env.LOCAL_AI_URL ?? null),
   modelScript: SCRIPT || null,
+  engineSeed: engineSeedConfig(),
   extraBody: process.env.LOCAL_AI_EXTRA_BODY ?? null,
   fastFinish: FAST_FINISH_MODE,
   clock: process.env.PACE_STATS ? "upstream seconds via pace-proxy /stats (pacing and 429 waits excluded)" : "wall clock (includes the adapter's own retry back-off)",
@@ -353,7 +354,8 @@ for (const c of convos) {
   const turns: TurnRow[] = [];
   for (const t of c.turns) {
     const before = structuredClone(plan), beforeProfile = structuredClone(profile);
-    const go = () => runAgent({ profile: structuredClone(profile), plan: structuredClone(plan), message: t.user, history: [...history], today: TODAY, previous, model });
+    // The same dice for the same turn, every run and every arm, a retry included (bundle.mjs).
+    const go = () => { reseedEngine(`${c.id}#${c.turns.indexOf(t)}`); return runAgent({ profile: structuredClone(profile), plan: structuredClone(plan), message: t.user, history: [...history], today: TODAY, previous, model }); };
     let t0 = performance.now();
     let up0 = await upstreamSeconds();
     let r: AgentRunResult | null = null;

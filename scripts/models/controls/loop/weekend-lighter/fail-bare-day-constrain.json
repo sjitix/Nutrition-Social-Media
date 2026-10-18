@@ -1,0 +1,16 @@
+{
+  "lighter meals on the weekend": {
+    "reply": "Saturday and Sunday have been scaled down.",
+    "operations": [
+      {
+        "op": "constrain",
+        "scope": {
+          "days": [
+            "Saturday",
+            "Sunday"
+          ]
+        }
+      }
+    ]
+  }
+}

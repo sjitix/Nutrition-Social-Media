@@ -58,6 +58,23 @@ export function scriptedModel(path: string): ModelFn {
     return parsed.data as unknown as AgentTurn;
   };
 }
+/**
+ * Reseed the engine's dice for one scenario (see bundle.mjs): the same id and ENGINE_SEED always give
+ * the same draws, so identical model output grades identically. Returns the seed used, or null when
+ * the bundle was not built seeded (then nothing changes).
+ */
+export function reseedEngine(id: string): number | null {
+  const g = globalThis as { __models_reseed?: (s: number) => void };
+  if (!g.__models_reseed) return null;
+  let h = (2166136261 ^ Number(process.env.ENGINE_SEED ?? 1)) >>> 0;
+  for (const ch of id) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
+  g.__models_reseed(h);
+  return h;
+}
+/** What the scorecard records about the dice: the base seed when seeded, else null. */
+export const engineSeedConfig = () =>
+  (globalThis as { __models_reseed?: unknown }).__models_reseed ? Number(process.env.ENGINE_SEED ?? 1) : null;
+
 /** The scorecard's model name for a scripted run. */
 export const scriptLabel = (path: string) => `script-${basename(path).replace(/\.json$/i, "")}`;
 

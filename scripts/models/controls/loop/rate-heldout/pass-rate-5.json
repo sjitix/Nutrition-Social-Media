@@ -1,0 +1,13 @@
+{
+  "tuesday's breakfast was a 10/10": {
+    "reply": "Rated it 5.",
+    "operations": [
+      {
+        "op": "rate",
+        "rating": 5,
+        "day": "Tuesday",
+        "slot": "breakfast"
+      }
+    ]
+  }
+}
