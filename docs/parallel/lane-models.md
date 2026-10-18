@@ -30,11 +30,17 @@ repeats, with a cool-down, and clears every inherited knob. It writes a manifest
 the key from the main `.env.local` itself (exit 3 without it), so the key never reaches a command line.
 Tested end to end against the stub: 10 runs, every arm exactly its definition, no key text in any output.
 
+**The held-out wording test is ready too.** `models-wording` is now main plus exactly its three prompt
+lines (`e078efd`), with a worktree at `../NutriFlow-models-wording`. The third line ("lighter on <days>"
+= resize) had no held-out paraphrase, so `days-lighter-heldout` was added ("go easy on the portions
+thursday and friday"). The stub's new `script` mode is the positive control: all 6 scenarios of the
+test pass the answer they reward, and fail do-nothing. The bare day constrain fails both lighter checks.
+
 Next once a key exists:
 1. The fair arms, ALL on one bundle: loop A, B, C, convo A, C. **Arm A is re-run.** The 10-03 one
-   (21/26, median 23.3 s) ran 26 scenarios on an older bundle (28 today), before `5c12c4c` changed the
+   (21/26, median 23.3 s) ran 26 scenarios on an older bundle (29 today), before `5c12c4c` changed the
    loop.
-2. The held-out wording test: main vs `models-wording`, with main merged into the branch first.
+2. The held-out wording test: main vs `models-wording` (re-merge main first if it has moved).
 3. The fair numbers to v1.
 
 On main from this lane (via v1): the read-tool fix (`3392461`), the date line (`4f53468`), the
@@ -118,3 +124,5 @@ Branches: `models` (ships my paths onto main). `models-exp` = main + merges, for
 | `6cae798` · `961315a` | shutdown 2026-10-03: worklog, CONTEXT resume steps, lane file, last scorecards |
 | `627fe56` | 2026-10-18: resumed on the laptop; worktrees created; the NVIDIA runs blocked on a missing `.env.local` |
 | `be98c57` | barrels only; `stub-model.mjs` (two free passes found and closed, no past score changed); `probe-fixes.mts` (v1's `5c12c4c`: 1/4 before, 4/4 after) |
+| `07fad2b` · `77c9dc7` | the fair re-measurement re-runs arm A (old arm A is a different bundle); `fair-arms.mjs`, the fair comparison as one command |
+| `e078efd` (branch `models-wording`) | the wording branch merged with main: main + exactly its 3 prompt lines |

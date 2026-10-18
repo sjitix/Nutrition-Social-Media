@@ -151,24 +151,31 @@ Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Ro
     after a failed turn 1. No past real-model score changes. Every stub mode now scores 0 on both evals.
   - Also in `be98c57`: `probe-fixes.mts` re-checks v1's `5c12c4c` (multi-day swap; a claim riding on a
     memory) through the real loop with a scripted model: 1/4 before the fix, 4/4 after.
+  - `77c9dc7`: `fair-arms.mjs`, the fair comparison as one command (below).
+  - The commit after it: a third held-out scenario, `days-lighter-heldout`, and the stub's `script` mode
+    for positive controls. Every check in the held-out test passes the answer it rewards (6/6) and fails
+    do-nothing. The bare day constrain, the 550B's old answer to "lighter weekend", fails both lighter
+    checks.
 - **Next, in order (all need the key):**
   1. **The fair re-measurement, every arm on ONE bundle:**
      - loop A (reasoning on), B (off), C (off + `FAST_FINISH=reply`), convo A, convo C;
      - wall clock, direct to NVIDIA, one arm at a time.
      **Arm A must be re-run.** The 10-03 arm A (21/26, median 23.3 s) ran 26 scenarios on a bundle from
-     before the held-out pair existed (today there are 28). And `5c12c4c` changed the loop: a claim on a
+     before the held-out pair existed (today there are 29). And `5c12c4c` changed the loop: a claim on a
      memory now costs a nudge call. Keep the old arm A as history, not as an arm.
      **One command, from `../NutriFlow-models`:** `node scripts/models/fair-arms.mjs` (try `--dry-run`
      first). It bundles each eval once, runs the five arms one at a time with a 60 s cool-down, clears
      every inherited knob, and writes a manifest after each arm. It reads the key from the main
      `.env.local` itself and exits 3 without it, so the key never goes on a command line. These runs
      double as the real-model re-run of v1's two fixes, since they run on `5c12c4c` or later.
-  2. **Held-out wording test**, main vs `models-wording` (cf89758: rate, reserve, "lighter on <days>" =
-     resize). **First merge current main into the branch**: cf89758 predates `5c12c4c`, and the only
-     difference allowed is the three prompt lines. Run
+  2. **Held-out wording test**, main vs `models-wording` (rate, reserve, "lighter on <days>" = resize).
+     The branch is main plus exactly those three prompt lines (`e078efd`, merged today), and its
+     worktree is `../NutriFlow-models-wording`. **If main has moved, merge it into the branch again
+     first**, and check that `git diff --stat origin/main models-wording` shows only `promptV2.ts`. Then run
      `node scripts/models/fair-arms.mjs --arms C --repeat 3 --only 'heldout|^rate$|^eat-out-future$|^weekend-lighter$'`
-     once as is and once with `--code ../NutriFlow-models-wording`. Send v1 "ready to land" (the
-     merge-base diff of promptV2.ts) only if the branch also fixes the held-out phrasings.
+     once as is and once with `--code ../NutriFlow-models-wording`. That covers 6 scenarios: three quoted
+     by the wording and one held-out paraphrase for each line. Send v1 "ready to land" (the promptV2.ts
+     diff) only if the branch also fixes the held-out ones.
   3. **Send v1 the fair numbers.** The fast finish (`de1a102`, on `wip/v1-handoff-2026-10-03`) waits on them.
   4. When the owner adds a key from OWNER-TODO, measure that model first, with the loop and convo evals.
 - **Open with v1:**
