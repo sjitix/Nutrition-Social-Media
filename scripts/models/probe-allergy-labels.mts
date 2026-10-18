@@ -38,7 +38,7 @@ const blockedBy = (p: WeekPlan, token: string) =>
   meals(p).filter((m: Meal) => haystackBlocked([m.name, ...m.ingredients.map((i) => i.name)].join(" "), [token]));
 
 type Remember = { op: "remember"; fact: string; kind?: string };
-interface Case { remember: Remember; expect: "enforced" | "binds nothing"; allergen?: string; note?: string }
+interface Case { remember: Remember; expect: "enforced" | "binds nothing"; allergen?: string | string[]; note?: string }
 const CASES: Case[] = [
   { remember: { op: "remember", fact: "allergic to peanuts", kind: "allergy" }, expect: "enforced", allergen: "peanut", note: "control: labelled" },
   { remember: { op: "remember", fact: "allergic to peanuts" }, expect: "enforced", allergen: "peanut", note: "no kind (the 20B's shape)" },
@@ -60,6 +60,17 @@ const CASES: Case[] = [
   // ...and what the denial check must NOT swallow: an exception, and a labelled reaction.
   { remember: { op: "remember", fact: "no allergies except peanuts" }, expect: "enforced", allergen: "peanut", note: "an exception still binds" },
   { remember: { op: "remember", fact: "dairy makes me sick", kind: "allergy" }, expect: "enforced", allergen: "dairy", note: "a labelled reaction, no cue word" },
+  // Rows for v1's B1 (ba23884): misspelt cues, plural cues and categories, and every cue sentence read.
+  { remember: { op: "remember", fact: "alergic to peanuts" }, expect: "enforced", allergen: "peanut", note: "misspelt cue" },
+  { remember: { op: "remember", fact: "intolerent to lactose", kind: "condition" }, expect: "enforced", allergen: "lactose", note: "misspelt cue" },
+  { remember: { op: "remember", fact: "has celiak disease", kind: "condition" }, expect: "enforced", allergen: "gluten", note: "misspelt cue" },
+  { remember: { op: "remember", fact: "I have intolerances to lactose", kind: "context" }, expect: "enforced", allergen: "lactose", note: "plural cue" },
+  { remember: { op: "remember", fact: "allergens: peanuts and sesame" }, expect: "enforced", allergen: ["peanut", "sesame"], note: "plural cue, two allergens" },
+  { remember: { op: "remember", fact: "allergic to crustaceans", kind: "context" }, expect: "enforced", allergen: "shellfish", note: "plural category" },
+  { remember: { op: "remember", fact: "allergic to groundnuts", kind: "condition" }, expect: "enforced", allergen: "peanut", note: "plural category" },
+  { remember: { op: "remember", fact: "Allergic to peanuts. Also allergic to sesame." }, expect: "enforced", allergen: ["peanut", "sesame"], note: "the second cue sentence" },
+  { remember: { op: "remember", fact: "no known allergens", kind: "context" }, expect: "binds nothing", note: "plural denial" },
+  { remember: { op: "remember", fact: "no intolerances" }, expect: "binds nothing", note: "plural denial" },
 ];
 
 const turn = (reply: string, operations: unknown[] = []): AgentTurn => ({ thinking: "", reply, operations }) as unknown as AgentTurn;
@@ -71,10 +82,14 @@ for (const c of CASES) {
   const label = `${JSON.stringify(c.remember.fact)}${c.remember.kind ? ` (${c.remember.kind})` : " (no kind)"}`;
   let why: string | null = null;
   if (c.expect === "enforced") {
-    const start = blockedBy(PLAN, c.allergen!).length;
-    const left = blockedBy(r.plan, c.allergen!).map((m) => m.name);
-    if (start === 0) why = `the fixed week has no ${c.allergen} meal, so this case proves nothing`;
-    else if (left.length) why = `${left.length}/${start} ${c.allergen} meal(s) still in the week: ${[...new Set(left)].slice(0, 3).join(", ")}`;
+    const problems: string[] = [];
+    for (const allergen of ([] as string[]).concat(c.allergen ?? [])) {
+      const start = blockedBy(PLAN, allergen).length;
+      const left = blockedBy(r.plan, allergen).map((m) => m.name);
+      if (start === 0) problems.push(`the fixed week has no ${allergen} meal, so this case proves nothing`);
+      else if (left.length) problems.push(`${left.length}/${start} ${allergen} meal(s) still in the week: ${[...new Set(left)].slice(0, 3).join(", ")}`);
+    }
+    why = problems.length ? problems.join("; ") : null;
   } else {
     const stored = parseExclusionTokens(r.profile.allergies ?? "", "");
     const blocks = RECIPES.filter((rec) => haystackBlocked([rec.name, ...rec.ingredients.map((i) => i.name)].join(" "), stored));

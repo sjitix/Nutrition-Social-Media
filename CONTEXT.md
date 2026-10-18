@@ -186,7 +186,10 @@ Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Ro
     gluten" bound dairy and gluten, 299/501 recipes). v1's adversarial review caught it, and `09f325f`
     adds a denial check and a carrier filter.
   - `probe-allergy-labels.mts`: 18/18 on `09f325f`. The original patch fails its four regression rows.
-  - v1's Commit B and Commit C come next. Re-run the probe on each sha.
+  - v1's B1 (`ba23884`: plurals, misspellings, every cue sentence): 28/28; its parent passes 20/28.
+  - v1's B2 (an honesty note on every allergy-cue remember, the LC-13 prompt line) and C come next.
+    Re-run the probe on each sha. **B2's prompt line changes what the evals measure**, so the fair arms
+    run after it, on one bundle, as planned.
   - Not closed: the 550B ignored an allergy that sat only in the history 4/6 (loop `memory-allergy`).
     Its operations never mention one, so only a raw-words scan could catch it; v1 recorded it as open.
 - **Shipped today:**
