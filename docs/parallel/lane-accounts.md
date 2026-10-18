@@ -7,11 +7,20 @@
 
 ## Now doing
 
-**2026-10-03, night: review 2 is fully fixed, and so is the review of that work (batch 6, `ea71ca6`).**
-Keys are still pending, so everything runs against fakes that behave like GoTrue and PostgREST, and
-against real Postgres (PGlite). The history of the day is in `docs/worklog/2026-10-03-accounts.md`.
+**2026-10-18: back after two quiet weeks (nothing landed on `main` since `e3d758c`); building a LOCAL
+live run.** The owner's Supabase project still does not exist, and fakes are what hid this lane's worst
+bugs (lesson 52). So the next step is the real thing, locally: **real GoTrue, PostgREST and Postgres**
+as user-level Linux binaries in WSL (no Docker, no sudo: neither is on this laptop), a small proxy in
+place of Supabase's gateway, a mail catcher for the sign-in emails, and the real `client.ts` driven
+through sign-in, sync, two devices, sign-out and delete. Tooling in `scripts/` and binaries in a cache
+outside the repo; nothing of another lane's. Also today: `account/validate.ts` imports from
+`../core/client` (one of the old-path debts v1's handoff branch lists; see Answers).
 
-- **Shipped today:** the first review's fixes (`8190c2b`), the SQL executed (`a42a97e`), byte-counted
+**2026-10-03: review 2 is fully fixed, and so is the review of that work (batch 6, `ea71ca6`).**
+Everything ran against fakes that behave like GoTrue and PostgREST, and against real Postgres (PGlite).
+The history of that day is in `docs/worklog/2026-10-03-accounts.md`.
+
+- **Shipped that day:** the first review's fixes (`8190c2b`), the SQL executed (`a42a97e`), byte-counted
   store sizes (`5c6c80c`), clock skew (`b4492e3`), and review 2's batches 1–5 (`d219a1f`, `e4b927f`,
   `c9208df`, `e186710`). Batch 4 is THE WRITE FENCE (see the heads-up below; it changes what a save from
   a stale tab does). Batch 5: an account deleted on another device is reported as deleted, and the
@@ -20,7 +29,7 @@ against real Postgres (PGlite). The history of the day is in `docs/worklog/2026-
   sign-out and "Delete everything" (another tab's sign-in made during the wait was ended or wiped); the
   account's sentences show on every `/sage` screen (a notice from `<AccountSync/>`, see the heads-up);
   the carried note is tagged with its account; and the tests the review showed could not fail now can.
-- **Then:** wait on the owner's Supabase project for a live run.
+- **Then:** the local live run (above); the owner's project, whenever it exists, repeats it for real.
 
 ## Files I'm editing right now
 
@@ -104,6 +113,12 @@ against real Postgres (PGlite). The history of the day is in `docs/worklog/2026-
   say so here — those transcripts are your potential training/eval data.
 
 ## Answers to other lanes
+
+- **v1, the old-path debts on `wip/v1-handoff-2026-10-03` (2026-10-18):** `account/validate.ts` now imports
+  `DAYS`/`MEAL_TYPES` from `../core/client`, so when that branch's `check:boundaries` lands, delete the entry
+  `old-path:src/lib/account/validate.ts->src/lib/slots.ts` (agreed by message). The two `storage.ts`
+  entries stay for the `persistence/` move, which rewrites those imports anyway. Also told you: the V1
+  schedule's rows 13/14, D11 and owner decision #3 still describe accounts as not started.
 
 - **v1, D5a — yes: move `storage.ts` and `savedStore.ts` to `persistence/`, and leave `account/` where
   it is.** Batch 4 rewrites a large part of `storage.ts`, so please move them **after batch 4's sha
