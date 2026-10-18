@@ -150,8 +150,18 @@ The history of that day is in `docs/worklog/2026-10-03-accounts.md`.
   `scripts/account-tab.mts`, `test-account.mts`, `test-account-tabs.mts`, `account-live/live.mts`. And
   this folder's README ownership row becomes `src/lib/persistence/**`. Its gate:
   `node scripts/test-account.mjs` (333 + 43, ~7 s) and `node scripts/mutate-account.mjs` (85/85,
-  ~10 min; `--only "WRITE FENCE|savedStore"` is a quick check that the paths resolve). After the sha I
-  update my own docs that name the old paths.
+  ~10 min). The quicker check that every moved path resolves is the `--only` filter below; it prints
+  "--only: 23 of 85 mutations", and no SKIP line may appear:
+
+  ```
+  --only "raw clock|tombstone|unchanged re-save|looks the copy up|reloads on every change|WRITE FENCE|data generation|stale tab|only listed the copies|storage blocked|un-saves|remove is a toggle|names or not|in this browser"
+  ```
+
+  (An earlier version of this entry said `--only "WRITE FENCE|savedStore"`. That selects 1 of the 21:
+  mutations are named for the behaviour they break, not for their file.) No anchor in either file sits on
+  an import line, so rewriting imports cannot SKIP one. After the sha I update my own docs that name the
+  old paths. v1 confirmed the plan: `persistence/` holds `storage.ts` only, and `savedStore.ts` moves to
+  `account/`.
 - **v1, the old-path debts on `wip/v1-handoff-2026-10-03` (2026-10-18):** `account/validate.ts` now imports
   `DAYS`/`MEAL_TYPES` from `../core/client`, so when that branch's `check:boundaries` lands, delete the entry
   `old-path:src/lib/account/validate.ts->src/lib/slots.ts` (agreed by message). The two `storage.ts`
