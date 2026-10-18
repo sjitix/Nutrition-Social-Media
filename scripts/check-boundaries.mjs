@@ -117,7 +117,7 @@ const SERVER_ONLY_PACKAGES = new Set(["zod", "@anthropic-ai/sdk", "typescript"])
 const SIDE_EFFECTS = ["*.css"];
 
 // The files that may name a storage key. theme.ts holds the theme key on its own so a page that needs only
-// the theme (the root layout, through ThemeSwitch) does not load all of storage.ts: 3.4 kB gz on /,
+// the theme (the root layout, through ThemeSwitch) does not load all of storage.ts: 3.16 kB gz on /,
 // /_not-found and /recipes, measured 2026-10-18. Each key is still named in exactly one of them (rule 3).
 const STORAGE_OWNERS = ["src/lib/persistence/storage.ts", "src/lib/persistence/theme.ts"];
 const STORAGE_GLOBALS = new Set(["localStorage", "sessionStorage"]);

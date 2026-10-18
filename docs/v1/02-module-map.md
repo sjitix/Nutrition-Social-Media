@@ -777,7 +777,7 @@ A homemade gate in the family of `check:recipes` / `check:data` — no new depen
 |---|---|---|
 | 1 | No module imports **above** its layer (§2) | the layering is otherwise a comment |
 | 2 | Only a module's **barrel** may be imported from outside it — no deep paths | this is what makes "private" real |
-| 3 | **Only the owners in `persistence/` may name a storage key or touch localStorage — and each key is named in exactly one of them** (`storage.ts`, and from 2026-10-18 `theme.ts`, the theme key on its own so the root layout does not load all of storage: 3.4 kB gz on `/`, measured) | a second saved-recipes key already drifted once |
+| 3 | **Only the owners in `persistence/` may name a storage key or touch localStorage — and each key is named in exactly one of them** (`storage.ts`, and from 2026-10-18 `theme.ts`, the theme key on its own so the root layout does not load all of storage: −3.16 kB gz on `/`, `/_not-found` and `/recipes`, measured like-for-like by the accounts lane, `2d9e024`) | a second saved-recipes key already drifted once |
 | 4 | No **client component** imports a server barrel (`"use client"` + `plan` ⇒ fail) | the 185 kB Explore payload, made impossible |
 | 5 | No **import cycles** | true today; this keeps it true |
 | 7 | Every local import **resolves** — and none is computed | a path the gate cannot follow is a path it cannot check |
