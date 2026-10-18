@@ -162,6 +162,7 @@
       <a href="https://claude.ai/artifact/5jeC8s1S7QiHs9LLh4uGMV">V1 schedule</a>
       <span>Module map</span>
       <a href="https://claude.ai/artifact/3Qqpy8i7PKCvEfZXsgzfnh">Day log</a>
+      <a href="https://claude.ai/code/artifact/a3290f96-fc25-43a6-932d-9982a46bb70f">Your decisions</a>
     </div>
     <div class="eyebrow">NutriFlow · planning board 2 of 3</div>
     <h1 style="margin-top:10px">The module map</h1>
@@ -174,8 +175,8 @@
       that is not in it. Two sides, each bound to their half, which is why the word fits.</p>
     <div class="stamp">
       <b><i>source</i> docs/v1/02-module-map.md</b>
-      <b><i>synced</i> 2026-10-03</b>
-      <b><i>commit</i> 1dff171+</b>
+      <b><i>synced</i> 2026-10-18</b>
+      <b><i>commit</i> dd5b33e+</b>
       <b><i>method</i> measured, not estimated</b>
     </div>
   </header>
@@ -312,7 +313,7 @@
       <div class="layer" id="L0">
         <div class="lab"><div class="id">L0</div><div class="nm">Contracts</div><div class="pl">the shared vocabulary: what a meal, a day, a plan and a profile look like. No logic.</div></div>
         <div class="mods">
-          <div class="mod big"><div class="n">core/types · slots · micros · imported</div><div class="s">22 / 28 · everyone depends on it</div><div class="bar"><i style="width:79%"></i></div></div>
+          <div class="mod big"><div class="n">core/types · slots · micros · imported · defaults</div><div class="s">22 / 28 · everyone depends on it</div><div class="bar"><i style="width:79%"></i></div></div>
         </div>
       </div>
     </div>
@@ -462,7 +463,7 @@
     <div class="shead"><span class="eyebrow">Day 1</span><span class="rule"></span></div>
     <h2>Making it enforceable: check:boundaries</h2>
     <p class="lede">An unenforced boundary is a comment. A homemade gate in the family of
-      <span class="mono">check:recipes</span> — no new dependency — asserting six things:</p>
+      <span class="mono">check:recipes</span> — no new dependency — asserting eight things:</p>
     <div class="tablewrap" style="margin-top:16px">
       <table>
         <thead><tr><th>#</th><th>Rule</th><th>Why it exists</th></tr></thead>
@@ -473,6 +474,8 @@
           <tr><td class="mono">4</td><td>No client component imports a server barrel</td><td>the 185&nbsp;kB Explore payload, made impossible</td></tr>
           <tr><td class="mono">5</td><td>No import cycles</td><td>true today — this keeps it true</td></tr>
           <tr><td class="mono">6</td><td>No emoji in <span class="mono">src/</span></td><td>a standing project rule with no enforcement today</td></tr>
+          <tr><td class="mono">7</td><td>Every local import resolves, and none is computed</td><td>a path the checker cannot follow is a path it cannot check</td></tr>
+          <tr><td class="mono">8</td><td>Nothing depends on running at import time</td><td>that promise is what lets the bundler drop unused code</td></tr>
         </tbody>
       </table>
     </div>
@@ -482,9 +485,9 @@
     <div class="stats" style="margin-top:22px">
       <div class="stat good"><div class="v">Built</div><div class="l">2026-10-03 · 4e3be01</div></div>
       <div class="stat"><div class="v">1.3 s</div><div class="l">78 files, every ship</div></div>
-      <div class="stat good"><div class="v">11 / 0</div><div class="l">self-test: seen to fail</div></div>
-      <div class="stat warn"><div class="v">6</div><div class="l">known debts left (was 9) · may only shrink</div></div>
-      <div class="stat warn"><div class="v">4</div><div class="l">of them unknown until now</div></div>
+      <div class="stat good"><div class="v">41 / 0</div><div class="l">self-test: seen to fail (was 11)</div></div>
+      <div class="stat warn"><div class="v">5</div><div class="l">known debts left · may only shrink</div></div>
+      <div class="stat warn"><div class="v">4</div><div class="l">found on its first run, unknown until then</div></div>
     </div>
     <div class="tablewrap" style="margin-top:16px">
       <table>
@@ -492,10 +495,12 @@
         <tbody>
           <tr><td><s><b>New</b> &middot; the Groceries page ships the whole USDA table to the browser</s> &mdash; <b>paid</b>: the unit weights got their own file. Groceries 123 &rarr; 113 kB</td><td class="mono">A4 · paid</td></tr>
           <tr><td><b>New</b> &middot; the assistant's read tools (L4) import the Explore feed (L6). Searching the library is engine work; the query moves down</td><td class="mono">A6</td></tr>
-          <tr><td><b>New</b> &middot; <span class="mono">conditions</span> and <span class="mono">symptoms</span> (data) import the maths layer for the micronutrient names. Those names are vocabulary and move to L0</td><td class="mono">A6</td></tr>
-          <tr><td><b>New</b> &middot; <span class="mono">/plan</span> ships the link importer for one pure converter</td><td class="mono">B2 / A6</td></tr>
+          <tr><td><s><b>New</b> &middot; <span class="mono">conditions</span> and <span class="mono">symptoms</span> (data) import the maths layer for the micronutrient names</s> &mdash; <b>paid</b>: the names moved to L0</td><td class="mono">A6 · paid</td></tr>
+          <tr><td><s><b>New</b> &middot; <span class="mono">/plan</span> ships the link importer for one pure converter</s> &mdash; <b>paid</b>: the converter moved to L0</td><td class="mono">A6 · paid</td></tr>
           <tr><td>Explore, <span class="mono">/plan</span> and the Week board each ship the recipe library &mdash; <b>Week and Explore paid</b> (129 and 114 kB now); <span class="mono">/plan</span> waits on decision #2</td><td class="mono">A4 / B2</td></tr>
-          <tr><td>The theme toggle writes browser storage itself</td><td class="mono">A6</td></tr>
+          <tr><td>The theme toggle writes browser storage itself. The storage file already owns the key, so only the switch-over is left</td><td class="mono">v1</td></tr>
+          <tr><td><b>Found by the review</b> &middot; the storage file imports two old file paths. Paid by moving it into <span class="mono">persistence/</span>, agreed with the accounts agent</td><td class="mono">v1</td></tr>
+          <tr><td><s><b>Found by the review</b> &middot; the account checker imports an old file path</s> &mdash; <b>paid</b> by the accounts agent, 2026-10-18</td><td class="mono">accounts · paid</td></tr>
         </tbody>
       </table>
     </div>
@@ -504,6 +509,12 @@
       <b>new</b> violation fails, and a <b>paid</b> debt also fails until its entry is deleted &mdash; the list can only
       shrink, and it never claims a problem that is gone. Rule 2 (barrels) switches on by itself the moment A6 creates
       the first <span class="mono">index.ts</span>.</div>
+    <div class="callout" style="margin-top:12px"><b>Hardened after a review (2026-10-03, landed 2026-10-18).</b> Four reviewers attacked
+      the checker after the folder move and fooled it four ways into letting the whole recipe engine reach the browser:
+      it worked out file paths by gluing strings together, so unusual spellings slipped past. It now finds files with
+      TypeScript's own resolver and fails anything it cannot follow. Old file paths count as reaching past a door, so the
+      shortcuts are closed too. Every hole has a test that would have caught it (11 &rarr; 41). Every gated commit also
+      type-checks the scripts now, so a broken import fails before it reaches Vercel.</div>
   </section>
 
   <section id="phases">

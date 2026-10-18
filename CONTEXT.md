@@ -35,7 +35,8 @@ threads at session start, with the boards.
 
 #### PARALLEL LANE — accounts (written by the accounts agent only)
 
-**2026-10-03 — accounts are built up to the keys, adversarially reviewed three times, and the SQL has run.**
+**2026-10-18 — accounts are built up to the keys, adversarially reviewed three times, and now proven
+live: 20/20 against the real GoTrue, PostgREST and Postgres, with no Supabase project.**
 Live status, the plan and the asks: `docs/parallel/lane-accounts.md`. Design: **local-first, the
 account is a mirror** — `storage.ts`'s load/save API did not change, so no screen had to; underneath,
 every real save stamps a write time and notifies listeners, and a sync layer mirrors each store to one
@@ -95,18 +96,32 @@ Supabase row per user under RLS.
   The account's sentences ("your account had newer data…", "this account was deleted…") now show on
   every `/sage` screen, as a small notice from `<AccountSync/>`, instead of only on the account page.
   And several guards the review showed no test could catch are now tested.
+- **The live run (2026-10-18): `node scripts/account-live/run.mjs`, 20/20.** It runs the real
+  `client.ts` against the real GoTrue v2.197.0, PostgREST 16.4 and Postgres 17.11. These are
+  user-level binaries in WSL, so the run needs no Docker or admin rights, and nothing from them lands
+  in the repo. A small gateway and a mail catcher are all that stand in for Supabase.
+  - It covers four devices: the PKCE link, GoTrue's 60 s limit on a second link, two-device sync,
+    `upsert_state` skipping a stale write, token renewal, RLS between two people, a reused link,
+    sign-out, and a deletion on one device as the other sees it (409/23503, then "was deleted").
+  - It confirmed the platform facts batches 3, 5 and 6 were built on.
+  - One fact was new: GoTrue accepts a just-rotated refresh token for about 10 s. The suite's fake
+    refuses it outright, which only makes it stricter.
+  - About 80 s once the binaries are cached, 60 s of it waiting out that limit.
 - **Gate for this lane:** `node scripts/test-account.mjs` runs two suites: **333 checks** in one tab,
   including the real `client.ts` end to end against an in-memory Supabase (RLS, PKCE, conditional
   writes, jsonb order, skewed clocks, token expiry, a deleted account), and **43 checks across tabs**
   of one browser (stale tabs, the write fence, a tab that hears late, races between tabs signing in
   and out) · `node scripts/test-account-sql.mjs --mutate` — **39 checks in real Postgres, 16/16
   broken guards caught** · `node scripts/mutate-account.mjs` — **85/85** (`--only "text"` re-checks
-  one guard in seconds; an interrupted run is undone on the next start).
+  one guard in seconds; an interrupted run is undone on the next start) · `node
+  scripts/account-live/run.mjs` — **20/20 live**.
 - **Owner, to switch accounts on:** `supabase/README.md` — create a project, run **both** migrations,
   set the Site URL to the account page, turn off "Confirm email" and "Write audit logs to the
   database", **configure custom SMTP** (without it only your own organisation receives sign-in
   emails), then put `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in
-  `.env.local` and Vercel. Never the `service_role` key.
+  `.env.local` and Vercel. Never the `service_role` key. Three things only a hosted project can
+  show: its gateway and publishable keys, real email delivery, and whether `postgres` may delete
+  from `auth.users` there. Running the README's RLS plan once there covers the last.
 - **Asked of the v1 lane (lane file has the detail):** make `AssistantChat` re-read on
   `PLAN_CHANGED_EVENT`, and drop `actions.ts`'s undo snapshot when sync pulls or the browser is
   cleared — until then `<AccountSync/>` reloads the tab once when the week or profile comes down.
@@ -118,53 +133,69 @@ in the main folder (`2fd6f02`). Its WORKPLAN lesson was renumbered 38 → 48 bec
 
 #### PARALLEL LANE — models (written by the models agent only)
 
-**2026-10-03 (night, shut down at 22:30) — RESUME HERE: finish the fair re-measurement, then the
-held-out wording test.** Day record: `docs/worklog/2026-10-03-models.md`. Live status:
-`docs/parallel/lane-models.md`. Data and decisions: `docs/models/` (README "Decisions on record",
-`survey.md` Rounds 4–5, `free-providers-2026-10.md`). Owner to-do: `docs/models/OWNER-TODO.md`.
+**2026-10-18 — RESUME HERE. Every NVIDIA run is blocked on a missing `.env.local`; the key-free work
+is done.** Day record: `docs/worklog/2026-10-18-models.md`. Live status: `docs/parallel/lane-models.md`.
+Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Rounds 4–5,
+`free-providers-2026-10.md`). Owner to-do: `docs/models/OWNER-TODO.md`.
 
-- **On main today, from this lane via v1:**
-  - the read-tool fix (`3392461`);
-  - the date line (`4f53468`);
-  - the false-claim guard (`361b2e1`, built from this lane's detector);
-  - `LOCAL_AI_EXTRA_BODY` (`45a0c12`): reasoning off for the 550B as a config line;
-  - three engine fixes this lane found (`98747f6`, `85e684b`).
+- **The laptop now has the models worktrees** (`../NutriFlow-models/` on `models`,
+  `../NutriFlow-models-exp/` on `models-exp`), node_modules junctioned to the main folder's. Bundle only
+  to `models-*` outfiles outside `node_modules/.cache`, where v1's test bundles live.
+- **No `.env.local` anywhere on the laptop**, and LM Studio is not running. Every model run waits for the
+  owner to recreate the file in the main folder.
+- **Shipped today:**
+  - `be98c57`: `scripts/models` imports only the folder barrels, so the old-path shims can go from this
+    lane's side (v1 told).
+  - Also in `be98c57`: `stub-model.mjs` (`--mode nothing|hollow|garbage`). It found two free passes in
+    this lane's evals, both closed: a hold the false-claim guard had rewritten, and `undo-flow` turn 2
+    after a failed turn 1. No past real-model score changes. Every stub mode now scores 0 on both evals.
+  - Also in `be98c57`: `probe-fixes.mts` re-checks v1's `5c12c4c` (multi-day swap; a claim riding on a
+    memory) through the real loop with a scripted model: 1/4 before the fix, 4/4 after.
+  - `77c9dc7`: `fair-arms.mjs`, the fair comparison as one command (below).
+  - The commit after it: a third held-out scenario, `days-lighter-heldout`, and the stub's `script` mode
+    for positive controls. Every check in the held-out test passes the answer it rewards (6/6) and fails
+    do-nothing. The bare day constrain, the 550B's old answer to "lighter weekend", fails both lighter
+    checks.
+- **Next, in order (all need the key):**
+  1. **The fair re-measurement, every arm on ONE bundle:**
+     - loop A (reasoning on), B (off), C (off + `FAST_FINISH=reply`), convo A, convo C;
+     - wall clock, direct to NVIDIA, one arm at a time.
+     **Arm A must be re-run.** The 10-03 arm A (21/26, median 23.3 s) ran 26 scenarios on a bundle from
+     before the held-out pair existed (today there are 29). And `5c12c4c` changed the loop: a claim on a
+     memory now costs a nudge call. Keep the old arm A as history, not as an arm.
+     **One command, from `../NutriFlow-models`:** `node scripts/models/fair-arms.mjs` (try `--dry-run`
+     first). It bundles each eval once, runs the five arms one at a time with a 60 s cool-down, clears
+     every inherited knob, and writes a manifest after each arm. It reads the key from the main
+     `.env.local` itself and exits 3 without it, so the key never goes on a command line. These runs
+     double as the real-model re-run of v1's two fixes, since they run on `5c12c4c` or later.
+  2. **Held-out wording test**, main vs `models-wording` (rate, reserve, "lighter on <days>" = resize).
+     The branch is main plus exactly those three prompt lines (`e078efd`, merged today), and its
+     worktree is `../NutriFlow-models-wording`. **If main has moved, merge it into the branch again
+     first**, and check that `git diff --stat origin/main models-wording` shows only `promptV2.ts`. Then run
+     `node scripts/models/fair-arms.mjs --arms C --repeat 3 --only 'heldout|^rate$|^eat-out-future$|^weekend-lighter$'`
+     once as is and once with `--code ../NutriFlow-models-wording`. That covers 6 scenarios: three quoted
+     by the wording and one held-out paraphrase for each line. Send v1 "ready to land" (the promptV2.ts
+     diff) only if the branch also fixes the held-out ones.
+  3. **Send v1 the fair numbers.** The fast finish (`de1a102`, on `wip/v1-handoff-2026-10-03`) waits on them.
+  4. When the owner adds a key from OWNER-TODO, measure that model first, with the loop and convo evals.
+- **Open with v1:**
+  - "lighter weekend" became a bare day constrain (the fix is in `models-wording`, unmeasured);
+  - the old-path shims (this lane is off them since `be98c57`);
+  - `docs/parallel/README.md` still says the models worktrees are not on the laptop (asked v1).
 - **Owner's direction:** big models first; the biggest free model with an optimal response time; no
   more 20–30B work. The conversation eval separates sizes: 550B 11–12/14, 20B 6/14.
 - **The speed claim is NOT established.** "~3–4× faster" compared a wall-clock arm with an
   upstream-seconds arm across different code. An adversarial review caught it; survey Round 5 says so.
-- **Next session, in order:**
-  1. **Fair arms B, C, convo A, convo C.** Same commit, wall clock, direct to NVIDIA, one at a time.
-     Arm A is done: reasoning on, 21/26, median 23.3 s (`2026-10-03T20-23-44-loop-…`). Recipe:
-     `git -C ../NutriFlow-models-exp switch models-exp && git -C ../NutriFlow-models-exp merge origin/main`.
-     Then, from `../NutriFlow-models-exp`, run
-     `npx esbuild ../NutriFlow-models/scripts/models/{loop,convo}-eval.mts --bundle --platform=node --format=esm --tsconfig=tsconfig.json --outfile=<tmp>/X.mjs`.
-     Then, **from `../NutriFlow-models`** (so the scorecards land there), run
-     `AI_PROVIDER=local LOCAL_AI_URL=https://integrate.api.nvidia.com/v1 LOCAL_AI_MODEL=nvidia/nemotron-3-ultra-550b-a55b LOCAL_AI_API_KEY=<main .env.local> node <tmp>/X.mjs`
-     with:
-     - B: `LOCAL_AI_EXTRA_BODY='{"chat_template_kwargs":{"enable_thinking":false}}'`
-     - C: B's setting plus `FAST_FINISH=reply`
-     - label each with `PROMPT_VERSION="fair: …"`.
-  2. **Held-out wording test.** `ONLY='heldout|^rate$|^eat-out-future$|^weekend-lighter$'`, main vs
-     branch `models-wording` (cf89758, 3 prompt lines: rate, reserve, and "lighter on <days>" = resize,
-     never an empty constrain, which v1 asked for), in setup C, 3 runs each. Send v1 "ready to land",
-     as the merge-base diff of promptV2.ts, only if the wording fixes the held-out phrasings too.
-  - **v1's fixes for this lane's two product bugs** (multi-day swap; guard + memory) are on v1's branch
-    `wip/v1-handoff-2026-10-03` (de1a102). They are NOT on main until v1's full suite runs.
-  3. **Send v1 the fair numbers.** Change 2 (fast finish in `runAgent`, with v1's reply rule) waits on
-     them.
-- **Open with v1:**
-  - two product bugs (a swap with days Wed–Sun replaced all 7 days; the guard misses a claim paired
-    with `remember`);
-  - a bare day constrain used for "lighter weekend";
-  - D5a parts 2–3 (folder barrels). Switch `scripts/models` imports to `@/lib/assistant` etc. once part 3
-    lands, then tell v1 the shims can go.
-- **Methodology** (learned the hard way today):
+- **On main from this lane via v1 (2026-10-03):** the read-tool fix (`3392461`), the date line
+  (`4f53468`), the false-claim guard (`361b2e1`), `LOCAL_AI_EXTRA_BODY` (`45a0c12`), three engine
+  fixes (`98747f6`, `85e684b`); and v1's fixes for this lane's two product bugs (`5c12c4c`, 10-18).
+- **Methodology** (learned the hard way):
   - latency only from the real loop, on ONE clock across arms;
+  - a fair comparison runs every arm on ONE bundle; an arm from an older bundle is history;
   - one rate-limited run at a time;
   - ranges, not single scores;
   - grade the engine's effect, not the model's operations;
-  - run a do-nothing stub against any new check (it must score 0 on act checks);
+  - every new check must score 0 against `node scripts/models/stub-model.mjs` in all three modes;
   - test a wording fix on held-out phrasings.
 - **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`,
   `docs/worklog/*-models.md`, this block, the lane file. Does not edit v1's files; asks v1 first.

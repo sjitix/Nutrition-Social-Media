@@ -182,6 +182,9 @@ nothing (measured: without it, 3–7 kB per route) — a module that must run on
   (lessons 52–55, 59, 63).
   **The SQL itself is executed** by `node scripts/test-account-sql.mjs`: real Postgres (PGlite, in
   WebAssembly) with Supabase's default grants stubbed in, so no project is needed (lesson 56).
+  **And the whole thing runs live** by `node scripts/account-live/run.mjs`: the real `client.ts` against
+  the real GoTrue, PostgREST and Postgres (user-level binaries in WSL, fetched once into
+  `~/.cache/nutriflow-live` there; a small gateway and mail catcher in `scripts/account-live/`).
 - `src/lib/savedStore.ts` — a three-method async interface (`list`/`add`/`remove`) over saved
   recipes, delegating to `storage.ts`. **Async on purpose even though localStorage is not**: a
   synchronous interface would have to change shape the moment a network sat behind it, and every
@@ -280,9 +283,10 @@ nothing (measured: without it, 3–7 kB per route) — a module that must run on
   notes are shown rather than summarised. `commands.ts` is the command palette's **pure, model-free**
   parser; `Sheet.tsx` is the dialog shell `MealSheet` / `ReconcileSheet` sit in. Full plan and build
   log: `docs/v1/05-direct-manipulation.md`.
-- **`src/lib/slots.ts` holds `DAYS` and `MEAL_TYPES`, zod-free, and `types.ts` re-exports them.** A
-  client component that needs those two arrays must import THIS, not `types.ts`, which carries zod
-  and every schema. A module is as heavy as its heaviest import.
+- **`core/slots.ts` holds `DAYS` and `MEAL_TYPES`, and `core/defaults.ts` `DEFAULT_TARGETS`, zod-free;
+  `types.ts` re-exports them.** A client component takes them from `@/lib/core/client`, never `@/lib/core`,
+  whose `types.ts` builds every zod schema at load. A module is as heavy as its heaviest import, and
+  `check:boundaries` rule 4 now fails a client component (or any `client.ts` entry) that reaches zod.
 - `src/components/icons.tsx` — SVG line icons (no emoji). `ThemeSwitch.tsx` — violet/sage toggle
   for the original layout; it returns `null` on `/sage`, which pins its own theme.
 - `src/app/globals.css` — **fourteen** colour tokens every utility reads from, the `.theme-sage`
@@ -327,13 +331,16 @@ nothing (measured: without it, 3–7 kB per route) — a module that must run on
 npm run test:engine     # THE gate. Scenarios + adversarial + invariants + fuzz. Never push red.
 npm run check:recipes   # every ingredient priced, every dish plausible, Atwater holds
 npm run check:ingredients # every recipe ingredient resolves to a curated slug + USDA food (D5)
-npm run check:boundaries # the module map enforced: layers, client payload, storage keys, cycles, emoji
-                         # (~1 s; ship.mjs runs it on any src/ change; `-- --self-test` proves it fails)
+npm run check:boundaries # the module map enforced: layers, entry points + old paths, storage keys, client
+                         # payload (modules AND zod), cycles, emoji, unresolved imports, import-time effects
+                         # (~1.5 s; ship.mjs runs it on any src/ change; `-- --self-test` proves it fails, 41 cases)
+npx tsc --noEmit -p tsconfig.scripts.json # types for src/ AND scripts/ (.mts) — ship.mjs runs it on every gated commit
 npm run check:data      # gates the training data
 npm run test:api        # HTTP route integration tests
 node scripts/test-account.mjs  # accounts: export file, sync, REST client, client.ts end to end vs a fake Supabase, and across tabs — no network
 node scripts/mutate-account.mjs [--only "text"]  # accounts: removes each guard in turn and proves a test goes red
 node scripts/test-account-sql.mjs [--mutate]  # accounts: the migrations + RLS plan in real Postgres (PGlite; installs once to the OS temp dir)
+node scripts/account-live/run.mjs [--keep]  # accounts: the LIVE run, real GoTrue + PostgREST + Postgres as user-level binaries in WSL (no Docker), driving the real client.ts (~80 s once cached)
 npm run export:recipes  # library -> NutriFlow-recipes.xls, incl. a coverage/gaps report
 npm run build:nutrients # regenerate the USDA table (needs --emit to write)
 ```

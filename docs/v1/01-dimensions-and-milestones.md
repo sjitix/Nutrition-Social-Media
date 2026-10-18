@@ -46,21 +46,21 @@ verified by reading the files listed — `state` is what the code does today, no
 
 | # | Dimension | Lives in | State today | What V1 still needs |
 |---|---|---|---|---|
-| 1 | **Plan engine — fresh** | `recipeDb.ts` (`selectWeekFromDb`, `rebalanceWeek`) | Done, hardened, fuzz-tested | Nothing. Don't touch except to split the file (Track A). |
+| 1 | **Plan engine — fresh** | `src/lib/plan/` (`selectWeekFromDb`, `rebalanceWeek`); `recipeDb.ts` is a 10-line barrel since A3 | Done, hardened, fuzz-tested, split into nine modules | Nothing |
 | 2 | **Plan engine — batch/meal-prep** | `recipeDb.ts` (`selectBatchWeek`, `rebalanceBatchWeek`, `buildWeek`), `batchGrocery.ts` | Done M1–M6 + tail | Per-batch locks (benign; slack item B5) |
 | 3 | **Recipe library** | `recipeDb.ts` (501 in `SEED_RECIPES`, counted) | 501 recipes built on 180 ingredients | **Owner wants it expanded "by a lot"** — gated on #23, see §8 |
-| 3b | **Ingredient data** | `nutrientTable.generated.ts` — **180 entries** (verified 2026-10-03; 182 was quoted before), each with a real `fdcId` | Keyed by **name**; recipes reference it as **free text**, no id | **Identity (D5)** — the schema decision that unblocks both expansion and #24 |
-| 4 | **Write surface / executor** | `recipeDb.ts` (`applyOperations`), `primitives.ts` (`applyPrimitives`) | Done, adversarially reviewed | Nothing behaviourally; it needs its own module (A3) |
+| 3b | **Ingredient data** | `nutrientTable.generated.ts` — **180 entries** (verified 2026-10-03; 182 was quoted before), each with a real `fdcId` | **Identity done (D5):** every ingredient has a permanent slug, and all 2,296 recipe references carry it as a typed field, so a misspelling fails `tsc` | Nothing for V1; growth per §8 (owner decision #6) |
+| 4 | **Write surface / executor** | `plan/execute.ts` (`applyOperations`), `assistant/primitives.ts` (`applyPrimitives`) | Done, adversarially reviewed, its own module since A3 | Nothing |
 | 5 | **Assistant — agent loop** | `agentLoop.ts`, `agentTools.ts`, `/api/assistant-v2`, `/sage/assistant` | Built + wired + on screen | A model behind it (Track C), and the quality bugs |
-| 6 | **Assistant — safety** | `symptoms.ts`, `reply.ts` (`replyOverride`), `recipeDb.ts:9238` | Guard fires **only** if the model routes to `symptom_check` | **Pre-scan of the raw message — a V1 blocker** (C2) |
+| 6 | **Assistant — safety** | `nutrition/safety.ts` (`redFlag`), `symptoms.ts`, `reply.ts` (`replyOverride`) | **Pre-scan done (C2, 2026-10-03):** the raw message is checked in both assistant routes before any model and before demo mode; 15/15 crisis phrasings caught | Owner decision #8 (five food lines caught by mistake; eating-disorder and hopelessness lines not caught), then the rest of D6 |
 | 7 | **Import — URL + video** | `import.ts`, `videoImport.ts`, `/api/import` | Done, SSRF-guarded | Nothing. Residual DNS-rebinding is documented, post-V1. |
 | 8 | **Explore / feed** | `feed.ts` (server) + `feedFilter.ts` (client-safe), `sage/explore/*` | Done, interactive, 495 cards; **payload fixed in A4** (212 → 114 kB first-load JS) | Load the modal's ingredients + steps lazily (the cards now ride in the HTML: 32 → 80 kB gz) |
 | 9 | **Groceries** | `grocery.ts`, `batchGrocery.ts`, `sage/groceries/*` | Done, fresh + batch | Nothing |
 | 10 | **Today** | `sage/today/*` | Real weekday, real clock | "Eaten" is **inferred from the clock** — needs a real log (B1) |
 | 11 | **Week board** | `sage/plan/WeekBoard.tsx`, `myPlan.ts` | Per-user, regenerate + assistant link | Nothing blocking |
 | 12 | **Onboarding / profile** | `onboarding/page.tsx` (388 lines), `targets.ts` | Done | First-run resilience pass (B3) |
-| 13 | **Persistence** | `storage.ts` (17 keys), `savedStore.ts` | localStorage only | Export/import escape hatch (B3); accounts behind the seam |
-| 14 | **Accounts** | *nothing* — `savedStore.ts` is the seam | Decided, not started, blocked on Supabase URL + anon key | Owner-gated. V1 ships without; see §5. |
+| 13 | **Persistence** | `storage.ts`, `savedStore.ts` (the accounts lane's files) | localStorage is still the working copy every screen reads. Every real save is stamped and, when signed in, mirrored to the account; a write fence stops a stale tab writing into another person's data. Download / upload / delete-from-this-browser work at `/sage/account` with no keys | Move both into `persistence/` (the v1 lane, agreed with the accounts lane) |
+| 14 | **Accounts** | `src/lib/account/**`, `src/app/sage/account/**`, `supabase/**` (the accounts lane, `docs/parallel/lane-accounts.md`) | **Built (A1–A6)**: email-link sign-in with PKCE, sync, delete-my-account, privacy note. Reviewed adversarially three times, and proven 20/20 against the real GoTrue, PostgREST and Postgres run locally (2026-10-18) | Only the owner's Supabase project (decision #3) |
 | 15 | **Design system / shell** | `sage/layout.tsx`, `SidePanel.tsx`, `globals.css` (14 tokens) | Done, approved | Mobile verification below 500px (D2) |
 | 16 | **The second app** | `plan/page.tsx` — **1,819 lines**, a full parallel app | Live at `/plan`, duplicates /sage's features | **Decide: retire, freeze, or keep** (B2) |
 | 17 | **Photography** | `recipes.ts` (`RECIPE_IMAGES`), `public/food/` | 5 of 501 photographed | `check:images` gate + a batch of dishes (B4) |
@@ -68,7 +68,7 @@ verified by reading the files listed — `state` is what the code does today, no
 | 19 | **Meal logging / streak** | `streak.ts`, `log_meal` in the executor | Engine-only; **nothing in the UI writes a log** | B1 — this is the missing feedback loop |
 | 20 | **Gates / observability** | `test:engine`, `check:recipes`, `check:data`, `test:api`, `eval:hardcases` | Strong (`test:engine` 660/0, `test:ui` 51/0, `test:api` 60/0 on 2026-10-03; `check:recipes` passes but nothing runs it automatically — A7) | `check:boundaries` (A1), `check:images` (B4), an eval **scorecard file** (C1) |
 | 21 | **Deployment** | Vercel + GitHub Pages | Both live | Release pass (D4) |
-| 22 | **Work record** | *nothing* | Sessions are reconstructed from `CONTEXT.md` | The daily history (D1 / doc 04) |
+| 22 | **Work record** | `docs/worklog/` (one file per day per lane) and the day-log board | Written every work-day since 2026-09-19 | Nothing |
 | 23 | **Library growth capacity** | the 180-entry ingredient table + `npm run build:nutrients` | Each new ingredient needs a **hand-curated FDC id**; auto-matching is banned | A curation helper (B7, D5) so the rate isn't an afternoon per ingredient |
 | 24 | **Real-world products** (Lidl and the like) | *nothing* | No product, price, pack-size or availability layer exists at all | **A decision, not a build — see §8** |
 
@@ -138,7 +138,7 @@ schedule slips by a day rather than pretending.
 | **D9** | **C3 — the assistant speaks first.** RULE 3: a standing check produces a suggestion ("Thursday is 40 g short — fix it?") accepted in one tap, on Week and Today. | — | The suggestion is engine-derived, one tap applies it, and it never appears when there is no shortfall | B1, C2 | `test:engine` + a11y check |
 | **D9a** | **C4 — the assistant's vocabulary grows.** *(Owner comment on primitives, 2026-09-19.)* Everything a button can do, the assistant can say: move a meal to another day, fix every short day at once, skip a meal, cap one meal's cook time, put a saved or imported recipe in a slot, "I already have rice". Each primitive is a thin mapping onto an engine operation; a missing operation is built and tested in the engine first, in its own commit. Announced to the models lane before landing — it changes the contract they evaluate. Gap table: `02-module-map.md` §4 L4. | — | Every Track E control has a chat equivalent, each with hard-case eval rows | C2, A6 | `test:engine` + `test:api` + eval rows added |
 | **D10** | **B4 — imagery.** Build `check:images` (spec is in `CONTEXT.md`: bad key, missing file, orphan, two recipes one file, oversize) and generate a batch of dishes against `designs/midjourney-dish-photography.md`. | **D2-a** — recapture `designs/screens/*.png` | The gate catches a deliberately broken mapping; N recipes are photographed and the count on Home is derived, not asserted | — | `check:images` |
-| **D11** | **B3 — your data is yours.** Profile/plan export + import (a file), so a device-local V1 is not a one-drive product. If the Supabase keys have arrived, this is instead **accounts behind `savedStore.ts`**. | — | You can move your plan to another device without an account | — | `test:api` |
+| **D11** | **DONE by the accounts lane (2026-10-03, proven against real servers 2026-10-18).** Download, upload (validated, previewed, undoable) and delete-from-this-browser work at `/sage/account` with no keys; accounts behind `storage.ts` are built and go live the day the owner creates the Supabase project (decision #3). Nothing is left for the v1 lane here. **B3 — your data is yours.** Profile/plan export + import (a file), so a device-local V1 is not a one-drive product. If the Supabase keys have arrived, this is instead **accounts behind `savedStore.ts`**. | — | You can move your plan to another device without an account | — | `test:api` |
 | **D12** | **D2 — the device pass.** Real-phone verification (sub-500px is *unverified* by the headless tool — see lesson 19), a11y sweep, perf budget re-measured cold vs warm, prod vs dev (lesson 29). | — | Every screen is usable on a real phone, with the measurements recorded | D4, B2 | Lighthouse + manual |
 | **D13** | **D4 — release.** Docs current (all four + STATUS honesty), OG/PWA/404 checked, gates green, tag `v1`. | — | A stranger can do the §1 walk-through | all | every gate |
 
@@ -152,11 +152,16 @@ schedule slips by a day rather than pretending.
 These are not work; they are answers only the owner can give. Each is listed with the day it starts
 blocking, so none of them silently becomes the reason V1 slipped.
 
+**Where the owner answers (since 2026-10-18):** every open decision below, plus the model keys, the
+chat log and the lane split, is written up in plain language with options and a recommendation in
+one commentable doc: https://claude.ai/code/artifact/a3290f96-fc25-43a6-932d-9982a46bb70f. Its numbering
+is its own (this table's #3 is the doc's 1). When the owner answers there, this table changes too.
+
 | # | Decision | Needed by | Default if unanswered |
 |---|---|---|---|
-| 1 | ~~Which model is behind the assistant in public~~ — **SETTLED 2026-09-19** (`63b6313`): `openai/gpt-oss-20b` on NVIDIA NIM, ~2.8 s, free, and the same model as the 84% baseline. See doc 03 §7 | — | *decided* |
+| 1 | **Which model is behind the assistant in public** — settled 2026-09-19 (`63b6313`) as `openai/gpt-oss-20b` on NVIDIA NIM (doc 03 §7), then **reopened by the owner's direction on 2026-10-03**: the biggest free model with a fast reply, no more 20–30B work (`docs/models/README.md`). What it waits on now is a key from the owner | **D6** (before any public live model) | Create the Vercel AI Gateway key and a Groq key so both can be measured (`docs/models/OWNER-TODO.md`) |
 | 2 | **One app or two** — is `/plan` retired, frozen, or kept? | **D8** | Freeze `/plan` (leave it reachable, stop maintaining it), ship `/sage` as the product |
-| 3 | **Accounts** — Supabase project URL + anon key | **D11** | Device-local V1 + export/import; accounts land the day the keys do |
+| 3 | **Accounts** — create the Supabase project and supply its Project URL + **publishable** key (`sb_publishable_…`; never the `service_role` or a secret key). Accounts are built and proven against real servers run locally; steps in `supabase/README.md` | **D11** | Device-local V1 + export/import (already working); accounts go live the day the project exists |
 | 4 | **Condition-aware generation** — ask or auto-apply | **D8** | ASK (what VISION says) |
 | 5 | **`public/week-designs.html`** — document or delete (undecided across three handoffs) | **D13** | Delete: it serves invented dish data from a product whose claim is that its numbers are real |
 | 6 | **Retailer products inside V1, or straight after it?** And what the library target number is (§8) | **D5** | Ingredient *identity* in V1; the Lidl-style product layer as the first thing after it. Library target 400 ingredients / 900 recipes |

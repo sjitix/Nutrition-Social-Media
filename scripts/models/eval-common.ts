@@ -11,7 +11,7 @@
  *    help.", and a hold check that only asked "did the plan stay put?" passed it, so a model that says
  *    nothing scored like one that answered well.
  */
-import type { ModelFn } from "@/lib/agentLoop";
+import type { AgentRunResult, ModelFn } from "@/lib/assistant";
 
 /** Network, timeout, rate limit, gateway or server errors: not the model's output. An EMPTY response is
  *  counted here too: the free NVIDIA tier returns empty 200s under load (latency-anatomy saw 3 in 16 calls),
@@ -38,3 +38,17 @@ export const hollowReply = (reply: string) => {
   const t = reply.trim();
   return t === "" || t === "Happy to help." || t.length < 12;
 };
+
+/**
+ * Why a turn that should HOLD (leave the plan alone) failed, or null. It must also have answered: an
+ * empty reply fails, and so does a reply the false-claim guard had to replace. A model that answered
+ * every question with "Done, I've swapped it" and no operations passed 8 of 10 loop holds (the hollow
+ * stub, 2026-10-18): the guard swapped its reply for a canned honest line (NOTHING_CHANGED_REPLY, or
+ * since 5c12c4c NOTED_NOTHING_CHANGED_REPLY), which reads like an answer. The guard's own flag is the
+ * test, so a third canned line can't reopen the hole. Read optionally: it exists only from 361b2e1.
+ */
+export const holdFailure = (r: Pick<AgentRunResult, "planChanged" | "reply"> & { falseClaimCaught?: boolean }) =>
+  r.planChanged ? "changed the plan when it should have held"
+  : r.falseClaimCaught ? "claimed a change it never made (the guard replaced its reply)"
+  : hollowReply(r.reply) ? `held, but said nothing ("${r.reply.trim()}")`
+  : null;

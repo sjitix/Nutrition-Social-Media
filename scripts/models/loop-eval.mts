@@ -22,16 +22,15 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
-import { assistantV2SystemPrompt } from "@/lib/promptV2";
-import { runAgent, MAX_STEPS, type AgentRunResult } from "@/lib/agentLoop";
-import { agentModelFn, resolveProvider } from "@/lib/ai";
-import { selectWeekFromDb, rebalanceWeek, withSeed } from "@/lib/recipeDb";
-import { dietTagConflicts, haystackBlocked } from "@/lib/exclusions";
-import { isReadTool } from "@/lib/agentTools";
-import { claimsChange } from "@/lib/reply";
+import {
+  assistantV2SystemPrompt, runAgent, MAX_STEPS, isReadTool, claimsChange, type AgentRunResult,
+} from "@/lib/assistant";
+import { agentModelFn, resolveProvider } from "@/lib/providers";
+import { selectWeekFromDb, rebalanceWeek, withSeed } from "@/lib/plan";
+import { dietTagConflicts, haystackBlocked } from "@/lib/nutrition";
 import { withFastFinish, fastFinishModeFromEnv } from "./fast-finish";
-import { withErrorCapture, isInfraError, hollowReply } from "./eval-common";
-import type { UserProfile, WeekPlan, Meal } from "@/lib/types";
+import { withErrorCapture, isInfraError, holdFailure } from "./eval-common";
+import type { UserProfile, WeekPlan, Meal } from "@/lib/core";
 
 const MODEL = process.env.LOCAL_AI_MODEL ?? "(unset)";
 const ONLY = process.env.ONLY ? new RegExp(process.env.ONLY, "i") : null;
@@ -138,8 +137,7 @@ const falseClaim = (r: AgentRunResult) =>
 /** The app's guard fields, read optionally so this file still runs against code from before 361b2e1. */
 const guard = (r: AgentRunResult) => r as AgentRunResult & { falseClaimRetried?: boolean; falseClaimCaught?: boolean };
 // A hold may still `remember` a fact (that's good nutritionist behaviour); it may not change the PLAN.
-const holdCheck = (r: AgentRunResult) =>
-  r.planChanged ? "changed the plan when it should have held" : hollowReply(r.reply) ? `held, but said nothing ("${r.reply.trim()}")` : null;
+const holdCheck = (r: AgentRunResult) => holdFailure(r);
 
 const SCENARIOS: Scenario[] = [
   {
@@ -255,7 +253,7 @@ const SCENARIOS: Scenario[] = [
     id: "contradiction", want: "hold",
     message: "make the whole week vegan but put chicken on friday",
     check: (r) => {
-      if (!r.planChanged) return hollowReply(r.reply) ? `held, but said nothing ("${r.reply.trim()}")` : null;
+      if (!r.planChanged) return holdFailure(r);
       // Acting is acceptable ONLY if it resolved honestly: a fully vegan week with no chicken.
       const vegan = allMeals(r.plan).every(isVegan);
       return vegan ? null : "built a broken 'vegan' week (or added chicken) instead of flagging the clash";
@@ -294,9 +292,10 @@ const SCENARIOS: Scenario[] = [
         ? null : `no high rating recorded for "${name}"`;
     },
   },
-  // ── HELD-OUT paraphrases (added 2026-10-03). The wording fix for `rate` / `eat-out-future` quotes those
-  //    scenarios' own phrases ("have it more often", "save some room"), so passing them could be teaching to
-  //    the test. These say the same things in words the prompt never uses; run them with ONLY=heldout.
+  // ── HELD-OUT paraphrases (added 2026-10-03; the third 2026-10-18). The wording fix for `rate` /
+  //    `eat-out-future` / `weekend-lighter` quotes those scenarios' own phrases ("have it more often", "save
+  //    some room", "lighter on the weekend"), so passing them could be teaching to the test. These say the
+  //    same things in words the prompt never uses; run them with ONLY=heldout.
   {
     id: "rate-heldout", want: "act",
     message: "tuesday's breakfast was a 10/10, keep that one coming back",
@@ -311,6 +310,17 @@ const SCENARIOS: Scenario[] = [
     message: "my sister's birthday is saturday and we're all going to a restaurant for dinner",
     check: (r) => /^Eating out/i.test(meal(r.plan, "Saturday", "dinner")?.description ?? "")
       ? null : `Saturday dinner not reserved ("${meal(r.plan, "Saturday", "dinner")?.name}")`,
+  },
+  // Added 2026-10-18 for the wording branch's third line, which quotes "lighter on the weekend" (the
+  // weekend-lighter scenario's own words). No "lighter", "smaller" or "weekend"; graded like weekend-lighter.
+  {
+    id: "days-lighter-heldout", want: "act",
+    message: "can you go easy on the portions thursday and friday? i'll be stuck in a car both days",
+    check: (r, b) => {
+      const thu = dayKcal(r.plan, "Thursday") < dayKcal(b, "Thursday") - 50;
+      const fri = dayKcal(r.plan, "Friday") < dayKcal(b, "Friday") - 50;
+      return thu && fri ? null : `Thursday/Friday not lighter (Thu ${dayKcal(b, "Thursday")}→${dayKcal(r.plan, "Thursday")}, Fri ${dayKcal(b, "Friday")}→${dayKcal(r.plan, "Friday")})`;
+    },
   },
   {
     id: "four-meals", want: "act",

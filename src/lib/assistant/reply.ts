@@ -101,6 +101,10 @@ export function claimsChange(text: string): boolean {
 export const NOTHING_CHANGED_REPLY =
   "I haven't changed anything yet. Tell me what you'd like changed and I'll do it, or ask me to show you the plan first.";
 
+/** The same, when the turn saved a memory: true about what was kept AND about the plan. */
+export const NOTED_NOTHING_CHANGED_REPLY =
+  "I've noted that, but I haven't changed your plan yet. Tell me what you'd like changed and I'll do it.";
+
 export function composeReply(args: {
   /** What the LLM wrote. Untrusted prose. */
   modelReply: string | undefined;
@@ -116,8 +120,14 @@ export function composeReply(args: {
    * passes as before — a caller that cannot tell must not silence a true statement.
    */
   profileChanged?: boolean;
+  /**
+   * A memory was saved this turn. It backs no claim (`profileChanged` above should not count it), but
+   * the line that replaces a caught claim must not then say "I haven't changed anything" — something
+   * was saved — so it says what was.
+   */
+  memorySaved?: boolean;
 }): string {
-  const { modelReply, notes, replyOverride, planChanged, profileChanged } = args;
+  const { modelReply, notes, replyOverride, planChanged, profileChanged, memorySaved } = args;
 
   // The engine's word is final. Not prepended to, not appended to — the whole reply. Keyed off
   // PRESENCE, not truthiness: an override is set only on a crisis or urgent symptom, where the model
@@ -142,7 +152,7 @@ export function composeReply(args: {
   if (base) {
     // The engine is silent and nothing changed, so this text is the model's alone. It may not say
     // something changed (the two-layer rule: only the engine may claim a change).
-    if (profileChanged === false && !planChanged && claimsChange(base)) return NOTHING_CHANGED_REPLY;
+    if (profileChanged === false && !planChanged && claimsChange(base)) return memorySaved ? NOTED_NOTHING_CHANGED_REPLY : NOTHING_CHANGED_REPLY;
     return base;
   }
   return planChanged ? "Done — I updated your plan." : "Happy to help.";
