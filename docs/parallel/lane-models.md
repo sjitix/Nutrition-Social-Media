@@ -24,9 +24,11 @@ Done today, key-free (`be98c57`):
 - **v1's `5c12c4c` re-checked model-free** (`probe-fixes.mts`): 1/4 against the code before the fix
   (both bugs reproduce), 4/4 after.
 
-Doing now: **`scripts/models/fair-arms.mjs`**, a one-command runner for the fair arms. It bundles once,
-runs one arm at a time, and reads the key from the main `.env.local` itself, so the key never reaches a
-command line.
+**Ready for the key: `scripts/models/fair-arms.mjs`**, one command for the fair arms. It bundles each
+eval once from one commit and refuses a dirty tree. It runs one arm at a time, round-robin across
+repeats, with a cool-down, and clears every inherited knob. It writes a manifest after each arm. It reads
+the key from the main `.env.local` itself (exit 3 without it), so the key never reaches a command line.
+Tested end to end against the stub: 10 runs, every arm exactly its definition, no key text in any output.
 
 Next once a key exists:
 1. The fair arms, ALL on one bundle: loop A, B, C, convo A, C. **Arm A is re-run.** The 10-03 one
