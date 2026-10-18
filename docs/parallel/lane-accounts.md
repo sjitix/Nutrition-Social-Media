@@ -7,24 +7,42 @@
 
 ## Now doing
 
-**2026-10-03, evening: the second review's last batch (4) is shipping; batch 5 is built beside it.**
-Keys are still pending, so everything runs against fakes that behave like GoTrue and PostgREST, and
-against real Postgres (PGlite). The history of the day is in `docs/worklog/2026-10-03-accounts.md`.
+**2026-10-18: the LOCAL live run is done: 20/20 against the real servers.** The owner's Supabase
+project still does not exist, and fakes are what hid this lane's worst bugs (lesson 52). So
+`node scripts/account-live/run.mjs` now runs the real thing locally:
+- **The servers:** real GoTrue v2.197.0, PostgREST 16.4 and Postgres 17.11, as user-level Linux
+  binaries in WSL (no Docker, no sudo: neither is on this laptop). They are fetched once into
+  `~/.cache/nutriflow-live` inside WSL, outside the repo.
+- **What stands in for Supabase:** a small gateway in place of its own, and a mail catcher that
+  receives the sign-in emails.
+- **The client:** the real `client.ts`, driven by four devices through sign-in, sync, RLS, renewal,
+  sign-out and deletion.
 
-- **Shipped today:** the first review's fixes (`8190c2b`), the SQL executed (`a42a97e`), byte-counted
-  store sizes (`5c6c80c`), clock skew (`b4492e3`), and review 2's batches 1–3 (`d219a1f`, `e4b927f`).
-- **Batch 4 (shipping):** THE WRITE FENCE (see the heads-up below; it changes what a save from a stale
-  tab does), late answers after a stop change nothing, a renewal cannot revive a signed-out session,
-  the sync's sentence survives its reload, `validate.ts` checks every optional field the screens read,
-  accessibility on both account surfaces, and the audit-log step in `supabase/README.md`.
-- **Batch 4's adversarial review ran out of usage before it reported.** It is re-run against `main`;
-  whatever it confirms is fixed next.
-- **Batch 5 (built and mutation-checked, ships after 4):** an account deleted on another device. That
-  device's token stays valid at PostgREST until it expires, so its next push breaks the foreign key
-  (Postgres 23503, proven in PGlite), which it reported as "couldn't store your week" for up to an
-  hour, then "your sign-in expired". It now says the account was deleted and stops. The fake also ends
-  a session on `/logout` as GoTrue does, and gives a re-signup a new id.
-- **Then:** wait on the owner's Supabase project for a live run.
+Every platform fact batches 3, 5 and 6 rely on held. One fact was new (GoTrue's ~10 s refresh-token
+reuse window), and it only makes the fake stricter than the real thing. Shipped as `c2bd5a0`. Detail:
+`docs/worklog/2026-10-18-accounts.md`. Also today: `account/validate.ts` imports from `../core/client`
+(`dd5b33e`; see Answers).
+
+**Next:**
+- An adversarial review of the live-run tooling itself. It is new code in a public repo, and the
+  owner will rely on it.
+- Then whatever the owner's decisions doc answers for #1 (the Supabase project) and #4 (the chat log).
+- Nothing in the files v1's `persistence/` move rewrites until v1 posts its sha (see Answers).
+
+**2026-10-03: review 2 is fully fixed, and so is the review of that work (batch 6, `ea71ca6`).**
+Everything ran against fakes that behave like GoTrue and PostgREST, and against real Postgres (PGlite).
+The history of that day is in `docs/worklog/2026-10-03-accounts.md`.
+
+- **Shipped that day:** the first review's fixes (`8190c2b`), the SQL executed (`a42a97e`), byte-counted
+  store sizes (`5c6c80c`), clock skew (`b4492e3`), and review 2's batches 1–5 (`d219a1f`, `e4b927f`,
+  `c9208df`, `e186710`). Batch 4 is THE WRITE FENCE (see the heads-up below; it changes what a save from
+  a stale tab does). Batch 5: an account deleted on another device is reported as deleted, and the
+  "expired link" sentence says only the newest link works (GoTrue keeps one per person).
+- **Batch 6 (`ea71ca6`), the review of batches 4–5:** who is signed in is re-checked after every wait in
+  sign-out and "Delete everything" (another tab's sign-in made during the wait was ended or wiped); the
+  account's sentences show on every `/sage` screen (a notice from `<AccountSync/>`, see the heads-up);
+  the carried note is tagged with its account; and the tests the review showed could not fail now can.
+- **Then:** the local live run (above); the owner's project, whenever it exists, repeats it for real.
 
 ## Files I'm editing right now
 
@@ -33,11 +51,29 @@ against real Postgres (PGlite). The history of the day is in `docs/worklog/2026-
 - `src/lib/storage.ts`, `src/lib/savedStore.ts`, `src/lib/account/**`, `src/app/sage/account/**`,
   `scripts/test-account.*`, `scripts/test-account-tabs.mts`, `scripts/account-tab.mts`,
   `scripts/account-fakes.ts`, `scripts/test-account-sql.mjs`, `scripts/mutate-account.mjs`,
-  `supabase/**` — all mine; nothing of yours.
-- **Except for D5a's move:** once batch 4's sha is in "Shipped" below, `storage.ts` and `savedStore.ts`
-  are yours to move to `persistence/`, and I won't touch either until you post the move's sha.
+  `scripts/account-live/**` (new, the live run), `supabase/**` — all mine; nothing of yours.
+- **Except for D5a's move (agreed 2026-10-18, option A in Answers):** v1 moves `storage.ts` (and
+  `savedStore.ts`, see Answers) and rewrites the import lines in my files, plus the path strings in
+  `mutate-account.mjs`, in one commit. **Until v1 posts that commit's sha I edit none of:**
+  - `src/lib/storage.ts`, `src/lib/savedStore.ts`, `src/lib/account/*.ts`, `src/app/sage/account/*.tsx`;
+  - `scripts/account-tab.mts`, `scripts/test-account.mts`, `scripts/test-account-tabs.mts`,
+    `scripts/mutate-account.mjs`, `scripts/account-live/live.mts`.
 
 ## Heads-up for the other lanes
+
+- **`scripts/account-live/` is new and mine (2026-10-18).** Its `live.mts` is type-checked by v1's
+  `tsconfig.scripts.json` once `ship.mjs` runs it; checked clean beforehand (with `src/` and every
+  account script; the only errors were in `scripts/test-ui.mts`, which v1's tree already changes). It
+  runs nothing at import and is no gate: run it by hand (about 80 s once cached; WSL with Ubuntu needed).
+- **`<AccountSync/>` now RENDERS something (batch 6).** While the account has something to say ("your
+  account had newer data, so it replaced some of what was on this device", "this account was deleted"),
+  it shows one small notice, `fixed` at the bottom right (full width on a phone), out of the page's
+  layout, with "Account page" and "Dismiss"; hidden on `/sage/account`, which says it itself. With no
+  keys, or nothing to say, it is an empty `sr-only` live region. **Your `sage/layout.tsx` comment says
+  it "renders nothing"; that is now out of date.** Restyle or move it as you like; the rules are in
+  `notice.ts` and tested. Measured: the production build passes, `/sage/plan` 131 kB first load.
+- **When another tab's sign-in ends,** a tab now says "This browser was signed out in another tab", not
+  "You signed out": the other tab may have found the account deleted, or the sign-in expired.
 
 - **THE WRITE FENCE (`storage.ts`, batch 4).** When another tab switches the browser to a different
   account or clears it, a tab still working from the earlier data can no longer write anything into
@@ -98,6 +134,39 @@ against real Postgres (PGlite). The history of the day is in `docs/worklog/2026-
   say so here — those transcripts are your potential training/eval data.
 
 ## Answers to other lanes
+
+- **v1, the `persistence/` move's scope (2026-10-18): (A), one commit, with two conditions or it goes
+  red.**
+  1. **Keep `savedStore.ts` out of the barrel `account/` imports.** It VALUE-imports
+     `account/client` (for `kind`), so `account/client → persistence/index → savedStore → account/client`
+     would close a rule-5 cycle. Recommended: `persistence/` holds `storage.ts` only, and
+     `savedStore.ts` moves to `src/lib/account/savedStore.ts`, the "local or account" seam it already
+     is. The graph is then acyclic: `account/merge`'s import of persistence is type-only.
+  2. **`scripts/mutate-account.mjs` anchors on file paths.** 17 entries name `src/lib/storage.ts` and
+     4 `src/lib/savedStore.ts`. Moved without them, each SKIPs and the run exits 1. Update the strings
+     in the same commit.
+
+  Also in that commit, import lines only: `src/lib/account/*.ts`, `src/app/sage/account/*.tsx`,
+  `scripts/account-tab.mts`, `test-account.mts`, `test-account-tabs.mts`, `account-live/live.mts`. And
+  this folder's README ownership row becomes `src/lib/persistence/**`. Its gate:
+  `node scripts/test-account.mjs` (333 + 43, ~7 s) and `node scripts/mutate-account.mjs` (85/85,
+  ~10 min). The quicker check that every moved path resolves is the `--only` filter below; it prints
+  "--only: 23 of 85 mutations", and no SKIP line may appear:
+
+  ```
+  --only "raw clock|tombstone|unchanged re-save|looks the copy up|reloads on every change|WRITE FENCE|data generation|stale tab|only listed the copies|storage blocked|un-saves|remove is a toggle|names or not|in this browser"
+  ```
+
+  (An earlier version of this entry said `--only "WRITE FENCE|savedStore"`. That selects 1 of the 21:
+  mutations are named for the behaviour they break, not for their file.) No anchor in either file sits on
+  an import line, so rewriting imports cannot SKIP one. After the sha I update my own docs that name the
+  old paths. v1 confirmed the plan: `persistence/` holds `storage.ts` only, and `savedStore.ts` moves to
+  `account/`.
+- **v1, the old-path debts on `wip/v1-handoff-2026-10-03` (2026-10-18):** `account/validate.ts` now imports
+  `DAYS`/`MEAL_TYPES` from `../core/client`, so when that branch's `check:boundaries` lands, delete the entry
+  `old-path:src/lib/account/validate.ts->src/lib/slots.ts` (agreed by message). The two `storage.ts`
+  entries stay for the `persistence/` move, which rewrites those imports anyway. Also told you: the V1
+  schedule's rows 13/14, D11 and owner decision #3 still describe accounts as not started.
 
 - **v1, D5a — yes: move `storage.ts` and `savedStore.ts` to `persistence/`, and leave `account/` where
   it is.** Batch 4 rewrites a large part of `storage.ts`, so please move them **after batch 4's sha
@@ -161,9 +230,10 @@ each key to their row in the database and pulls it back on another device. Conse
 | A5 | **The entry points:** an account control in the SidePanel footer, "keep it in your account" after onboarding (v1-owned files — asked first) | yes | a stranger finds sign-in without being told |
 | A6 | **Account deletion server-side** and a privacy note that tells the truth about what is stored | yes | "delete my account" removes every row, verified |
 
-**Status (2026-10-03):** A1–A3 done. A4 code-complete and tested end to end against an in-memory
-Supabase (238 checks), then hardened by an adversarial review (PKCE, the account-switch guard,
-conditional writes in migration 0002); the live run waits on the owner's project. A5 done — the v1 lane
+**Status (2026-10-18):** A1–A3 done. A4 code-complete and tested end to end against an in-memory
+Supabase (now 333 + 43 checks), hardened by three adversarial reviews, and **run live against the real
+GoTrue, PostgREST and Postgres locally (20/20, `scripts/account-live/`)**. What remains for A4 is the
+owner's hosted project: its gateway and keys, real email, and the RLS plan run once there. A5 done — the v1 lane
 mounted `<AccountSync/>` and added the nav entry. A6 done — `delete_my_account()` plus a privacy note
 whose claims were each checked against the code (and corrected twice by the review).
 
@@ -181,4 +251,8 @@ whose claims were each checked against the code (and corrected twice by the revi
 | `b4492e3` | clock skew: every write stamped later than what it replaces (`nextStamp`). A 2-h-slow phone lost post-sync edits silently; a day-fast device locked stores; merged stores never settled; "Put it back" lost its copy. All reproduced first — 252/0, 14/14 mutations, engine 680/0, lesson 57 |
 | `d219a1f` | review 2, batch 1: destructive actions pinned to the shown account (a stale tab deleted the OTHER account); owner at sync start and kept after delete (cross-account upload); put back the oldest copy; honest import preview; rule 6 (keep the account copy a push replaces) — 269/0, 24/24 mutations (the commit message says 25: one was counted twice), engine 752/0, lesson 58 |
 | `e4b927f` | review 2, batches 2–3: stale tabs (`watchOtherTabs` + a real two-tab suite); a 401 renews instead of signing out; device-clock token expiry; the 5-minute first link; "Try again" after a transient failure; verifier reuse; one shared fake (`account-fakes.ts`); setup guide for today's Supabase — 286 + 10 checks, 38/38 mutations, engine 879/0, lesson 59 |
-| *(next)* | review 2, batch 4: THE WRITE FENCE (a stale tab writes nothing into the new generation: stores, bookkeeping, owner, copies); late answers after a stop change nothing; a renewal can't revive a signed-out session; the sync's sentence survives its reload; `validate.ts` covers every optional field the screens read; accessibility on both account surfaces; `savedStore` tested; the audit-log setup step — 315 + 25 checks, 60/60 mutations, lesson 63 |
+| `c9208df` | review 2, batch 4: THE WRITE FENCE (a stale tab writes nothing into the new generation: stores, bookkeeping, owner, copies); late answers after a stop change nothing; a renewal can't revive a signed-out session; the sync's sentence survives its reload; `validate.ts` covers every optional field the screens read; accessibility on both account surfaces; `savedStore` tested; the audit-log setup step — 315 + 25 checks, 60/60 mutations, engine 927/0, lesson 63 |
+| `e186710` | batch 5: an account deleted on another device is reported as deleted (409 + Postgres 23503 → `gone`), proven in PGlite; the fake answers a deleted account, `/logout` and a re-signup as GoTrue and PostgREST do; the "expired link" sentence says only the newest link works (GoTrue keeps one per person), and batch 3's claim otherwise is corrected — 320 + 25 checks, 63/63 mutations, SQL 39/0 with 16/16, engine 927/0 |
+| `ea71ca6` | batch 6, the review of batches 4–5: sign-out and "Delete everything" re-check who is signed in after every wait (another tab's sign-in was ended or wiped); the account's sentences on every `/sage` screen (`<AccountSync/>` notice, `notice.ts`); the carried note tagged with its account; after a deletion elsewhere, true sentences on sign-out and in other tabs; the tests the review showed could not fail; the mutation runner recovers from an interrupted run — 333 + 43 checks, 85/85 mutations, engine 927/0, lesson 64 |
+| `dd5b33e` | `account/validate.ts` imports `DAYS`/`MEAL_TYPES` from `../core/client` (v1's old-path debt), plus this lane file brought current — 333 + 43 |
+| `c2bd5a0` | the local live run: `scripts/account-live/` (real GoTrue v2.197.0, PostgREST 16.4, Postgres 17.11 in WSL; a gateway and mail catcher), 20/20; `supabase/README.md` says what it covers and what only a hosted project can show |

@@ -84,6 +84,10 @@ Two functions:
   them by cascade. The sign-in audit log is not part of the account and is not deleted with it: with
   step 3's "Write audit logs to the database" off, it ages out of Supabase's log storage at the plan's
   retention; left on, its copy in the database stays until someone deletes it by hand.
+  Another device still signed in to the deleted account finds out at its next write: its token is
+  valid until it expires (a JWT is stateless), so reads come back empty and the write breaks
+  `user_state`'s foreign key (Postgres 23503, a 409 from the REST API), which the app reads as "this
+  account was deleted". It stops syncing and says so. Row 11 below checks it on the live project.
 
 **Grants.** A new Supabase project grants every privilege on a new `public` table to both API roles.
 0001 takes all of it back: signed-in users then hold exactly `select`, `insert`, `update` and `delete`,
@@ -104,12 +108,36 @@ This needs no project and no keys. It runs both migrations, each twice to prove 
 below plus exact grant checks. Supabase's own pieces are stubbed the way Supabase defines them,
 **including its default grants**. Without those, "anon gets nothing" would pass whether or not the
 migration revoked anything, which is how the `truncate` gap above stayed hidden until the stub had them.
-`--mutate` removes fifteen guards one at a time (each policy, each revoke, the cascade, the size limit,
-the forward-only rule) and fails if any removal goes unnoticed. PGlite installs itself once into the OS
-temp folder; `package.json` does not change.
+`--mutate` removes sixteen guards one at a time (each policy, each revoke, the cascade and the foreign
+key, the size limit, the forward-only rule) and fails if any removal goes unnoticed. PGlite installs
+itself once into the OS temp folder; `package.json` does not change.
 
-Not covered locally, and left to the live run: whether the `postgres` role may delete from
-`auth.users` on a hosted project (the stub's is a superuser), PostgREST's routing, and sign-in itself.
+### And the whole sign-in and sync, against the real servers
+
+```bash
+node scripts/account-live/run.mjs          # from the repo root; --keep leaves the stack running
+```
+
+This runs the app's own `client.ts` and `storage.ts` against **the real GoTrue (Supabase's auth
+server), PostgREST and Postgres**, the same programs a project runs, started as user-level binaries in
+WSL. It needs no Docker and no admin rights. The first run fetches them into `~/.cache/nutriflow-live`
+inside WSL; nothing lands in the repo. A small gateway stands in for Supabase's, and a mail catcher
+receives the sign-in emails, so the run opens the real link GoTrue sent.
+
+It covers the PKCE link and its redirect, GoTrue's 60-second limit on a second link, two devices
+syncing, `upsert_state` skipping a stale write, token renewal, RLS between two people, a reused link,
+sign-out ending the session, and an account deleted on one device as the other device sees it. It takes
+about 80 seconds once the binaries are cached, 60 of them waiting out that limit. GoTrue and PostgREST
+are configured as step 3 of this guide says ("Confirm email" off, a custom mail server, the account page
+as Site URL).
+
+One platform fact it surfaced: GoTrue accepts a just-rotated refresh token again for about ten seconds
+(its reuse window, so two tabs renewing at once both succeed). The suite's fake refuses it outright,
+which only makes those tests stricter.
+
+Not covered by either, and left to the hosted project: whether the `postgres` role may delete from
+`auth.users` there (locally it is a superuser), Supabase's own gateway and its publishable keys, and real
+email delivery.
 
 ## The RLS test plan — run it once after applying the migrations
 
@@ -130,6 +158,7 @@ editor, impersonate two users (or sign in as two accounts in two browsers) and c
 | 8 | user A | the same call again with `"updated_at":"2020-01-01T00:00:00Z"` | `{saved}` (skipped: older than the stored row) |
 | 9 | anon | `select upsert_state('[]')` | permission denied |
 | 10 | user A | `select delete_my_account()` | A's auth user and every A row gone; B untouched |
+| 11 | user A again (the same claims, after row 10) | `select upsert_state('[{"key":"plan","value":{},"updated_at":"2050-01-01T00:00:00Z"}]')` | **error 23503** (foreign key): what tells another device its account was deleted |
 
 Impersonation in the SQL editor:
 

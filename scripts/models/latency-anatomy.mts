@@ -26,9 +26,9 @@
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { assistantV2SystemPrompt } from "@/lib/promptV2";
-import { selectWeekFromDb, rebalanceWeek, withSeed } from "@/lib/recipeDb";
-import type { UserProfile, WeekPlan } from "@/lib/types";
+import { assistantV2SystemPrompt } from "@/lib/assistant";
+import { selectWeekFromDb, rebalanceWeek, withSeed } from "@/lib/plan";
+import type { UserProfile, WeekPlan } from "@/lib/core";
 
 const BASE = (process.env.LOCAL_AI_URL ?? "").replace(/\/$/, "");
 const MODEL = process.env.LOCAL_AI_MODEL ?? "";

@@ -17,8 +17,7 @@
  * be cut short. `blockedByEmptyReply` counts how often that rule withheld a skip, which is what decides
  * whether the extra rule costs anything.
  */
-import type { ModelFn, TranscriptEntry } from "@/lib/agentLoop";
-import { isReadTool } from "@/lib/agentTools";
+import { isReadTool, type ModelFn, type TranscriptEntry } from "@/lib/assistant";
 
 export type FastFinishMode = "off" | "plain" | "reply";
 

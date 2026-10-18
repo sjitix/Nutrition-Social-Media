@@ -31,16 +31,15 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
-import { assistantV2SystemPrompt } from "@/lib/promptV2";
-import { runAgent, type AgentRunResult, type TranscriptEntry } from "@/lib/agentLoop";
-import { agentModelFn, resolveProvider } from "@/lib/ai";
-import { selectWeekFromDb, rebalanceWeek, withSeed } from "@/lib/recipeDb";
-import { dietTagConflicts, haystackBlocked } from "@/lib/exclusions";
-import { isReadTool } from "@/lib/agentTools";
-import { claimsChange } from "@/lib/reply";
+import {
+  assistantV2SystemPrompt, runAgent, isReadTool, claimsChange, type AgentRunResult, type TranscriptEntry,
+} from "@/lib/assistant";
+import { agentModelFn, resolveProvider } from "@/lib/providers";
+import { selectWeekFromDb, rebalanceWeek, withSeed } from "@/lib/plan";
+import { dietTagConflicts, haystackBlocked } from "@/lib/nutrition";
 import { withFastFinish, fastFinishModeFromEnv } from "./fast-finish";
-import { withErrorCapture, isInfraError, hollowReply } from "./eval-common";
-import type { UserProfile, WeekPlan, Meal, PlanSnapshot } from "@/lib/types";
+import { withErrorCapture, isInfraError, holdFailure } from "./eval-common";
+import type { UserProfile, WeekPlan, Meal, PlanSnapshot } from "@/lib/core";
 
 const MODEL = process.env.LOCAL_AI_MODEL ?? "(unset)";
 const ONLY = process.env.ONLY ? new RegExp(process.env.ONLY, "i") : null;
@@ -77,8 +76,7 @@ const kcal = (ms: Meal[]) => ms.reduce((s, m) => s + m.calories, 0);
 const dayKcal = (p: WeekPlan, d: string) => kcal(day(p, d)?.meals ?? []);
 const slot = (p: WeekPlan, t: string) => p.days.map((d) => d.meals.find((m) => m.type === t)).filter((m): m is Meal => !!m);
 const nonVegOn = (p: WeekPlan, d: string) => (day(p, d)?.meals ?? []).filter((m) => !isVeg(m)).map((m) => m.name);
-const holding = (r: AgentRunResult) =>
-  r.planChanged ? "changed the plan when it should have held" : hollowReply(r.reply) ? `held, but said nothing ("${r.reply.trim()}")` : null;
+const holding = (r: AgentRunResult) => holdFailure(r);
 const opsOf = (r: AgentRunResult) =>
   r.transcript.flatMap((e) => (e.role === "assistant" ? e.turn.operations.map((o) => String((o as { op?: string }).op)) : []));
 /** The fact is somewhere in the profile — memory, allergies or dislikes (whichever the engine wrote). */
@@ -161,6 +159,10 @@ const CONVOS: Convo[] = [
         } },
       { user: "actually no, undo that, i miss meat", want: "act",
         check: (r, c) => {
+          // A do-nothing model passed this turn (the stub, 2026-10-18): when turn 1 changed nothing, the
+          // week is already "back to the original". An undo is graded only when there was something to undo.
+          const changed = c.start.days.some((d) => d.meals.some((m) => meal(c.before, d.day, m.type)?.name !== m.name));
+          if (!changed) return "nothing to undo: turn 1 left the week as it started";
           const off = c.start.days.flatMap((d) => d.meals.filter((m) => meal(r.plan, d.day, m.type)?.name !== m.name));
           return off.length ? `${off.length} slot(s) not back to the original week` : null;
         } },

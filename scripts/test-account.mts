@@ -57,6 +57,8 @@ import {
   accountStatus, currentSession, retrySignIn, canRetrySignIn,
 } from "@/lib/account/client";
 import { localSavedStore, savedStore } from "@/lib/savedStore";
+import { NO_NOTICE, nextNotice, noticeText } from "@/app/sage/account/notice";
+import type { AccountStatus } from "@/lib/account/client";
 import type { StoreName } from "@/lib/storage";
 import type { UserProfile, WeekPlan } from "@/lib/types";
 
@@ -305,7 +307,7 @@ async function mayThrow<T>(p: Promise<T>): Promise<T | null> {
     check("import: a store the file does NOT carry is left alone", storage.loadBatchPlan()?.weekSummary === "week KEEP-ME");
   }
   check("describe: counts read off the data", json(describeData(bundle.data)) ===
-    json(["Ana's profile (2000 kcal a day)", "a week plan (7 days)", "1 saved recipe", "1 day of visit history"]),
+    json(["Sam's profile (2000 kcal a day)", "a week plan (7 days)", "1 saved recipe", "1 day of visit history"]),
     json(describeData(bundle.data)));
 }
 
@@ -363,8 +365,16 @@ async function mayThrow<T>(p: Promise<T>): Promise<T | null> {
   check("validate: a meal whose description is not text is refused (Today renders it as text)", bad("plan", oddMeal));
   check("validate: a week whose notes are not a list of sentences is refused", bad("batchPlan", { ...week("N"), notes: "cook sunday" }));
   check("validate: a meal-prep schedule in the wrong shape is refused", bad("batchPlan", { ...week("S"), sessions: [{ id: 1 }] }));
+  // The review of batches 4-5 found these four untested: each check could be removed, suites still green.
+  const withMeal = (extra: object) => ({ ...week("M"), days: [{ day: "Monday", meals: [{ ...week("M").days[0].meals[0], ...extra }] }] });
+  check("validate: a meal whose recipe link is not http(s) is refused (/plan renders it as a link)",
+    bad("plan", withMeal({ sourceUrl: "javascript:alert(1)" })));
+  check("validate: a week with a planning mode this app doesn't know is refused", bad("plan", { ...week("PM"), planMode: "monthly" }));
+  check("validate: a profile with meal-prep settings this app doesn't know is refused",
+    bad("profile", { ...PROFILE, planMode: "monthly" }) && bad("profile", { ...PROFILE, batchCadence: "hourly" }));
+  check("validate: a profile whose targets are not numbers is refused", bad("profile", { ...PROFILE, carbsGrams: "lots" }));
   const fullProfile = {
-    ...PROFILE, name: "Ana", planMode: "batch", batchCadence: "weekly", fiberGrams: 30,
+    ...PROFILE, name: "Sam", planMode: "batch", batchCadence: "weekly", fiberGrams: 30,
     lockedMeals: [{ day: "Sunday", mealType: "dinner", name: "Roast chicken" }],
     mealRatings: [{ name: "Tofu stir-fry", rating: 1 }],
     memory: [{ fact: "IBS, avoids onions", kind: "condition", since: "2026-10-01" }],
@@ -383,6 +393,34 @@ async function mayThrow<T>(p: Promise<T>): Promise<T | null> {
   check("validate: a real meal-prep week still passes", checkStore("batchPlan", prep) === null, String(checkStore("batchPlan", prep)));
   check("validate: a real week and a real import pass",
     checkStore("plan", week("OK")) === null && checkStore("imports", [{ name: "R", sourceUrl: "https://e.com/r", ingredients: [], steps: [] }]) === null);
+}
+
+// =================================================================================================
+// notice.ts — what the account says on every /sage screen (the review of batches 4-5)
+// =================================================================================================
+{
+  const inState = (state: AccountStatus["state"], message?: string): AccountStatus => ({ state, email: "a@e.com", userId: "uid-a", message });
+  const out = (message?: string): AccountStatus => ({ state: "signed-out", message });
+  const replaced = "Your account had newer data, so it replaced some of what was on this device.";
+  let n = nextNotice(NO_NOTICE, inState("saved", replaced));
+  n = nextNotice(n, inState("pending"));
+  n = nextNotice(n, inState("saved"));
+  check("notice: a one-off note outlives the routine 'pending' and 'saved' that follow it", noticeText(n, inState("saved")) === replaced);
+  const dismissed = { ...n, dismissed: replaced };
+  check("notice: …until it is dismissed", noticeText(dismissed, inState("saved")) === null);
+  check("notice: a NEW note shows even if an earlier one with the same words was dismissed",
+    noticeText(nextNotice(dismissed, inState("saved", replaced)), inState("saved")) === replaced);
+  check("notice: a note said while signed in is dropped once the person signs out", noticeText(nextNotice(n, out()), out()) === null);
+  const offline = inState("offline", "Couldn't reach your account.");
+  const whileOffline = nextNotice(NO_NOTICE, offline);
+  check("notice: a condition (offline) shows while it lasts", noticeText(whileOffline, offline) === "Couldn't reach your account.");
+  check("notice: …and goes by itself when it is over: it is not kept like a one-off note",
+    noticeText(nextNotice(whileOffline, inState("saved")), inState("saved")) === null);
+  check("notice: a condition wins over a kept note: it is what is true now", noticeText(n, offline) === "Couldn't reach your account.");
+  check("notice: a dismissed condition stays dismissed while it repeats itself",
+    noticeText(nextNotice({ ...whileOffline, dismissed: "Couldn't reach your account." }, offline), offline) === null);
+  const why = "This account was deleted, perhaps on another device.";
+  check("notice: a sign-out's reason is kept while signed out", noticeText(nextNotice(NO_NOTICE, out(why)), out()) === why);
 }
 
 // =================================================================================================
@@ -830,13 +868,13 @@ await (async () => {
 
   // magic link
   const ml = fakeFetch(() => ({ body: {} }));
-  await requestMagicLink(cfg, "  ana@example.com ", "https://ntrux.vercel.app/sage/account", pair.challenge, ml.f);
+  await requestMagicLink(cfg, "  sam@example.com ", "https://ntrux.vercel.app/sage/account", pair.challenge, ml.f);
   const c0 = ml.calls[0];
   check("magic link: POSTs to /auth/v1/otp with the redirect", c0.method === "POST" &&
     c0.url === "https://proj.supabase.co/auth/v1/otp?redirect_to=https%3A%2F%2Fntrux.vercel.app%2Fsage%2Faccount");
   check("magic link: sends the anon key, the trimmed email and the PKCE challenge",
     c0.headers.apikey === "ANON" &&
-    json(c0.body) === json({ email: "ana@example.com", create_user: true, code_challenge: pair.challenge, code_challenge_method: "s256" }));
+    json(c0.body) === json({ email: "sam@example.com", create_user: true, code_challenge: pair.challenge, code_challenge_method: "s256" }));
   let msg = "";
   try { await requestMagicLink(cfg, "not-an-email", "x", pair.challenge, ml.f); } catch (e) { msg = (e as Error).message; }
   check("magic link: a non-address is refused before any request", msg.includes("email address") && ml.calls.length === 1);
@@ -857,25 +895,27 @@ await (async () => {
     spoof.kind === "error" && !spoof.message.includes("suspended") && !spoof.message.includes("evil"));
   const expired = readRedirect("?error=access_denied&error_code=otp_expired&error_description=x", "");
   check("redirect: a known error code picks the matching fixed sentence", expired.kind === "error" && expired.message.includes("expired"));
+  check("redirect: …and an expired link says only the newest link works (GoTrue retires the earlier one), not just 'ask again'",
+    expired.kind === "error" && expired.message.includes("only the newest link"), expired.kind === "error" ? expired.message : "");
   check("redirect: errors mirrored into the fragment are read too", readRedirect("", "#error=access_denied&error_code=otp_expired").kind === "error");
   check("redirect: an ordinary URL is nothing", readRedirect("?tab=2", "#section").kind === "none");
   check("hasAuthParams: spots code, error and token params, ignores the rest",
     hasAuthParams("?code=x", "") && hasAuthParams("", "#access_token=x") && hasAuthParams("?error=y", "") && !hasAuthParams("?tab=2", "#top"));
 
   // exchanging the code
-  const token = fakeJwt({ sub: "user-1", email: "ana@example.com" });
+  const token = fakeJwt({ sub: "user-1", email: "sam@example.com" });
   const ex = fakeFetch((c) => (c.url.endsWith("/auth/v1/token?grant_type=pkce")
-    ? { body: { access_token: token, refresh_token: "R1", expires_in: 3600, user: { id: "user-1", email: "ana@example.com" } } }
+    ? { body: { access_token: token, refresh_token: "R1", expires_in: 3600, user: { id: "user-1", email: "sam@example.com" } } }
     : { status: 404 }));
   const s = await exchangeCode(cfg, "CODE123", pair.verifier, ex.f, 1000);
   check("exchange: POSTs the code and the verifier to grant_type=pkce", json(ex.calls[0].body) === json({ auth_code: "CODE123", code_verifier: pair.verifier }));
-  check("exchange: returns the session", s.userId === "user-1" && s.email === "ana@example.com" && s.refreshToken === "R1" && s.expiresAt === 4600);
+  check("exchange: returns the session", s.userId === "user-1" && s.email === "sam@example.com" && s.refreshToken === "R1" && s.expiresAt === 4600);
   const wrong = fakeFetch(() => ({ status: 400, body: { error_code: "bad_code_verifier" } }));
   try { await exchangeCode(cfg, "CODE123", "nope", wrong.f); msg = ""; } catch (e) { msg = (e as Error).message; }
   check("exchange: a code from another browser (wrong verifier) is refused in plain words", msg.includes("different browser"));
 
   // Review 2, the platform lens (against GoTrue's own source).
-  const skewed = fakeFetch(() => ({ body: { access_token: token, refresh_token: "R1", expires_in: 3600, expires_at: 999_999, user: { id: "user-1", email: "ana@example.com" } } }));
+  const skewed = fakeFetch(() => ({ body: { access_token: token, refresh_token: "R1", expires_in: 3600, expires_at: 999_999, user: { id: "user-1", email: "sam@example.com" } } }));
   const sk = await exchangeCode(cfg, "CODE123", pair.verifier, skewed.f, 1000);
   check("exchange: expiry is measured on THIS device's clock (now + lifetime), not on the server's expires_at",
     sk.expiresAt === 4600, String(sk.expiresAt));
@@ -904,8 +944,8 @@ await (async () => {
   }
 
   // refresh
-  const t2 = fakeJwt({ sub: "user-1", email: "ana@example.com" });
-  const rf = fakeFetch(() => ({ body: { access_token: t2, refresh_token: "R2", expires_in: 3600, user: { id: "user-1", email: "ana@example.com" } } }));
+  const t2 = fakeJwt({ sub: "user-1", email: "sam@example.com" });
+  const rf = fakeFetch(() => ({ body: { access_token: t2, refresh_token: "R2", expires_in: 3600, user: { id: "user-1", email: "sam@example.com" } } }));
   const kept = await freshSession(cfg, s, rf.f, 1000);
   check("refresh: a token with time left is reused, no request", kept === s && rf.calls.length === 0);
   const renewed = await freshSession(cfg, s, rf.f, 4590);
@@ -1080,24 +1120,24 @@ await (async () => {
   try { await completeSignInFromUrl(); } catch (e) { spoofed = (e as Error).message; }
   check("spoofing: an error in the URL is shown in OUR words only", spoofed.length > 0 && !spoofed.includes("suspended") && fakeWindow.location.search === "");
 
-  // ---- Ana signs in on a laptop that already has her pre-account week ----
+  // ---- Sam signs in on a laptop that already has her pre-account week ----
   const laptop = new MemoryStorage();
   fakeWindow.localStorage = laptop;
   storage.saveProfile(PROFILE);
-  storage.savePlan(week("ANA-LAPTOP"));
-  const ana = await signIn("ana@example.com");
-  check("sign-in: a link this browser asked for completes", ana?.userId === "uid-ana" && currentSession()?.userId === "uid-ana");
+  storage.savePlan(week("SAM-LAPTOP"));
+  const sam = await signIn("sam@example.com");
+  check("sign-in: a link this browser asked for completes", sam?.userId === "uid-sam" && currentSession()?.userId === "uid-sam");
   check("sign-in: the code is cleared from the address bar, and the verifier is used up",
     fakeWindow.location.search === "" && storage.loadPendingSignIn() === null);
   const p1 = startSync();
   check("client: a second startSync JOINS the first (one mirror per tab)", startSync() === p1);
   const r1 = await p1;
   check("first sign-in: the device's own week goes UP into the new account",
-    !!r1 && r1.pushed.includes("plan") && summary(sb.table("uid-ana").get("plan")?.value) === "week ANA-LAPTOP");
-  check("first sign-in: the browser now remembers it belongs to Ana", storage.loadSyncOwner() === "uid-ana");
-  check("first sign-in: status 'saved'", accountStatus().state === "saved" && accountStatus().email === "ana@example.com");
+    !!r1 && r1.pushed.includes("plan") && summary(sb.table("uid-sam").get("plan")?.value) === "week SAM-LAPTOP");
+  check("first sign-in: the browser now remembers it belongs to Sam", storage.loadSyncOwner() === "uid-sam");
+  check("first sign-in: status 'saved'", accountStatus().state === "saved" && accountStatus().email === "sam@example.com");
   check("jsonb: the account really does hold the profile with its keys re-ordered",
-    Object.keys(sb.table("uid-ana").get("profile")!.value as object).join() !== Object.keys(PROFILE).join());
+    Object.keys(sb.table("uid-sam").get("profile")!.value as object).join() !== Object.keys(PROFILE).join());
 
   const backupsBefore = storage.loadBackups().length;
   const quiet: string[][] = [];
@@ -1110,19 +1150,19 @@ await (async () => {
   check("jsonb: …and takes no backup, so real backups are never pushed out", storage.loadBackups().length === backupsBefore);
 
   // ---- an edit is mirrored; an unchanged re-save is not ----
-  storage.savePlan(week("ANA-EDIT"));
+  storage.savePlan(week("SAM-EDIT"));
   check("mirror: an edit is queued", accountStatus().state === "pending");
   await leaveAndReturn();
-  check("mirror: leaving the tab sends the edit", summary(sb.table("uid-ana").get("plan")?.value) === "week ANA-EDIT");
+  check("mirror: leaving the tab sends the edit", summary(sb.table("uid-sam").get("plan")?.value) === "week SAM-EDIT");
   const writesBefore = sb.writes;
-  storage.savePlan(JSON.parse(JSON.stringify(week("ANA-EDIT"))));
+  storage.savePlan(JSON.parse(JSON.stringify(week("SAM-EDIT"))));
   await leaveAndReturn();
   check("mirror: re-saving the same week sends nothing", sb.writes === writesBefore);
 
   // ---- another device changed the account; coming back to this tab picks it up ----
   const pulledReports: string[][] = [];
   const offPulled = onPulled((r) => pulledReports.push(r.pulled));
-  sb.table("uid-ana").set("saved", { value: ["Shakshuka"], updated_at: new Date(Date.now() + 5_000).toISOString() });
+  sb.table("uid-sam").set("saved", { value: ["Shakshuka"], updated_at: new Date(Date.now() + 5_000).toISOString() });
   advanceClock(31_000);
   fakeDocument.dispatch("visibilitychange");
   await settle();
@@ -1131,12 +1171,12 @@ await (async () => {
   offPulled();
 
   // ---- a stale local edit loses to a newer one on the account, and is kept as a copy ----
-  sb.table("uid-ana").set("plan", { value: week("PHONE-NEWER"), updated_at: new Date(Date.now() + 60_000).toISOString() });
+  sb.table("uid-sam").set("plan", { value: week("PHONE-NEWER"), updated_at: new Date(Date.now() + 60_000).toISOString() });
   storage.savePlan(week("LAPTOP-STALE")); // written "now", older than the phone's
   await leaveAndReturn();
   await settle();
   check("stale write: the account keeps the newer week (the server refused the older write)",
-    summary(sb.table("uid-ana").get("plan")?.value) === "week PHONE-NEWER");
+    summary(sb.table("uid-sam").get("plan")?.value) === "week PHONE-NEWER");
   check("stale write: this device then pulls the newer week…", storage.loadPlan()?.weekSummary === "week PHONE-NEWER");
   check("stale write: …and keeps its own edit as a copy, because the account never saw it",
     storage.loadBackups().some((b) => summary(b.data.plan) === "week LAPTOP-STALE"));
@@ -1151,7 +1191,7 @@ await (async () => {
   fakeWindow.dispatch("storage", { key: "nutriflow.session" });
   check("other tab: a different account signing in elsewhere stops this tab's sync and reloads it",
     reloads === reloadsBefore + 1 && accountStatus().state === "signed-out" && (accountStatus().message ?? "").includes("another tab"));
-  storage.toggleSaved("Ana's tab edit");
+  storage.toggleSaved("Sam's tab edit");
   await leaveAndReturn();
   check("other tab: …so this tab's later edits never reach the other account", sb.table("uid-bob").size === 0);
   storage.saveSessionRaw(null);
@@ -1210,24 +1250,31 @@ await (async () => {
   // ---- sign out keeps the device's data ----
   memory.clear();
   fakeWindow.localStorage = laptop;
-  await signIn("ana@example.com");
+  await signIn("sam@example.com");
   await startSync();
+  const samsRefresh = currentSession()!.refreshToken;
   await signOut();
   check("sign-out: the session is gone", currentSession() === null && accountStatus().state === "signed-out");
   check("sign-out: the device KEEPS its week (the account is a mirror)", storage.loadPlan() !== null);
   check("sign-out: no listeners are left behind", fakeDocument.count("visibilitychange") === 0 && fakeWindow.count("online") === 0);
-  check("sign-out: the server ended this browser's session", sb.logouts > 0);
+  // Not "/logout was called": that the session is really over. GoTrue refuses its refresh token from
+  // then on (the fake now ends the session as GoTrue does; it used to count the calls and nothing more).
+  const renewAfter = await sb.fetch("https://fake.supabase.co/auth/v1/token?grant_type=refresh_token", {
+    method: "POST", headers: { apikey: "ANON" }, body: JSON.stringify({ refresh_token: samsRefresh }),
+  });
+  check("sign-out: the server ended this browser's session (its refresh token no longer works)",
+    renewAfter.status === 400, `renewal answered ${renewAfter.status}`);
 
-  // ---- Bob signs in on the SAME browser: Ana's data must not go into Bob's account ----
-  const anaPlan = storage.loadPlan()?.weekSummary;
+  // ---- Bob signs in on the SAME browser: Sam's data must not go into Bob's account ----
+  const samPlan = storage.loadPlan()?.weekSummary;
   await signIn("bob@example.com");
   await startSync();
-  check("account switch: NOTHING of Ana's is pushed into Bob's account", sb.table("uid-bob").size === 0, [...sb.table("uid-bob").keys()].join());
-  check("account switch: the browser no longer shows Ana's week to Bob", storage.loadPlan() === null && storage.loadProfile() === null);
+  check("account switch: NOTHING of Sam's is pushed into Bob's account", sb.table("uid-bob").size === 0, [...sb.table("uid-bob").keys()].join());
+  check("account switch: the browser no longer shows Sam's week to Bob", storage.loadPlan() === null && storage.loadProfile() === null);
   const set = storage.loadBackups()[0];
-  check("account switch: Ana's data is set aside as a copy, not lost",
-    set?.reason.includes("different account") && summary(set.data.plan) === anaPlan);
-  check("account switch: Ana's account is untouched", summary(sb.table("uid-ana").get("plan")?.value) === "week PHONE-NEWER");
+  check("account switch: Sam's data is set aside as a copy, not lost",
+    set?.reason.includes("different account") && summary(set.data.plan) === samPlan);
+  check("account switch: Sam's account is untouched", summary(sb.table("uid-sam").get("plan")?.value) === "week PHONE-NEWER");
   check("account switch: the status says what happened", (accountStatus().message ?? "").includes("different account"));
   check("account switch: the browser now belongs to Bob", storage.loadSyncOwner() === "uid-bob");
 
@@ -1278,6 +1325,46 @@ await (async () => {
   check("delete account: the next person to sign in here does NOT get the deleted account's data uploaded into theirs",
     summary(sb.table("uid-dee").get("plan")?.value) !== "week BOB-COPY", summary(sb.table("uid-dee").get("plan")?.value));
   check("delete account: …it is set aside here as a copy instead", storage.loadBackups().some((b) => summary(b.data.plan) === "week BOB-COPY"));
+  await signOut();
+
+  // ---- the account is deleted on ANOTHER device (review 2, platform-4) ----
+  // PostgREST keeps honouring this device's token until it expires (a JWT is stateless), so its next
+  // pull reads an empty account and its push breaks the foreign key to auth.users (23503, sent as 409).
+  // That read as an ordinary refusal: "couldn't store your week… everything else is synced" for up to
+  // an hour, then "your sign-in expired". Neither says what happened.
+  const deleteFromPhone = async (email: string) => {
+    const phone = sb.sessionFor(email); // the same account, signed in on a phone, which deletes it
+    await sb.fetch("https://fake.supabase.co/rest/v1/rpc/delete_my_account", {
+      method: "POST", headers: { apikey: "ANON", Authorization: `Bearer ${phone.access_token}` },
+    });
+  };
+  fakeWindow.localStorage = new MemoryStorage();
+  storage.savePlan(week("ELLA"));
+  await signIn("ella@example.com");
+  await startSync();
+  await deleteFromPhone("ella@example.com");
+  storage.savePlan(week("ELLA-AFTER")); // an edit here once the account is gone: the live mirror sends it
+  await leaveAndReturn();
+  check("deleted elsewhere: the live mirror's next push stops sync and says the account was deleted",
+    accountStatus().state === "signed-out" && (accountStatus().message ?? "").includes("was deleted"), json(accountStatus()));
+  check("deleted elsewhere: …the sign-in is forgotten, the week stays here, still marked as that account's",
+    currentSession() === null && summary(storage.loadPlan()) === "week ELLA-AFTER" && storage.loadSyncOwner() === "uid-ella",
+    json({ session: currentSession()?.userId ?? null, plan: summary(storage.loadPlan()), owner: storage.loadSyncOwner() }));
+
+  // The same through a FULL sync: a page opened after the deletion, with the token still good.
+  fakeWindow.localStorage = new MemoryStorage();
+  storage.savePlan(week("FINN"));
+  await signIn("finn@example.com");
+  await deleteFromPhone("finn@example.com");
+  await startSync(); // the account reads empty, and the push of this device's week is refused
+  check("deleted elsewhere: a full sync says so too, rather than 'couldn't store' or 'expired'",
+    accountStatus().state === "signed-out" && (accountStatus().message ?? "").includes("was deleted") && currentSession() === null,
+    json(accountStatus()));
+  await signIn("finn@example.com"); // the same person signs up again: a NEW account (GoTrue's new id)
+  await startSync();
+  check("deleted elsewhere: signing up again gets a new account, with the old data set aside rather than uploaded",
+    !sb.table(currentSession()!.userId).has("plan") && storage.loadBackups().some((b) => summary(b.data.plan) === "week FINN"),
+    json({ id: currentSession()?.userId, plan: summary(sb.table(currentSession()!.userId).get("plan")?.value), copies: storage.loadBackups().length }));
   await signOut();
 
   // ---- a first sync that FAILS: nothing is sent until a full sync succeeds, then it is retried ----
@@ -1670,10 +1757,10 @@ await (async () => {
   fakeWindow.localStorage = second;
   const heard: string[][] = [];
   const off2 = onPulled((r) => heard.push(r.pulled));
-  await signIn("ana@example.com");
+  await signIn("sam@example.com");
   await startSync();
   off2();
-  check("second device: Ana's week arrives on a fresh browser",
+  check("second device: Sam's week arrives on a fresh browser",
     storage.loadPlan()?.weekSummary === "week PHONE-NEWER" && storage.loadSaved().includes("Shakshuka"),
     json({ plan: storage.loadPlan()?.weekSummary, saved: storage.loadSaved() }));
   check("second device: onPulled listeners are told what came down", heard.length === 1 && heard[0].includes("plan"));

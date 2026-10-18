@@ -7,26 +7,42 @@ Protocol: [`README.md`](README.md). Worktree: `../NutriFlow-models/`, branch `mo
 
 ## Now doing
 
-**2026-10-03 (late afternoon) — the read-tool fix (`3392461`) and the date line (`4f53468`) are ON MAIN;
-now making the 550B faster and finding a big free host.**
+**2026-10-18 — resumed on the LAPTOP.** The worktrees `../NutriFlow-models/` and
+`../NutriFlow-models-exp/` now exist here (created today from `origin/models` / `origin/models-exp`, both
+brought up to `origin/main`), with `node_modules` junctioned to the main folder's. **Every esbuild bundle
+from this lane goes to an outfile named `models-*`** (the `.cache` is shared through the junction).
 
-Owner's direction (twice today): big models first; find the biggest free model with an optimal response
-time; no more effort on 20–30B. Memory: `big-hosted-model-first`.
+**Blocked: there is no `.env.local` on the laptop** (checked in all five folders, and no key in the
+environment; LM Studio is not running either). So every model run waits for the owner to recreate the
+file in the main folder. v1 keeps holding the fast finish until the fair numbers exist.
 
-1. **Landed:** the read-tool fix and prompt work (`3392461`, applied by v1 from `models-exp` 543bcb2).
-   v1's engine fixes for the three bugs this lane found (`98747f6`).
-2. **Landed:** the date line (`4f53468`, from `models-exp-date` 3c30e90, now retired). 550B logs "today"
-   3/3 with it, 0/4 without. v1 follows up with the browser's local date instead of UTC.
-   `models-exp` equals main; new prompt experiments branch from there.
-3. **The conversation eval decides model size.** 550B 12/14 (corrected), 20B 6/14 with either prompt.
-4. **Free-provider search (25 agents, verified):** no free tier gives big + fast + volume at once.
-   Report: `docs/models/free-providers-2026-10.md`. The owner's to-do is rewritten and ranked: Vercel AI
-   Gateway's $0 Ling 3.1 Flash (560B) first. GitHub Models is retired; an OVH key is not free by itself.
-5. **Speed, in progress:** the 550B's time is writing, not reading. Hidden reasoning means ~5× the tokens,
-   on a host that writes at 4–62 tok/s. Running now on the 550B: conversation and loop evals with reasoning
-   on vs off, then off plus "fast finish" (skip the loop's last call when the engine's notes are the reply).
-   Both are eval-side only: a proxy injection and a ModelFn wrapper. Any app change would be v1's, after
-   D5a moves `ai.ts` / `promptV2.ts` / `agentLoop.ts` into folders.
+Done today, key-free (`be98c57`):
+- **`scripts/models` imports only the folder barrels.** The old-path shims can go from this lane's side.
+  Behaviour-neutral: the bundles hold the same lines, and the stub runs wrote identical rows.
+- **`stub-model.mjs`, a fake model server** (`--mode nothing|hollow|garbage`). It found two free passes
+  in this lane's evals, both closed (see the heads-up). Every mode now scores 0 on both evals.
+- **v1's `5c12c4c` re-checked model-free** (`probe-fixes.mts`): 1/4 against the code before the fix
+  (both bugs reproduce), 4/4 after.
+
+**Ready for the key: `scripts/models/fair-arms.mjs`**, one command for the fair arms. It bundles each
+eval once from one commit and refuses a dirty tree. It runs one arm at a time, round-robin across
+repeats, with a cool-down, and clears every inherited knob. It writes a manifest after each arm. It reads
+the key from the main `.env.local` itself (exit 3 without it), so the key never reaches a command line.
+Tested end to end against the stub: 10 runs, every arm exactly its definition, no key text in any output.
+
+Next once a key exists:
+1. The fair arms, ALL on one bundle: loop A, B, C, convo A, C. **Arm A is re-run.** The 10-03 one
+   (21/26, median 23.3 s) ran 26 scenarios on an older bundle (28 today), before `5c12c4c` changed the
+   loop.
+2. The held-out wording test: main vs `models-wording`, with main merged into the branch first.
+3. The fair numbers to v1.
+
+On main from this lane (via v1): the read-tool fix (`3392461`), the date line (`4f53468`), the
+false-claim guard (`361b2e1`), `LOCAL_AI_EXTRA_BODY` (`45a0c12`), three engine fixes (`98747f6`,
+`85e684b`), and the fixes for this lane's two product bugs (`5c12c4c`, 2026-10-18).
+
+Branches: `models` (ships my paths onto main). `models-exp` = main + merges, for experiments.
+`models-wording` holds 3 prompt lines, not ready to land. `models-exp-date` is retired (landed).
 
 ## Files I'm editing right now
 
@@ -48,8 +64,13 @@ time; no more effort on 20–30B. Memory: `big-hosted-model-first`.
 - **I touch no accounts files.** The model brain lives entirely behind the provider abstraction
   (`ai.ts`), so a model choice is a one-line `.env`/provider change — no call-site churn, the same way
   accounts sit behind `storage.ts`.
-- **Experiments run on branch `models`**; only finished deliverables (scorecards, decision docs,
-  reusable tooling) ship onto `main`.
+- **Experiments run on branch `models-exp`**; only finished deliverables (scorecards, decision docs,
+  reusable tooling) ship onto `main`, from branch `models`.
+- **v1: my hold checks key on `AgentRunResult.falseClaimCaught`** (since `be98c57`). A hold whose reply
+  the guard rewrote is a fail, because the user read a canned line, not an answer. If how that flag is
+  computed changes, tell me first (agreed 2026-10-18).
+- **v1: this lane imports only the folder barrels** (since `be98c57`). A name I need is in a barrel's
+  `index.ts`, never a deep path; if a barrel narrows, `tsconfig.scripts.json` will show it in my files.
 
 ## Answers to other lanes
 
@@ -62,11 +83,17 @@ time; no more effort on 20–30B. Memory: `big-hosted-model-first`.
 
 ## Asks of the other lanes
 
-- **v1, when the numbers are in:** reasoning off for hosts that accept it (one request field in the
-  adapter), and an early stop in `runAgent` when the engine's notes are the reply. Proposals with
-  numbers, not branches.
-- **v1, optional: the v3 ruler** (`scripts/models/regrade-hardcases.mjs`). v1 called it the right ruler;
-  I still owe the proposal with a per-case flag.
+- **v1:**
+  - **Fast finish in `runAgent`, with the reply rule.** Accepted; held for the fair numbers (above).
+    The reply rule withheld 0 skips in both evals.
+  - ~~Two product bugs~~ (a Wed–Sun swap replaced all seven days; a claim paired with `remember` got
+    through). **Fixed by v1 in `5c12c4c`**, re-checked here model-free (1/4 before, 4/4 after).
+  - **One row v1 asked for:** a bare day constrain used for "lighter weekend".
+  - **The wording branch.** Offered only after the held-out test.
+  - ~~D5a part 3 (barrels)~~. **Done on this side, `be98c57`**: `scripts/models` uses only the
+    barrels. v1 removes the shims after the accounts lane's files and v1's own scripts move.
+- **v1, optional:** the v3 ruler (`scripts/models/regrade-hardcases.mjs`). The review found it counts a
+  remember-only reply as "changed"; fix that before proposing.
 
 ## Shipped
 
@@ -85,4 +112,9 @@ time; no more effort on 20–30B. Memory: `big-hosted-model-first`.
 | `26ef88a` · `6e6f38f` · `48b1cd4` · `f61d653` | speed: latency anatomy (writing, not reading, is the cost), proxy `INJECT`, fast-finish, pacing never counted as latency |
 | `d383143` | the date line measured: "today" logged 3/3 with it, 0/4 without |
 | `271d03c` | the verified free-provider search; OWNER-TODO rewritten and ranked |
-| (this) | lane file brought up to date |
+| `909c2aa` … `8160291` | date landed; reasoning on vs off; the guard; the "deciding" runs (claim since withdrawn, see survey Round 5) |
+| `e082ee0` · `b5416fd` · `df4d619` | fast-finish reply mode; the wording A/B; APPEND_SYSTEM |
+| `aa8c83c` · `fe1c5a7` · `ae9aaf9` · `11e4150` | adversarial-review fixes to the harness; held-out paraphrases; the speed claim marked not established |
+| `6cae798` · `961315a` | shutdown 2026-10-03: worklog, CONTEXT resume steps, lane file, last scorecards |
+| `627fe56` | 2026-10-18: resumed on the laptop; worktrees created; the NVIDIA runs blocked on a missing `.env.local` |
+| `be98c57` | barrels only; `stub-model.mjs` (two free passes found and closed, no past score changed); `probe-fixes.mts` (v1's `5c12c4c`: 1/4 before, 4/4 after) |

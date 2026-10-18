@@ -27,9 +27,16 @@ Since 2026-10-03 the repo has three lanes, worked by three agents at the same ti
 `lane-models.md`) and only its own block here. File ownership, the shipping rules, and how the agents
 message each other are in `docs/parallel/README.md`.
 
+**2026-10-18 — the owner's standing rules for every lane are `docs/parallel/README.md` §0:** keep every
+context file current as the work happens, pull constantly, push every step, message every running lane
+at session start and after every ship that touches them. **Every decision waiting on the owner is in one
+commentable doc:** https://claude.ai/code/artifact/a3290f96-fc25-43a6-932d-9982a46bb70f — read its
+threads at session start, with the boards.
+
 #### PARALLEL LANE — accounts (written by the accounts agent only)
 
-**2026-10-03 — accounts are built up to the keys, adversarially reviewed twice, and the SQL has run.**
+**2026-10-18 — accounts are built up to the keys, adversarially reviewed three times, and now proven
+live: 20/20 against the real GoTrue, PostgREST and Postgres, with no Supabase project.**
 Live status, the plan and the asks: `docs/parallel/lane-accounts.md`. Design: **local-first, the
 account is a mirror** — `storage.ts`'s load/save API did not change, so no screen had to; underneath,
 every real save stamps a write time and notifies listeners, and a sync layer mirrors each store to one
@@ -60,7 +67,7 @@ Supabase row per user under RLS.
   - "Put it back" lost the restored copy.
   Now every write is stamped later than what it replaces (`nextStamp`, the logical-clock rule), so raw
   clocks decide only true conflicts, where the backup applies.
-- **A second adversarial review, of the hardening itself, found more. All four batches are fixed
+- **A second adversarial review, of the hardening itself, found more. All five batches are fixed
   (lessons 58, 59 and 63):**
   - "Delete my account" in a stale tab deleted the OTHER account another tab had signed in;
   - a failed first sync left the browser unowned, so the next person's sign-in uploaded the previous
@@ -75,19 +82,46 @@ Supabase row per user under RLS.
     the owner, so that person's next sign-in here would upload the new person's data. **THE WRITE
     FENCE** in `storage.ts` now refuses every write from such a tab. Also: answers that land after a
     stop change nothing; a crafted file or row can no longer crash Week, the meal sheet or Today;
-    both account surfaces work by keyboard and screen reader; the privacy note says what is logged.
-  Batch 4's own adversarial review ran out of usage before it reported; it is re-run against `main`.
-- **Gate for this lane:** `node scripts/test-account.mjs` runs two suites: **315 checks** in one tab,
+    both account surfaces work by keyboard and screen reader; the privacy note says what is logged
+    (shipped as `c9208df`);
+  - **batch 5:** a device whose account was deleted on another device said "couldn't store your
+    week" for up to an hour, then "your sign-in expired". Its token stays valid until it expires, so
+    its write breaks the foreign key (Postgres 23503, proven in PGlite); it now says the account was
+    deleted, and stops. And only the newest sign-in link works (GoTrue keeps one per person), which
+    the "expired" sentence now says instead of sending people to ask for yet another link
+    (`e186710`).
+- **A third review, of batches 4–5, found no regression; its fixes are batch 6 (lesson 64).** Sign-out
+  and "Delete everything" now re-check who is signed in after every wait: someone signing in in
+  another tab meanwhile used to be signed out, or have their sign-in and freshly pulled week wiped.
+  The account's sentences ("your account had newer data…", "this account was deleted…") now show on
+  every `/sage` screen, as a small notice from `<AccountSync/>`, instead of only on the account page.
+  And several guards the review showed no test could catch are now tested.
+- **The live run (2026-10-18): `node scripts/account-live/run.mjs`, 20/20.** It runs the real
+  `client.ts` against the real GoTrue v2.197.0, PostgREST 16.4 and Postgres 17.11. These are
+  user-level binaries in WSL, so the run needs no Docker or admin rights, and nothing from them lands
+  in the repo. A small gateway and a mail catcher are all that stand in for Supabase.
+  - It covers four devices: the PKCE link, GoTrue's 60 s limit on a second link, two-device sync,
+    `upsert_state` skipping a stale write, token renewal, RLS between two people, a reused link,
+    sign-out, and a deletion on one device as the other sees it (409/23503, then "was deleted").
+  - It confirmed the platform facts batches 3, 5 and 6 were built on.
+  - One fact was new: GoTrue accepts a just-rotated refresh token for about 10 s. The suite's fake
+    refuses it outright, which only makes it stricter.
+  - About 80 s once the binaries are cached, 60 s of it waiting out that limit.
+- **Gate for this lane:** `node scripts/test-account.mjs` runs two suites: **333 checks** in one tab,
   including the real `client.ts` end to end against an in-memory Supabase (RLS, PKCE, conditional
-  writes, jsonb order, skewed clocks, token expiry), and **25 checks across tabs** of one browser
-  (stale tabs, the write fence, a tab that hears late) · `node scripts/test-account-sql.mjs --mutate`
-  — **37 checks in real Postgres, 15/15 broken guards caught** · `node scripts/mutate-account.mjs` —
-  **60/60** (`--only "text"` re-checks one guard in seconds).
+  writes, jsonb order, skewed clocks, token expiry, a deleted account), and **43 checks across tabs**
+  of one browser (stale tabs, the write fence, a tab that hears late, races between tabs signing in
+  and out) · `node scripts/test-account-sql.mjs --mutate` — **39 checks in real Postgres, 16/16
+  broken guards caught** · `node scripts/mutate-account.mjs` — **85/85** (`--only "text"` re-checks
+  one guard in seconds; an interrupted run is undone on the next start) · `node
+  scripts/account-live/run.mjs` — **20/20 live**.
 - **Owner, to switch accounts on:** `supabase/README.md` — create a project, run **both** migrations,
   set the Site URL to the account page, turn off "Confirm email" and "Write audit logs to the
   database", **configure custom SMTP** (without it only your own organisation receives sign-in
   emails), then put `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in
-  `.env.local` and Vercel. Never the `service_role` key.
+  `.env.local` and Vercel. Never the `service_role` key. Three things only a hosted project can
+  show: its gateway and publishable keys, real email delivery, and whether `postgres` may delete
+  from `auth.users` there. Running the README's RLS plan once there covers the last.
 - **Asked of the v1 lane (lane file has the detail):** make `AssistantChat` re-read on
   `PLAN_CHANGED_EVENT`, and drop `actions.ts`'s undo snapshot when sync pulls or the browser is
   cleared — until then `<AccountSync/>` reloads the tab once when the week or profile comes down.
@@ -99,36 +133,102 @@ in the main folder (`2fd6f02`). Its WORKPLAN lesson was renumbered 38 → 48 bec
 
 #### PARALLEL LANE — models (written by the models agent only)
 
-**2026-10-03 (late afternoon) — the read-tool fix (`3392461`) and the date line (`4f53468`) are ON
-MAIN; the free-provider search is done (`docs/models/free-providers-2026-10.md`: no free tier gives big
-+ fast + volume at once); making the 550B faster is in progress (survey Round 5).** Live status: `docs/parallel/lane-models.md`. Data and
-decisions: `docs/models/` (README "Decisions on record", then `survey.md` Round 4). Owner to-do:
-`docs/models/OWNER-TODO.md`. Branches: `models` (ships my paths onto main), `models-exp` (the prompt and
-schema work, landed; now equal to main), `models-exp-date` (the date line, landed as `4f53468`; retired).
+**2026-10-18 — RESUME HERE. Every NVIDIA run is blocked on a missing `.env.local`; the key-free work
+is done.** Day record: `docs/worklog/2026-10-18-models.md`. Live status: `docs/parallel/lane-models.md`.
+Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Rounds 4–5,
+`free-providers-2026-10.md`). Owner to-do: `docs/models/OWNER-TODO.md`.
 
-- **Owner's direction (2026-10-03, twice):** big models first ("like the 550B"); find the biggest FREE
-  model, ~100B+, with an optimal response time; no more effort on training or using 20–30B except as
-  a regression check. Memory: `big-hosted-model-first`.
-- **The conversation eval is the ruler that separates sizes** (`scripts/models/convo-eval.mts`, 14
-  two-turn conversations). 550B: 7/14 → **11/14** with the fix. gpt-oss-20b: 6/14 with either prompt.
-  The single-turn hard cases no longer separate them (both 91–96% v2 with the fix).
-- **The read-tool fix**: 550B hard cases 84 → 96% (v2), loop read-before-write 0/2 → 2/2, worst message
-  325 → 75 s. Gate 680/0 on the landing sha.
-- **Three engine bugs found by grading the engine's effect** (slot constrain a silent no-op that the
-  reply called a success, remembered allergy not enforced, day constrain dropping `exclude`). v1 fixed
-  all three in `98747f6`. One more reported: the symptom note replaces the model's reply, so the offer
-  the prompt asks for is lost unless a nutrient is low.
-- **Free big models today:** Nemotron-Ultra-550B on NVIDIA is the only big model that answers reliably
-  for free, at ~20 s median per message (p90 60–100 s). GLM-5.3 25–90 s per call; K3 slow queue;
-  keyless OVH has blocked this IP. The fast big options (Groq or OVH gpt-oss-120b, Gemini Flash) need a
-  free key: OWNER-TODO. A multi-agent search of every free provider is running (`ww8midxq4`); results
-  go to `docs/models/`.
-- **Methodology:** latency only from the real loop; one rate-limited run at a time; ranges, not single
-  scores; grade the engine's effect, not the model's operations.
-- **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`, this block, the
-  lane file. Does not edit v1's files; asks v1 first. Touches no accounts files.
+- **The laptop now has the models worktrees** (`../NutriFlow-models/` on `models`,
+  `../NutriFlow-models-exp/` on `models-exp`), node_modules junctioned to the main folder's. Bundle only
+  to `models-*` outfiles outside `node_modules/.cache`, where v1's test bundles live.
+- **No `.env.local` anywhere on the laptop**, and LM Studio is not running. Every model run waits for the
+  owner to recreate the file in the main folder.
+- **Shipped today:**
+  - `be98c57`: `scripts/models` imports only the folder barrels, so the old-path shims can go from this
+    lane's side (v1 told).
+  - Also in `be98c57`: `stub-model.mjs` (`--mode nothing|hollow|garbage`). It found two free passes in
+    this lane's evals, both closed: a hold the false-claim guard had rewritten, and `undo-flow` turn 2
+    after a failed turn 1. No past real-model score changes. Every stub mode now scores 0 on both evals.
+  - Also in `be98c57`: `probe-fixes.mts` re-checks v1's `5c12c4c` (multi-day swap; a claim riding on a
+    memory) through the real loop with a scripted model: 1/4 before the fix, 4/4 after.
+- **Next, in order (all need the key):**
+  1. **The fair re-measurement, every arm on ONE bundle:**
+     - loop A (reasoning on), B (off), C (off + `FAST_FINISH=reply`), convo A, convo C;
+     - wall clock, direct to NVIDIA, one arm at a time.
+     **Arm A must be re-run.** The 10-03 arm A (21/26, median 23.3 s) ran 26 scenarios on a bundle from
+     before the held-out pair existed (today there are 28). And `5c12c4c` changed the loop: a claim on a
+     memory now costs a nudge call. Keep the old arm A as history, not as an arm.
+     **One command, from `../NutriFlow-models`:** `node scripts/models/fair-arms.mjs` (try `--dry-run`
+     first). It bundles each eval once, runs the five arms one at a time with a 60 s cool-down, clears
+     every inherited knob, and writes a manifest after each arm. It reads the key from the main
+     `.env.local` itself and exits 3 without it, so the key never goes on a command line. These runs
+     double as the real-model re-run of v1's two fixes, since they run on `5c12c4c` or later.
+  2. **Held-out wording test**, main vs `models-wording` (cf89758: rate, reserve, "lighter on <days>" =
+     resize). **First merge current main into the branch**: cf89758 predates `5c12c4c`, and the only
+     difference allowed is the three prompt lines. Run
+     `node scripts/models/fair-arms.mjs --arms C --repeat 3 --only 'heldout|^rate$|^eat-out-future$|^weekend-lighter$'`
+     once as is and once with `--code ../NutriFlow-models-wording`. Send v1 "ready to land" (the
+     merge-base diff of promptV2.ts) only if the branch also fixes the held-out phrasings.
+  3. **Send v1 the fair numbers.** The fast finish (`de1a102`, on `wip/v1-handoff-2026-10-03`) waits on them.
+  4. When the owner adds a key from OWNER-TODO, measure that model first, with the loop and convo evals.
+- **Open with v1:**
+  - "lighter weekend" became a bare day constrain (the fix is in `models-wording`, unmeasured);
+  - the old-path shims (this lane is off them since `be98c57`);
+  - `docs/parallel/README.md` still says the models worktrees are not on the laptop (asked v1).
+- **Owner's direction:** big models first; the biggest free model with an optimal response time; no
+  more 20–30B work. The conversation eval separates sizes: 550B 11–12/14, 20B 6/14.
+- **The speed claim is NOT established.** "~3–4× faster" compared a wall-clock arm with an
+  upstream-seconds arm across different code. An adversarial review caught it; survey Round 5 says so.
+- **On main from this lane via v1 (2026-10-03):** the read-tool fix (`3392461`), the date line
+  (`4f53468`), the false-claim guard (`361b2e1`), `LOCAL_AI_EXTRA_BODY` (`45a0c12`), three engine
+  fixes (`98747f6`, `85e684b`); and v1's fixes for this lane's two product bugs (`5c12c4c`, 10-18).
+- **Methodology** (learned the hard way):
+  - latency only from the real loop, on ONE clock across arms;
+  - a fair comparison runs every arm on ONE bundle; an arm from an older bundle is history;
+  - one rate-limited run at a time;
+  - ranges, not single scores;
+  - grade the engine's effect, not the model's operations;
+  - every new check must score 0 against `node scripts/models/stub-model.mjs` in all three modes;
+  - test a wording fix on held-out phrasings.
+- **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`,
+  `docs/worklog/*-models.md`, this block, the lane file. Does not edit v1's files; asks v1 first.
 
-### >>> V1 LANE — 2026-10-03 ~20:45: TRACK A DONE except the shims — D1–D5, D5a (folders + barrels) and D5b all landed. Next: LOCAL_AI_EXTRA_BODY, the D5a review's findings, then the models lane's fast finish + wording when they say "ready". <<<
+### >>> V1 LANE — 2026-10-18: RESUMED on the laptop. Landing the WIP branch first. <<<
+
+**2026-10-18.** The v1 lane resumed in the laptop's main folder after two idle weeks (`origin/main` had not
+moved since `e3d758c`, 2026-10-04). Done so far today: the owner's decisions doc (10 decisions, each
+with options and a recommendation, URL above); the owner's standing rules written into
+`docs/parallel/README.md` §0 and `CLAUDE.md`; a starting prompt for the models agent. **Recommended to
+the owner (decision 10):** do not split v1 further except one future **library** lane (recipes,
+ingredients, photos) once decision 8 is answered. **Next, in order:** land `c428c4e`, then the two bug
+fixes from `de1a102` without the fast finish, then the accounts lane's stale-doc fixes in `01-…md`
+(rows 13/14 and D11 say accounts are "not started"; decision #3 should say "publishable key") with the
+schedule board. **Accounts lane news (2026-10-18):** it moved `account/validate.ts` off `../slots`, so
+when `c428c4e` lands, delete the `old-path:src/lib/account/validate.ts->src/lib/slots.ts` KNOWN_DEBT line
+if its gate says the debt is paid. The laptop has **no `.env.local`**.
+
+**RESUME HERE (shutdown, 2026-10-03 night) — still accurate except where the 2026-10-18 paragraph says otherwise.** `LOCAL_AI_EXTRA_BODY` landed (`45a0c12`). Everything else is on
+the pushed branch **`wip/v1-handoff-2026-10-03`** (two commits on `c9208df`), AND the first one is still
+uncommitted in this folder's working tree:
+1. **`c428c4e` — check:boundaries hardened by the D5a review** (TypeScript's own resolver, old-path imports
+   from src/ are rule 2, zod followed by rule 4, rules 7 + 8, debt keyed on names, self-test 41/0;
+   `DEFAULT_TARGETS` → `core/defaults.ts`; `ship.mjs` type-checks scripts/ via `tsconfig.scripts.json`).
+   Fingerprint identical, tsc (src + scripts) clean, boundaries green. Its full gate was STOPPED halfway
+   for the shutdown (476 checks passed, none failed). **To land:** `node scripts/ship.mjs --message-file
+   <its message> -- <its 17 paths>` from this folder (paths: `git show --stat c428c4e`).
+2. **`de1a102` — WIP, full suite not run:** the multi-day swap fix (a swap over Wed–Sun replaced all seven
+   days), the false-claim guard missing a claim that rides on `remember`, and the native fast finish. New
+   test sections pass in isolation. **The models lane says HOLD the fast finish** until their arms B/C
+   (one clock, one commit): split it out (agentLoop.ts's FAST FINISH block, `fastFinished`, its tests),
+   land the two bug fixes alone through the full gate. Worktree `../NutriFlow-v1fix` holds the branch
+   (node_modules is a junction: `cmd /c rmdir` it before `git worktree remove`).
+3. **Open, from the models lane:** "lighter meals on the weekend please" became a bare day constrain (a
+   same-calorie re-plan). Agreed: a prompt line, not an engine no-op. It is IN their wording branch
+   (`models-wording` `cf89758`: "lighter"/"smaller" on some days = `resize smaller` per day, never a bare
+   constrain), unmeasured, and NOT ready to land until it passes their held-out test (they will send "ready").
+   After the gate commit lands, also: CONTEXT/lane/worklog/boards for it, and tell the accounts lane about
+   their three old-path debts.
+
 
 **D5a — DONE** (`c50d58d` the move, `cc38524` two contracts to `core/`, `1dff171` the barrels; test:engine 924/0).
 `src/lib` is `core/ data/ nutrition/ plan/ assistant/ providers/ presentation/`, each with an `index.ts` carrying
