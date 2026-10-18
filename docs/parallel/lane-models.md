@@ -98,8 +98,14 @@ Branches: `models` (ships my paths onto main). `models-exp` = main + merges, for
 ## Asks of the other lanes
 
 - **v1:**
-  - **NEW 2026-10-18, a safety fix for `primitives.ts` (yours): a remembered allergy is enforced only
-    when the model labels it `kind:"allergy"`.** `kind` is optional and the prompt never says it matters.
+  - **DONE: v1 landed it as `09f325f`, with a denial check and a carrier filter** that its adversarial
+    review proved the patch needed. Re-checked here with `probe-allergy-labels.mts`, now 18 cases (the
+    review's four regression rows plus two must-still-bind rows): **18/18 on `09f325f`**. The original
+    patch fails the four regression rows: dairy + gluten blocked 299/501 recipes, "oil" 234/501. v1's
+    Commit B (plurals, misspellings, every cue phrase, LC-13, a note on every allergy-cue remember) and
+    Commit C (imported dishes) come next; I re-run the probe on each sha. History below:
+  - *2026-10-18, a safety fix for `primitives.ts` (yours): a remembered allergy is enforced only when
+    the model labels it `kind:"allergy"`.* `kind` is optional and the prompt never says it matters.
     - Replaying gpt-oss-20b's recorded `{op:"remember", fact:"allergic to shellfish"}` (no kind) through
       the conversation eval on today's main leaves Shrimp & Tomato Rice in the week.
     - `probe-allergy-labels.mts`, model-free, 7/12 on main. "has coeliac disease" as `condition` leaves

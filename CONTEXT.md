@@ -179,13 +179,16 @@ Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Ro
   owner to recreate the file in the main folder, with the NVIDIA key as **`NVIDIA_API_KEY=`** (OWNER-TODO
   item 0). Under `LOCAL_AI_API_KEY` it would also switch the app's LM Studio path off JSON-schema
   enforcement (`ai.ts`).
-- **A live allergen-safety gap, sent to v1 with a measured patch.** The engine enforces a remembered
-  allergy only when the model labels it `kind:"allergy"`.
-  - Replaying gpt-oss-20b's recorded unlabelled `remember` leaves shrimp in a shellfish-allergic user's
-    week on today's main.
-  - `probe-allergy-labels.mts` passes 7/12 on main and 12/12 with the patch (`49385e5` on `models-exp`).
-  - Not closed by it: the 550B ignored an allergy that sat only in the history 4/6 (loop
-    `memory-allergy`). Its operations never mention one, so it needs a raw-words scan; that is v1's call.
+- **An allergen-safety gap this lane found is FIXED on main (`09f325f`, v1).** The engine used to
+  enforce a remembered allergy only when the model labelled it `kind:"allergy"`. Replaying
+  gpt-oss-20b's recorded unlabelled `remember` left shrimp in a shellfish-allergic user's week.
+  - This lane's patch (`49385e5`) fixed that but over-bound denials ("No allergies; eats dairy and
+    gluten" bound dairy and gluten, 299/501 recipes). v1's adversarial review caught it, and `09f325f`
+    adds a denial check and a carrier filter.
+  - `probe-allergy-labels.mts`: 18/18 on `09f325f`. The original patch fails its four regression rows.
+  - v1's Commit B and Commit C come next. Re-run the probe on each sha.
+  - Not closed: the 550B ignored an allergy that sat only in the history 4/6 (loop `memory-allergy`).
+    Its operations never mention one, so only a raw-words scan could catch it; v1 recorded it as open.
 - **Shipped today:**
   - `be98c57`: `scripts/models` imports only the folder barrels, so the old-path shims can go from this
     lane's side (v1 told).

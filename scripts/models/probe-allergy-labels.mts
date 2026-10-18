@@ -9,15 +9,21 @@
  * Why (2026-10-18): the engine blocks a remembered allergen only when the model labels the fact
  * `kind: "allergy"`, and the prompt shows `kind` as optional without saying so. A gpt-oss-20b turn sent
  * `{op:"remember", fact:"allergic to shellfish"}` with no kind, and Shrimp & Tomato Rice stayed in the
- * week. "Enforced" cases must leave no meal the allergen blocks; "unchanged" cases (facts that are not
- * allergies, or name no food) must leave the allergies and the week alone. Exit code = failures.
+ * week. "Enforced" cases must leave no meal the allergen blocks. "Binds nothing" cases (facts that are
+ * not allergies, deny one, or name no food) must leave the week alone, and whatever they store must block
+ * no recipe in the library: storing "tea tree oil" honestly is fine, storing "oil" is not. Exit code =
+ * failures.
  *
- * Measured 2026-10-18: 7/12 on main (the five unlabelled or mislabelled allergies fail), 12/12 with the
- * patch on models-exp 49385e5. It is evidence for v1, not a gate: it fails on main until that patch lands.
+ * Measured 2026-10-18: 7/12 on main before 09f325f (the five unlabelled or mislabelled allergies fail);
+ * 12/12 with this lane's patch (models-exp 49385e5). That patch over-bound DENIALS ("No allergies; eats
+ * dairy and gluten" bound dairy and gluten) and carrier words ("tea tree oil" stored "oil"), which these
+ * twelve could not see: their negatives were bare negations. v1's adversarial review found it, and
+ * 09f325f lands the patch with a denial check and a carrier filter; the regression rows below are that
+ * review's cases.
  */
 import { runAgent, type AgentTurn, type ModelFn } from "@/lib/assistant";
-import { selectWeekFromDb, rebalanceWeek, withSeed } from "@/lib/plan";
-import { haystackBlocked } from "@/lib/nutrition";
+import { selectWeekFromDb, rebalanceWeek, withSeed, RECIPES } from "@/lib/plan";
+import { haystackBlocked, parseExclusionTokens } from "@/lib/nutrition";
 import type { Meal, UserProfile, WeekPlan } from "@/lib/core";
 
 const PROFILE: UserProfile = {
@@ -32,7 +38,7 @@ const blockedBy = (p: WeekPlan, token: string) =>
   meals(p).filter((m: Meal) => haystackBlocked([m.name, ...m.ingredients.map((i) => i.name)].join(" "), [token]));
 
 type Remember = { op: "remember"; fact: string; kind?: string };
-interface Case { remember: Remember; expect: "enforced" | "unchanged"; allergen?: string; note?: string }
+interface Case { remember: Remember; expect: "enforced" | "binds nothing"; allergen?: string; note?: string }
 const CASES: Case[] = [
   { remember: { op: "remember", fact: "allergic to peanuts", kind: "allergy" }, expect: "enforced", allergen: "peanut", note: "control: labelled" },
   { remember: { op: "remember", fact: "allergic to peanuts" }, expect: "enforced", allergen: "peanut", note: "no kind (the 20B's shape)" },
@@ -40,12 +46,20 @@ const CASES: Case[] = [
   { remember: { op: "remember", fact: "has coeliac disease", kind: "condition" }, expect: "enforced", allergen: "gluten" },
   { remember: { op: "remember", fact: "lactose intolerant", kind: "condition" }, expect: "enforced", allergen: "lactose" },
   { remember: { op: "remember", fact: "my son is allergic to eggs", kind: "context" }, expect: "enforced", allergen: "egg", note: "a household member: errs toward excluding" },
-  { remember: { op: "remember", fact: "loves peanut butter", kind: "preference" }, expect: "unchanged", note: "no cue: must not become an allergy" },
-  { remember: { op: "remember", fact: "wants a high-protein afternoon snack daily", kind: "preference" }, expect: "unchanged", note: "no cue (the parser alone would read 'protein')" },
-  { remember: { op: "remember", fact: "not allergic to anything", kind: "context" }, expect: "unchanged" },
-  { remember: { op: "remember", fact: "no allergies" }, expect: "unchanged" },
-  { remember: { op: "remember", fact: "allergic to penicillin", kind: "condition" }, expect: "unchanged", note: "a cue, but no food" },
-  { remember: { op: "remember", fact: "hay fever allergy in spring", kind: "condition" }, expect: "unchanged", note: "a cue, but no food" },
+  { remember: { op: "remember", fact: "loves peanut butter", kind: "preference" }, expect: "binds nothing", note: "no cue: must not become an allergy" },
+  { remember: { op: "remember", fact: "wants a high-protein afternoon snack daily", kind: "preference" }, expect: "binds nothing", note: "no cue (the parser alone would read 'protein')" },
+  { remember: { op: "remember", fact: "not allergic to anything", kind: "context" }, expect: "binds nothing" },
+  { remember: { op: "remember", fact: "no allergies" }, expect: "binds nothing" },
+  { remember: { op: "remember", fact: "allergic to penicillin", kind: "condition" }, expect: "binds nothing", note: "a cue, but no food" },
+  { remember: { op: "remember", fact: "hay fever allergy in spring", kind: "condition" }, expect: "binds nothing", note: "a cue, but no food" },
+  // Regression rows from v1's review of 49385e5: a DENIAL with food words, and a carrier word.
+  { remember: { op: "remember", fact: "No allergies; eats dairy and gluten" }, expect: "binds nothing", note: "denial + food words (bound 59% of the library)" },
+  { remember: { op: "remember", fact: "Not lactose intolerant, drinks milk every day", kind: "context" }, expect: "binds nothing", note: "denial + food words" },
+  { remember: { op: "remember", fact: "used to be lactose intolerant", kind: "context" }, expect: "binds nothing", note: "a past allergy" },
+  { remember: { op: "remember", fact: "allergic to tea tree oil", kind: "condition" }, expect: "binds nothing", note: "carrier word (stored 'oil')" },
+  // ...and what the denial check must NOT swallow: an exception, and a labelled reaction.
+  { remember: { op: "remember", fact: "no allergies except peanuts" }, expect: "enforced", allergen: "peanut", note: "an exception still binds" },
+  { remember: { op: "remember", fact: "dairy makes me sick", kind: "allergy" }, expect: "enforced", allergen: "dairy", note: "a labelled reaction, no cue word" },
 ];
 
 const turn = (reply: string, operations: unknown[] = []): AgentTurn => ({ thinking: "", reply, operations }) as unknown as AgentTurn;
@@ -62,11 +76,14 @@ for (const c of CASES) {
     if (start === 0) why = `the fixed week has no ${c.allergen} meal, so this case proves nothing`;
     else if (left.length) why = `${left.length}/${start} ${c.allergen} meal(s) still in the week: ${[...new Set(left)].slice(0, 3).join(", ")}`;
   } else {
-    if ((r.profile.allergies ?? "") !== "") why = `allergies became "${r.profile.allergies}"`;
+    const stored = parseExclusionTokens(r.profile.allergies ?? "", "");
+    const blocks = RECIPES.filter((rec) => haystackBlocked([rec.name, ...rec.ingredients.map((i) => i.name)].join(" "), stored));
+    if (blocks.length) why = `allergies became "${r.profile.allergies}", which blocks ${blocks.length}/${RECIPES.length} recipes`;
     else if (meals(r.plan).map((m) => m.name).join() !== meals(PLAN).map((m) => m.name).join()) why = "the week changed";
+    else if (stored.length) c.note = `${c.note ? `${c.note}; ` : ""}stored "${r.profile.allergies}", blocks no recipe`;
   }
   if (why) failed++;
-  console.log(`${why ? "FAIL" : "pass"}  ${c.expect.padEnd(9)} ${label.padEnd(58)} ${why ?? ""}${c.note ? `  [${c.note}]` : ""}`);
+  console.log(`${why ? "FAIL" : "pass"}  ${c.expect.padEnd(13)} ${label.padEnd(58)} ${why ?? ""}${c.note ? `  [${c.note}]` : ""}`);
 }
 console.log(`\n${CASES.length - failed}/${CASES.length} cases pass`);
 process.exit(failed);
