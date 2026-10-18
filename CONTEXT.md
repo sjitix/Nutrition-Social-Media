@@ -142,7 +142,16 @@ Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Ro
   `../NutriFlow-models-exp/` on `models-exp`), node_modules junctioned to the main folder's. Bundle only
   to `models-*` outfiles outside `node_modules/.cache`, where v1's test bundles live.
 - **No `.env.local` anywhere on the laptop**, and LM Studio is not running. Every model run waits for the
-  owner to recreate the file in the main folder.
+  owner to recreate the file in the main folder, with the NVIDIA key as **`NVIDIA_API_KEY=`** (OWNER-TODO
+  item 0). Under `LOCAL_AI_API_KEY` it would also switch the app's LM Studio path off JSON-schema
+  enforcement (`ai.ts`).
+- **A live allergen-safety gap, sent to v1 with a measured patch.** The engine enforces a remembered
+  allergy only when the model labels it `kind:"allergy"`.
+  - Replaying gpt-oss-20b's recorded unlabelled `remember` leaves shrimp in a shellfish-allergic user's
+    week on today's main.
+  - `probe-allergy-labels.mts` passes 7/12 on main and 12/12 with the patch (`49385e5` on `models-exp`).
+  - Not closed by it: the 550B ignored an allergy that sat only in the history 4/6 (loop
+    `memory-allergy`). Its operations never mention one, so it needs a raw-words scan; that is v1's call.
 - **Shipped today:**
   - `be98c57`: `scripts/models` imports only the folder barrels, so the old-path shims can go from this
     lane's side (v1 told).
@@ -152,7 +161,7 @@ Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Ro
   - Also in `be98c57`: `probe-fixes.mts` re-checks v1's `5c12c4c` (multi-day swap; a claim riding on a
     memory) through the real loop with a scripted model: 1/4 before the fix, 4/4 after.
   - `77c9dc7`: `fair-arms.mjs`, the fair comparison as one command (below).
-  - The commit after it: a third held-out scenario, `days-lighter-heldout`, and the stub's `script` mode
+  - `0fdfba1`: a third held-out scenario, `days-lighter-heldout`, and the stub's `script` mode
     for positive controls. Every check in the held-out test passes the answer it rewards (6/6) and fails
     do-nothing. The bare day constrain, the 550B's old answer to "lighter weekend", fails both lighter
     checks.

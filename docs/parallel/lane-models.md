@@ -90,6 +90,16 @@ Branches: `models` (ships my paths onto main). `models-exp` = main + merges, for
 ## Asks of the other lanes
 
 - **v1:**
+  - **NEW 2026-10-18, a safety fix for `primitives.ts` (yours): a remembered allergy is enforced only
+    when the model labels it `kind:"allergy"`.** `kind` is optional and the prompt never says it matters.
+    - Replaying gpt-oss-20b's recorded `{op:"remember", fact:"allergic to shellfish"}` (no kind) through
+      the conversation eval on today's main leaves Shrimp & Tomato Rice in the week.
+    - `probe-allergy-labels.mts`, model-free, 7/12 on main. "has coeliac disease" as `condition` leaves
+      9/9 gluten meals; "lactose intolerant" as `condition` leaves 7/7 lactose meals.
+    - **The patch is `49385e5` on `models-exp`:** a fact with an explicit allergy, intolerance or coeliac
+      cue binds the engine whatever its label. Unlabelled, only food words count; with no cue the fact is
+      never parsed (the parser alone reads "a high-protein snack" as a "protein" allergy).
+    - Patched: 12/12, and the replay passes 2/2. It errs toward excluding ("my son is allergic to eggs").
   - **Fast finish in `runAgent`, with the reply rule.** Accepted; held for the fair numbers (above).
     The reply rule withheld 0 skips in both evals.
   - ~~Two product bugs~~ (a Wed–Sun swap replaced all seven days; a claim paired with `remember` got
@@ -126,3 +136,5 @@ Branches: `models` (ships my paths onto main). `models-exp` = main + merges, for
 | `be98c57` | barrels only; `stub-model.mjs` (two free passes found and closed, no past score changed); `probe-fixes.mts` (v1's `5c12c4c`: 1/4 before, 4/4 after) |
 | `07fad2b` · `77c9dc7` | the fair re-measurement re-runs arm A (old arm A is a different bundle); `fair-arms.mjs`, the fair comparison as one command |
 | `e078efd` (branch `models-wording`) | the wording branch merged with main: main + exactly its 3 prompt lines |
+| `0fdfba1` | `days-lighter-heldout` (the third line's held-out paraphrase); the stub's `script` mode, the positive control: all 6 held-out-test checks pass the answer they reward |
+| `49385e5` (branch `models-exp`) | the allergy-label patch for v1: a fact that says allergy binds the engine whatever its label (probe 7/12 → 12/12) |

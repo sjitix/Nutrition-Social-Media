@@ -10,6 +10,14 @@ all at once.** The keys below are ranked by what they unlock per minute of your 
 
 ## Open — ranked
 
+- [ ] **0. The laptop has no `.env.local` (added 2026-10-18), so every model measurement is stopped
+  here.** You already hold the NVIDIA key: it is the `LOCAL_AI_API_KEY=` line in the desktop's
+  `.env.local`. On the laptop, create `.env.local` in the main folder (`Nutrition-Social-Media-main/`) and
+  put that key in it as **`NVIDIA_API_KEY=...`**, under that name and not `LOCAL_AI_API_KEY`. The app reads
+  `LOCAL_AI_API_KEY`, and setting it changes how the app talks to LM Studio; the app never reads
+  `NVIDIA_API_KEY`, so it changes nothing else. **Unlocks:** the fair speed comparison and the wording
+  test, ready as one command each (`node scripts/models/fair-arms.mjs`).
+
 - [ ] **1. Vercel AI Gateway key** (your existing Vercel team, the one that deploys ntrux) — Vercel
   dashboard → AI Gateway → API keys → Create. Add `AI_GATEWAY_API_KEY=...`. **Do not buy credits**:
   any purchase ends the monthly free credit for good. Vercel may ask for a card to verify the team.

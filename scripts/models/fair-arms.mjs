@@ -18,8 +18,9 @@
  *   next arm's latency. Direct to the host: PACE_STATS is cleared, so every arm is on the wall clock.
  * - Every inherited knob is cleared first (LOCAL_AI_*, FAST_FINISH, ONLY, PACE_STATS…), so an arm is
  *   exactly its definition below and nothing leaks in from the shell.
- * - The key is read from the main folder's .env.local by this script and handed to the child's
- *   environment. It never appears on a command line, in a log, in the manifest or in a scorecard.
+ * - The key is read from the main folder's .env.local by this script (NVIDIA_API_KEY, else
+ *   LOCAL_AI_API_KEY; `--key-var` for another host) and handed to the child's environment as
+ *   LOCAL_AI_API_KEY. It never appears on a command line, in a log, in the manifest or in a scorecard.
  * - A manifest is written after EVERY arm (`data/eval-runs/<ts>-fair-arms-<model>.json`), so a run cut
  *   short still leaves a record. An arm with infra failures is marked "not evidence" (lesson 44).
  *
@@ -92,12 +93,17 @@ if ((codeDirty || harnessDirty) && !allowDirty && !dryRun) {
 }
 
 // ── the key: from the main folder's .env.local, never from the shell or a flag ──────────────────
+// NVIDIA_API_KEY first: the APP reads LOCAL_AI_API_KEY, and setting it also switches the app's local
+// adapter off JSON-schema enforcement (ai.ts: useResponseFormat = !LOCAL_AI_API_KEY), so the key under
+// that name would change how v1's dev server talks to LM Studio. A name the app never reads changes
+// nothing. LOCAL_AI_API_KEY still works (the desktop's file used it). Another host: --key-var GROQ_API_KEY.
 const mainFolder = git(HARNESS, ["worktree", "list", "--porcelain"]).split("\n")[0].replace(/^worktree /, "");
 const envFile = resolve(flag("--env-file", join(mainFolder, ".env.local")));
-function readKey(file) {
+const keyVars = flag("--key-var") ? [flag("--key-var")] : ["NVIDIA_API_KEY", "LOCAL_AI_API_KEY"];
+function readKey(file, name) {
   if (!existsSync(file)) return null;
   for (const line of readFileSync(file, "utf8").split(/\r?\n/)) {
-    const m = line.match(/^\s*(?:export\s+)?LOCAL_AI_API_KEY\s*=\s*(.*?)\s*$/);
+    const m = line.match(new RegExp(`^\\s*(?:export\\s+)?${name}\\s*=\\s*(.*?)\\s*$`));
     if (!m) continue;
     let v = m[1];
     v = /^(['"]).*\1$/.test(v) ? v.slice(1, -1) : v.replace(/\s+#.*$/, "");
@@ -105,11 +111,12 @@ function readKey(file) {
   }
   return null;
 }
-const key = localHost ? null : readKey(envFile);
+const keyVar = localHost ? null : keyVars.find((name) => readKey(envFile, name));
+const key = keyVar ? readKey(envFile, keyVar) : null;
 if (!localHost && !key && !dryRun) {
   die(
-    `no LOCAL_AI_API_KEY in ${envFile}.\n` +
-      "The owner creates that file (it is gitignored; see CLAUDE.md \"Running it\"). Never pass the key on a command line.",
+    `no ${keyVars.join(" or ")} in ${envFile}.\n` +
+      "The owner adds it to that file (gitignored; docs/models/OWNER-TODO.md item 0). Never pass the key on a command line.",
     3,
   );
 }
@@ -141,7 +148,7 @@ console.log(`fair-arms: ${runs.length} run(s), one at a time — ${runs.map((x) 
 console.log(`  model ${model} at ${url}`);
 console.log(`  code ${code} @ ${codeSha}${codeDirty ? " (DIRTY)" : ""} · harness @ ${harnessSha}${harnessDirty ? " (DIRTY)" : ""}`);
 for (const [k, b] of Object.entries(bundles)) console.log(`  bundle ${k}: ${b.sha256.slice(0, 12)} ${b.file}`);
-console.log(`  key: ${localHost ? "not needed (local host)" : key ? `found in ${envFile}` : `MISSING (${envFile})`}`);
+console.log(`  key: ${localHost ? "not needed (local host)" : key ? `${keyVar} found in ${envFile}` : `MISSING: no ${keyVars.join(" or ")} in ${envFile}`}`);
 console.log(`  scorecards -> ${join(out, "data", "eval-runs")}${only ? ` · ONLY=${only}` : ""} · gap ${gapSeconds}s`);
 if (dryRun) {
   console.log("\nfair-arms: --dry-run, no model called.");
