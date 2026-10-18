@@ -42,6 +42,29 @@ export const MAX_STEPS = 8;
 export const FALSE_CLAIM_NUDGE =
   "Nothing was applied: no operation ran, but your reply says something changed. Send the operation now, or tell the user plainly that nothing has changed yet.";
 
+/**
+ * The same nudge when the only thing that ran was a `remember`. A saved memory backs none of the
+ * claims `claimsChange` looks for — they are all about the week — so "Done — I've made your whole
+ * week vegetarian" with only a remember sent was shown to the user as true (models lane, 2026-10-03).
+ * Telling the model "no operation ran" would be false, so this says what did.
+ */
+export const FALSE_CLAIM_NUDGE_MEMORY =
+  "Only a memory was saved: nothing in the plan or the settings changed, but your reply says something did. Send the operation now, or tell the user plainly what you noted and that the plan has not changed yet.";
+
+/** Plain data, keys sorted, so two profiles compare by content: the engine rebuilds objects, and
+ *  key order is not a change (the accounts lane learned the same about Postgres jsonb). */
+const canon = (x: unknown): unknown =>
+  Array.isArray(x) ? x.map(canon)
+  : x && typeof x === "object" ? Object.fromEntries(Object.keys(x as object).sort().map((k) => [k, canon((x as Record<string, unknown>)[k])]))
+  : x;
+const same = (a: unknown, b: unknown) => JSON.stringify(canon(a)) === JSON.stringify(canon(b));
+/** Did the profile change in a way a claim could be about — anything but the memory? */
+const editedApartFromMemory = (a: UserProfile, b: UserProfile) => {
+  const { memory: _a, ...restA } = a;
+  const { memory: _b, ...restB } = b;
+  return !same(restA, restB);
+};
+
 /** One reason-then-act turn: exactly what the v2 model was trained to emit. */
 export interface AgentTurn {
   thinking: string;
@@ -143,6 +166,10 @@ export async function runAgent(args: {
   let gaveUp = false;
   let modelFailed = false;
   let falseClaimRetried = false;
+  // What can back a claim the model makes in its own words: a plan change, the engine's notes, a crisis
+  // override, or a real edit to the profile. A memory saved cannot — see FALSE_CLAIM_NUDGE_MEMORY.
+  const profileEdited = () => editedApartFromMemory(args.profile, profile);
+  const memorySaved = () => !same(args.profile.memory ?? [], profile.memory ?? []);
 
   while (steps < maxSteps) {
     steps++;
@@ -165,10 +192,11 @@ export async function runAgent(args: {
     if (ops.length === 0) {
       // The model says it is done. If its reply is the only thing the user will read (the engine is
       // silent) and it claims a change that nothing made, give it one step to make it real or retract.
-      const unbacked = !planChanged && !profileChanged && notes.length === 0 && replyOverride === undefined;
+      const unbacked = !planChanged && !profileEdited() && notes.length === 0 && replyOverride === undefined;
       if (!falseClaimRetried && unbacked && claimsChange(lastReply) && steps < maxSteps) {
         falseClaimRetried = true;
-        transcript.push({ role: "tool", name: "apply", result: { notes: [FALSE_CLAIM_NUDGE], planChanged: false, profileChanged: false } });
+        transcript.push({ role: "tool", name: "apply",
+          result: { notes: [memorySaved() ? FALSE_CLAIM_NUDGE_MEMORY : FALSE_CLAIM_NUDGE], planChanged: false, profileChanged: false } });
         continue;
       }
       break;
@@ -225,7 +253,8 @@ export async function runAgent(args: {
     );
   }
 
-  const reply = composeReply({ modelReply: lastReply, notes, replyOverride, planChanged, profileChanged });
+  // profileChanged here is "changed in a way a claim could be about": a saved memory is not (above).
+  const reply = composeReply({ modelReply: lastReply, notes, replyOverride, planChanged, profileChanged: profileEdited(), memorySaved: memorySaved() });
   return {
     reply,
     plan,
