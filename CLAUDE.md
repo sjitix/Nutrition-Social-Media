@@ -412,13 +412,18 @@ LM Studio: load model, push GPU offload to max, context >= 8192, Start Server on
   unrelated message, and force-pushing to fix attribution would have broken the other machine's
   clone (WORKPLAN lesson 47). So: **run the gate first, then stage and commit as one adjacent step.**
   Never leave work staged across a wait.
-- **Two agents work in parallel lanes — read `docs/parallel/README.md` first, every session.** The v1
-  lane works in this folder on `main`; the accounts lane works in its own git worktree
-  (`../NutriFlow-accounts/`, branch `accounts`) and ships with `ship.mjs --onto main`. Never edit a file
-  in the other lane's folder or a file the other lane owns (the ownership table is in that README);
-  keep your own lane file (`docs/parallel/lane-*.md`) current; edit only your own block of
-  `CONTEXT.md`; and message the other agent (`ListAgents` / `SendMessage`) before touching anything
-  shared. A conflict here is lesson 47 with a second author.
+- **Three agents work in parallel lanes — read `docs/parallel/README.md` first, every session.** The v1
+  lane works in this folder on `main`; the accounts lane (`../NutriFlow-accounts/`, branch `accounts`)
+  and the models lane (`../NutriFlow-models/`, branch `models`) work in their own git worktrees and ship
+  with `ship.mjs --onto main`. Never edit a file in another lane's folder or a file another lane owns
+  (the ownership table is in that README); edit only your own block of `CONTEXT.md`. A conflict here is
+  lesson 47 with a second author. **The owner's standing rules for every agent (2026-10-18) are §0 of
+  that README:** keep every context file current as the work happens, pull constantly, push every
+  step, and message every running lane at session start and after every ship that touches them.
+- **Every decision waiting on the owner lives in one doc:**
+  https://claude.ai/code/artifact/a3290f96-fc25-43a6-932d-9982a46bb70f (a Claude Doc, so the owner
+  comments on any block). Read its threads at session start with the boards; answer each in its thread;
+  when a decision is answered, act on it and update the doc, `docs/v1/01-…md` §5 and CONTEXT.md.
 - **Keep the four documents current. This is not optional, and it is not a chore to do if there is
   time left.** The owner works across many separate conversations and none of them can see the
   others. These files are the only thing carrying state between sessions. A stale one is worse than

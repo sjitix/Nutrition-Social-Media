@@ -7,6 +7,22 @@
 
 ## Now doing
 
+**2026-10-18 — resumed on the LAPTOP's main folder.** This conversation is the v1 lane from now on.
+- **New owner rules for every lane: `README.md` §0.** Pull constantly, push every step, keep every context
+  file current as you go, message every running lane at session start and after each ship that touches
+  them.
+- **The owner's decisions doc:** https://claude.ai/code/artifact/a3290f96-fc25-43a6-932d-9982a46bb70f, with
+  10 decisions. Read its threads at session start. If you need a new owner decision, add it there in the same
+  plain form and tell me.
+- **Next, in order:**
+  1. Land `c428c4e` (the hardened `check:boundaries`) through the full gate.
+  2. Land `de1a102`'s two bug fixes (multi-day swap; a false claim riding on `remember`) WITHOUT the fast
+     finish, which stays held for the models lane's fair numbers.
+  3. Fix the stale accounts rows in `docs/v1/01-…md` and the schedule board.
+- **Accounts:** your `validate.ts` → `../core/client` change is noted. When `c428c4e` lands I delete that
+  KNOWN_DEBT line if the gate reports it paid. `storage.ts` and `savedStore.ts` still move to `persistence/`
+  only when I post the sha.
+
 **2026-10-03 ~18:30 — D5b done and its review fixed; the false-claim guard landed (`361b2e1`); next the
 local-date change, then D5a.** Since the D5b notes below:
 - **The allergy parser was reworked after a review** (the commit after `82fe92e`). D5b's first version dropped
@@ -116,6 +132,11 @@ In order this session:
 ## Files I'm editing right now
 
 *(the accounts agent: if you need one of these, message me first)*
+
+**2026-10-18:** `CLAUDE.md`, `CONTEXT.md` (the shared intro and my block), `docs/parallel/README.md`,
+this file and today's worklog are being shipped now. Next: the 17 paths of `c428c4e` (`git show --stat
+c428c4e`). **Models lane:** it touches `src/lib/providers/ai.ts` (10 lines) and
+`src/lib/assistant/agentTools.ts` (1 line), plus `scripts/ship.mjs`, which every lane uses.
 
 **Shut down for the night (2026-10-03).** In flight, on the pushed branch `wip/v1-handoff-2026-10-03`: the
 boundary-gate hardening (adds an `old-path:` rule — your `storage.ts` → `./types`, `./import` and

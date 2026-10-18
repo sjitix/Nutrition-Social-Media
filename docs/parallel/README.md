@@ -15,6 +15,37 @@ Live status of each lane: **`lane-v1.md`**, **`lane-accounts.md`** and **`lane-m
 folder. **Each agent writes ONLY its own lane file**, so those never conflict. Where this file says "the
 other lane", read "the other lanes" — the rules apply pairwise between all three.
 
+**Where each lane runs (checked 2026-10-18):** v1 in the laptop's main folder; accounts in
+`../NutriFlow-accounts/` on the laptop; the models worktrees (`../NutriFlow-models/`,
+`../NutriFlow-models-exp/`) are **not on the laptop**. The laptop also has **no `.env.local`**, so
+anything that needs the NVIDIA key or LM Studio runs where those are, or the owner recreates the file.
+
+---
+
+## 0. The owner's standing rules — every lane, every session (2026-10-18)
+
+Given by the owner for all agents. They sit above everything else in this file.
+
+1. **Keep everything current, constantly.** Your lane file, your block in `CONTEXT.md`, your worklog
+   for the day, and `VISION.md` / `WORKPLAN.md` / `CLAUDE.md` / `ASSISTANT-SCHEMA.md` whenever what they
+   say stops being true. Update them **as the work happens**, not at the end: a session can be cut
+   short, and an unwritten state is a lost state.
+2. **Pull constantly.** `git fetch` and rebase at session start, before editing any shared document,
+   before every ship, and after any long wait (a gate, a review, an eval run). Never build on a stale
+   tree.
+3. **Push constantly.** Every significant step is shipped with `ship.mjs` and pushed at once;
+   `git log origin/main..HEAD` reads empty at the end of every step.
+4. **Keep the other agents informed, constantly.** At session start, and after every ship another lane
+   could notice, run `ListAgents` and `SendMessage` every running lane: the sha and one line on what it
+   means for them. A lane that is not running gets the same news in your lane file's "Heads-up". Say
+   which lane you are in the first line.
+5. **The owner's decisions doc is where the owner answers.**
+   https://claude.ai/code/artifact/a3290f96-fc25-43a6-932d-9982a46bb70f lists every decision waiting on
+   the owner, in plain language, with options and a recommendation. Read its comment threads at session
+   start, the same way as the boards (WORKPLAN lesson 50). An answered decision is acted on by the lane
+   that owns it. A lane that needs a NEW owner decision adds it there in the same plain form and tells
+   the v1 lane, which keeps the doc tidy.
+
 ---
 
 ## 1. Why separate folders, not just separate files
@@ -124,6 +155,7 @@ leave the file alone.
 ## 6. Start-of-session checklist (both lanes)
 
 1. `git fetch` and rebase onto `origin/main`.
-2. Read `CONTEXT.md`, then **both** lane files, then this one if it changed.
-3. `ListAgents` — is the other lane running? If so, message it what you are starting on.
-4. Update your lane file's "Now doing" and "Files I'm editing right now", ship it (`--no-gate`).
+2. Read `CONTEXT.md`, then **every** lane file, then this one if it changed.
+3. Read the comment threads on the owner's decisions doc and the three boards (§0 rule 5).
+4. `ListAgents` — which lanes are running? Message each what you are starting on (§0 rule 4).
+5. Update your lane file's "Now doing" and "Files I'm editing right now", ship it (`--no-gate`).

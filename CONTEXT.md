@@ -27,6 +27,12 @@ Since 2026-10-03 the repo has three lanes, worked by three agents at the same ti
 `lane-models.md`) and only its own block here. File ownership, the shipping rules, and how the agents
 message each other are in `docs/parallel/README.md`.
 
+**2026-10-18 — the owner's standing rules for every lane are `docs/parallel/README.md` §0:** keep every
+context file current as the work happens, pull constantly, push every step, message every running lane
+at session start and after every ship that touches them. **Every decision waiting on the owner is in one
+commentable doc:** https://claude.ai/code/artifact/a3290f96-fc25-43a6-932d-9982a46bb70f — read its
+threads at session start, with the boards.
+
 #### PARALLEL LANE — accounts (written by the accounts agent only)
 
 **2026-10-03 — accounts are built up to the keys, adversarially reviewed three times, and the SQL has run.**
@@ -163,9 +169,21 @@ held-out wording test.** Day record: `docs/worklog/2026-10-03-models.md`. Live s
 - **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`,
   `docs/worklog/*-models.md`, this block, the lane file. Does not edit v1's files; asks v1 first.
 
-### >>> V1 LANE — 2026-10-03 night: SHUT DOWN — see RESUME HERE. TRACK A DONE except the shims. <<<
+### >>> V1 LANE — 2026-10-18: RESUMED on the laptop. Landing the WIP branch first. <<<
 
-**RESUME HERE (shutdown, 2026-10-03 night).** `LOCAL_AI_EXTRA_BODY` landed (`45a0c12`). Everything else is on
+**2026-10-18.** The v1 lane resumed in the laptop's main folder after two idle weeks (`origin/main` had not
+moved since `e3d758c`, 2026-10-04). Done so far today: the owner's decisions doc (10 decisions, each
+with options and a recommendation, URL above); the owner's standing rules written into
+`docs/parallel/README.md` §0 and `CLAUDE.md`; a starting prompt for the models agent. **Recommended to
+the owner (decision 10):** do not split v1 further except one future **library** lane (recipes,
+ingredients, photos) once decision 8 is answered. **Next, in order:** land `c428c4e`, then the two bug
+fixes from `de1a102` without the fast finish, then the accounts lane's stale-doc fixes in `01-…md`
+(rows 13/14 and D11 say accounts are "not started"; decision #3 should say "publishable key") with the
+schedule board. **Accounts lane news (2026-10-18):** it moved `account/validate.ts` off `../slots`, so
+when `c428c4e` lands, delete the `old-path:src/lib/account/validate.ts->src/lib/slots.ts` KNOWN_DEBT line
+if its gate says the debt is paid. The laptop has **no `.env.local`**.
+
+**RESUME HERE (shutdown, 2026-10-03 night) — still accurate except where the 2026-10-18 paragraph says otherwise.** `LOCAL_AI_EXTRA_BODY` landed (`45a0c12`). Everything else is on
 the pushed branch **`wip/v1-handoff-2026-10-03`** (two commits on `c9208df`), AND the first one is still
 uncommitted in this folder's working tree:
 1. **`c428c4e` — check:boundaries hardened by the D5a review** (TypeScript's own resolver, old-path imports
