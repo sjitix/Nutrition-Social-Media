@@ -24,6 +24,7 @@
     "eval:variance": "node scripts/eval-variance.mjs",
     "ship": "node scripts/ship.mjs",
     "test:ship": "node scripts/test-ship.mjs",
+    "probe:allergens": "esbuild scripts/probe-allergen-review.mts --bundle --platform=node --format=esm --tsconfig=tsconfig.json --outfile=node_modules/.cache/probe-allergen-review.mjs --log-level=error && node node_modules/.cache/probe-allergen-review.mjs",
     "test:ui": "esbuild scripts/test-ui.mts --bundle --platform=node --format=esm --tsconfig=tsconfig.json --outfile=node_modules/.cache/test-ui.mjs --log-level=error && node node_modules/.cache/test-ui.mjs"
   },
   "dependencies": {
