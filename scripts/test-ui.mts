@@ -17,8 +17,8 @@
  */
 import { parseCommand, COMMAND_EXAMPLES } from "@/app/sage/commands";
 import { summariseWeek } from "@/app/sage/weekStats";
-import { DAYS } from "@/lib/slots";
-import type { Meal, WeekPlan } from "@/lib/types";
+import { DAYS } from "@/lib/core";
+import type { Meal, WeekPlan } from "@/lib/core";
 
 let pass = 0;
 let fail = 0;

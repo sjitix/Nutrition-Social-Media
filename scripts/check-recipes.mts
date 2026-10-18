@@ -21,8 +21,8 @@
  *     ceiling in 3 is what catches a quantity; test:engine checks each table entry's own 4/4/9.
  */
 import { RECIPES } from "@/lib/recipeDb";
-import { NUTRIENT_TABLE } from "@/lib/nutrientTable.generated";
-import { gramsFor, microsForIngredients } from "@/lib/nutrients";
+import { NUTRIENT_TABLE } from "@/lib/data";
+import { gramsFor, microsForIngredients } from "@/lib/nutrition";
 import { tableKey } from "@/lib/data/ingredients";
 
 // What a dish in that slot must at least be, before any portion scaling. Scaling only reaches

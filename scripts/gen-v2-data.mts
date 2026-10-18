@@ -13,8 +13,8 @@ import { join } from "node:path";
 import { selectWeekFromDb, rebalanceWeek } from "@/lib/recipeDb";
 import { validateExample } from "@/lib/dataValidate";
 import { generateExamples } from "@/lib/genV2";
-import { assistantV2SystemPrompt } from "@/lib/promptV2";
-import type { UserProfile } from "@/lib/types";
+import { assistantV2SystemPrompt } from "@/lib/assistant";
+import type { UserProfile } from "@/lib/core";
 
 const BASE: UserProfile = {
   goal: "maintain", diet: "none", allergies: "", dislikes: "", budget: "medium",
