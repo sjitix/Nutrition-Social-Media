@@ -13,7 +13,10 @@
  */
 import { readFileSync } from "node:fs";
 import { basename } from "node:path";
-import { AgentTurnSchema, type AgentRunResult, type AgentTurn, type ModelFn } from "@/lib/assistant";
+import { AgentTurnSchema, isReadTool, type AgentRunResult, type AgentTurn, type ModelFn } from "@/lib/assistant";
+import { RECIPES } from "@/lib/plan";
+import { dietTagConflicts } from "@/lib/nutrition";
+import type { Meal, UserProfile, WeekPlan } from "@/lib/core";
 
 /** Network, timeout, rate limit, gateway or server errors: not the model's output. An EMPTY response is
  *  counted here too: the free NVIDIA tier returns empty 200s under load (latency-anatomy saw 3 in 16 calls),
@@ -78,10 +81,103 @@ export const engineSeedConfig = () =>
 /** The scorecard's model name for a scripted run. */
 export const scriptLabel = (path: string) => `script-${basename(path).replace(/\.json$/i, "")}`;
 
-/** composeReply's fallback for an empty model reply, or next to nothing: not an answer. */
+// Pleasantries that answer nothing. "Happy to help!" and "Anything else you'd like to know?" both passed
+// a hold before (audit, 2026-10-18), because only the exact fallback "Happy to help." was caught.
+const FILLER = /\b(?:i'?m\s+)?(?:happy|glad)\s+to\s+help\b|\banything\s+else(?:\s+(?:i\s+can\s+do|you'?d\s+like(?:\s+to\s+know)?))?\b|\blet\s+me\s+know\b|\bhow\s+can\s+i\s+help(?:\s+you)?(?:\s+today)?\b|\bwhat\s+(?:else\s+)?(?:would|can)\s+(?:you\s+like|i\s+do)(?:\s+for\s+you)?\b|\bsure(?:\s+thing)?\b|\bof\s+course\b|\bno\s+problem\b|\babsolutely\b|\bgreat\s+question\b|\bgot\s+it\b|\bokay\b|\bok\b/gi;
+
+/** composeReply's fallback for an empty model reply, or next to nothing once the pleasantries are gone:
+ *  not an answer. */
 export const hollowReply = (reply: string) => {
   const t = reply.trim();
-  return t === "" || t === "Happy to help." || t.length < 12;
+  if (t === "" || t === "Happy to help.") return true;
+  return t.replace(FILLER, " ").replace(/[^a-z0-9]+/gi, " ").trim().length < 12;
+};
+
+// ── shared guards, from the 2026-10-18 audit (every check vs plausible wrong answers) ────────────────
+const LIBRARY = new Map(RECIPES.map((r) => [r.name.toLowerCase(), r]));
+const ingredientNames = (m: Meal) => m.ingredients.map((i) => i.name);
+/** Vegetarian the way the ENGINE decides it (plan/rules.ts passesDiet: the recipe's dietTags). A dish
+ *  outside the library (logged, eating out, imported) falls back to its ingredients AND its name. The old
+ *  ingredient-only test passed "Pepperoni & Mozzarella Pizza", whose seed lists no pepperoni. */
+export function isVegMeal(m: Meal): boolean {
+  const r = LIBRARY.get(m.name.toLowerCase());
+  if (r) return r.dietTags.includes("vegetarian") || r.dietTags.includes("vegan");
+  return dietTagConflicts("vegetarian", [m.name, ...ingredientNames(m)]).length === 0;
+}
+/** Vegan, the same way. */
+export function isVeganMeal(m: Meal): boolean {
+  const r = LIBRARY.get(m.name.toLowerCase());
+  if (r) return r.dietTags.includes("vegan");
+  return dietTagConflicts("vegan", [m.name, ...ingredientNames(m)]).length === 0;
+}
+
+const slotOf = (p: WeekPlan, d: string, t: string) => p.days.find((x) => x.day === d)?.meals.find((m) => m.type === t);
+/**
+ * SCOPE GUARD. Every slot outside `keep` that changed, as readable lines ([] = untouched). On a day `keep`
+ * touches, the engine may rebalance the other meals' portions after one of them changes, so there only
+ * the DISH must match; on every other day both the dish and its calories must. Most act checks read only
+ * the slot they asked about, so a whole-week resize passed "lighter on the weekend" (audit, 2026-10-18).
+ */
+export function changedOutside(before: WeekPlan, after: WeekPlan, keep: (day: string, slot: string) => boolean): string[] {
+  const out: string[] = [];
+  for (const d of before.days) {
+    const touched = d.meals.some((m) => keep(d.day, m.type));
+    for (const m of d.meals) {
+      if (keep(d.day, m.type)) continue;
+      const a = slotOf(after, d.day, m.type);
+      if (!a) out.push(`${d.day} ${m.type} removed`);
+      else if (a.name !== m.name) out.push(`${d.day} ${m.type}: "${m.name}" -> "${a.name}"`);
+      else if (!touched && Math.abs(a.calories - m.calories) > 2) out.push(`${d.day} ${m.type}: ${m.calories} -> ${a.calories} kcal`);
+    }
+    for (const a of after.days.find((x) => x.day === d.day)?.meals ?? [])
+      if (!d.meals.some((m) => m.type === a.type) && !keep(d.day, a.type)) out.push(`${d.day} ${a.type} added ("${a.name}")`);
+  }
+  return out;
+}
+/** The scope guard as a check line: null, or what changed outside the asked scope (first three). */
+export const outsideScope = (before: WeekPlan, after: WeekPlan, keep: (day: string, slot: string) => boolean) => {
+  const c = changedOutside(before, after, keep);
+  return c.length ? `changed outside what was asked: ${c.slice(0, 3).join("; ")}${c.length > 3 ? ` (+${c.length - 3})` : ""}` : null;
+};
+
+const canon = (v: unknown): string =>
+  Array.isArray(v) ? `[${v.map(canon).join(",")}]`
+  : v && typeof v === "object" ? `{${Object.keys(v as object).sort().map((k) => `${k}:${canon((v as Record<string, unknown>)[k])}`).join(",")}}`
+  : JSON.stringify(v);
+/**
+ * PROFILE GUARD. Profile fields that changed, other than `allowed` and `memory` (see memoryAdded), compared
+ * key-order-blind. "Make it cheaper" also switching the diet to vegetarian, or a lighter weekend also
+ * cutting the saved calorie target to a number the model picked, both passed (audit, 2026-10-18).
+ */
+const field = (p: UserProfile, k: string) => (p as unknown as Record<string, unknown>)[k];
+export function profileChangedKeys(before: UserProfile, after: UserProfile, allowed: string[] = []): string[] {
+  const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
+  return [...keys].filter((k) => k !== "memory" && !allowed.includes(k) && canon(field(before, k)) !== canon(field(after, k)));
+}
+/** The profile guard as a check line. */
+export const unaskedProfileEdit = (before: UserProfile, after: UserProfile, allowed: string[] = []) => {
+  const k = profileChangedKeys(before, after, allowed);
+  return k.length ? `changed the profile unasked: ${k.map((key) => `${key} ${canon(field(before, key))} -> ${canon(field(after, key))}`).join("; ").slice(0, 200)}` : null;
+};
+/** Memory facts this turn added (by text). */
+export function memoryAdded(before: UserProfile, after: UserProfile): string[] {
+  const had = new Set((before.memory ?? []).map((f) => f.fact.toLowerCase()));
+  return (after.memory ?? []).map((f) => f.fact).filter((f) => !had.has(f.toLowerCase()));
+}
+
+/** Every operation the model sent across the run (look-ups included), with its arguments. */
+export const opsSent = (r: AgentRunResult) =>
+  r.transcript.flatMap((e) => (e.role === "assistant" ? e.turn.operations : [])) as unknown as Array<Record<string, unknown> & { op?: string }>;
+/** The model's WRITE operations (look-ups left out), with their arguments. */
+export const writesSent = (r: AgentRunResult) => opsSent(r).filter((o) => !isReadTool(String(o.op)));
+/** The texts of every `symptom` operation sent. */
+export const symptomTexts = (r: AgentRunResult) => opsSent(r).filter((o) => o.op === "symptom").map((o) => String(o.text ?? ""));
+/** The reply asks the user something. */
+export const asksQuestion = (reply: string) => /\?/.test(reply);
+/** The reply names this phrase (case-blind, punctuation-blind). */
+export const mentions = (reply: string, phrase: string) => {
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return norm(reply).includes(norm(phrase));
 };
 
 /**
