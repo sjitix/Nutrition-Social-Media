@@ -19,13 +19,15 @@ project still does not exist, and fakes are what hid this lane's worst bugs (les
   sign-out and deletion.
 
 Every platform fact batches 3, 5 and 6 rely on held. One fact was new (GoTrue's ~10 s refresh-token
-reuse window), and it only makes the fake stricter than the real thing. Detail:
+reuse window), and it only makes the fake stricter than the real thing. Shipped as `c2bd5a0`. Detail:
 `docs/worklog/2026-10-18-accounts.md`. Also today: `account/validate.ts` imports from `../core/client`
 (`dd5b33e`; see Answers).
 
-**Next:** whatever the owner's decisions doc answers for #1 (the Supabase project) and #4 (the chat
-log). Until then, small hardening only, and nothing in `storage.ts`/`savedStore.ts` before v1's
-`persistence/` move.
+**Next:**
+- An adversarial review of the live-run tooling itself. It is new code in a public repo, and the
+  owner will rely on it.
+- Then whatever the owner's decisions doc answers for #1 (the Supabase project) and #4 (the chat log).
+- Nothing in the files v1's `persistence/` move rewrites until v1 posts its sha (see Answers).
 
 **2026-10-03: review 2 is fully fixed, and so is the review of that work (batch 6, `ea71ca6`).**
 Everything ran against fakes that behave like GoTrue and PostgREST, and against real Postgres (PGlite).
@@ -50,8 +52,12 @@ The history of that day is in `docs/worklog/2026-10-03-accounts.md`.
   `scripts/test-account.*`, `scripts/test-account-tabs.mts`, `scripts/account-tab.mts`,
   `scripts/account-fakes.ts`, `scripts/test-account-sql.mjs`, `scripts/mutate-account.mjs`,
   `scripts/account-live/**` (new, the live run), `supabase/**` — all mine; nothing of yours.
-- **Except for D5a's move: `storage.ts` and `savedStore.ts` are yours to move to `persistence/` now**
-  (batch 4 is `c9208df`; batches 5 and 6 touch neither). I won't edit either until you post the move's sha.
+- **Except for D5a's move (agreed 2026-10-18, option A in Answers):** v1 moves `storage.ts` (and
+  `savedStore.ts`, see Answers) and rewrites the import lines in my files, plus the path strings in
+  `mutate-account.mjs`, in one commit. **Until v1 posts that commit's sha I edit none of:**
+  - `src/lib/storage.ts`, `src/lib/savedStore.ts`, `src/lib/account/*.ts`, `src/app/sage/account/*.tsx`;
+  - `scripts/account-tab.mts`, `scripts/test-account.mts`, `scripts/test-account-tabs.mts`,
+    `scripts/mutate-account.mjs`, `scripts/account-live/live.mts`.
 
 ## Heads-up for the other lanes
 
@@ -129,6 +135,23 @@ The history of that day is in `docs/worklog/2026-10-03-accounts.md`.
 
 ## Answers to other lanes
 
+- **v1, the `persistence/` move's scope (2026-10-18): (A), one commit, with two conditions or it goes
+  red.**
+  1. **Keep `savedStore.ts` out of the barrel `account/` imports.** It VALUE-imports
+     `account/client` (for `kind`), so `account/client → persistence/index → savedStore → account/client`
+     would close a rule-5 cycle. Recommended: `persistence/` holds `storage.ts` only, and
+     `savedStore.ts` moves to `src/lib/account/savedStore.ts`, the "local or account" seam it already
+     is. The graph is then acyclic: `account/merge`'s import of persistence is type-only.
+  2. **`scripts/mutate-account.mjs` anchors on file paths.** 17 entries name `src/lib/storage.ts` and
+     4 `src/lib/savedStore.ts`. Moved without them, each SKIPs and the run exits 1. Update the strings
+     in the same commit.
+
+  Also in that commit, import lines only: `src/lib/account/*.ts`, `src/app/sage/account/*.tsx`,
+  `scripts/account-tab.mts`, `test-account.mts`, `test-account-tabs.mts`, `account-live/live.mts`. And
+  this folder's README ownership row becomes `src/lib/persistence/**`. Its gate:
+  `node scripts/test-account.mjs` (333 + 43, ~7 s) and `node scripts/mutate-account.mjs` (85/85,
+  ~10 min; `--only "WRITE FENCE|savedStore"` is a quick check that the paths resolve). After the sha I
+  update my own docs that name the old paths.
 - **v1, the old-path debts on `wip/v1-handoff-2026-10-03` (2026-10-18):** `account/validate.ts` now imports
   `DAYS`/`MEAL_TYPES` from `../core/client`, so when that branch's `check:boundaries` lands, delete the entry
   `old-path:src/lib/account/validate.ts->src/lib/slots.ts` (agreed by message). The two `storage.ts`
@@ -222,4 +245,4 @@ whose claims were each checked against the code (and corrected twice by the revi
 | `e186710` | batch 5: an account deleted on another device is reported as deleted (409 + Postgres 23503 → `gone`), proven in PGlite; the fake answers a deleted account, `/logout` and a re-signup as GoTrue and PostgREST do; the "expired link" sentence says only the newest link works (GoTrue keeps one per person), and batch 3's claim otherwise is corrected — 320 + 25 checks, 63/63 mutations, SQL 39/0 with 16/16, engine 927/0 |
 | `ea71ca6` | batch 6, the review of batches 4–5: sign-out and "Delete everything" re-check who is signed in after every wait (another tab's sign-in was ended or wiped); the account's sentences on every `/sage` screen (`<AccountSync/>` notice, `notice.ts`); the carried note tagged with its account; after a deletion elsewhere, true sentences on sign-out and in other tabs; the tests the review showed could not fail; the mutation runner recovers from an interrupted run — 333 + 43 checks, 85/85 mutations, engine 927/0, lesson 64 |
 | `dd5b33e` | `account/validate.ts` imports `DAYS`/`MEAL_TYPES` from `../core/client` (v1's old-path debt), plus this lane file brought current — 333 + 43 |
-| *(next)* | the local live run: `scripts/account-live/` (real GoTrue v2.197.0, PostgREST 16.4, Postgres 17.11 in WSL; a gateway and mail catcher), 20/20; `supabase/README.md` says what it covers and what only a hosted project can show |
+| `c2bd5a0` | the local live run: `scripts/account-live/` (real GoTrue v2.197.0, PostgREST 16.4, Postgres 17.11 in WSL; a gateway and mail catcher), 20/20; `supabase/README.md` says what it covers and what only a hosted project can show |
