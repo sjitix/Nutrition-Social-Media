@@ -29,10 +29,11 @@ import { agentModelFn, resolveProvider } from "@/lib/providers";
 import { selectWeekFromDb, rebalanceWeek, withSeed } from "@/lib/plan";
 import { dietTagConflicts, haystackBlocked } from "@/lib/nutrition";
 import { withFastFinish, fastFinishModeFromEnv } from "./fast-finish";
-import { withErrorCapture, isInfraError, holdFailure } from "./eval-common";
+import { withErrorCapture, isInfraError, holdFailure, scriptedModel, scriptLabel } from "./eval-common";
 import type { UserProfile, WeekPlan, Meal } from "@/lib/core";
 
-const MODEL = process.env.LOCAL_AI_MODEL ?? "(unset)";
+const SCRIPT = process.env.MODEL_SCRIPT ?? "";
+const MODEL = SCRIPT ? scriptLabel(SCRIPT) : (process.env.LOCAL_AI_MODEL ?? "(unset)");
 const ONLY = process.env.ONLY ? new RegExp(process.env.ONLY, "i") : null;
 /** Re-runs of a scenario that never reached the model (infra), with 30 s × attempt back-off. */
 const LOOP_RETRIES = Number(process.env.LOOP_RETRIES ?? 4);
@@ -383,14 +384,15 @@ const SCENARIOS: Scenario[] = [
 ];
 
 // ── run ─────────────────────────────────────────────────────────────────────────────────────────
-if (resolveProvider() !== "local") {
+if (!SCRIPT && resolveProvider() !== "local") {
   console.error("Set AI_PROVIDER=local and LOCAL_AI_URL/LOCAL_AI_MODEL — this eval drives the local adapter.");
   process.exit(1);
 }
 // The date reaches the prompt through the adapter factory where the branch under test supports it
 // (models-exp-date: agentModelFn({ today })); on code without that option the argument is ignored, so
 // the same file measures before and after. The engine gets TODAY via runAgent either way.
-const baseModel = (agentModelFn as (o?: { today?: string }) => ReturnType<typeof agentModelFn>)({ today: TODAY });
+// MODEL_SCRIPT swaps the adapter for a scripted model (eval-common.ts), for the harness's own controls.
+const baseModel = SCRIPT ? scriptedModel(SCRIPT) : (agentModelFn as (o?: { today?: string }) => ReturnType<typeof agentModelFn>)({ today: TODAY });
 // FAST_FINISH=1: skip the loop's last call when the engine's notes will be the reply anyway (see fast-finish.ts).
 // FAST_FINISH=reply adds v1's rule: skip only when the write step also carried a reply.
 const FAST_FINISH_MODE = fastFinishModeFromEnv(process.env.FAST_FINISH);
@@ -400,7 +402,8 @@ const { fn: model, stats: ff } = withFastFinish(cap.fn, FAST_FINISH_MODE);
 /** What this run actually sent, beyond the prompt: the scorecard's prompt sha cannot tell these arms apart. */
 const RUN_CONFIG = {
   today: TODAY,
-  endpoint: process.env.LOCAL_AI_URL ?? null,
+  endpoint: SCRIPT ? null : (process.env.LOCAL_AI_URL ?? null),
+  modelScript: SCRIPT || null,
   extraBody: process.env.LOCAL_AI_EXTRA_BODY ?? null,
   fastFinish: FAST_FINISH_MODE,
   clock: process.env.PACE_STATS ? "upstream seconds via pace-proxy /stats (pacing and 429 waits excluded)" : "wall clock (includes the adapter's own retry back-off)",

@@ -11,7 +11,9 @@
  *    help.", and a hold check that only asked "did the plan stay put?" passed it, so a model that says
  *    nothing scored like one that answered well.
  */
-import type { AgentRunResult, ModelFn } from "@/lib/assistant";
+import { readFileSync } from "node:fs";
+import { basename } from "node:path";
+import { AgentTurnSchema, type AgentRunResult, type AgentTurn, type ModelFn } from "@/lib/assistant";
 
 /** Network, timeout, rate limit, gateway or server errors: not the model's output. An EMPTY response is
  *  counted here too: the free NVIDIA tier returns empty 200s under load (latency-anatomy saw 3 in 16 calls),
@@ -32,6 +34,32 @@ export function withErrorCapture(model: ModelFn) {
   };
   return { fn, lastError: () => last, reset: () => { last = ""; } };
 }
+
+/**
+ * MODEL_SCRIPT=<file.json>: an in-process scripted model, for the harness's POSITIVE and NEGATIVE
+ * controls (a check must pass the answer it rewards and fail the plausible wrong ones). No server and no
+ * port, so many controls run at once. The file maps a phrase of the user's message (case-blind) to the
+ * turn sent on that message's FIRST call, or to a list of turns, one per call (a look-up, then a write).
+ * A call past the list, or a message no phrase matches, gets the do-nothing turn. Each turn is checked
+ * against AgentTurnSchema first, as the adapter checks a real model's, and an invalid one throws
+ * (graded "unusable model output"), so a typo in a script cannot pose as a strict check.
+ */
+export function scriptedModel(path: string): ModelFn {
+  const script = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
+  return async (transcript, step) => {
+    const last = [...transcript].reverse().find((e) => e.role === "user");
+    const text = last && last.role === "user" ? last.content.toLowerCase() : "";
+    const hit = Object.keys(script).find((phrase) => text.includes(phrase.toLowerCase()));
+    const entry = hit === undefined ? undefined : script[hit];
+    const turns = entry === undefined ? [] : Array.isArray(entry) ? entry : [entry];
+    const raw = (turns[step - 1] ?? {}) as Record<string, unknown>;
+    const parsed = AgentTurnSchema.safeParse({ thinking: "", reply: "", operations: [], ...raw });
+    if (!parsed.success) throw new Error(`MODEL_SCRIPT: call ${step} for "${hit}" is not a valid agent turn: ${parsed.error.message.slice(0, 300)}`);
+    return parsed.data as unknown as AgentTurn;
+  };
+}
+/** The scorecard's model name for a scripted run. */
+export const scriptLabel = (path: string) => `script-${basename(path).replace(/\.json$/i, "")}`;
 
 /** composeReply's fallback for an empty model reply, or next to nothing: not an answer. */
 export const hollowReply = (reply: string) => {
