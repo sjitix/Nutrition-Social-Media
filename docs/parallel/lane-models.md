@@ -24,6 +24,11 @@ Done today, key-free (`be98c57`):
 - **v1's `5c12c4c` re-checked model-free** (`probe-fixes.mts`): 1/4 against the code before the fix
   (both bugs reproduce), 4/4 after.
 
+**Shipped since:** `d1d35ee` (the engine's dice are seeded in the evals; `run-controls.mjs`, the harness's
+own test suite) and `1c35df0` (shared check guards; a hold that says only pleasantries fails). First
+audit results: all 43 correct answers pass, but 153 of 337 plausible wrong answers pass too. The check
+fixes come next, scenario by scenario, each with its controls.
+
 **RUNNING NOW (2026-10-18, evening): an audit of every check in both evals** (workflow
 `wf_373d28af-e1b`). It covers 29 loop scenarios and 14 conversations through `MODEL_SCRIPT` (`b16f0a4`):
 for each, a correct answer must pass and 3–4 plausible wrong ones must fail. Each finding gets two
