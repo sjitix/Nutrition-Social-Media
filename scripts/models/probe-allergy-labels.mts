@@ -38,7 +38,9 @@ const blockedBy = (p: WeekPlan, token: string) =>
   meals(p).filter((m: Meal) => haystackBlocked([m.name, ...m.ingredients.map((i) => i.name)].join(" "), [token]));
 
 type Remember = { op: "remember"; fact: string; kind?: string };
-interface Case { remember: Remember; expect: "enforced" | "binds nothing"; allergen?: string | string[]; note?: string }
+/** `open`: a known gap (v1's docs/v1/allergen-review.md), expected to fail until fixed. It is reported
+ *  apart and never counts in the exit code; when it starts passing, the probe says so, so it can close. */
+interface Case { remember: Remember; expect: "enforced" | "binds nothing"; allergen?: string | string[]; note?: string; open?: string }
 const CASES: Case[] = [
   { remember: { op: "remember", fact: "allergic to peanuts", kind: "allergy" }, expect: "enforced", allergen: "peanut", note: "control: labelled" },
   { remember: { op: "remember", fact: "allergic to peanuts" }, expect: "enforced", allergen: "peanut", note: "no kind (the 20B's shape)" },
@@ -71,10 +73,16 @@ const CASES: Case[] = [
   { remember: { op: "remember", fact: "Allergic to peanuts. Also allergic to sesame." }, expect: "enforced", allergen: ["peanut", "sesame"], note: "the second cue sentence" },
   { remember: { op: "remember", fact: "no known allergens", kind: "context" }, expect: "binds nothing", note: "plural denial" },
   { remember: { op: "remember", fact: "no intolerances" }, expect: "binds nothing", note: "plural denial" },
+  // OPEN rows (2026-10-18): gaps v1's allergen review measured on main and has not fixed yet.
+  { remember: { op: "remember", fact: "egg-allergic toddler", kind: "context" }, expect: "enforced", allergen: "egg", open: "a hyphenated cue on a household member" },
+  { remember: { op: "remember", fact: "allergic to the following: peanuts" }, expect: "enforced", allergen: "peanut", open: "the list sits after a colon" },
+  { remember: { op: "remember", fact: "I love prawns but I'm allergic to them" }, expect: "enforced", allergen: "shellfish", open: "the allergen is a pronoun" },
+  { remember: { op: "remember", fact: "allergic to legumes", kind: "condition" }, expect: "enforced", allergen: ["lentil", "bean"], open: "a category the matcher does not know" },
+  { remember: { op: "remember", fact: "allergic to cats but loves fish", kind: "context" }, expect: "binds nothing", open: "a non-food allergy next to a food the user LIKES" },
 ];
 
 const turn = (reply: string, operations: unknown[] = []): AgentTurn => ({ thinking: "", reply, operations }) as unknown as AgentTurn;
-let failed = 0;
+let failed = 0, openStill = 0, openFixed = 0;
 for (const c of CASES) {
   let calls = 0;
   const model: ModelFn = async () => (calls++ === 0 ? turn("Noted.", [c.remember]) : turn(""));
@@ -97,8 +105,15 @@ for (const c of CASES) {
     else if (meals(r.plan).map((m) => m.name).join() !== meals(PLAN).map((m) => m.name).join()) why = "the week changed";
     else if (stored.length) c.note = `${c.note ? `${c.note}; ` : ""}stored "${r.profile.allergies}", blocks no recipe`;
   }
+  if (c.open) {
+    if (why) openStill++; else openFixed++;
+    console.log(`${why ? "open" : "NOW FIXED, close it"}  ${c.expect.padEnd(13)} ${label.padEnd(58)} ${why ?? ""}  [open: ${c.open}]`);
+    continue;
+  }
   if (why) failed++;
   console.log(`${why ? "FAIL" : "pass"}  ${c.expect.padEnd(13)} ${label.padEnd(58)} ${why ?? ""}${c.note ? `  [${c.note}]` : ""}`);
 }
-console.log(`\n${CASES.length - failed}/${CASES.length} cases pass`);
+const closed = CASES.filter((c) => !c.open).length;
+console.log(`\n${closed - failed}/${closed} cases pass` +
+  `${openStill + openFixed ? `; known-open rows: ${openStill} still open${openFixed ? `, ${openFixed} NOW FIXED (move them to the closed rows)` : ""}` : ""}`);
 process.exit(failed);
