@@ -23,6 +23,8 @@ const FOOD_WORDS = new Set(
 );
 const isFood = (w: string) =>
   CATEGORIES.has(w) || FOOD_WORDS.has(w) || FOOD_WORDS.has(w.replace(/(es|s)$/, ""));
+/** The words that make a remembered fact an allergy whatever the model labelled it. */
+const ALLERGY_CUE = /\ballerg(?:ic|y|ies)\b|\bintoleran(?:t|ce)\b|\bc(?:o)?eliac\b|\banaphyla/i;
 /** A phrase we recognise whole: an allergen category ("tree nuts") or a curated name ("peanut butter"). */
 const knownPhrase = (t: string) => CATEGORIES.has(t) || CURATED_NAMES.has(t) || CURATED_NAMES.has(t.replace(/s$/, ""));
 
@@ -315,8 +317,15 @@ export function applyPrimitives(
       // (found by the models lane; a 550B model did exactly that). Now the allergen joins
       // profile.allergies — the field the exclusion matcher reads — and the week is re-solved, which
       // keeps every dish that still passes and replaces only the ones that no longer do.
-      if (o.kind === "allergy") {
-        const tokens = allergensInFact(o.fact);
+      // The LABEL is the model's and optional, so a fact that SAYS allergy, intolerance or coeliac binds
+      // the engine whatever it was labelled: {fact:"allergic to shellfish"} with no kind left shrimp in
+      // the week, and "has coeliac disease" labelled a condition left every gluten meal (models lane,
+      // 2026-10-18). Unlabelled, only FOOD words count, so "allergic to penicillin" blocks nothing; and
+      // with no cue the fact is never parsed, because the parser alone reads "a high-protein snack" as
+      // a "protein" allergy.
+      const labelled = o.kind === "allergy";
+      if (labelled || ALLERGY_CUE.test(o.fact)) {
+        const tokens = allergensInFact(o.fact).filter((t) => labelled || t.split(/\s+/).some(isFood));
         const have = new Set(parseExclusionTokens(p.allergies ?? "", ""));
         const fresh = tokens.filter((t) => !have.has(t));
         if (fresh.length) {
