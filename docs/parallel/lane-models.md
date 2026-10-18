@@ -7,22 +7,33 @@ Protocol: [`README.md`](README.md). Worktree: `../NutriFlow-models/`, branch `mo
 
 ## Now doing
 
-**2026-10-03, 22:30 — SHUT DOWN for the night. Nothing is running.** Resume steps are in `CONTEXT.md`
-(models block) and `docs/worklog/2026-10-03-models.md`.
+**2026-10-18 — resumed on the LAPTOP.** The worktrees `../NutriFlow-models/` and
+`../NutriFlow-models-exp/` now exist here (created today from `origin/models` / `origin/models-exp`, both
+brought up to `origin/main`), with `node_modules` junctioned to the main folder's. **Every esbuild bundle
+from this lane goes to an outfile named `models-*`** (the `.cache` is shared through the junction).
 
-On main from this lane (landed by v1): the read-tool fix (`3392461`), the date line (`4f53468`), the
-false-claim guard built from this lane's detector (`361b2e1`), `LOCAL_AI_EXTRA_BODY` (`45a0c12`), and
-three engine fixes (`98747f6`, `85e684b`).
+**Blocked: there is no `.env.local` on the laptop** (checked in all five folders, and no key in the
+environment; LM Studio is not running either). So the NVIDIA work waits for the owner to recreate the
+file: the fair arms B, C and conversation A, C, and the held-out wording test. v1 keeps holding the fast
+finish until those numbers exist.
 
-Next, in order:
-1. **The fair re-measurement.** Arms B (reasoning off), C (off + fast finish, reply rule) and conversation
-   arms A and C. Same commit, wall clock, one at a time. Arm A is done: reasoning on, 21/26, median 23.3 s.
-2. **The held-out wording test** for branch `models-wording` (cf89758, 3 lines: rate, reserve,
-   "lighter on <days>" = resize). It must fix phrasings the wording doesn't quote, plus `weekend-lighter`.
-3. **Fair numbers to v1.** v1 holds fast finish (change 2) until then.
+Doing now, key-free, in order:
+1. **`scripts/models` imports through the folder barrels** (`@/lib/assistant`, `@/lib/providers`,
+   `@/lib/plan`, `@/lib/nutrition`, `@/lib/core`), type-checked, so v1 can drop the old-path shims.
+2. **A one-command runner for the fair arms** (`scripts/models/fair-arms.mjs`): one commit, one bundle,
+   one arm at a time, so the run starts the moment a key exists.
+3. **A model-free re-check of v1's two bug fixes** (multi-day swap; a claim riding on `remember`) when v1
+   sends the sha (its full gate is running now).
 
-Branches: `models` (ships my paths onto main). `models-exp` equals main, so new experiments start there.
-`models-wording` holds 2 prompt lines, not ready to land. `models-exp-date` is retired (landed).
+Still next once a key exists, unchanged: fair arms B, C, convo A, C (arm A done: 21/26, median 23.3 s);
+the held-out wording test for `models-wording` (cf89758); the fair numbers to v1.
+
+On main from this lane (landed by v1, 2026-10-03): the read-tool fix (`3392461`), the date line
+(`4f53468`), the false-claim guard (`361b2e1`), `LOCAL_AI_EXTRA_BODY` (`45a0c12`), three engine fixes
+(`98747f6`, `85e684b`).
+
+Branches: `models` (ships my paths onto main). `models-exp` = main + merges, for experiments.
+`models-wording` holds 3 prompt lines, not ready to land. `models-exp-date` is retired (landed).
 
 ## Files I'm editing right now
 

@@ -118,6 +118,14 @@ in the main folder (`2fd6f02`). Its WORKPLAN lesson was renumbered 38 → 48 bec
 
 #### PARALLEL LANE — models (written by the models agent only)
 
+**2026-10-18 — resumed on the LAPTOP; the NVIDIA runs are blocked on a missing `.env.local`.** The
+models worktrees now exist on the laptop too (`../NutriFlow-models/`, `../NutriFlow-models-exp/`,
+node_modules junctioned to the main folder's; bundle only to `models-*` outfiles). No folder on the
+laptop has a `.env.local`, so steps 1–3 below wait for the owner to recreate it (main folder only). Doing
+meanwhile, key-free: the barrel switch for `scripts/models`, a one-command fair-arms runner, and a
+model-free re-check of v1's two bug fixes once their sha lands. Day record:
+`docs/worklog/2026-10-18-models.md`.
+
 **2026-10-03 (night, shut down at 22:30) — RESUME HERE: finish the fair re-measurement, then the
 held-out wording test.** Day record: `docs/worklog/2026-10-03-models.md`. Live status:
 `docs/parallel/lane-models.md`. Data and decisions: `docs/models/` (README "Decisions on record",
