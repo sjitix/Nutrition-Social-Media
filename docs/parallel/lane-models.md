@@ -13,24 +13,31 @@ brought up to `origin/main`), with `node_modules` junctioned to the main folder'
 from this lane goes to an outfile named `models-*`** (the `.cache` is shared through the junction).
 
 **Blocked: there is no `.env.local` on the laptop** (checked in all five folders, and no key in the
-environment; LM Studio is not running either). So the NVIDIA work waits for the owner to recreate the
-file: the fair arms B, C and conversation A, C, and the held-out wording test. v1 keeps holding the fast
-finish until those numbers exist.
+environment; LM Studio is not running either). So every model run waits for the owner to recreate the
+file in the main folder. v1 keeps holding the fast finish until the fair numbers exist.
 
-Doing now, key-free, in order:
-1. **`scripts/models` imports through the folder barrels** (`@/lib/assistant`, `@/lib/providers`,
-   `@/lib/plan`, `@/lib/nutrition`, `@/lib/core`), type-checked, so v1 can drop the old-path shims.
-2. **A one-command runner for the fair arms** (`scripts/models/fair-arms.mjs`): one commit, one bundle,
-   one arm at a time, so the run starts the moment a key exists.
-3. **A model-free re-check of v1's two bug fixes** (multi-day swap; a claim riding on `remember`) when v1
-   sends the sha (its full gate is running now).
+Done today, key-free (`be98c57`):
+- **`scripts/models` imports only the folder barrels.** The old-path shims can go from this lane's side.
+  Behaviour-neutral: the bundles hold the same lines, and the stub runs wrote identical rows.
+- **`stub-model.mjs`, a fake model server** (`--mode nothing|hollow|garbage`). It found two free passes
+  in this lane's evals, both closed (see the heads-up). Every mode now scores 0 on both evals.
+- **v1's `5c12c4c` re-checked model-free** (`probe-fixes.mts`): 1/4 against the code before the fix
+  (both bugs reproduce), 4/4 after.
 
-Still next once a key exists, unchanged: fair arms B, C, convo A, C (arm A done: 21/26, median 23.3 s);
-the held-out wording test for `models-wording` (cf89758); the fair numbers to v1.
+Doing now: **`scripts/models/fair-arms.mjs`**, a one-command runner for the fair arms. It bundles once,
+runs one arm at a time, and reads the key from the main `.env.local` itself, so the key never reaches a
+command line.
 
-On main from this lane (landed by v1, 2026-10-03): the read-tool fix (`3392461`), the date line
-(`4f53468`), the false-claim guard (`361b2e1`), `LOCAL_AI_EXTRA_BODY` (`45a0c12`), three engine fixes
-(`98747f6`, `85e684b`).
+Next once a key exists:
+1. The fair arms, ALL on one bundle: loop A, B, C, convo A, C. **Arm A is re-run.** The 10-03 one
+   (21/26, median 23.3 s) ran 26 scenarios on an older bundle (28 today), before `5c12c4c` changed the
+   loop.
+2. The held-out wording test: main vs `models-wording`, with main merged into the branch first.
+3. The fair numbers to v1.
+
+On main from this lane (via v1): the read-tool fix (`3392461`), the date line (`4f53468`), the
+false-claim guard (`361b2e1`), `LOCAL_AI_EXTRA_BODY` (`45a0c12`), three engine fixes (`98747f6`,
+`85e684b`), and the fixes for this lane's two product bugs (`5c12c4c`, 2026-10-18).
 
 Branches: `models` (ships my paths onto main). `models-exp` = main + merges, for experiments.
 `models-wording` holds 3 prompt lines, not ready to land. `models-exp-date` is retired (landed).
@@ -55,8 +62,13 @@ Branches: `models` (ships my paths onto main). `models-exp` = main + merges, for
 - **I touch no accounts files.** The model brain lives entirely behind the provider abstraction
   (`ai.ts`), so a model choice is a one-line `.env`/provider change — no call-site churn, the same way
   accounts sit behind `storage.ts`.
-- **Experiments run on branch `models`**; only finished deliverables (scorecards, decision docs,
-  reusable tooling) ship onto `main`.
+- **Experiments run on branch `models-exp`**; only finished deliverables (scorecards, decision docs,
+  reusable tooling) ship onto `main`, from branch `models`.
+- **v1: my hold checks key on `AgentRunResult.falseClaimCaught`** (since `be98c57`). A hold whose reply
+  the guard rewrote is a fail, because the user read a canned line, not an answer. If how that flag is
+  computed changes, tell me first (agreed 2026-10-18).
+- **v1: this lane imports only the folder barrels** (since `be98c57`). A name I need is in a barrel's
+  `index.ts`, never a deep path; if a barrel narrows, `tsconfig.scripts.json` will show it in my files.
 
 ## Answers to other lanes
 
@@ -72,13 +84,12 @@ Branches: `models` (ships my paths onto main). `models-exp` = main + merges, for
 - **v1:**
   - **Fast finish in `runAgent`, with the reply rule.** Accepted; held for the fair numbers (above).
     The reply rule withheld 0 skips in both evals.
-  - **Two product bugs, probed and sent 2026-10-03:**
-    - a swap with `days` Wed–Sun replaces all seven days;
-    - the false-claim guard misses a claim paired with `remember` (profileChanged true).
+  - ~~Two product bugs~~ (a Wed–Sun swap replaced all seven days; a claim paired with `remember` got
+    through). **Fixed by v1 in `5c12c4c`**, re-checked here model-free (1/4 before, 4/4 after).
   - **One row v1 asked for:** a bare day constrain used for "lighter weekend".
   - **The wording branch.** Offered only after the held-out test.
-  - **D5a part 3** (barrels). This lane switches `scripts/models` imports to `@/lib/assistant` etc.
-    once it lands, then tells v1 the shims can go.
+  - ~~D5a part 3 (barrels)~~. **Done on this side, `be98c57`**: `scripts/models` uses only the
+    barrels. v1 removes the shims after the accounts lane's files and v1's own scripts move.
 - **v1, optional:** the v3 ruler (`scripts/models/regrade-hardcases.mjs`). The review found it counts a
   remember-only reply as "changed"; fix that before proposing.
 
@@ -102,4 +113,6 @@ Branches: `models` (ships my paths onto main). `models-exp` = main + merges, for
 | `909c2aa` … `8160291` | date landed; reasoning on vs off; the guard; the "deciding" runs (claim since withdrawn, see survey Round 5) |
 | `e082ee0` · `b5416fd` · `df4d619` | fast-finish reply mode; the wording A/B; APPEND_SYSTEM |
 | `aa8c83c` · `fe1c5a7` · `ae9aaf9` · `11e4150` | adversarial-review fixes to the harness; held-out paraphrases; the speed claim marked not established |
-| (this) | shutdown: worklog, CONTEXT resume steps, lane file, last scorecards |
+| `6cae798` · `961315a` | shutdown 2026-10-03: worklog, CONTEXT resume steps, lane file, last scorecards |
+| `627fe56` | 2026-10-18: resumed on the laptop; worktrees created; the NVIDIA runs blocked on a missing `.env.local` |
+| `be98c57` | barrels only; `stub-model.mjs` (two free passes found and closed, no past score changed); `probe-fixes.mts` (v1's `5c12c4c`: 1/4 before, 4/4 after) |

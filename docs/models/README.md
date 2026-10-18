@@ -17,7 +17,7 @@ message (8 at worst), so **per-call latency × steps** is the number a user feel
 |---|---|---|
 | single-turn judgement | `npm run eval:hardcases` (45 cases, engine-verified); also regraded strictly by `scripts/models/regrade-hardcases.mjs` (v3) | beat **84%** (gpt-oss-20b, old prompt) — every big model now clears it; the ruler has saturated |
 | honest declines | the `decline` bucket of the same eval | ≥ 5/6 |
-| loop behaviour | `scripts/models/loop-eval.mts` (26 scenarios through the real loop) — reads before writes, stops cleanly, no `gaveUp` | read-before-write 2/2, gave up 0 |
+| loop behaviour | `scripts/models/loop-eval.mts` (28 scenarios through the real loop, 2 of them held-out paraphrases) — reads before writes, stops cleanly, no `gaveUp` | read-before-write 2/2, gave up 0 |
 | **conversation** | `scripts/models/convo-eval.mts` (14 two-turn conversations, state carried like the client) | **the ruler that separates sizes** — 550B 79%, 20B 43% (2026-10-03) |
 | latency | median + p90 seconds **per message** from the loop/convo evals | message-level ≤ ~10 s |
 | cost | $/message at beta volume | free now; priced before launch |
@@ -35,6 +35,12 @@ message (8 at worst), so **per-call latency × steps** is the number a user feel
 5. **Repeat before you claim.** Identical runs swing up to 9 points on the hard cases; quote ranges.
 6. **Grade what the engine did, not what the model sent.** Counting emitted operations hid three
    engine bugs on 2026-10-03 (a slot-scoped constrain that did nothing while the reply said it had).
+7. **Every new check scores 0 against a fake model.** `node scripts/models/stub-model.mjs --mode
+   nothing|hollow|garbage`, then the eval with `LOCAL_AI_URL=http://127.0.0.1:4011/v1`. On 2026-10-18 the
+   `hollow` mode (claims a change, makes none) passed 8/10 holds until that was fixed.
+8. **A comparison runs every arm from ONE bundle.** An arm measured on an older bundle is history, not
+   an arm. The withdrawn speed claim compared arms across code; on 2026-10-18 the old arm A was found to
+   have a different scenario set (26 vs 28) and to predate a loop change.
 
 ## Decisions on record
 

@@ -133,61 +133,63 @@ in the main folder (`2fd6f02`). Its WORKPLAN lesson was renumbered 38 → 48 bec
 
 #### PARALLEL LANE — models (written by the models agent only)
 
-**2026-10-18 — resumed on the LAPTOP; the NVIDIA runs are blocked on a missing `.env.local`.** The
-models worktrees now exist on the laptop too (`../NutriFlow-models/`, `../NutriFlow-models-exp/`,
-node_modules junctioned to the main folder's; bundle only to `models-*` outfiles). No folder on the
-laptop has a `.env.local`, so steps 1–3 below wait for the owner to recreate it (main folder only). Doing
-meanwhile, key-free: the barrel switch for `scripts/models`, a one-command fair-arms runner, and a
-model-free re-check of v1's two bug fixes once their sha lands. Day record:
-`docs/worklog/2026-10-18-models.md`.
+**2026-10-18 — RESUME HERE. Every NVIDIA run is blocked on a missing `.env.local`; the key-free work
+is done.** Day record: `docs/worklog/2026-10-18-models.md`. Live status: `docs/parallel/lane-models.md`.
+Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Rounds 4–5,
+`free-providers-2026-10.md`). Owner to-do: `docs/models/OWNER-TODO.md`.
 
-**2026-10-03 (night, shut down at 22:30) — RESUME HERE: finish the fair re-measurement, then the
-held-out wording test.** Day record: `docs/worklog/2026-10-03-models.md`. Live status:
-`docs/parallel/lane-models.md`. Data and decisions: `docs/models/` (README "Decisions on record",
-`survey.md` Rounds 4–5, `free-providers-2026-10.md`). Owner to-do: `docs/models/OWNER-TODO.md`.
-
-- **On main today, from this lane via v1:**
-  - the read-tool fix (`3392461`);
-  - the date line (`4f53468`);
-  - the false-claim guard (`361b2e1`, built from this lane's detector);
-  - `LOCAL_AI_EXTRA_BODY` (`45a0c12`): reasoning off for the 550B as a config line;
-  - three engine fixes this lane found (`98747f6`, `85e684b`).
+- **The laptop now has the models worktrees** (`../NutriFlow-models/` on `models`,
+  `../NutriFlow-models-exp/` on `models-exp`), node_modules junctioned to the main folder's. Bundle only
+  to `models-*` outfiles outside `node_modules/.cache`, where v1's test bundles live.
+- **No `.env.local` anywhere on the laptop**, and LM Studio is not running. Every model run waits for the
+  owner to recreate the file in the main folder.
+- **Shipped today:**
+  - `be98c57`: `scripts/models` imports only the folder barrels, so the old-path shims can go from this
+    lane's side (v1 told).
+  - Also in `be98c57`: `stub-model.mjs` (`--mode nothing|hollow|garbage`). It found two free passes in
+    this lane's evals, both closed: a hold the false-claim guard had rewritten, and `undo-flow` turn 2
+    after a failed turn 1. No past real-model score changes. Every stub mode now scores 0 on both evals.
+  - Also in `be98c57`: `probe-fixes.mts` re-checks v1's `5c12c4c` (multi-day swap; a claim riding on a
+    memory) through the real loop with a scripted model: 1/4 before the fix, 4/4 after.
+- **Next, in order (all need the key):**
+  1. **The fair re-measurement, every arm on ONE bundle:**
+     - loop A (reasoning on), B (off), C (off + `FAST_FINISH=reply`), convo A, convo C;
+     - wall clock, direct to NVIDIA, one arm at a time.
+     **Arm A must be re-run.** The 10-03 arm A (21/26, median 23.3 s) ran 26 scenarios on a bundle from
+     before the held-out pair existed (today there are 28). And `5c12c4c` changed the loop: a claim on a
+     memory now costs a nudge call. Keep the old arm A as history, not as an arm.
+     Recipe, from `../NutriFlow-models` (it is at main):
+     - bundle once: `npx esbuild scripts/models/{loop,convo}-eval.mts --bundle --platform=node --format=esm --tsconfig=tsconfig.json --outfile=<tmp>/models-fair-{loop,convo}.mjs`;
+     - run each arm with `AI_PROVIDER=local LOCAL_AI_URL=https://integrate.api.nvidia.com/v1 LOCAL_AI_MODEL=nvidia/nemotron-3-ultra-550b-a55b`;
+     - the key comes from the main `.env.local`. Never put it on a command line or in a message.
+     - B adds `LOCAL_AI_EXTRA_BODY='{"chat_template_kwargs":{"enable_thinking":false}}'`; C adds B's setting plus `FAST_FINISH=reply`;
+     - label each run `PROMPT_VERSION="fair <date> <sha>: arm X"`.
+     These are also the real-model re-run of v1's two fixes, since they run on `5c12c4c` or later.
+  2. **Held-out wording test**, main vs `models-wording` (cf89758: rate, reserve, "lighter on <days>" =
+     resize). **First merge current main into the branch**: cf89758 predates `5c12c4c`, and the only
+     difference allowed is the three prompt lines. Setup C, 3 runs each, with
+     `ONLY='heldout|^rate$|^eat-out-future$|^weekend-lighter$'`. Send v1 "ready to land" (the merge-base
+     diff of promptV2.ts) only if it also fixes the held-out phrasings.
+  3. **Send v1 the fair numbers.** The fast finish (`de1a102`, on `wip/v1-handoff-2026-10-03`) waits on them.
+  4. When the owner adds a key from OWNER-TODO, measure that model first, with the loop and convo evals.
+- **Open with v1:**
+  - "lighter weekend" became a bare day constrain (the fix is in `models-wording`, unmeasured);
+  - the old-path shims (this lane is off them since `be98c57`);
+  - `docs/parallel/README.md` still says the models worktrees are not on the laptop (asked v1).
 - **Owner's direction:** big models first; the biggest free model with an optimal response time; no
   more 20–30B work. The conversation eval separates sizes: 550B 11–12/14, 20B 6/14.
 - **The speed claim is NOT established.** "~3–4× faster" compared a wall-clock arm with an
   upstream-seconds arm across different code. An adversarial review caught it; survey Round 5 says so.
-- **Next session, in order:**
-  1. **Fair arms B, C, convo A, convo C.** Same commit, wall clock, direct to NVIDIA, one at a time.
-     Arm A is done: reasoning on, 21/26, median 23.3 s (`2026-10-03T20-23-44-loop-…`). Recipe:
-     `git -C ../NutriFlow-models-exp switch models-exp && git -C ../NutriFlow-models-exp merge origin/main`.
-     Then, from `../NutriFlow-models-exp`, run
-     `npx esbuild ../NutriFlow-models/scripts/models/{loop,convo}-eval.mts --bundle --platform=node --format=esm --tsconfig=tsconfig.json --outfile=<tmp>/X.mjs`.
-     Then, **from `../NutriFlow-models`** (so the scorecards land there), run
-     `AI_PROVIDER=local LOCAL_AI_URL=https://integrate.api.nvidia.com/v1 LOCAL_AI_MODEL=nvidia/nemotron-3-ultra-550b-a55b LOCAL_AI_API_KEY=<main .env.local> node <tmp>/X.mjs`
-     with:
-     - B: `LOCAL_AI_EXTRA_BODY='{"chat_template_kwargs":{"enable_thinking":false}}'`
-     - C: B's setting plus `FAST_FINISH=reply`
-     - label each with `PROMPT_VERSION="fair: …"`.
-  2. **Held-out wording test.** `ONLY='heldout|^rate$|^eat-out-future$|^weekend-lighter$'`, main vs
-     branch `models-wording` (cf89758, 3 prompt lines: rate, reserve, and "lighter on <days>" = resize,
-     never an empty constrain, which v1 asked for), in setup C, 3 runs each. Send v1 "ready to land",
-     as the merge-base diff of promptV2.ts, only if the wording fixes the held-out phrasings too.
-  - **v1's fixes for this lane's two product bugs** (multi-day swap; guard + memory) are on v1's branch
-    `wip/v1-handoff-2026-10-03` (de1a102). They are NOT on main until v1's full suite runs.
-  3. **Send v1 the fair numbers.** Change 2 (fast finish in `runAgent`, with v1's reply rule) waits on
-     them.
-- **Open with v1:**
-  - two product bugs (a swap with days Wed–Sun replaced all 7 days; the guard misses a claim paired
-    with `remember`);
-  - a bare day constrain used for "lighter weekend";
-  - D5a parts 2–3 (folder barrels). Switch `scripts/models` imports to `@/lib/assistant` etc. once part 3
-    lands, then tell v1 the shims can go.
-- **Methodology** (learned the hard way today):
+- **On main from this lane via v1 (2026-10-03):** the read-tool fix (`3392461`), the date line
+  (`4f53468`), the false-claim guard (`361b2e1`), `LOCAL_AI_EXTRA_BODY` (`45a0c12`), three engine
+  fixes (`98747f6`, `85e684b`); and v1's fixes for this lane's two product bugs (`5c12c4c`, 10-18).
+- **Methodology** (learned the hard way):
   - latency only from the real loop, on ONE clock across arms;
+  - a fair comparison runs every arm on ONE bundle; an arm from an older bundle is history;
   - one rate-limited run at a time;
   - ranges, not single scores;
   - grade the engine's effect, not the model's operations;
-  - run a do-nothing stub against any new check (it must score 0 on act checks);
+  - every new check must score 0 against `node scripts/models/stub-model.mjs` in all three modes;
   - test a wording fix on held-out phrasings.
 - **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`,
   `docs/worklog/*-models.md`, this block, the lane file. Does not edit v1's files; asks v1 first.
