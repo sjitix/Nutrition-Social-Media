@@ -22,7 +22,7 @@
  * child"). A field that is merely absent is fine; a field in the wrong shape is refused.
  */
 import type { StoreName } from "../storage";
-import { DAYS, MEAL_TYPES } from "../slots";
+import { DAYS, MEAL_TYPES } from "../core/client"; // the real home since V1 D5a; ../slots is a re-export
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const isStr = (v: unknown): v is string => typeof v === "string";

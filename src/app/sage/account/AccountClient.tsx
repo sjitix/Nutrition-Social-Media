@@ -98,7 +98,7 @@ export function AccountClient() {
     applyImport(incoming.result.bundle, (n, v) => writeStore(n, v));
     setIncoming(null);
     // The same words as the preview, so what was done is exactly what was offered.
-    sayAndFocus(`Brought in from ${incoming.file}: ${describeData(incoming.result.bundle.data, { incoming: true }).join(", ")}. What was here before is kept above until you forget it.`);
+    sayAndFocus(`Brought in from ${incoming.file}: ${describeData(incoming.result.bundle.data, { incoming: true }).join(", ")}. What was here before is kept as a copy in the list below until you forget it.`);
     refresh();
   }
 
@@ -319,7 +319,8 @@ export function AccountClient() {
               read it; the people who run NutriFlow can, to operate the service. Each sign-in, and its
               automatic renewal about once an hour while the app is open, is logged with your email
               address, and the sign-in provider&apos;s request logs record the IP address and browser
-              each came from.
+              each came from. Sign-in links are sent through an email delivery service, which keeps its
+              own record of each email it sends to you.
             </li>
             <li>
               <b className="font-semibold">Not kept:</b> a password (sign-in is by email link) or payment
@@ -327,8 +328,8 @@ export function AccountClient() {
             </li>
             <li>
               <b className="font-semibold">Deleting your account</b> removes everything stored in it.
-              The sign-in logs above are not part of the account: they keep your email address for as
-              long as the provider&apos;s log settings keep them.
+              The sign-in logs and the email service&apos;s records above are not part of the account:
+              they keep your email address for as long as those services&apos; log settings keep them.
             </li>
           </ul>
         </section>

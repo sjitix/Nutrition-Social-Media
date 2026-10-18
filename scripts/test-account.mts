@@ -57,6 +57,8 @@ import {
   accountStatus, currentSession, retrySignIn, canRetrySignIn,
 } from "@/lib/account/client";
 import { localSavedStore, savedStore } from "@/lib/savedStore";
+import { NO_NOTICE, nextNotice, noticeText } from "@/app/sage/account/notice";
+import type { AccountStatus } from "@/lib/account/client";
 import type { StoreName } from "@/lib/storage";
 import type { UserProfile, WeekPlan } from "@/lib/types";
 
@@ -363,6 +365,14 @@ async function mayThrow<T>(p: Promise<T>): Promise<T | null> {
   check("validate: a meal whose description is not text is refused (Today renders it as text)", bad("plan", oddMeal));
   check("validate: a week whose notes are not a list of sentences is refused", bad("batchPlan", { ...week("N"), notes: "cook sunday" }));
   check("validate: a meal-prep schedule in the wrong shape is refused", bad("batchPlan", { ...week("S"), sessions: [{ id: 1 }] }));
+  // The review of batches 4-5 found these four untested: each check could be removed, suites still green.
+  const withMeal = (extra: object) => ({ ...week("M"), days: [{ day: "Monday", meals: [{ ...week("M").days[0].meals[0], ...extra }] }] });
+  check("validate: a meal whose recipe link is not http(s) is refused (/plan renders it as a link)",
+    bad("plan", withMeal({ sourceUrl: "javascript:alert(1)" })));
+  check("validate: a week with a planning mode this app doesn't know is refused", bad("plan", { ...week("PM"), planMode: "monthly" }));
+  check("validate: a profile with meal-prep settings this app doesn't know is refused",
+    bad("profile", { ...PROFILE, planMode: "monthly" }) && bad("profile", { ...PROFILE, batchCadence: "hourly" }));
+  check("validate: a profile whose targets are not numbers is refused", bad("profile", { ...PROFILE, carbsGrams: "lots" }));
   const fullProfile = {
     ...PROFILE, name: "Ana", planMode: "batch", batchCadence: "weekly", fiberGrams: 30,
     lockedMeals: [{ day: "Sunday", mealType: "dinner", name: "Roast chicken" }],
@@ -383,6 +393,34 @@ async function mayThrow<T>(p: Promise<T>): Promise<T | null> {
   check("validate: a real meal-prep week still passes", checkStore("batchPlan", prep) === null, String(checkStore("batchPlan", prep)));
   check("validate: a real week and a real import pass",
     checkStore("plan", week("OK")) === null && checkStore("imports", [{ name: "R", sourceUrl: "https://e.com/r", ingredients: [], steps: [] }]) === null);
+}
+
+// =================================================================================================
+// notice.ts — what the account says on every /sage screen (the review of batches 4-5)
+// =================================================================================================
+{
+  const inState = (state: AccountStatus["state"], message?: string): AccountStatus => ({ state, email: "a@e.com", userId: "uid-a", message });
+  const out = (message?: string): AccountStatus => ({ state: "signed-out", message });
+  const replaced = "Your account had newer data, so it replaced some of what was on this device.";
+  let n = nextNotice(NO_NOTICE, inState("saved", replaced));
+  n = nextNotice(n, inState("pending"));
+  n = nextNotice(n, inState("saved"));
+  check("notice: a one-off note outlives the routine 'pending' and 'saved' that follow it", noticeText(n, inState("saved")) === replaced);
+  const dismissed = { ...n, dismissed: replaced };
+  check("notice: …until it is dismissed", noticeText(dismissed, inState("saved")) === null);
+  check("notice: a NEW note shows even if an earlier one with the same words was dismissed",
+    noticeText(nextNotice(dismissed, inState("saved", replaced)), inState("saved")) === replaced);
+  check("notice: a note said while signed in is dropped once the person signs out", noticeText(nextNotice(n, out()), out()) === null);
+  const offline = inState("offline", "Couldn't reach your account.");
+  const whileOffline = nextNotice(NO_NOTICE, offline);
+  check("notice: a condition (offline) shows while it lasts", noticeText(whileOffline, offline) === "Couldn't reach your account.");
+  check("notice: …and goes by itself when it is over: it is not kept like a one-off note",
+    noticeText(nextNotice(whileOffline, inState("saved")), inState("saved")) === null);
+  check("notice: a condition wins over a kept note: it is what is true now", noticeText(n, offline) === "Couldn't reach your account.");
+  check("notice: a dismissed condition stays dismissed while it repeats itself",
+    noticeText(nextNotice({ ...whileOffline, dismissed: "Couldn't reach your account." }, offline), offline) === null);
+  const why = "This account was deleted, perhaps on another device.";
+  check("notice: a sign-out's reason is kept while signed out", noticeText(nextNotice(NO_NOTICE, out(why)), out()) === why);
 }
 
 // =================================================================================================
@@ -857,6 +895,8 @@ await (async () => {
     spoof.kind === "error" && !spoof.message.includes("suspended") && !spoof.message.includes("evil"));
   const expired = readRedirect("?error=access_denied&error_code=otp_expired&error_description=x", "");
   check("redirect: a known error code picks the matching fixed sentence", expired.kind === "error" && expired.message.includes("expired"));
+  check("redirect: …and an expired link says only the newest link works (GoTrue retires the earlier one), not just 'ask again'",
+    expired.kind === "error" && expired.message.includes("only the newest link"), expired.kind === "error" ? expired.message : "");
   check("redirect: errors mirrored into the fragment are read too", readRedirect("", "#error=access_denied&error_code=otp_expired").kind === "error");
   check("redirect: an ordinary URL is nothing", readRedirect("?tab=2", "#section").kind === "none");
   check("hasAuthParams: spots code, error and token params, ignores the rest",
@@ -1212,11 +1252,18 @@ await (async () => {
   fakeWindow.localStorage = laptop;
   await signIn("ana@example.com");
   await startSync();
+  const anasRefresh = currentSession()!.refreshToken;
   await signOut();
   check("sign-out: the session is gone", currentSession() === null && accountStatus().state === "signed-out");
   check("sign-out: the device KEEPS its week (the account is a mirror)", storage.loadPlan() !== null);
   check("sign-out: no listeners are left behind", fakeDocument.count("visibilitychange") === 0 && fakeWindow.count("online") === 0);
-  check("sign-out: the server ended this browser's session", sb.logouts > 0);
+  // Not "/logout was called": that the session is really over. GoTrue refuses its refresh token from
+  // then on (the fake now ends the session as GoTrue does; it used to count the calls and nothing more).
+  const renewAfter = await sb.fetch("https://fake.supabase.co/auth/v1/token?grant_type=refresh_token", {
+    method: "POST", headers: { apikey: "ANON" }, body: JSON.stringify({ refresh_token: anasRefresh }),
+  });
+  check("sign-out: the server ended this browser's session (its refresh token no longer works)",
+    renewAfter.status === 400, `renewal answered ${renewAfter.status}`);
 
   // ---- Bob signs in on the SAME browser: Ana's data must not go into Bob's account ----
   const anaPlan = storage.loadPlan()?.weekSummary;
@@ -1278,6 +1325,46 @@ await (async () => {
   check("delete account: the next person to sign in here does NOT get the deleted account's data uploaded into theirs",
     summary(sb.table("uid-dee").get("plan")?.value) !== "week BOB-COPY", summary(sb.table("uid-dee").get("plan")?.value));
   check("delete account: …it is set aside here as a copy instead", storage.loadBackups().some((b) => summary(b.data.plan) === "week BOB-COPY"));
+  await signOut();
+
+  // ---- the account is deleted on ANOTHER device (review 2, platform-4) ----
+  // PostgREST keeps honouring this device's token until it expires (a JWT is stateless), so its next
+  // pull reads an empty account and its push breaks the foreign key to auth.users (23503, sent as 409).
+  // That read as an ordinary refusal: "couldn't store your week… everything else is synced" for up to
+  // an hour, then "your sign-in expired". Neither says what happened.
+  const deleteFromPhone = async (email: string) => {
+    const phone = sb.sessionFor(email); // the same account, signed in on a phone, which deletes it
+    await sb.fetch("https://fake.supabase.co/rest/v1/rpc/delete_my_account", {
+      method: "POST", headers: { apikey: "ANON", Authorization: `Bearer ${phone.access_token}` },
+    });
+  };
+  fakeWindow.localStorage = new MemoryStorage();
+  storage.savePlan(week("ELLA"));
+  await signIn("ella@example.com");
+  await startSync();
+  await deleteFromPhone("ella@example.com");
+  storage.savePlan(week("ELLA-AFTER")); // an edit here once the account is gone: the live mirror sends it
+  await leaveAndReturn();
+  check("deleted elsewhere: the live mirror's next push stops sync and says the account was deleted",
+    accountStatus().state === "signed-out" && (accountStatus().message ?? "").includes("was deleted"), json(accountStatus()));
+  check("deleted elsewhere: …the sign-in is forgotten, the week stays here, still marked as that account's",
+    currentSession() === null && summary(storage.loadPlan()) === "week ELLA-AFTER" && storage.loadSyncOwner() === "uid-ella",
+    json({ session: currentSession()?.userId ?? null, plan: summary(storage.loadPlan()), owner: storage.loadSyncOwner() }));
+
+  // The same through a FULL sync: a page opened after the deletion, with the token still good.
+  fakeWindow.localStorage = new MemoryStorage();
+  storage.savePlan(week("FINN"));
+  await signIn("finn@example.com");
+  await deleteFromPhone("finn@example.com");
+  await startSync(); // the account reads empty, and the push of this device's week is refused
+  check("deleted elsewhere: a full sync says so too, rather than 'couldn't store' or 'expired'",
+    accountStatus().state === "signed-out" && (accountStatus().message ?? "").includes("was deleted") && currentSession() === null,
+    json(accountStatus()));
+  await signIn("finn@example.com"); // the same person signs up again: a NEW account (GoTrue's new id)
+  await startSync();
+  check("deleted elsewhere: signing up again gets a new account, with the old data set aside rather than uploaded",
+    !sb.table(currentSession()!.userId).has("plan") && storage.loadBackups().some((b) => summary(b.data.plan) === "week FINN"),
+    json({ id: currentSession()?.userId, plan: summary(sb.table(currentSession()!.userId).get("plan")?.value), copies: storage.loadBackups().length }));
   await signOut();
 
   // ---- a first sync that FAILS: nothing is sent until a full sync succeeds, then it is retried ----

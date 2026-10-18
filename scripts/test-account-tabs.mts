@@ -88,6 +88,10 @@ const sb = new FakeSupabase();
 (globalThis as unknown as Record<string, unknown>).fetch = sb.fetch;
 
 for (const t of ["A", "B", "C", "D", "E", "F", "G", "H", "K", "L", "M", "N"]) makeTab(t, sharedStorage(t), true);
+// Batch 6's scenarios (the review of batches 4-5), loaded where they are used.
+for (const t of ["Q", "R", "S", "T", "U", "V", "X", "Y", "Z", "W", "J", "I", "O", "Ca", "Da", "Cb", "Db", "Cc", "Dc", "Ka", "Ya", "Yb", "Ga", "Gb"]) {
+  makeTab(t, sharedStorage(t), true);
+}
 makeTab("P", new MemoryStorage(), false);
 const load = async (t: string): Promise<Tab> => import(new URL(`./account-tab-${t}.mjs`, import.meta.url).href);
 const A = await load("A");
@@ -166,6 +170,29 @@ function unchanged(act: () => unknown): { same: boolean; result: unknown; change
   }
   const after = snapshot();
   return { same: after === before, result, changed: changedKeys(before, after) };
+}
+
+/** The same account, signed in on a phone, deletes itself there (batch 5: the 23503 path). */
+async function deleteFromPhone(email: string) {
+  const phone = sb.sessionFor(email);
+  await sb.fetch("https://fake.supabase.co/rest/v1/rpc/delete_my_account", {
+    method: "POST", headers: { apikey: "ANON", Authorization: `Bearer ${phone.access_token}` },
+  } as never);
+}
+/** Hold every request whose URL contains `path` until the returned function is called. */
+function holdRequests(path: string): () => void {
+  const g = globalThis as unknown as { fetch: typeof fetch };
+  const real = g.fetch;
+  let open!: () => void;
+  const gate = new Promise<void>((r) => (open = r));
+  g.fetch = (async (input: string, init?: RequestInit) => {
+    if (String(input).includes(path)) await gate;
+    return real(input, init);
+  }) as typeof fetch;
+  return () => {
+    g.fetch = real;
+    open();
+  };
 }
 
 /** What each tab's <AccountSync/> does on mount: watch the other tabs, with the page's own reload. */
@@ -424,6 +451,10 @@ function mountAccountSync(T: Tab, name: string) {
   await settle(10); // M's pull is on its way
   await signIn(N, "N", "nia@example.com");
   await N.client.startSync(); // the switch: Max's data set aside, Nia's brought down
+  // Without this, a slow run would let M's answer land BEFORE the switch, and every check below would
+  // pass without testing anything (the review of batches 4-5).
+  check("setup: tab M's answer has not landed yet (the race this scenario is about)",
+    M.client.accountStatus().state === "syncing", json(M.client.accountStatus()));
   check("setup: the browser now holds Nia's week, and is hers",
     summary(N.storage.loadPlan()) === "week NIA" && N.storage.loadSyncOwner() === "uid-nia");
   const switched = snapshot();
@@ -436,6 +467,318 @@ function mountAccountSync(T: Tab, name: string) {
   await hear("M");
   check("stale sync: once tab M hears, it reloads", reloads.M > before, `reloads ${reloads.M - before}`);
   await N.client.signOut();
+}
+
+// =================================================================================================
+// 8-19. The review of batches 4-5 (batch 6). Several were written by its test-fidelity lens, which
+// proved each one fails without the guard it covers.
+// =================================================================================================
+
+// 8. A token renewal answered after ANOTHER account signed in, in another tab. liveSession's check that
+//    the stored session is still Qia's is all that stands between that late answer and Rob's session
+//    being used for her queued edit: her profile, allergies included, upserted into Rob's account.
+{
+  shared.clear();
+  const Q = await load("Q");
+  const R = await load("R");
+  Q.storage.saveProfile({ ...PROFILE, name: "Qia", allergies: "shellfish" });
+  await signIn(Q, "Q", "qia@example.com");
+  await Q.client.startSync();
+  mountAccountSync(Q, "Q");
+  sb.user("rob@example.com");
+  advance(3_700_000); // Q's access token has expired: its next request renews it first
+  sb.refreshAnswerDelayMs = 150; // GoTrue renews at once; its answer is slow to come back
+  Q.storage.saveProfile({ ...PROFILE, name: "Qia", allergies: "shellfish, sesame" }); // an edit, queued
+  tabs.Q.document.visibilityState = "hidden";
+  tabs.Q.document.dispatch("visibilitychange"); // the mirror flushes: its push asks for a live session
+  await settle(20);
+  await signIn(R, "R", "rob@example.com"); // Rob signs in, in tab R, while Q's renewal is on its way
+  await settle(250);
+  tabs.Q.document.visibilityState = "visible";
+  check("renewal race: an answer arriving after another account signed in sends nothing into THAT account",
+    !sb.table("uid-rob").has("profile"), json(sb.table("uid-rob").get("profile")?.value ?? null));
+  await R.client.signOut();
+}
+
+// 9. "Delete everything in this browser" pressed in a tab that has not reloaded yet still deletes it all:
+//    clearing removes the stores directly, whatever the write fence says.
+{
+  shared.clear();
+  const S = await load("S");
+  const T = await load("T");
+  S.storage.loadPlan(); // tab S's screens load: it works from this generation
+  await T.client.forgetThisBrowser(); // tab T clears the browser: a new generation starts
+  T.storage.saveProfile({ ...PROFILE, name: "Tam", allergies: "milk" }); // and someone starts afresh there
+  await S.client.forgetThisBrowser(); // tab S, not reloaded yet: "Delete everything in this browser"
+  const left = [...shared.keys()].filter((k) => k !== "nutriflow.epoch");
+  check("fence: 'Delete everything' from a tab that has not reloaded yet still deletes everything", left.length === 0, json(left));
+}
+
+// 10. With accounts switched OFF, another tab clearing the browser still reloads this one: its screens
+//     hold data that is gone, and the fence would quietly refuse every save they make.
+{
+  shared.clear();
+  const U = await load("U");
+  const V = await load("V");
+  const keep = { url: env.NEXT_PUBLIC_SUPABASE_URL, key: env.NEXT_PUBLIC_SUPABASE_ANON_KEY };
+  delete env.NEXT_PUBLIC_SUPABASE_URL;
+  delete env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  U.storage.savePlan(week("OFF"));
+  mountAccountSync(U, "U");
+  const before = reloads.U;
+  await V.client.forgetThisBrowser();
+  await settle();
+  check("fence: with accounts switched off, a tab reloads when another tab clears the browser",
+    reloads.U > before, `reloads ${reloads.U - before}`);
+  env.NEXT_PUBLIC_SUPABASE_URL = keep.url;
+  env.NEXT_PUBLIC_SUPABASE_ANON_KEY = keep.key;
+}
+
+// 11. The account is deleted elsewhere while this tab's push is in flight, and meanwhile another tab
+//     signs a DIFFERENT person in. The 23503 answer must not sign that person out.
+{
+  shared.clear();
+  const X = await load("X");
+  const Y = await load("Y");
+  await signIn(X, "X", "xan@example.com");
+  await X.client.startSync();
+  mountAccountSync(X, "X");
+  await deleteFromPhone("xan@example.com");
+  deafen("X");
+  sb.pushDelayMs = 80;
+  X.storage.savePlan(week("XAN-AFTER"));
+  tabs.X.document.visibilityState = "hidden";
+  tabs.X.document.dispatch("visibilitychange"); // X's push goes out, and is slow
+  await settle(10);
+  await signIn(Y, "Y", "yul@example.com"); // Yul signs in, in tab Y, while X's push is on its way
+  await settle(150);
+  sb.pushDelayMs = 0;
+  tabs.X.document.visibilityState = "visible";
+  const stored = Y.storage.loadSessionRaw() as { userId?: string } | null;
+  check("deleted elsewhere: the 23503 in one tab does not sign out the account another tab just signed in",
+    stored?.userId === "uid-yul", json(stored?.userId ?? null));
+  await hear("X");
+  await Y.client.signOut();
+}
+
+// 12. After "this account was deleted", a later edit must not restart anything, or change what is said.
+{
+  shared.clear();
+  const Z = await load("Z");
+  await signIn(Z, "Z", "zed@example.com");
+  await Z.client.startSync();
+  await deleteFromPhone("zed@example.com");
+  Z.storage.savePlan(week("ZED-AFTER"));
+  await hide("Z"); // the mirror pushes: 23503, "this account was deleted"
+  const first = Z.client.accountStatus();
+  Z.storage.savePlan(week("ZED-AFTER-2")); // the person carries on editing
+  await hide("Z");
+  const later = Z.client.accountStatus();
+  check("deleted elsewhere: a later edit leaves 'this account was deleted' in place (the sync stopped)",
+    first.state === "signed-out" && later.state === "signed-out" && (later.message ?? "").includes("was deleted"), json(later));
+  tabs.Z.document.visibilityState = "visible";
+}
+
+// 13. Signing out on a device whose account was deleted elsewhere. GoTrue answers that token's /logout
+//     with 403 user_not_found (it loads the user first), which means the sign-in is already over: not
+//     "the server couldn't be reached".
+{
+  shared.clear();
+  const W = await load("W");
+  await signIn(W, "W", "wes@example.com");
+  await W.client.startSync();
+  await deleteFromPhone("wes@example.com");
+  await W.client.signOut();
+  check("deleted elsewhere: signing out does not claim the server couldn't be reached",
+    W.client.accountStatus().state === "signed-out" && !(W.client.accountStatus().message ?? "").includes("couldn't be reached"),
+    json(W.client.accountStatus()));
+}
+
+// 14. Signing out with an edit not yet sent, on a device whose account was deleted elsewhere: the send
+//     finds the account gone. That is what to say, not "your changes go up next time you sign in".
+{
+  shared.clear();
+  const J = await load("J");
+  await signIn(J, "J", "jo@example.com");
+  await J.client.startSync();
+  await deleteFromPhone("jo@example.com");
+  J.storage.savePlan(week("JO-AFTER")); // an edit, still waiting out the debounce
+  await J.client.signOut();
+  const said = J.client.accountStatus().message ?? "";
+  check("deleted elsewhere: signing out with an unsent edit says the account was deleted, not 'next time'",
+    said.includes("was deleted") && !said.includes("next time"), said);
+}
+
+// 15. "Delete everything in this browser" waits for /logout; meanwhile another tab signs someone else
+//     in. Clearing after that wait wiped THEIR sign-in and the week that had just come down for them.
+{
+  shared.clear();
+  const I = await load("I");
+  const O = await load("O");
+  I.storage.saveProfile({ ...PROFILE, name: "Ida" });
+  I.storage.savePlan(week("IDA"));
+  await signIn(I, "I", "ida@example.com");
+  await I.client.startSync();
+  await settle();
+  sb.user("oz@example.com");
+  sb.table("uid-oz").set("plan", { value: week("OZ"), updated_at: new Date(Date.now() - 60_000).toISOString() });
+  const release = holdRequests("/auth/v1/logout");
+  const cleared = I.client.forgetThisBrowser().then(() => "cleared", (e: Error) => `refused: ${e.message}`);
+  await settle();
+  await signIn(O, "O", "oz@example.com"); // Oz signs in, in tab O, while tab I waits
+  await O.client.startSync();
+  await settle();
+  release();
+  const outcome = await cleared;
+  await settle();
+  check("delete everything: a sign-in made in another tab during the wait is not wiped",
+    O.client.currentSession()?.userId === "uid-oz" && summary(O.storage.loadPlan()) === "week OZ",
+    json({ session: O.client.currentSession()?.userId ?? null, plan: summary(O.storage.loadPlan()) }));
+  check("delete everything: …and the tab that waited says nothing was deleted", outcome.includes("nothing was deleted"), outcome);
+  await O.client.signOut();
+}
+
+// 16. Signing out sends what is waiting first; meanwhile another tab signs someone else in. Sign-out used
+//     to fall back to whatever session was stored by then, and so ended THEIR sign-in.
+{
+  shared.clear();
+  const Ca = await load("Ca");
+  const Da = await load("Da");
+  Ca.storage.saveProfile({ ...PROFILE, name: "Cyan" });
+  await signIn(Ca, "Ca", "cyan@example.com");
+  await Ca.client.startSync();
+  await settle();
+  sb.user("dell@example.com");
+  Ca.storage.savePlan(week("CYAN-EDIT")); // an edit still waiting in the mirror
+  sb.pushDelayMs = 300; // the send that sign-out does first takes a moment
+  const out = Ca.client.signOut();
+  await settle(20);
+  await signIn(Da, "Da", "dell@example.com"); // Dell signs in, in tab Da, meanwhile
+  sb.pushDelayMs = 0;
+  await Da.client.startSync();
+  const dell = Da.client.currentSession();
+  await out;
+  await settle();
+  check("sign-out: a sign-in made in another tab while the last edit was sent is left alone",
+    Da.client.currentSession()?.userId === "uid-dell" && !!dell && sb.refresh.has(dell.refreshToken),
+    json({ session: Da.client.currentSession()?.userId ?? null, refreshAlive: dell ? sb.refresh.has(dell.refreshToken) : null }));
+  check("sign-out: …and the tab that signed out says another tab signed someone in",
+    (Ca.client.accountStatus().message ?? "").includes("another tab"), json(Ca.client.accountStatus()));
+  await Da.client.signOut();
+}
+// 16b. The same, while /logout is answering: the local sign-in is forgotten only if it is still this one's.
+{
+  shared.clear();
+  const Cb = await load("Cb");
+  const Db = await load("Db");
+  await signIn(Cb, "Cb", "cyd@example.com");
+  await Cb.client.startSync();
+  sb.user("dex@example.com");
+  const release = holdRequests("/auth/v1/logout");
+  const out = Cb.client.signOut(); // nothing waiting: straight to /logout, which is slow
+  await settle();
+  await signIn(Db, "Db", "dex@example.com");
+  await Db.client.startSync();
+  release();
+  await out;
+  await settle();
+  check("sign-out: a sign-in made in another tab while /logout answered is not forgotten here",
+    Db.client.currentSession()?.userId === "uid-dex", json(Db.client.currentSession()?.userId ?? null));
+  await Db.client.signOut();
+}
+// 16c. The same, while the renewal that /logout needs is answered: a renewal refused for a different
+//      account must never send THAT account's token to /logout.
+{
+  shared.clear();
+  const Cc = await load("Cc");
+  const Dc = await load("Dc");
+  await signIn(Cc, "Cc", "cole@example.com");
+  await Cc.client.startSync();
+  sb.user("dana@example.com");
+  advance(3_700_000); // Cole's access token has expired: signing out renews it first, for /logout
+  sb.refreshAnswerDelayMs = 150;
+  const out = Cc.client.signOut();
+  await settle(20);
+  await signIn(Dc, "Dc", "dana@example.com"); // Dana signs in while that renewal is answered
+  await Dc.client.startSync();
+  const dana = Dc.client.currentSession();
+  await out;
+  await settle(200);
+  check("sign-out: a renewal answered after another account signed in never ends THAT account's sign-in",
+    Dc.client.currentSession()?.userId === "uid-dana" && !!dana && sb.refresh.has(dana.refreshToken),
+    json({ session: Dc.client.currentSession()?.userId ?? null, refreshAlive: dana ? sb.refresh.has(dana.refreshToken) : null }));
+  await Dc.client.signOut();
+}
+
+// 17. What a reload carries is what the sync DID, once. The whole status line used to be carried, so a
+//     held-back store's sentence, which the next sync says again by itself, appeared twice.
+{
+  shared.clear();
+  const Ka1 = await load("Ka1");
+  Ka1.storage.saveChat([{ role: "user", text: "y".repeat(900_001) }] as never); // too large to sync
+  Ka1.storage.savePlan(week("KAI-LOCAL")); // never synced: the account's newer week replaces it
+  sb.user("kai@example.com");
+  sb.table("uid-kai").set("plan", { value: week("KAI-ACCOUNT"), updated_at: new Date(Date.now() + 60_000).toISOString() });
+  await signIn(Ka1, "Ka", "kai@example.com");
+  await Ka1.client.startSync();
+  const said = Ka1.client.accountStatus().message ?? "";
+  Ka1.client.carryNoteAcrossReload(); // what <AccountSync/> does just before reloading for the pull
+  const Ka2 = await load("Ka2"); // the same tab, reloaded
+  await Ka2.client.startSync();
+  const after = Ka2.client.accountStatus().message ?? "";
+  const times = (s: string, part: string) => s.split(part).length - 1;
+  check("carried note: 'newer data' survives the reload, and the held store is still named, each said ONCE",
+    times(said, "newer data") === 1 && times(after, "newer data") === 1 && times(after, "too large to keep in your account") === 1,
+    json({ said, after }));
+  await Ka2.client.signOut();
+}
+
+// 18. A note carried for one account is never shown to another: here the reloaded page's first sync
+//     fails, another tab signs someone else in, and this tab reloads for that.
+{
+  shared.clear();
+  const Ya1 = await load("Ya1");
+  Ya1.storage.savePlan(week("YAN-LOCAL"));
+  sb.user("yan@example.com");
+  sb.table("uid-yan").set("plan", { value: week("YAN-ACCOUNT"), updated_at: new Date(Date.now() + 60_000).toISOString() });
+  await signIn(Ya1, "Ya", "yan@example.com");
+  await Ya1.client.startSync(); // "your account had newer data"
+  Ya1.client.carryNoteAcrossReload();
+  const Ya2 = await load("Ya2"); // the reload; its first sync does not get through
+  sb.down = true;
+  await Ya2.client.startSync();
+  sb.down = false;
+  const Yb = await load("Yb");
+  await signIn(Yb, "Yb", "yara@example.com"); // another tab signs someone else in
+  await Yb.client.startSync();
+  const Ya3 = await load("Ya3"); // tab Ya reloads for the change of hands: its first sync is Yara's
+  await Ya3.client.startSync();
+  check("carried note: a sentence about one account is never shown to the next one in that tab",
+    Ya3.client.currentSession()?.userId === "uid-yara" && !(Ya3.client.accountStatus().message ?? "").includes("newer data"),
+    json(Ya3.client.accountStatus()));
+  await Yb.client.signOut();
+}
+
+// 19. When one tab finds the account deleted, the browser's other tabs do not claim the person signed
+//     out: they cannot tell why the sign-in ended, so they say only what is true.
+{
+  shared.clear();
+  const Ga = await load("Ga");
+  const Gb = await load("Gb");
+  Ga.storage.savePlan(week("GIL"));
+  await signIn(Ga, "Ga", "gil@example.com");
+  await Ga.client.startSync();
+  await Gb.client.startSync(); // tab Gb mirrors the same account
+  await settle();
+  await deleteFromPhone("gil@example.com");
+  Ga.storage.savePlan(week("GIL-AFTER"));
+  await hide("Ga"); // tab Ga's push meets the deleted account
+  await settle();
+  check("deleted elsewhere: the tab that found out says so", (Ga.client.accountStatus().message ?? "").includes("was deleted"),
+    json(Ga.client.accountStatus()));
+  check("deleted elsewhere: …and another tab of the browser does not claim the person signed out",
+    Gb.client.accountStatus().state === "signed-out" && !(Gb.client.accountStatus().message ?? "").startsWith("You signed out"),
+    json(Gb.client.accountStatus()));
 }
 
 Date.now = realNow;

@@ -16,7 +16,7 @@ import type { ModelFn } from "@/lib/agentLoop";
 /** Network, timeout, rate limit, gateway or server errors: not the model's output. An EMPTY response is
  *  counted here too: the free NVIDIA tier returns empty 200s under load (latency-anatomy saw 3 in 16 calls),
  *  so it is the host's failure far more often than the model's. */
-const INFRA = /ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|EAI_AGAIN|fetch failed|socket|network|timed? ?out|abort|\b429\b|rate.?limit|too many requests|\b50[0-4]\b|bad gateway|service unavailable|unreachable|no models? loaded|model_not_found|empty response/i;
+const INFRA = /ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|EAI_AGAIN|fetch failed|socket|network|timed? ?out|abort|\b429\b|rate.?limit|too many requests|\b50[0-4]\b|bad gateway|service unavailable|unreachable|no models? loaded|model_not_found|empty response|could not reach|server error \(\d{3}\)/i;
 export const isInfraError = (msg: string) => msg === "" || INFRA.test(msg);
 
 /** Wraps a ModelFn and remembers the message of the last error it threw (reset before each run). */

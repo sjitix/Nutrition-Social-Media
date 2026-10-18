@@ -294,6 +294,24 @@ const SCENARIOS: Scenario[] = [
         ? null : `no high rating recorded for "${name}"`;
     },
   },
+  // ── HELD-OUT paraphrases (added 2026-10-03). The wording fix for `rate` / `eat-out-future` quotes those
+  //    scenarios' own phrases ("have it more often", "save some room"), so passing them could be teaching to
+  //    the test. These say the same things in words the prompt never uses; run them with ONLY=heldout.
+  {
+    id: "rate-heldout", want: "act",
+    message: "tuesday's breakfast was a 10/10, keep that one coming back",
+    check: (r, b) => {
+      const name = meal(b, "Tuesday", "breakfast")?.name ?? "";
+      return (r.profile.mealRatings ?? []).some((x) => x.name === name && x.rating >= 4)
+        ? null : `no high rating recorded for "${name}"`;
+    },
+  },
+  {
+    id: "eat-out-heldout", want: "act",
+    message: "my sister's birthday is saturday and we're all going to a restaurant for dinner",
+    check: (r) => /^Eating out/i.test(meal(r.plan, "Saturday", "dinner")?.description ?? "")
+      ? null : `Saturday dinner not reserved ("${meal(r.plan, "Saturday", "dinner")?.name}")`,
+  },
   {
     id: "four-meals", want: "act",
     message: "add an afternoon snack, i want 4 meals a day from now on",

@@ -25,6 +25,10 @@ await build({ ...common, entryPoints: ["scripts/test-account.mts"], outfile: cac
 const PAGES = {
   A: "A", B: "B", C: "C", D: "D", E: "E", F: "F", G: "G", G2: "G", H: "H", K: "K", K2: "K",
   L: "L", L2: "L", L3: "L", L4: "L", M: "M", N: "N", P: "P",
+  // the review of batches 4-5 (batch 6): one or two tabs per scenario; Ka2, Ya2, Ya3 are reloads
+  Q: "Q", R: "R", S: "S", T: "T", U: "U", V: "V", X: "X", Y: "Y", Z: "Z", W: "W", J: "J", I: "I", O: "O",
+  Ca: "Ca", Da: "Da", Cb: "Cb", Db: "Db", Cc: "Cc", Dc: "Dc", Ka1: "Ka", Ka2: "Ka",
+  Ya1: "Ya", Ya2: "Ya", Ya3: "Ya", Yb: "Yb", Ga: "Ga", Gb: "Gb",
 };
 for (const [page, tab] of Object.entries(PAGES)) {
   await build({
