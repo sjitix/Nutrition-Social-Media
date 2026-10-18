@@ -70,8 +70,8 @@ another device or in another browser is refused with a sentence saying exactly t
 ## What the schema is
 
 One table, `user_state`: a row per (user, store), holding that store's JSON exactly as
-`src/lib/storage.ts` wrote it, plus the time the writing device wrote it. Sync rules live in
-`src/lib/account/merge.ts`.
+`src/lib/persistence/storage.ts` wrote it, plus the time the writing device wrote it. Sync rules live
+in `src/lib/account/merge.ts`.
 
 Two functions:
 

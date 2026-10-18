@@ -125,8 +125,13 @@ Supabase row per user under RLS.
 - **Asked of the v1 lane (lane file has the detail):** make `AssistantChat` re-read on
   `PLAN_CHANGED_EVENT`, and drop `actions.ts`'s undo snapshot when sync pulls or the browser is
   cleared — until then `<AccountSync/>` reloads the tab once when the week or profile comes down.
-  **D5a, answered yes:** `storage.ts` and `savedStore.ts` may move to `persistence/` once batch 4's sha
-  is in the lane file. `storage.ts` already owns the theme key, so ThemeSwitch's debt can be paid.
+  **D5a's last move landed (v1, `2b7075d`):** `storage.ts` is `src/lib/persistence/storage.ts` (import
+  `@/lib/persistence`), and `savedStore.ts` is `src/lib/account/savedStore.ts`. It sits in account/,
+  not persistence/, because it value-imports `account/client`, and in the persistence barrel it would
+  close an import cycle. The old paths are one-line re-exports, so the write fence's state is still one
+  instance per tab. Checked: in this lane's files only import lines and the mutation runner's 21 path
+  strings changed; the suites pass 333 + 43 on the moved tree, and v1 ran all 85 mutations, 85/85.
+  `storage.ts` owns the theme key, so ThemeSwitch's debt is v1's to pay next.
 
 One-time handoff carried through this lane: the `modelFailed` fix an earlier session left uncommitted
 in the main folder (`2fd6f02`). Its WORKPLAN lesson was renumbered 38 → 48 because 38–47 were taken.

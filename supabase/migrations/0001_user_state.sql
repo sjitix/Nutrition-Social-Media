@@ -12,7 +12,7 @@
 
 create table if not exists public.user_state (
   user_id    uuid        not null references auth.users (id) on delete cascade,
-  -- The store's name. Must match `STORE_NAMES` in src/lib/storage.ts — the same "one concept, one
+  -- The store's name. Must match `STORE_NAMES` in src/lib/persistence/storage.ts — the same "one concept, one
   -- key" rule, enforced here so a typo in a client can't create a second, drifting copy of a store.
   key        text        not null check (key in (
                'profile', 'plan', 'batchPlan', 'chat', 'imports', 'saved', 'groceriesChecked', 'visits'
