@@ -472,7 +472,7 @@
         <tbody>
           <tr><td class="mono">1</td><td>No module imports above its layer</td><td>the layering is otherwise a comment</td></tr>
           <tr><td class="mono">2</td><td>Only a module's barrel may be imported from outside it — no deep paths</td><td>this is what makes “private” real</td></tr>
-          <tr><td class="mono">3</td><td>Only <span class="mono">persistence/storage</span> may contain a localStorage key string</td><td>a second saved-recipes key already drifted once</td></tr>
+          <tr><td class="mono">3</td><td>Only the storage files in <span class="mono">persistence/</span> may name a storage key, and each key is named in exactly one of them</td><td>a second saved-recipes key already drifted once</td></tr>
           <tr><td class="mono">4</td><td>No client component imports a server barrel</td><td>the 185&nbsp;kB Explore payload, made impossible</td></tr>
           <tr><td class="mono">5</td><td>No import cycles</td><td>true today — this keeps it true</td></tr>
           <tr><td class="mono">6</td><td>No emoji in <span class="mono">src/</span></td><td>a standing project rule with no enforcement today</td></tr>

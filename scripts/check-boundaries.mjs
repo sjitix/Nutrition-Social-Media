@@ -9,7 +9,8 @@
  *   rule 1  no module imports ABOVE its layer (L0 contracts ... L6 presentation, §2 of the map)
  *   rule 2  a folder with an index.ts is a module, and only its entry points may be imported from
  *           outside — and src/ may not import the old flat paths D5a left behind
- *   rule 3  only src/lib/persistence/storage.ts may name a storage key or touch localStorage / sessionStorage
+ *   rule 3  only the owners in src/lib/persistence/ may name a storage key or touch localStorage / sessionStorage,
+ *           and each key is named by exactly one of them
  *   rule 4  no client component, and no browser-safe client.ts entry, reaches a server-only module
  *           or a server-only package (zod, the Anthropic SDK) through VALUE imports
  *   rule 5  no import cycles (value imports — what actually executes)
@@ -115,7 +116,10 @@ const SERVER_ONLY_PACKAGES = new Set(["zod", "@anthropic-ai/sdk", "typescript"])
  */
 const SIDE_EFFECTS = ["*.css"];
 
-const STORAGE_OWNER = "src/lib/persistence/storage.ts";
+// The files that may name a storage key. theme.ts holds the theme key on its own so a page that needs only
+// the theme (the root layout, through ThemeSwitch) does not load all of storage.ts: 3.4 kB gz on /,
+// /_not-found and /recipes, measured 2026-10-18. Each key is still named in exactly one of them (rule 3).
+const STORAGE_OWNERS = ["src/lib/persistence/storage.ts", "src/lib/persistence/theme.ts"];
 const STORAGE_GLOBALS = new Set(["localStorage", "sessionStorage"]);
 // storage.ts's keys are all "nutriflow.<name>". Narrower than "anything starting nutriflow" on
 // purpose: the event "nutriflow:planchanged", the export format tag "nutriflow-export" and the
@@ -381,14 +385,32 @@ export function check(sources, { assets = new Set(), packageJson } = {}) {
   }
 
   // rule 3 — storage. Read from the syntax tree, so a key mentioned in a comment is not a key.
-  const ownerText = sources.get(STORAGE_OWNER);
+  // The owners are files in persistence/. Each key is still named by exactly ONE of them: a "nutriflow…"
+  // literal written in two owners is one key spelled twice — the drift this rule exists to prevent — so
+  // that fails too, and the second owner imports the constant instead.
   const ownedKeys = new Set();
-  if (ownerText) {
-    const visit = (n) => { if (ts.isStringLiteralLike(n) && KEY_PATTERN.test(n.text)) ownedKeys.add(n.text); ts.forEachChild(n, visit); };
-    visit(parse(STORAGE_OWNER, ownerText));
+  const ownerLiterals = [];
+  for (const owner of STORAGE_OWNERS) {
+    const text = sources.get(owner);
+    if (!text) continue;
+    const sf = parse(owner, text);
+    const lits = new Map();
+    const visit = (n) => {
+      if (ts.isStringLiteralLike(n)) {
+        if (KEY_PATTERN.test(n.text)) ownedKeys.add(n.text);
+        if (/^nutriflow/.test(n.text) && !lits.has(n.text)) lits.set(n.text, lineOf(sf, n));
+      }
+      ts.forEachChild(n, visit);
+    };
+    visit(sf);
+    ownerLiterals.push({ owner, lits });
   }
+  ownerLiterals.forEach(({ owner: a, lits: la }, i) => ownerLiterals.slice(i + 1).forEach(({ owner: b, lits: lb }) => {
+    for (const [lit, line] of lb) if (la.has(lit)) add(3, `storage-dup:${lit}`, b,
+      `"${lit}" is written in both ${a} (line ${la.get(lit)}) and ${b} (line ${line}). One key, one spelling, one owner: the other owner imports the constant.`);
+  }));
   for (const f of files) {
-    if (f === STORAGE_OWNER) continue;
+    if (STORAGE_OWNERS.includes(f)) continue;
     const { sf } = info.get(f);
     const keys = new Map(); let apiLine = 0;
     const visit = (n) => {
@@ -398,9 +420,9 @@ export function check(sources, { assets = new Set(), packageJson } = {}) {
     };
     visit(sf);
     for (const [k, line] of keys) add(3, `storage-key:${f}:${k}`, f,
-      `${f} names the storage key "${k}", line ${line}. Only ${STORAGE_OWNER} may name one: a second saved-recipes key once drifted from the first for weeks before anyone noticed. Add the key to storage.ts and call its load/save pair.`);
+      `${f} names the storage key "${k}", line ${line}. Only ${STORAGE_OWNERS.join(" or ")} may name one: a second saved-recipes key once drifted from the first for weeks before anyone noticed. Add the key to storage.ts and call its load/save pair.`);
     if (apiLine) add(3, `storage-api:${f}`, f,
-      `${f} touches the browser's storage directly, line ${apiLine}. Go through ${STORAGE_OWNER}, which owns every key and the JSON encoding.`);
+      `${f} touches the browser's storage directly, line ${apiLine}. Go through persistence/ (${STORAGE_OWNERS.join(", ")}), which owns every key and the JSON encoding.`);
   }
 
   // rule 4 — the browser payload. Breadth-first over VALUE imports from each client component, and
@@ -524,6 +546,8 @@ function selfTest() {
   const fixture = new Map(Object.entries({
     "src/lib/types.ts": `export type Meal = { name: string };\nexport const DAYS = ["Monday"];`,
     "src/lib/persistence/storage.ts": `const KEYS = { plan: "nutriflow.plan" };\nexport const load = () => localStorage.getItem(KEYS.plan);`,
+    // rule 3: a SECOND owner may name its own key and touch storage, but not re-spell a key the first one owns
+    "src/lib/persistence/theme.ts": `export const THEME = "nutriflow-theme";\nexport const t = () => localStorage.getItem(THEME);\nexport const DUP = "nutriflow.plan";`,
     "src/lib/recipeDb.ts": `import type { Meal } from "./types";\nexport const RECIPES: Meal[] = [];\nexport type Recipe = Meal;`,
     // rule 1: L0 importing L3 — and an L0 file reaching L3 only through a TYPE position
     "src/lib/slots.ts": `import { RECIPES } from "./recipeDb";\nexport const N = RECIPES.length;`,
@@ -617,6 +641,9 @@ function selfTest() {
     ["rule 3 catches a second storage key", "storage-key:src/app/sage/thing.ts:nutriflow.saved2", true],
     ["rule 3 catches direct localStorage access", "storage-api:src/app/sage/thing.ts", true],
     ["rule 3 ignores a key mentioned in a comment", "storage-key:src/app/sage/thing.ts:nutriflow.comment", false],
+    ["rule 3 lets the second owner in persistence/ touch storage", "storage-api:src/lib/persistence/theme.ts", false],
+    ["rule 3 lets the second owner name its own key", "storage-key:src/lib/persistence/theme.ts:nutriflow-theme", false],
+    ["rule 3 catches one key written in two owners", "storage-dup:nutriflow.plan", true],
     ["rule 4 catches a client component reaching the engine via another module", "client-server:src/app/sage/Client.tsx->src/lib/recipeDb.ts", true],
     ["rule 4 ignores a type-only import (it ships nothing)", "client-server:src/app/sage/TypeOnly.tsx->src/lib/recipeDb.ts", false],
     ["rule 4 follows a trailing slash (\"@/lib/plan/\")", "client-server:src/app/sage/Slash.tsx->src/lib/plan/index.ts", true],
@@ -690,7 +717,7 @@ const { violations, stats } = check(sources, { assets, packageJson });
 
 const RULE_TITLE = {
   0: "a file in src/lib has no layer", 1: "a module imports above its layer", 2: "an import past a module's entry points",
-  3: "storage is touched outside storage.ts", 4: "browser code reaches the server side",
+  3: "storage is touched outside persistence/, or one key is named twice", 4: "browser code reaches the server side",
   5: "an import cycle", 6: "an emoji in src/", 7: "an import the gate cannot follow", 8: "something depends on running at import time",
 };
 
