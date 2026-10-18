@@ -824,7 +824,7 @@ until its entry is deleted, so the list never claims a problem that is gone.
 | 5 | ~~**`/plan` → `import.ts`** (a pure converter living inside the network adapter)~~ — **PAID 2026-10-03 (D5a part 2)**: `ImportedRecipe` and `importedToMeal` moved to `core/imported.ts`; `providers/import.ts` re-exports them | B2 / A6 |
 | 6 | **`agentTools` (L4) → `feed` (L6)** — searching the library is engine work, the query moves down — *new* | A6 |
 | 7 | ~~**`conditions`, `symptoms` (L1) → `nutrients` (L2)**~~ — **PAID 2026-10-03 (D5a part 2)**: `MICRO_KEYS`, `MicroKey`, `Micros`, `MICRO_LABEL`, `MICRO_UNIT` moved to `core/micros.ts`; `nutrients.ts` re-exports them | A6 |
-| 8 | `ThemeSwitch` writes `localStorage` itself (the theme key predates the rule). `storage.ts` already owns the key (`THEME_STORAGE_KEY`, `loadTheme`, `saveTheme`, added by the accounts lane), so only the switch-over is left | the v1 lane |
+| 8 | ~~`ThemeSwitch` writes `localStorage` itself (the theme key predates the rule)~~ — **PAID 2026-10-18**: it calls `saveTheme` and spells its boot script with `THEME_STORAGE_KEY`, both from `persistence/storage.ts` (added by the accounts lane) | the v1 lane |
 | 9–10 | ~~**`storage.ts` → `./types` and `./import`**~~ — **PAID 2026-10-18** by the move itself: `persistence/storage.ts` imports its types from `../core` (type-only, so no zod reaches the browser) | the v1 lane |
 | 11 | ~~**`account/validate.ts` → `../slots`**~~ — **PAID 2026-10-18** by the accounts lane (`dd5b33e`): it imports `DAYS`/`MEAL_TYPES` from `../core/client` | the accounts lane |
 

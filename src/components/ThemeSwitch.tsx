@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { saveTheme, THEME_STORAGE_KEY } from "@/lib/persistence";
 
 /**
  * Switches between the original violet skin and the sage one.
@@ -13,9 +14,10 @@ import { useEffect, useState } from "react";
  *
  * The choice is stored so it survives navigation, and `applyStoredTheme` runs
  * from a blocking script in <head> so a returning sage user never sees a violet
- * flash before hydration.
+ * flash before hydration. persistence/storage.ts owns the key and the write, as it
+ * owns every key (check:boundaries rule 3); the key keeps its original spelling, so
+ * every browser that already chose a theme keeps its choice.
  */
-const KEY = "nutriflow-theme";
 const SAGE = "theme-sage";
 
 export function ThemeSwitch() {
@@ -37,12 +39,9 @@ export function ThemeSwitch() {
     const next = !sage;
     setSage(next);
     document.documentElement.classList.toggle(SAGE, next);
-    try {
-      localStorage.setItem(KEY, next ? "sage" : "violet");
-    } catch {
-      // Private mode or blocked storage: the theme still applies for this page,
-      // it just will not be remembered. Not worth failing the click over.
-    }
+    // Private mode or blocked storage: saveTheme swallows the error, so the theme still
+    // applies for this page and is simply not remembered. Not worth failing the click over.
+    saveTheme(next ? "sage" : "violet");
   }
 
   return (
@@ -67,4 +66,4 @@ export function ThemeSwitch() {
  * Inlined into <head> so it runs before first paint. Kept as a string because a
  * React component cannot execute early enough to prevent the flash.
  */
-export const THEME_BOOT_SCRIPT = `try{if(localStorage.getItem('${KEY}')==='sage')document.documentElement.classList.add('${SAGE}')}catch(e){}`;
+export const THEME_BOOT_SCRIPT = `try{if(localStorage.getItem('${THEME_STORAGE_KEY}')==='sage')document.documentElement.classList.add('${SAGE}')}catch(e){}`;

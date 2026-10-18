@@ -138,9 +138,6 @@ const KNOWN_DEBT = {
     names: ["FEED_RECIPES", "filterFeed", "sortFeed", "FeedSort"],
     why: "A6 (D5a): the assistant's find_recipes uses the Explore feed's filter and sort. Searching the library is engine work: the query moves down to the plan layer, and feed.ts keeps only the card projection.",
   },
-  // rule 3 — storage
-  "storage-api:src/components/ThemeSwitch.tsx":
-    "A6 (D5a): the violet/sage theme toggle stores \"nutriflow-theme\" itself, from before storage.ts's rule. Fix: storage.ts already owns it (THEME_STORAGE_KEY, loadTheme, saveTheme — the accounts lane added them), so switch ThemeSwitch and its boot script over, then delete this entry.",
 };
 
 // ---------------------------------------------------------------------------------------------
