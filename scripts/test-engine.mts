@@ -4218,6 +4218,70 @@ console.log("\n--- THE ASSISTANT'S WORDS BIND THE ENGINE ---");
   check("remembered allergy: remembering it twice adds nothing and announces nothing",
     again.profile.allergies === rem.profile.allergies && !again.notes.some((n) => /added .* to your allergies/.test(n)), again.profile.allergies);
 
+  // (2b) THE LABEL DOES NOT DECIDE (2026-10-18). The models lane found gpt-oss-20b sending
+  // {fact:"allergic to shellfish"} with no kind: the fact was remembered and shrimp stayed in the week.
+  // So a fact that SAYS allergy, intolerance or coeliac binds whatever kind the model gave it (49385e5).
+  // Its adversarial review then showed what binding without the label must never do: read a DENIAL as an
+  // allergy ("No allergies; eats dairy and gluten" banned 59% of the library; a person's correction "not
+  // lactose intolerant any more" widened the ban) or a CARRIER word as one ("allergic to tea tree oil"
+  // banned every dish cooked with oil). Every row below is a case that review reproduced.
+  const remembering = (fact: string, kind?: string) =>
+    applyPrimitives(BASE, aw, [{ op: "remember", fact, ...(kind ? { kind } : {}) } as PrimitiveOp]);
+  const MUST_BIND: [string, string | undefined][] = [
+    ["allergic to peanuts", undefined],
+    ["severe peanut allergy", "context"],
+    ["My daughter has a severe peanut allergy", "condition"],
+    ["peanut-allergic", "preference"],
+    ["no allergies except peanuts", "context"],                    // an exception keeps the fact live
+    ["no known allergy, but peanuts make her sick", "context"],    // so does a reaction
+    ["Peanut allergy she never outgrew", undefined],               // "never outgrew" is not a denial
+    ["My son hasn't outgrown his peanut allergy", "context"],
+    ["not just lactose intolerant, also allergic to peanuts", undefined], // "not just" affirms
+  ];
+  for (const [fact, kind] of MUST_BIND) {
+    const r = remembering(fact, kind);
+    check(`label-blind allergy: "${fact}" (${kind ?? "no kind"}) binds peanut, and no peanut dish is left (I2)`,
+      /peanut/.test(r.profile.allergies ?? "") && r.plan.days.every((d) => pnut(d).length === 0),
+      `${r.profile.allergies} | left: ${r.plan.days.flatMap(pnut).map((m) => m.name).join(", ")}`);
+  }
+  for (const [fact, kind, want] of [
+    ["has coeliac disease", "condition", "gluten"],
+    ["lactose intolerant", "condition", "lactose"],
+    ["allergic to sesame oil", undefined, "sesame"],               // the carrier filter keeps the food
+  ] as [string, string | undefined, string][]) {
+    const r = remembering(fact, kind);
+    check(`label-blind allergy: "${fact}" (${kind ?? "no kind"}) binds ${want}`,
+      parseExclusionTokens(r.profile.allergies ?? "", "").includes(want), r.profile.allergies);
+  }
+  const MUST_NOT_BIND: [string, string | undefined][] = [
+    ["loves peanut butter", "preference"],
+    ["wants a high-protein afternoon snack daily", "goal"],        // no cue: never parsed ("protein")
+    ["allergic to penicillin", "condition"],                       // a cue, but no food
+    ["hay fever allergy in spring", "condition"],
+    ["not allergic to anything", "context"],
+    ["no allergies", undefined],
+    ["Not lactose intolerant, drinks milk every day", "context"],  // the review's denials, which
+    ["No allergies; eats dairy and gluten", "context"],            // bound the foods they name
+    ["I was allergic to milk as a child but grew out of it", "context"],
+    ["outgrew an egg allergy as a kid", undefined],
+    ["I'm not lactose intolerant", "allergy"],                     // labelled denials too
+    ["Allergies: none", "allergy"],
+    ["tested negative for coeliac disease", "allergy"],
+  ];
+  for (const [fact, kind] of MUST_NOT_BIND) {
+    const r = remembering(fact, kind);
+    check(`label-blind allergy: "${fact}" (${kind ?? "no kind"}) binds nothing and changes nothing`,
+      (r.profile.allergies ?? "") === "" && r.planChanged === false && !r.notes.some((n) => /to your allergies/.test(n)),
+      `${r.profile.allergies} | planChanged ${r.planChanged}`);
+  }
+  for (const fact of ["allergic to essential oils", "allergic to tea tree oil", "allergic to washing powder"]) {
+    const r = remembering(fact, "condition");
+    const stored = parseExclusionTokens(r.profile.allergies ?? "", "");
+    const names = (w: WeekPlan) => w.days.map((d) => d.meals.map((m) => m.name).join("|")).join("/");
+    check(`label-blind allergy: "${fact}" stores no carrier word on its own and replaces no dish`,
+      !stored.some((t) => /^(?:oils?|powders?)$/.test(t)) && names(r.plan) === names(aw), r.profile.allergies);
+  }
+
   // (1) A slot-scoped constrain is not built yet — so it must change nothing AND say so.
   const slot = applyPrimitives(BASE, aw, [{ op: "constrain", scope: { slot: "breakfast" }, targets: { protein: 40 } } as PrimitiveOp]);
   check("slot-scoped constrain: changes nothing", slot.planChanged === false);

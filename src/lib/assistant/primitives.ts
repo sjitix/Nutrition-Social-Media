@@ -23,8 +23,75 @@ const FOOD_WORDS = new Set(
 );
 const isFood = (w: string) =>
   CATEGORIES.has(w) || FOOD_WORDS.has(w) || FOOD_WORDS.has(w.replace(/(es|s)$/, ""));
+/** The words that make a remembered fact an allergy whatever the model labelled it. */
+const ALLERGY_CUE = /\ballerg(?:ic|y|ies)\b|\bintoleran(?:t|ce)\b|\bc(?:o)?eliac\b|\banaphyla/i;
 /** A phrase we recognise whole: an allergen category ("tree nuts") or a curated name ("peanut butter"). */
 const knownPhrase = (t: string) => CATEGORIES.has(t) || CURATED_NAMES.has(t) || CURATED_NAMES.has(t.replace(/s$/, ""));
+
+/**
+ * Words that never name an allergen on their own when a longer phrase is split: carriers and
+ * modifiers. Without this, "allergic to tea tree oil" or "allergic to essential oils" stored "oil" and
+ * banned every dish cooked with any oil (230 of 495 recipes), "washing powder" stored "powder", and
+ * "dairy-allergic baby" stored "baby" (a word of "baby potatoes"). A phrase left with no food word
+ * after this is kept whole, so a real one still binds: "sesame oil" keeps "sesame", "heavy cream" is a
+ * phrase of its own. Measured by the adversarial review of 49385e5 (2026-10-18): it loses no allergen
+ * the patch enforced.
+ */
+const NOT_ALONE = new Set([
+  "oil", "oils", "powder", "powders", "sauce", "paste", "dressing", "stock", "cube", "cubes", "spice", "spices",
+  "mixed", "ground", "whole", "green", "brown", "black", "red", "white", "yellow", "light", "dark", "baby", "plain",
+  "sweet", "smoked", "roasted", "cooked", "chopped", "rolled", "firm", "fillet", "fillets", "breast", "breasts",
+  "thigh", "thighs", "bell", "lean", "extra", "greek", "flakes", "cream", "creams",
+]);
+
+/**
+ * A fact that mentions an allergy only to DENY it binds nothing: "not lactose intolerant, drinks milk
+ * every day", "No allergies; eats dairy and gluten", "outgrew an egg allergy as a kid", "Allergies: none".
+ * Once any fact that says "allergy" could bind (49385e5), these read as allergies to the very foods the
+ * person eats: the whole-sentence fallback turned "No allergies; eats dairy and gluten" into a ban on
+ * 59% of the library, and a person's natural correction ("not lactose intolerant any more, eats dairy")
+ * WIDENED the ban instead of lifting it.
+ *
+ * A fact is skipped only when EVERY cue in it is denied. It is never skipped when it names an exception
+ * ("no allergies except shellfish") or a reaction or restriction ("no known allergy, but eggs make her
+ * sick"), and "not just / only / even" affirms ("not just lactose intolerant"). Measured by the review:
+ * the denial cases bind nothing, and none of the 138 must-bind phrasings the patch binds is lost,
+ * labelled or not. It applies to kind "allergy" too: "I'm not lactose intolerant" labelled as an allergy
+ * used to store lactose.
+ */
+const CUE_AT = /\b(?:allerg(?:ic|y|ies)|intoleran(?:t|ce)|c(?:o)?eliac|anaphyla\w*)\b/g;
+/** Up to three plain words, never across punctuation or a contrast or connective word. */
+const RUN = String.raw`(?:(?!(?:but|though|although|yet|however|and|or|so|because|as|since|while)\b)[a-z']+\s+){0,3}$`;
+/** A negation that governs the cue after it: "not lactose intolerant", "no known food allergies",
+ *  "doesn't have a nut allergy", "tested negative for coeliac", "ruled out a peanut allergy". */
+const NEG_BEFORE = new RegExp(String.raw`(?:\b(?:no|not|never)|n't|\bnegative for|\bruled out)\s+(?!(?:just|only|merely|simply|even|so)\b)` + RUN);
+/** "outgrew an egg allergy", "used to be lactose intolerant" — unless itself negated ("hasn't outgrown"). */
+const PAST_BEFORE = new RegExp(String.raw`\b(?:outgrew|outgrown|grew out of|used to (?:be|have))\s+` + RUN);
+const PAST_NEGATED = /(?:n't|\bnot|\bnever|\byet to)\s+(?:[a-z']+\s+)?(?:outgr|grew out)/;
+/** "allergies: none", "allergy - no.", "allergy ruled out", "intolerance test came back negative". */
+const NONE_AFTER = /^\s*(?:[:\-–—]\s*)?(?:none|nil|n\/a|no)\s*(?:[.;,!?)]|$)|^\s*(?:(?:was|is|has been|were|been|got|now)\s+)?ruled out\b|^\s*(?:test(?:s|ed)?\s+)?(?:was\s+|came back\s+)?negative\b/;
+const GREW_OUT_AFTER = /(?<!(?:never|n't|not|yet to)\s)\b(?:grew out of (?:it|them)|outgrew (?:it|them)|outgrown (?:it|them))\b/;
+/** An exception keeps the fact live: "no allergies except shellfish", "no allergies (only lactose intolerance)". */
+const EXCEPT = /\b(?:except|apart from|other than|besides|aside from|save for|excluding|but for|only)\b/;
+/** So does a reaction or a restriction anywhere in it: "no known allergy, but eggs make her sick". */
+const REACTS_OR_RESTRICTS = /\b(?:react\w*|sick|ill|itch\w*|hives|rash\w*|swell\w*|swollen|vomit\w*|throws? up|cramp\w*|bloat\w*|diarrh\w*|nause\w*|wheez\w*|tingl\w*|breaks? out|epi-?pen|avoid\w*|can'?t (?:eat|have|tolerate)|cannot (?:eat|have|tolerate)|(?:doesn'?t|don'?t|won'?t|never) (?:eat|eats|touch)|must not|stay away|steer clear)\b/;
+function everyCueDenied(fact: string): boolean {
+  const t = fact.toLowerCase().replace(/[‘’]/g, "'");
+  if (EXCEPT.test(t) || REACTS_OR_RESTRICTS.test(t)) return false;
+  let any = false;
+  for (const m of t.matchAll(CUE_AT)) {
+    any = true;
+    const i = m.index ?? 0;
+    const before = t.slice(Math.max(0, i - 60), i);
+    const after = t.slice(i + m[0].length, i + m[0].length + 45);
+    const lastWords = before.match(/(?:[a-z']+\s+){0,6}$/)?.[0] ?? "";
+    const negated = NEG_BEFORE.test(before) && !/\b(?:outgr|grew out)/.test(lastWords);
+    const past = PAST_BEFORE.test(before) && !PAST_NEGATED.test(lastWords);
+    const none = NONE_AFTER.test(after) || GREW_OUT_AFTER.test(after);
+    if (!(negated || past || none)) return false; // one affirmed cue: the fact is read as an allergy
+  }
+  return any;
+}
 
 /**
  * The allergens in a REMEMBERED allergy fact, which is conversation, not a form field: "heads up,
@@ -64,7 +131,9 @@ export function allergensInFact(fact: string): string[] {
       continue;
     }
     if (knownPhrase(t)) { out.add(t); continue; } // "tree nuts", "peanut butter"
-    const foods = t.split(/\s+/).filter(isFood); // "severe peanut" -> "peanut"; "my son has nut" -> "nut"
+    // "severe peanut" -> "peanut"; "my son has nut" -> "nut". Never a carrier or modifier on its own
+    // (NOT_ALONE), and never "coeliac", which the gluten rule above already stored as gluten.
+    const foods = t.split(/\s+/).filter((w) => isFood(w) && !NOT_ALONE.has(w) && !/^c(?:o)?eliac$/.test(w));
     if (foods.length) foods.forEach((f) => out.add(f));
     else if (cue) out.add(t); // an unknown multi-word allergen the user named: keep it whole
   }
@@ -315,8 +384,16 @@ export function applyPrimitives(
       // (found by the models lane; a 550B model did exactly that). Now the allergen joins
       // profile.allergies — the field the exclusion matcher reads — and the week is re-solved, which
       // keeps every dish that still passes and replaces only the ones that no longer do.
-      if (o.kind === "allergy") {
-        const tokens = allergensInFact(o.fact);
+      // The LABEL is the model's and optional, so a fact that SAYS allergy, intolerance or coeliac binds
+      // the engine whatever it was labelled: {fact:"allergic to shellfish"} with no kind left shrimp in
+      // the week, and "has coeliac disease" labelled a condition left every gluten meal (models lane,
+      // 2026-10-18). Unlabelled, only FOOD words count, so "allergic to penicillin" blocks nothing; and
+      // with no cue the fact is never parsed, because the parser alone reads "a high-protein snack" as
+      // a "protein" allergy. And a fact that only DENIES an allergy binds nothing, labelled or not
+      // (everyCueDenied): "No allergies; eats dairy and gluten" had banned 59% of the library.
+      const labelled = o.kind === "allergy";
+      if ((labelled || ALLERGY_CUE.test(o.fact)) && !everyCueDenied(o.fact)) {
+        const tokens = allergensInFact(o.fact).filter((t) => labelled || t.split(/\s+/).some(isFood));
         const have = new Set(parseExclusionTokens(p.allergies ?? "", ""));
         const fresh = tokens.filter((t) => !have.has(t));
         if (fresh.length) {
