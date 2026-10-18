@@ -28,8 +28,9 @@ Done today, key-free (`be98c57`):
 `wf_373d28af-e1b`). It covers 29 loop scenarios and 14 conversations through `MODEL_SCRIPT` (`b16f0a4`):
 for each, a correct answer must pass and 3–4 plausible wrong ones must fail. Each finding gets two
 skeptics, then a completeness critic and a second round. It is key-free and touches no repo file. The
-check fixes it yields land here as this lane's files. **Also running:** v1's `test:engine` on the patched
-`models-exp` tree, 615/0 so far.
+check fixes it yields land here as this lane's files. **Done:** v1's `test:engine` on the patched
+`models-exp` tree (`49385e5`) is **943/0**, the same count as main; sent to v1, whose adversarial review
+of the patch is running.
 
 **Ready for the key: `scripts/models/fair-arms.mjs`**, one command for the fair arms. It bundles each
 eval once from one commit and refuses a dirty tree. It runs one arm at a time, round-robin across
