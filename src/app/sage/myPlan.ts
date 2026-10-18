@@ -1,4 +1,4 @@
-import { loadPlan, loadProfile, savePlan, saveProfile, loadBatchPlan, saveBatchPlan } from "@/lib/storage";
+import { loadPlan, loadProfile, savePlan, saveProfile, loadBatchPlan, saveBatchPlan } from "@/lib/persistence";
 import { groupByAisle, type Aisle } from "@/lib/nutrition/client";
 import { summariseWeek, type WeekStats } from "./weekStats";
 import type { UserProfile, WeekPlan } from "@/lib/core";

@@ -13,7 +13,7 @@
  * With no URL/key configured, `readAccountConfig()` returns null and nothing in this file is ever
  * called — the app is exactly what it was before accounts (VISION: "$0 is a floor").
  */
-import type { StoreName } from "../storage";
+import type { StoreName } from "../persistence";
 import type { PushResult, Remote, RemoteRow } from "./sync";
 
 export interface AccountConfig {

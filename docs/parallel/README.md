@@ -15,9 +15,8 @@ Live status of each lane: **`lane-v1.md`**, **`lane-accounts.md`** and **`lane-m
 folder. **Each agent writes ONLY its own lane file**, so those never conflict. Where this file says "the
 other lane", read "the other lanes" — the rules apply pairwise between all three.
 
-**Where each lane runs (checked 2026-10-18):** v1 in the laptop's main folder; accounts in
-`../NutriFlow-accounts/` on the laptop; the models worktrees (`../NutriFlow-models/`,
-`../NutriFlow-models-exp/`) are **not on the laptop**. The laptop also has **no `.env.local`**, so
+**Where each lane runs (checked 2026-10-18):** all three on the laptop: v1 in the main folder, accounts in `../NutriFlow-accounts/`, models in
+`../NutriFlow-models/` and `../NutriFlow-models-exp/` (created 2026-10-18). The laptop also has **no `.env.local`**, so
 anything that needs the NVIDIA key or LM Studio runs where those are, or the owner recreates the file.
 
 ---
@@ -64,7 +63,7 @@ folder.** Each one's work reaches the other only through `origin/main`.
 
 **The accounts lane owns** (the v1 agent does not edit these; ask instead):
 
-- `src/lib/storage.ts`, `src/lib/savedStore.ts` — the persistence seam
+- `src/lib/persistence/**` (`storage.ts`, moved there 2026-10-18; the old path is a re-export) — the persistence seam. `savedStore.ts` moved into `account/` and is covered by the next line
 - `src/lib/account/**` (new), `src/app/sage/account/**` (new — the account page, inside the /sage shell), `supabase/**` (new — SQL schema, RLS)
 - `scripts/test-account.mts` + `scripts/test-account-tabs.mts` + `scripts/account-tab.mts` + `scripts/account-fakes.ts` + the runner `scripts/test-account.mjs` (run with `node scripts/test-account.mjs`; no package.json change needed), `scripts/mutate-account.mjs` (the guards' mutation check), and `scripts/test-account-sql.mjs` (the migrations in real Postgres)
 - `.env.local.example` — only the account-related lines

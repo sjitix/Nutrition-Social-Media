@@ -14,7 +14,7 @@
 import { execFileSync } from "node:child_process";
 import { MemoryStorage, Events, PROFILE, week, summary } from "../account-fakes";
 
-type Device = { storage: typeof import("@/lib/storage"); client: typeof import("@/lib/account/client") };
+type Device = { storage: typeof import("@/lib/persistence"); client: typeof import("@/lib/account/client") };
 type Win = Events & {
   localStorage: MemoryStorage;
   sessionStorage: MemoryStorage;

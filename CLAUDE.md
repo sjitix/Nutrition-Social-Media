@@ -83,8 +83,8 @@ disabled) — good for showing the UI without any AI.
 (units, nutrients, targets, exclusions, safety, grocery), `plan/` (the engine), `assistant/` (primitives,
 agentTools, agentLoop, reply, promptV2), `providers/` (ai, import, videoImport) and `presentation/` (feed,
 feedFilter, recipes, batchGrocery, streak). **The old flat paths are one-line re-exports**, so
-`@/lib/exclusions` still works; new code inside `src/lib` imports the real path. The accounts lane's
-`storage.ts`, `savedStore.ts` and `account/` have not moved. A path below written flat (`src/lib/x.ts`) means
+`@/lib/exclusions` still works; new code inside `src/lib` imports the real path. Since 2026-10-18
+`storage.ts` lives in `persistence/` and `savedStore.ts` in `account/` (re-exports at both old paths). A path below written flat (`src/lib/x.ts`) means
 the module, wherever its folder is; `docs/v1/02-module-map.md` §2 is the exact map. **Import a folder through its
 barrel** — `@/lib/nutrition` (`index.ts`, the whole public surface) or, from a client component,
 `@/lib/nutrition/client` (the browser-safe subset; `core/` and `presentation/` have one too) — never a file inside it:
@@ -155,7 +155,7 @@ nothing (measured: without it, 3–7 kB per route) — a module that must run on
   provider and no model at all. Writes still go through `applyPrimitives` — the loop does no
   arithmetic and cannot claim a change the engine did not make.
 - `src/lib/types.ts` — zod schemas (WeekPlan, Meal, AssistantResponse) = the data contract.
-- `src/lib/storage.ts` — **the only place that knows a localStorage key name.** Every persisted
+- `src/lib/persistence/storage.ts` — **the only place that knows a localStorage key name.** Every persisted
   thing (profile, plan, batchPlan, chat, imports, saved, grocery check-offs, visits) is a store in
   `KEYS` here. Do not invent a key elsewhere: a second saved-recipes key was added once and the two
   lists drifted apart silently until an audit caught it — and since accounts, **a key named anywhere
@@ -185,7 +185,7 @@ nothing (measured: without it, 3–7 kB per route) — a module that must run on
   **And the whole thing runs live** by `node scripts/account-live/run.mjs`: the real `client.ts` against
   the real GoTrue, PostgREST and Postgres (user-level binaries in WSL, fetched once into
   `~/.cache/nutriflow-live` there; a small gateway and mail catcher in `scripts/account-live/`).
-- `src/lib/savedStore.ts` — a three-method async interface (`list`/`add`/`remove`) over saved
+- `src/lib/account/savedStore.ts` — a three-method async interface (`list`/`add`/`remove`) over saved
   recipes, delegating to `storage.ts`. **Async on purpose even though localStorage is not**: a
   synchronous interface would have to change shape the moment a network sat behind it, and every
   call site with it.
@@ -237,7 +237,7 @@ nothing (measured: without it, 3–7 kB per route) — a module that must run on
   three measured off the board rather than judged. The shell footer is suppressed on this route.
   It shows the fixture week's **Monday** — `/sage` has no per-reader data, so claiming otherwise
   would be a lie the rest of the screen does not tell.
-  **`/sage/explore` is interactive**: saves persist through `src/lib/savedStore.ts`, clicking a
+  **`/sage/explore` is interactive**: saves persist through `src/lib/account/savedStore.ts`, clicking a
   recipe opens `RecipeModal` (a real `role="dialog"` — Escape, focus return, scroll lock, focus
   trap) with the full ingredient list and method, all 495 non-treat recipes render with no paging,
   and a "Saved" facet filters to them. Three things keep rendering everything cheap and should not

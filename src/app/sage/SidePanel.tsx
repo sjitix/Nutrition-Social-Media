@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { MobileNav, SideNav } from "./SideNav";
-import { loadProfile } from "@/lib/storage";
+import { loadProfile } from "@/lib/persistence";
 import { switchPlanMode, switchBatchCadence } from "./myPlan";
 
 // Planning-mode icons (SVG only — no emoji). Fresh = a single plated dish; Prep = a pot.

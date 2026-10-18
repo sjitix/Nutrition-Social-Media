@@ -42,7 +42,7 @@ import {
   savePlan,
   saveProfile,
   toggleSaved,
-} from "@/lib/storage";
+} from "@/lib/persistence";
 import { DAYS } from "@/lib/core/client";
 import type { ChatMessage, Meal, Operation, PlanSnapshot, UserProfile, WeekPlan } from "@/lib/core";
 

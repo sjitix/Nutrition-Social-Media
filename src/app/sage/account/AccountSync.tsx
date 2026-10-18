@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import {
   carryNoteAcrossReload, onAccountStatus, onPulled, startSync, watchOtherTabs, type AccountStatus,
 } from "@/lib/account/client";
-import { claimSyncReload } from "@/lib/storage";
+import { claimSyncReload } from "@/lib/persistence";
 import { notifyPlanChanged } from "../myPlan";
 import { NO_NOTICE, nextNotice, noticeText, type NoticeState } from "./notice";
 

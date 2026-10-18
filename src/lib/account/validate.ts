@@ -21,7 +21,7 @@
  * sheet and Today on all of them (`.some is not a function`, "Objects are not valid as a React
  * child"). A field that is merely absent is fine; a field in the wrong shape is refused.
  */
-import type { StoreName } from "../storage";
+import type { StoreName } from "../persistence";
 import { DAYS, MEAL_TYPES } from "../core/client"; // the real home since V1 D5a; ../slots is a re-export
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);

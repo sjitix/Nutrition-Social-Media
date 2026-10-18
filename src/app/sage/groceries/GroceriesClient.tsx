@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { Aisle } from "@/lib/nutrition/client";
-import { loadGroceriesChecked, saveGroceriesChecked } from "@/lib/storage";
+import { loadGroceriesChecked, saveGroceriesChecked } from "@/lib/persistence";
 import { loadMyWeek, groceriesFromWeek, PLAN_CHANGED_EVENT, type GroceryRow } from "../myPlan";
 import { bulkGroceriesFromWeek, batchEfficiency, type SessionGroceries, type BatchEfficiency } from "@/lib/presentation/client";
 

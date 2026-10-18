@@ -9,7 +9,7 @@
  *   rule 1  no module imports ABOVE its layer (L0 contracts ... L6 presentation, §2 of the map)
  *   rule 2  a folder with an index.ts is a module, and only its entry points may be imported from
  *           outside — and src/ may not import the old flat paths D5a left behind
- *   rule 3  only src/lib/storage.ts may name a storage key or touch localStorage / sessionStorage
+ *   rule 3  only src/lib/persistence/storage.ts may name a storage key or touch localStorage / sessionStorage
  *   rule 4  no client component, and no browser-safe client.ts entry, reaches a server-only module
  *           or a server-only package (zod, the Anthropic SDK) through VALUE imports
  *   rule 5  no import cycles (value imports — what actually executes)
@@ -69,7 +69,8 @@ const LIB_LAYERS = {
   "presentation/": 6, // feed + feedFilter, recipes (imagery), batchGrocery, streak
   "presentation/streak.ts": 2, // local-day arithmetic: holds itself to pure computation, though only presentation's doors reach it
   "recipeDb.ts": 3, // since A3 a barrel over plan/
-  "storage.ts": 5, "savedStore.ts": 5, "account/": 5, // the accounts lane's; persistence/ when they agree
+  "persistence/": 5, // the browser's own copy, and the only file that names a storage key (rule 3)
+  "account/": 5, // the accounts lane's: sync, sign-in, export, and savedStore (local or account)
   // The fine-tune data pipeline and the API's demo-mode plan: tooling and an adapter that happen to
   // live in src/lib. Placed at L5 so they may use the assistant layer they generate data for.
   "genV2.ts": 5, "dataValidate.ts": 5, "demo.ts": 5,
@@ -79,7 +80,7 @@ const LIB_LAYERS = {
   "nutrientTable.generated.ts": 1, "substitutions.ts": 1, "symptoms.ts": 1, "conditions.ts": 1, "unitGrams.generated.ts": 1,
   "units.ts": 2, "safety.ts": 2, "nutrients.ts": 2, "targets.ts": 2, "exclusions.ts": 2, "grocery.ts": 2, "streak.ts": 2,
   "primitives.ts": 4, "agentTools.ts": 4, "agentLoop.ts": 4, "reply.ts": 4, "promptV2.ts": 4,
-  "ai.ts": 5, "import.ts": 5, "videoImport.ts": 5,
+  "ai.ts": 5, "import.ts": 5, "videoImport.ts": 5, "storage.ts": 5, "savedStore.ts": 5,
   "feed.ts": 6, "feedFilter.ts": 6, "recipes.ts": 6, "batchGrocery.ts": 6,
 };
 
@@ -114,7 +115,7 @@ const SERVER_ONLY_PACKAGES = new Set(["zod", "@anthropic-ai/sdk", "typescript"])
  */
 const SIDE_EFFECTS = ["*.css"];
 
-const STORAGE_OWNER = "src/lib/storage.ts";
+const STORAGE_OWNER = "src/lib/persistence/storage.ts";
 const STORAGE_GLOBALS = new Set(["localStorage", "sessionStorage"]);
 // storage.ts's keys are all "nutriflow.<name>". Narrower than "anything starting nutriflow" on
 // purpose: the event "nutriflow:planchanged", the export format tag "nutriflow-export" and the
@@ -140,9 +141,6 @@ const KNOWN_DEBT = {
   // rule 3 — storage
   "storage-api:src/components/ThemeSwitch.tsx":
     "A6 (D5a): the violet/sage theme toggle stores \"nutriflow-theme\" itself, from before storage.ts's rule. Fix: storage.ts already owns it (THEME_STORAGE_KEY, loadTheme, saveTheme — the accounts lane added them), so switch ThemeSwitch and its boot script over, then delete this entry.",
-  // rule 2 — the old flat paths, still imported by the accounts lane's files (their lane, their move)
-  "old-path:src/lib/storage.ts->src/lib/types.ts": "the accounts lane: import from ./core/client (or ./core for the schemas) — asked in lane-v1.md.",
-  "old-path:src/lib/storage.ts->src/lib/import.ts": "the accounts lane: ImportedRecipe is in ./core/client since D5a part 2.",
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -528,7 +526,7 @@ function selfTest() {
   const SHIM = (to) => `// Moved to ${to}.ts (V1 D5a). This re-export keeps imports working.\n// Add nothing here.\nexport * from "./${to}";\n`;
   const fixture = new Map(Object.entries({
     "src/lib/types.ts": `export type Meal = { name: string };\nexport const DAYS = ["Monday"];`,
-    "src/lib/storage.ts": `const KEYS = { plan: "nutriflow.plan" };\nexport const load = () => localStorage.getItem(KEYS.plan);`,
+    "src/lib/persistence/storage.ts": `const KEYS = { plan: "nutriflow.plan" };\nexport const load = () => localStorage.getItem(KEYS.plan);`,
     "src/lib/recipeDb.ts": `import type { Meal } from "./types";\nexport const RECIPES: Meal[] = [];\nexport type Recipe = Meal;`,
     // rule 1: L0 importing L3 — and an L0 file reaching L3 only through a TYPE position
     "src/lib/slots.ts": `import { RECIPES } from "./recipeDb";\nexport const N = RECIPES.length;`,

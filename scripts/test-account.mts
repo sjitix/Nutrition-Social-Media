@@ -37,7 +37,7 @@ g.history = {
   },
 };
 
-import * as storage from "@/lib/storage";
+import * as storage from "@/lib/persistence";
 import {
   buildExport, parseExport, applyImport, describeData, exportFilename, EXPORT_FORMAT, PORTABLE_STORES,
 } from "@/lib/account/portable";
@@ -56,10 +56,10 @@ import {
   startSync, signOut, deleteAccount, completeSignInFromUrl, sendSignInLink, forgetThisBrowser, onPulled,
   accountStatus, currentSession, retrySignIn, canRetrySignIn,
 } from "@/lib/account/client";
-import { localSavedStore, savedStore } from "@/lib/savedStore";
+import { localSavedStore, savedStore } from "@/lib/account/savedStore";
 import { NO_NOTICE, nextNotice, noticeText } from "@/app/sage/account/notice";
 import type { AccountStatus } from "@/lib/account/client";
-import type { StoreName } from "@/lib/storage";
+import type { StoreName } from "@/lib/persistence";
 import type { UserProfile, WeekPlan } from "@/lib/types";
 
 let pass = 0;

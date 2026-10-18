@@ -15,7 +15,7 @@ import {
   loadStoreMeta, loadSyncedAt, loadSyncOwner, markSynced, onBrowserChangedHandsElsewhere, onSignInChangedElsewhere,
   onStoreChange, onStoresChangedElsewhere, readStore, resetStoresSilently, saveCarriedNote, savePendingSignIn,
   saveSessionRaw, saveSignInCode, saveSyncOwner, takeBackup, takeCarriedNote, writeStore, type StoreName,
-} from "../storage";
+} from "../persistence";
 import { createMirror, syncNow, type HeldReason, type LocalAccess, type Mirror, type SyncReport } from "./sync";
 import {
   AccountError, challengeFor, createPkcePair, deleteAccountRemote, exchangeCode, freshSession, hasAuthParams,
