@@ -1,0 +1,7 @@
+{
+  "//": "Type-checks scripts/ (the .mts the main tsconfig never sees) together with src/. ship.mjs runs it on every gated commit and CI on every push: removing a shim or narrowing a barrel breaks scripts that esbuild would still bundle, because esbuild does not check that an imported TYPE exists (D5a review, 2026-10-03). Throwaway probes (scripts/zz-*) are excluded.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "incremental": false },
+  "include": ["next-env.d.ts", "src/**/*.ts", "src/**/*.tsx", "scripts/**/*.ts", "scripts/**/*.mts"],
+  "exclude": ["node_modules", "scripts/zz-*"]
+}

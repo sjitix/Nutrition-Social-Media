@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 // Re-exported from a zod-free module so a client component can import the two lists without
-// dragging zod and every schema in this file along with them. See src/lib/slots.ts for the
+// dragging zod and every schema in this file along with them. See ./slots.ts for the
 // measurement that caused the split; every existing caller of `types` is unaffected.
 export { MEAL_TYPES, DAYS } from "./slots";
 import { MEAL_TYPES, DAYS } from "./slots";
@@ -336,16 +336,8 @@ export interface BodyStats {
   activity?: "sedentary" | "light" | "moderate" | "active" | "very_active";
 }
 
-// Sensible starting values for a general healthy adult. Prefilled in onboarding
-// and used as fallbacks for any older saved profile that predates these fields.
-export const DEFAULT_TARGETS = {
-  targetCalories: 2000,
-  proteinGrams: 150,
-  carbsGrams: 200,
-  fatGrams: 65,
-  maxCookTime: 30,
-  maxIngredients: 8,
-} as const;
+// The starting targets live in ./defaults (no zod), so the browser can have them without this file.
+export { DEFAULT_TARGETS } from "./defaults";
 
 export interface ChatMessage {
   role: "user" | "assistant";

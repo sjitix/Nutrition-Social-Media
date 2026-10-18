@@ -43,7 +43,8 @@ import {
   saveProfile,
   toggleSaved,
 } from "@/lib/storage";
-import { DAYS, type ChatMessage, type Meal, type Operation, type PlanSnapshot, type UserProfile, type WeekPlan } from "@/lib/core";
+import { DAYS } from "@/lib/core/client";
+import type { ChatMessage, Meal, Operation, PlanSnapshot, UserProfile, WeekPlan } from "@/lib/core";
 
 type View = "home" | "week" | "explore" | "groceries" | "assistant";
 
