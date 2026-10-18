@@ -7,7 +7,7 @@
  * Nothing here installs a global. Each suite builds its own browser out of these pieces.
  */
 import { createHash } from "node:crypto";
-import type { UserProfile, WeekPlan } from "@/lib/types";
+import type { UserProfile, WeekPlan } from "@/lib/core";
 
 export class MemoryStorage {
   private m = new Map<string, string>();
@@ -63,8 +63,15 @@ export class FakeSupabase {
   rows = new Map<string, Map<string, { value: unknown; updated_at: string }>>();
   access = new Map<string, string>();
   refresh = new Map<string, string>();
-  codes = new Map<string, { email: string; challenge: string; at: number }>();
+  codes = new Map<string, { email: string; at: number }>();
   lastCode = new Map<string, string>();
+  /**
+   * GoTrue's PKCE flow state: ONE per person, the most recent request's, whichever browser made it.
+   * Opening a link issues its code for this, not for the request that sent the link (verify.go ->
+   * FindFlowStateByUserID ... .Last()). And it is written BEFORE the email limit is applied
+   * (magic_link.go), so even a request refused as too soon moves it. The live run checks both.
+   */
+  private latestChallenge = new Map<string, string>();
   down = false;
   refuseRefresh = false;
   /** A store whose rows Postgres refuses (e.g. a value jsonb can't hold); a batch containing it fails whole. */
@@ -91,6 +98,13 @@ export class FakeSupabase {
    * user's first link ("Confirm email" on) is 300 s, counted from the request; Infinity unless set.
    */
   codeTtlMs = Infinity;
+  /**
+   * GoTrue's per-person limit on sign-in emails: another link for the same address within this window is
+   * refused with a 429 (60 s on GoTrue). 0, off, unless a test sets it: most tests sign the same person
+   * in and out within milliseconds, which GoTrue would refuse and which they do not exist to test.
+   */
+  linkIntervalMs = 0;
+  private linkSentAt = new Map<string, number>();
   /**
    * Delay the ANSWER to the next token renewal by this long, after applying it at once, as GoTrue does
    * (the old refresh token is spent the moment the request arrives). One-shot. Delaying the whole
@@ -150,10 +164,21 @@ export class FakeSupabase {
 
     if (url.pathname === "/auth/v1/otp" && method === "POST") {
       if (!body?.code_challenge) return reply(400, { msg: "this fake only does PKCE" });
+      this.latestChallenge.set(body.email, body.code_challenge); // before the limit, as GoTrue does
+      const sentAt = this.linkSentAt.get(body.email);
+      if (this.linkIntervalMs > 0 && sentAt !== undefined && Date.now() - sentAt < this.linkIntervalMs) {
+        const wait = Math.ceil((this.linkIntervalMs - (Date.now() - sentAt)) / 1000);
+        return reply(429, { code: 429, error_code: "over_email_send_rate_limit", msg: `For security purposes, you can only request this after ${wait} seconds.` });
+      }
       this.user(body.email);
+      // GoTrue keeps ONE sign-in link per person: an accepted request deletes the earlier one-time token,
+      // so an older link opened afterwards fails (the live run checks it against the real GoTrue). A kinder
+      // fake let a test request twice and sign in with the first, a sequence the platform never allows.
+      for (const [old, c] of this.codes) if (c.email === body.email) this.codes.delete(old);
       const code = `code${++this.n}xyz`;
-      this.codes.set(code, { email: body.email, challenge: body.code_challenge, at: Date.now() });
+      this.codes.set(code, { email: body.email, at: Date.now() });
       this.lastCode.set(body.email, code);
+      this.linkSentAt.set(body.email, Date.now());
       return reply(200, {});
     }
     if (url.pathname === "/auth/v1/token" && url.searchParams.get("grant_type") === "pkce") {
@@ -165,7 +190,7 @@ export class FakeSupabase {
       const c = this.codes.get(body?.auth_code);
       if (!c) return reply(404, { error_code: "flow_state_not_found" });
       if (Date.now() - c.at > this.codeTtlMs) return reply(422, { error_code: "flow_state_expired", msg: "invalid flow state, flow state has expired" });
-      if (s256(body.code_verifier ?? "") !== c.challenge) return reply(400, { error_code: "bad_code_verifier" });
+      if (s256(body.code_verifier ?? "") !== this.latestChallenge.get(c.email)) return reply(400, { error_code: "bad_code_verifier" });
       this.codes.delete(body.auth_code); // one use
       return reply(200, this.issue(this.user(c.email).id));
     }

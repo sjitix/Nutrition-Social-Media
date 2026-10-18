@@ -5,11 +5,12 @@
  *
  * WHY THIS IS ITS OWN MODULE, NOT PART OF storage.ts: the root layout's ThemeSwitch needs only these
  * three names, and every page loads the root layout. While they lived in storage.ts, every page loaded
- * the whole of storage.ts (and account/merge with it) for them, which added 3.4 kB gz to "/", the
- * first page every visitor loads (measured in 3ff9732). storage.ts re-exports this file, so
- * `@/lib/persistence` still offers all three names, and with `"sideEffects": ["*.css"]` the bundler
- * links them straight here without loading storage.ts. Import nothing into this file: whatever it
- * imports, every page pays for.
+ * the whole of storage.ts (and account/merge with it) for them. Splitting it out took 3.16 kB gz off
+ * "/", the first page every visitor loads, and off "/_not-found" and "/recipes" (2d9e024: both sides
+ * built in one folder with one node_modules, every loaded file's gzip summed). storage.ts re-exports
+ * this file, so `@/lib/persistence` still offers all three names, and with `"sideEffects": ["*.css"]`
+ * the bundler links them straight here without loading storage.ts. Import nothing into this file:
+ * whatever it imports, every page pays for.
  *
  * It is the second module allowed to name a storage key (check:boundaries rule 3). It owns this one key
  * and no other, and storage.ts must never spell it again.

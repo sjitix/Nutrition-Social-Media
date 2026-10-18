@@ -4,19 +4,29 @@
 //
 //   :54321  /auth/v1/*  -> GoTrue     (prefix stripped)          the URL the app is given
 //           /rest/v1/*  -> PostgREST  (prefix stripped)
-//           /__live/anon-key          the key the app sends as `apikey` (signed here, from the stack's secret)
+//           /__live/anon-key          the key the app sends as `apikey` (signed here, from the stack's secret),
+//                                     and this stack's id, so run.mjs knows it reached THIS gateway
 //           /__live/mail?to=…         the newest email sent to that address, with its sign-in link
+//           /__live/log?after=N       every proxied request after number N: method, path, status, and the
+//                                     first 12 hex of the SHA-256 of its bearer token (no headers, no bodies),
+//                                     so the live run can see which requests the app made, and with which token
+//           /__live/fail-next?path=P  the next request to path P has its connection dropped before anything
+//                                     reaches GoTrue or PostgREST, as a lost network would
 //   :54325  SMTP, for GoTrue's mailer: every message kept in memory
+//
+// Both listen on 127.0.0.1 only. WSL forwards loopback ports to Windows' localhost, which is all the run
+// needs; on all interfaces, the sign-in links in /__live/mail would be one network setting away from the LAN.
 //
 // Kong's behaviour that matters to the app, and only that: a request without the project's key is refused
 // with 401, except the routes a browser opens straight from an email (/verify and friends), and a REST call
 // with no Authorization header goes on as the anon role.
 import http from "node:http";
 import net from "node:net";
-import { createHmac } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 
 const SECRET = process.env.LIVE_JWT_SECRET;
 if (!SECRET) throw new Error("LIVE_JWT_SECRET is not set");
+const STACK = process.env.LIVE_STACK_ID ?? "";
 const PORT = 54321;
 const AUTH = 54329;
 const REST = 54330;
@@ -33,6 +43,12 @@ const ANON = jwt({ role: "anon", iss: "supabase-local", iat: 1700000000, exp: 41
 
 const OPEN = new Set(["/auth/v1/verify", "/auth/v1/callback", "/auth/v1/authorize", "/auth/v1/health"]);
 const mail = [];
+const requests = []; // { n, method, path, status, token }: numbered, so the run never compares two machines' clocks
+const failNext = new Set(); // paths whose next request is dropped
+const tokenTag = (authorization) => {
+  const token = /^Bearer (.+)$/.exec(authorization ?? "")?.[1];
+  return token ? createHash("sha256").update(token).digest("hex").slice(0, 12) : null;
+};
 
 function send(res, status, body) {
   res.writeHead(status, { "Content-Type": "application/json" });
@@ -42,7 +58,19 @@ function send(res, status, body) {
 http
   .createServer((req, res) => {
     const u = new URL(req.url, "http://localhost");
-    if (u.pathname === "/__live/anon-key") return send(res, 200, { anonKey: ANON });
+    if (u.pathname === "/__live/anon-key") return send(res, 200, { anonKey: ANON, stack: STACK });
+    if (u.pathname === "/__live/fail-next") {
+      failNext.add(u.searchParams.get("path") ?? "");
+      return send(res, 200, { dropping: [...failNext] });
+    }
+    if (failNext.has(u.pathname)) {
+      failNext.delete(u.pathname);
+      return req.socket.destroy(); // nothing reaches the server: the caller sees a failed fetch
+    }
+    if (u.pathname === "/__live/log") {
+      const after = Number(u.searchParams.get("after") ?? 0);
+      return send(res, 200, { last: requests.length, requests: requests.filter((r) => r.n > after) });
+    }
     if (u.pathname === "/__live/mail") {
       const to = (u.searchParams.get("to") ?? "").toLowerCase();
       const m = mail.filter((x) => x.to.some((t) => t.toLowerCase() === to)).at(-1);
@@ -56,14 +84,20 @@ http
     if (!OPEN.has(u.pathname) && req.headers.apikey !== ANON) return send(res, 401, { message: "Invalid API key" });
     const headers = { ...req.headers, host: `127.0.0.1:${upstream}` };
     if (upstream === REST && !headers.authorization) headers.authorization = `Bearer ${ANON}`;
+    const entry = { n: requests.length + 1, method: req.method, path: u.pathname + u.search, status: 0, token: tokenTag(req.headers.authorization) };
+    requests.push(entry);
     const out = http.request({ host: "127.0.0.1", port: upstream, method: req.method, path: path + u.search, headers }, (r) => {
+      entry.status = r.statusCode ?? 502;
       res.writeHead(r.statusCode ?? 502, r.headers);
       r.pipe(res);
     });
-    out.on("error", (e) => send(res, 502, { message: String(e) }));
+    out.on("error", (e) => {
+      entry.status = 502;
+      send(res, 502, { message: String(e) });
+    });
     req.pipe(out);
   })
-  .listen(PORT, "0.0.0.0", () => console.log(`gateway on :${PORT}`));
+  .listen(PORT, "127.0.0.1", () => console.log(`gateway on 127.0.0.1:${PORT}`));
 
 // ---- the mail catcher: just enough SMTP for GoTrue's mailer (no TLS or AUTH offered, so none is used) ----
 function keep(to, raw) {
@@ -73,7 +107,9 @@ function keep(to, raw) {
   }
   const link = text.match(/https?:\/\/[^\s"'<>]*\/verify\?[^\s"'<>]*/);
   const url = link ? link[0].replace(/&amp;/g, "&") : null;
-  mail.push({ to, url, at: Date.now(), raw: text });
+  // `n` orders the messages. Never a clock: WSL's clock steps backwards at times (dmesg: "Time jumped
+  // backwards"), and a newer email stamped earlier than an older one once made the run miss it.
+  mail.push({ n: mail.length + 1, to, url, at: Date.now(), raw: text });
   console.log(`mail to ${to.join(",")}: ${url ?? "(no link)"}`);
 }
 

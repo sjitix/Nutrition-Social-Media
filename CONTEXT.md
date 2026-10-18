@@ -35,8 +35,9 @@ threads at session start, with the boards.
 
 #### PARALLEL LANE — accounts (written by the accounts agent only)
 
-**2026-10-18 — accounts are built up to the keys, adversarially reviewed three times, and now proven
-live: 20/20 against the real GoTrue, PostgREST and Postgres, with no Supabase project.**
+**2026-10-18 — accounts are built up to the keys, adversarially reviewed three times, and run live
+against the real GoTrue, PostgREST and Postgres with no Supabase project: 38/38. The live run's own
+tooling was then reviewed (35 confirmed findings), and every live check is now proven by mutation.**
 Live status, the plan and the asks: `docs/parallel/lane-accounts.md`. Design: **local-first, the
 account is a mirror** — `storage.ts`'s load/save API did not change, so no screen had to; underneath,
 every real save stamps a write time and notifies listeners, and a sync layer mirrors each store to one
@@ -96,25 +97,48 @@ Supabase row per user under RLS.
   The account's sentences ("your account had newer data…", "this account was deleted…") now show on
   every `/sage` screen, as a small notice from `<AccountSync/>`, instead of only on the account page.
   And several guards the review showed no test could catch are now tested.
-- **The live run (2026-10-18): `node scripts/account-live/run.mjs`, 20/20.** It runs the real
-  `client.ts` against the real GoTrue v2.197.0, PostgREST 16.4 and Postgres 17.11. These are
-  user-level binaries in WSL, so the run needs no Docker or admin rights, and nothing from them lands
-  in the repo. A small gateway and a mail catcher are all that stand in for Supabase.
-  - It covers four devices: the PKCE link, GoTrue's 60 s limit on a second link, two-device sync,
-    `upsert_state` skipping a stale write, token renewal, RLS between two people, a reused link,
-    sign-out, and a deletion on one device as the other sees it (409/23503, then "was deleted").
-  - It confirmed the platform facts batches 3, 5 and 6 were built on.
-  - One fact was new: GoTrue accepts a just-rotated refresh token for about 10 s. The suite's fake
-    refuses it outright, which only makes it stricter.
-  - About 80 s once the binaries are cached, 60 s of it waiting out that limit.
-- **Gate for this lane:** `node scripts/test-account.mjs` runs two suites: **333 checks** in one tab,
+- **The live run (2026-10-18): `node scripts/account-live/run.mjs`, 38/38.** It runs the real
+  `client.ts` against the real GoTrue v2.197.0, PostgREST 16.4 and Postgres 17.11, as user-level
+  binaries in WSL. No Docker or admin rights once WSL 2 has an x86-64 Ubuntu. Every download is checked
+  against a pinned SHA-256, and nothing lands in the repo.
+  - What stands in for Supabase: a gateway, a mail catcher, and `db.mjs`'s copy of the platform's
+    roles and grants. GoTrue is set up as the guide's steps 3 and 4 say: the production Site URL with
+    localhost on the allow list, "Confirm email" off, audit logs out of the database.
+  - Six browsers. What it checks:
+    - where every link lands;
+    - the 60 s limit, with neither a refused request nor a lost one losing the link already sent;
+    - the takeover rule below, from both sides;
+    - only the newest link working;
+    - sync both ways, and `upsert_state`'s skip;
+    - renewal of a token that has REALLY expired, both before a push and after PostgREST's 401, one
+      rotation each;
+    - RLS on read, insert, and unfiltered update and delete;
+    - sign-out, and a deletion as the other device sees it;
+    - a re-signup's new id, and an empty audit table.
+  - **`node scripts/account-live/mutate-live.mjs` proves each check can fail** (10 mutations,
+    ~15 min). The first version could not have: its review found an RLS write check satisfied by a
+    primary-key collision, renewals that never sent an expired token, and links nobody followed.
+    Lesson 67.
+  - **A platform fact the mutations found:** GoTrue issues a link's code for the person's MOST
+    RECENT request, whichever browser made it, and records a request even when it refuses it as too
+    soon (verify.go, magic_link.go). So a second device asking moves the sign-in there. The app now
+    says "a newer sign-in request took this link over", not "opened in a different browser". The fake
+    models the rule.
+  - **A fact corrected:** GoTrue accepts the refresh token a renewal just replaced with no time
+    limit while it is the current one's parent, and answers with the current one. The "about ten
+    seconds" written earlier was neither measured nor GoTrue's rule.
+  - **WSL's clock steps backwards** (dmesg), so the run orders emails and requests by sequence
+    number, never by time.
+  - Not exercised: a first link with "Confirm email" on, `/logout` among several sessions, and the
+    Site URL fallback itself (see the README's list).
+- **Gate for this lane:** `node scripts/test-account.mjs` runs two suites: **335 checks** in one tab,
   including the real `client.ts` end to end against an in-memory Supabase (RLS, PKCE, conditional
   writes, jsonb order, skewed clocks, token expiry, a deleted account), and **43 checks across tabs**
   of one browser (stale tabs, the write fence, a tab that hears late, races between tabs signing in
   and out) · `node scripts/test-account-sql.mjs --mutate` — **39 checks in real Postgres, 16/16
-  broken guards caught** · `node scripts/mutate-account.mjs` — **85/85** (`--only "text"` re-checks
+  broken guards caught** · `node scripts/mutate-account.mjs` — **87/87** (`--only "text"` re-checks
   one guard in seconds; an interrupted run is undone on the next start) · `node
-  scripts/account-live/run.mjs` — **20/20 live**.
+  scripts/account-live/run.mjs` — **38/38 live**, and `mutate-live.mjs` **10/10**.
 - **Owner, to switch accounts on:** `supabase/README.md` — create a project, run **both** migrations,
   set the Site URL to the account page, turn off "Confirm email" and "Write audit logs to the
   database", **configure custom SMTP** (without it only your own organisation receives sign-in
@@ -133,8 +157,10 @@ Supabase row per user under RLS.
   strings changed; the suites pass 333 + 43 on the moved tree, and v1 ran all 85 mutations, 85/85.
   **The theme key lives beside it, in `persistence/theme.ts`**, re-exported by `storage.ts`.
   ThemeSwitch is in the root layout, which every page loads. While the key sat in `storage.ts`, every
-  page loaded all of it: +3.4 kB gz on "/", the first page anyone opens. Rule 3 lets exactly these two
-  files name a key (v1, `2c48ac3`).
+  page loaded all of it. The split (`2d9e024`) took **3.16 kB gz** off "/", the first page anyone opens,
+  and off "/_not-found" and "/recipes". That was measured like-for-like: both sides built in one folder
+  with one `node_modules`, and every loaded file's gzip summed. Rule 3 lets exactly these two files
+  name a key (v1, `2c48ac3`).
 
 One-time handoff carried through this lane: the `modelFailed` fix an earlier session left uncommitted
 in the main folder (`2fd6f02`). Its WORKPLAN lesson was renumbered 38 → 48 because 38–47 were taken.

@@ -7,26 +7,55 @@
 
 ## Now doing
 
-**2026-10-18: the LOCAL live run is done: 20/20 against the real servers.** The owner's Supabase
-project still does not exist, and fakes are what hid this lane's worst bugs (lesson 52). So
-`node scripts/account-live/run.mjs` now runs the real thing locally:
+**2026-10-18: the LOCAL live run, then a review of it: 38/38 against the real servers, each check
+proven by mutation (10/10).** The owner's Supabase project still does not exist, and fakes are what hid this
+lane's worst bugs (lesson 52). So `node scripts/account-live/run.mjs` runs the real thing locally:
 - **The servers:** real GoTrue v2.197.0, PostgREST 16.4 and Postgres 17.11, as user-level Linux
   binaries in WSL (no Docker, no sudo: neither is on this laptop). They are fetched once into
-  `~/.cache/nutriflow-live` inside WSL, outside the repo.
-- **What stands in for Supabase:** a small gateway in place of its own, and a mail catcher that
-  receives the sign-in emails.
-- **The client:** the real `client.ts`, driven by four devices through sign-in, sync, RLS, renewal,
-  sign-out and deletion.
+  `~/.cache/nutriflow-live` inside WSL, outside the repo, each checked against a pinned SHA-256.
+- **What stands in for Supabase:** a gateway, a mail catcher, and `db.mjs`'s copy of the platform's
+  roles and grants. GoTrue is set up as the README's steps 3 and 4 say.
+- **The client:** the real `client.ts`, driven by six browsers through sign-in, sync, RLS, renewal,
+  sign-out and deletion. The full list is in `supabase/README.md`.
 
-Every platform fact batches 3, 5 and 6 rely on held. One fact was new (GoTrue's ~10 s refresh-token
-reuse window), and it only makes the fake stricter than the real thing. Shipped as `c2bd5a0`. Detail:
-`docs/worklog/2026-10-18-accounts.md`. Also today: `account/validate.ts` imports from `../core/client`
-(`dd5b33e`; see Answers).
+The first version (`c2bd5a0`, 20/20) was then reviewed by ten agents: five lenses, each verified. They
+confirmed 35 findings:
+- **Checks that could not fail.** The RLS write check forged a row Sam already had, so the primary
+  key refused it whatever the policy said. The renewals never sent a token that had really expired.
+  Nobody looked where a link landed, and the Site URL was the dev page itself.
+- **A wrong platform fact in my docs:** GoTrue's "~10 s reuse window". GoTrue in fact accepts the
+  replaced refresh token with no time limit while it is the current one's parent.
+- **Tooling:**
+  - no lock between runs;
+  - PIDs signalled blind;
+  - a passwordless Postgres reachable from Windows' localhost;
+  - a gateway on 0.0.0.0;
+  - downloads not checked;
+  - `--keep` that could not keep.
+- **A setup instruction from 2026-10-03 that cannot work:** phone testing by LAN address.
 
-**Next:**
-- An adversarial review of the live-run tooling itself. It is new code in a public repo, and the
-  owner will rely on it.
-- Then whatever the owner's decisions doc answers for #1 (the Supabase project) and #4 (the chat log).
+All 35 are fixed in this batch. The live run is 38 checks now, and `mutate-live.mjs` proves each can
+fail (lesson 67). Its first run caught 7 of 9. One check crashed instead of failing (fixed). One
+mutation survived, and that survivor was a platform fact nobody here knew:
+- **GoTrue issues a link's code for the person's MOST RECENT request, from whichever browser, even one
+  it refused as too soon** (verify.go `FindFlowStateByUserID(...).Last()`; magic_link.go writes the
+  flow state before the rate limit).
+- **What follows for a person:** a second device asking moves the sign-in there, and the first
+  browser's link then fails. The app blamed them ("opened in a different browser"); it now says a
+  newer sign-in request took the link over.
+- **What follows for the code:** the app's verifier reuse only matters for a request GoTrue never
+  received, so that is what the checks now test (a dropped connection, through a gateway hook).
+
+The fake models GoTrue's rule now: one link per person, the latest request's challenge, and an optional
+60 s refusal. Also found: WSL's clock steps backwards, so the run orders emails and requests by sequence
+number. Detail: `docs/worklog/2026-10-18-accounts.md`.
+
+Also today: `account/validate.ts` imports from `../core/client` (`dd5b33e`); the theme key moved to its
+own module, which took 3.16 kB gz off "/" (`2d9e024`); and two script imports moved off a D5a shim
+for v1's shim removal.
+
+**Next:** whatever the owner's decisions doc answers for #1 (the Supabase project) and #4 (the chat
+log).
 
 **2026-10-03: review 2 is fully fixed, and so is the review of that work (batch 6, `ea71ca6`).**
 Everything ran against fakes that behave like GoTrue and PostgREST, and against real Postgres (PGlite).
@@ -58,10 +87,21 @@ The history of that day is in `docs/worklog/2026-10-03-accounts.md`.
 
 ## Heads-up for the other lanes
 
-- **`scripts/account-live/` is new and mine (2026-10-18).** Its `live.mts` is type-checked by v1's
-  `tsconfig.scripts.json` once `ship.mjs` runs it; checked clean beforehand (with `src/` and every
-  account script; the only errors were in `scripts/test-ui.mts`, which v1's tree already changes). It
-  runs nothing at import and is no gate: run it by hand (about 80 s once cached; WSL with Ubuntu needed).
+- **`scripts/account-live/` is mine (2026-10-18).** `live.mts` is type-checked by `tsconfig.scripts.json`
+  like every script. Nothing in it is a gate: run it by hand, about 80 s once cached. It needs WSL 2
+  with an x86-64 Ubuntu (`LIVE_WSL_DISTRO` names another distro).
+  - **One run at a time, across all lanes:** a second waits 15 s for the stack's lock, then exits saying
+    another run is using it. It never tears the first one down, as it used to.
+  - **`mutate-live.mjs` edits files in place while it runs** (migration 0001, `stack.sh`, `supabase.ts`,
+    `client.ts`), like `mutate-account.mjs`. Do not run a gate in this worktree at the same time.
+  - **The fake now follows GoTrue's link rules (`account-fakes.ts`):**
+    - an accepted request retires the address's earlier link;
+    - a link's code is checked against the person's LATEST request's challenge, refused requests
+      included;
+    - `linkIntervalMs` can refuse a second request within 60 s.
+
+    So a test that asks twice and opens the first link fails, and so does one where another browser
+    asked since. Both outcomes are the truth on the real platform.
 - **`<AccountSync/>` now RENDERS something (batch 6).** While the account has something to say ("your
   account had newer data, so it replaced some of what was on this device", "this account was deleted"),
   it shows one small notice, `fixed` at the bottom right (full width on a phone), out of the page's
@@ -150,8 +190,10 @@ The history of that day is in `docs/worklog/2026-10-03-accounts.md`.
   `storage.ts` still has no import-time side effects, so it needs no `sideEffects` entry.
 - **v1, the old-path debts (2026-10-18): all paid.** `validate.ts`'s in `dd5b33e`, the two `storage.ts`
   entries by the move. The schedule's stale accounts rows were fixed in `f580918`.
-- **ThemeSwitch's debt: paid (v1, `3ff9732`), then made cheap.** v1 measured its cost at +3.4 kB gz on
-  "/", "/_not-found" and "/recipes": the root layout now loaded all of `storage.ts` for three names.
+- **ThemeSwitch's debt: paid (v1, `3ff9732`), then made cheap.** The root layout then loaded all of
+  `storage.ts` for three names, on "/", "/_not-found" and "/recipes". The split (`2d9e024`) took
+  3.16 kB gz off each. v1's first figure, +3.4 kB, came from a control built in a worktree with a
+  junctioned `node_modules`, and v1 has withdrawn it (`7c2d360`).
   This lane offered to move those names to `persistence/theme.ts`; v1 agreed and widened rule 3 to two
   owner files (`2c48ac3`). v1 re-measures after the split ships.
 
@@ -231,3 +273,6 @@ whose claims were each checked against the code (and corrected twice by the revi
 | `ea71ca6` | batch 6, the review of batches 4–5: sign-out and "Delete everything" re-check who is signed in after every wait (another tab's sign-in was ended or wiped); the account's sentences on every `/sage` screen (`<AccountSync/>` notice, `notice.ts`); the carried note tagged with its account; after a deletion elsewhere, true sentences on sign-out and in other tabs; the tests the review showed could not fail; the mutation runner recovers from an interrupted run — 333 + 43 checks, 85/85 mutations, engine 927/0, lesson 64 |
 | `dd5b33e` | `account/validate.ts` imports `DAYS`/`MEAL_TYPES` from `../core/client` (v1's old-path debt), plus this lane file brought current — 333 + 43 |
 | `c2bd5a0` | the local live run: `scripts/account-live/` (real GoTrue v2.197.0, PostgREST 16.4, Postgres 17.11 in WSL; a gateway and mail catcher), 20/20; `supabase/README.md` says what it covers and what only a hosted project can show |
+| `555a97b` | D5a's move (`2b7075d`) checked in this lane's files; the docs that named the old paths name the new ones |
+| `2d9e024` | `persistence/theme.ts`: the theme key in its own module, so "/", "/_not-found" and "/recipes" stop loading `storage.ts` (−3.16 kB gz each, both builds in one folder) — engine 943/0 |
+| *(next)* | the live run's review, all 35 findings: checks that can fail (RLS insert, unfiltered update and delete; renewal of really expired tokens before a push and after a 401; where every link lands; the newest-link rule; a re-signup's id; the audit table), proven by `mutate-live.mjs`; the stack hardened (lock, PID identity, socket-only Postgres, gateway on 127.0.0.1, SHA-256 pins, a locked `pg` client, `--keep`/`--down`); the README's phone advice fixed; the fake keeps one link per person. The first `mutate-live` run surfaced GoTrue's latest-request rule (a link's code goes to the person's most recent request, even a refused one): a "newer request took this link over" sentence, the fake modelling it, and the verifier tested through a lost request; WSL's backward clock steps designed out — 38/38 live, 10/10, 335 + 43, 87/87, lessons 66–67 |

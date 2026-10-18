@@ -1490,6 +1490,50 @@ Each of these was discovered by doing the work, and each earned its place.
     exempt a thing, check who can reach THROUGH it.** And a self-test only proves the cases someone
     thought of: each hole found gets the fixture that would have caught it (11 → 41).
 
+66. **A size comparison is only as good as its control, and a framework's printed size is not a
+    measurement.** Two lanes measured the same change (moving the theme key out of `storage.ts`) and
+    both got it wrong the same way at first. Each built its control in a throwaway worktree whose
+    `node_modules` was a junction to another folder. webpack then saw every package under a different
+    path, so it split the chunks differently and numbered the modules differently. That produced a
+    false +1 kB on every app page in one measurement and a +0.2 kB that had to be withdrawn in the
+    other. Next's own First Load JS was worse than useless: it left the control's storage chunk out
+    entirely, and so showed a 3.16 kB saving as 1 kB *bigger*. **Build both sides in one folder with one
+    `node_modules`, changing only the change itself. Sum the gzipped size of every file the route
+    really loads** (from `app-build-manifest.json`: `rootMainFiles`, each layout on the route's path,
+    the page). **Check the mechanism, not just the number:** look for a string that only the module in
+    question contains, in the chunks the route loads.
+
+67. **A check proves only what can make it fail, and a document should claim no more than its checks
+    can.** The local live run passed 20/20 against the real GoTrue, PostgREST and Postgres, and its
+    docs said it had confirmed "every platform fact" three batches were built on. Then a ten-agent
+    adversarial review of the tooling confirmed 35 findings:
+    - the RLS write check forged a row Sam already had, so a removed insert policy still met a
+      refusal, from the primary key;
+    - the renewal checks never sent a token that had really expired;
+    - nothing looked at where a sign-in link landed, and the stack's Site URL was the dev page
+      itself, so the allow list was never consulted;
+    - the "verifier kept across a refused request" check could not tell;
+    - "about ten seconds" for GoTrue's refresh-token reuse was neither measured nor its rule (GoTrue
+      accepts the replaced token with no time limit while it is the current one's parent);
+    - `--keep` could not keep the stack.
+
+    The fixes ask of each check what its failure would look like. Each check now names what it proves,
+    asserts its preconditions (Sam has no `imports` row before the forged insert), and identifies the
+    token each request carried (the gateway logs a hash of it). **And it is proven by mutation, like
+    the other suites:** `mutate-live.mjs` loosens each policy, breaks the allow list, turns audit logs
+    back on and removes each renewal path, and requires the named check to go red. Lesson 52 was about
+    fakes kinder than the platform; this is the same mistake one level up, in a test kinder than its
+    name.
+
+    **And a survivor against the REAL platform may be teaching you the platform** (lesson 63, one level
+    further). The first mutation run caught 7 of 9. "Replace the verifier on a second request" survived
+    because GoTrue binds a link's code to the person's most recent request, refused ones included, so
+    a refused request cannot break the link whatever the app does. Reading GoTrue's source confirmed
+    it. The fake had modelled a per-link binding, and the app's sentence blamed the person ("opened in a
+    different browser") for what was really a second device asking. The fix was not to delete the
+    mutation: it was to test the case where the guard matters (a request GoTrue never received), give
+    the real case its own sentence, and make the fake follow GoTrue's rule.
+
 ---
 
 ## 4. Training track (runs in parallel, never blocked by the above)

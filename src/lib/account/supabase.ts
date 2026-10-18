@@ -182,6 +182,18 @@ const LINK_ERRORS: Record<string, string> = {
 const LINK_ERROR_FALLBACK = "Sign-in didn't complete. Ask for a new link.";
 
 /**
+ * The exchange refusing THIS browser's verifier (GoTrue's `bad_code_verifier`, a 400). GoTrue binds the
+ * code a link yields to the person's MOST RECENT sign-in request, from whichever browser, and records
+ * that request even when it refuses to email it as too soon: magic_link.go writes the flow state before
+ * the rate limit, and verify.go issues the code for the user's latest flow state. So a link opened in
+ * the very browser that asked fails here once another browser or device has asked since. The generic
+ * "opened in a different browser" sentence blamed the person for it. Shown against the real GoTrue by
+ * the live run.
+ */
+const LINK_TAKEN_OVER =
+  "A newer sign-in request took this link over: only the most recent request can be finished, even one from another browser or device, or one refused as too soon. Ask for a new link here, and open it in this browser.";
+
+/**
  * Read a landing URL. PKCE reports success as `?code=` and failure as `?error=…&error_code=…` (GoTrue
  * also mirrors errors into the fragment); both places are read for errors. A fragment carrying
  * `access_token` is deliberately NOT a sign-in — see the section header.
@@ -220,6 +232,9 @@ export async function exchangeCode(
   // six minutes later lands here (review 2). The emailed link was used up when it was opened, so the
   // only way forward is a new one, and saying "try the link again" would send them in a circle.
   if (res.status === 422) throw new AccountError(LINK_ERRORS.flow_state_expired, "auth");
+  if (res.status === 400 && ((await res.clone().json().catch(() => ({}))) as { error_code?: string }).error_code === "bad_code_verifier") {
+    throw new AccountError(LINK_TAKEN_OVER, "auth");
+  }
   if (res.status === 400 || res.status === 401 || res.status === 403 || res.status === 404) {
     throw new AccountError("That sign-in link has expired, was already used, or was opened in a different browser from the one that asked for it. Ask for a new one here.", "auth");
   }

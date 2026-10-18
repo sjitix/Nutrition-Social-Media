@@ -1,0 +1,8 @@
+{
+  "//": "The live run's only npm dependency: the Postgres client db.mjs uses inside WSL (the portable Postgres has no psql). setup.sh installs exactly pg.package-lock.json with `npm ci --ignore-scripts` into ~/.cache/nutriflow-live, never into the repo.",
+  "name": "nutriflow-live-pg-client",
+  "private": true,
+  "dependencies": {
+    "pg": "8.23.1"
+  }
+}

@@ -60,7 +60,7 @@ import { localSavedStore, savedStore } from "@/lib/account/savedStore";
 import { NO_NOTICE, nextNotice, noticeText } from "@/app/sage/account/notice";
 import type { AccountStatus } from "@/lib/account/client";
 import type { StoreName } from "@/lib/persistence";
-import type { UserProfile, WeekPlan } from "@/lib/types";
+import type { UserProfile, WeekPlan } from "@/lib/core";
 
 let pass = 0;
 let fail = 0;
@@ -910,9 +910,15 @@ await (async () => {
   const s = await exchangeCode(cfg, "CODE123", pair.verifier, ex.f, 1000);
   check("exchange: POSTs the code and the verifier to grant_type=pkce", json(ex.calls[0].body) === json({ auth_code: "CODE123", code_verifier: pair.verifier }));
   check("exchange: returns the session", s.userId === "user-1" && s.email === "sam@example.com" && s.refreshToken === "R1" && s.expiresAt === 4600);
+  // GoTrue's bad_code_verifier means the code is bound to a NEWER request than this browser's: GoTrue
+  // issues a link's code for the person's latest request, wherever it came from (the live run shows it).
   const wrong = fakeFetch(() => ({ status: 400, body: { error_code: "bad_code_verifier" } }));
   try { await exchangeCode(cfg, "CODE123", "nope", wrong.f); msg = ""; } catch (e) { msg = (e as Error).message; }
-  check("exchange: a code from another browser (wrong verifier) is refused in plain words", msg.includes("different browser"));
+  check("exchange: a code GoTrue bound to a newer request (bad_code_verifier) says a newer request took the link over",
+    msg.includes("newer sign-in request took this link over") && !msg.includes("different browser"), msg);
+  const otherBad = fakeFetch(() => ({ status: 400, body: { error_code: "validation_failed" } }));
+  try { await exchangeCode(cfg, "CODE123", pair.verifier, otherBad.f); msg = ""; } catch (e) { msg = (e as Error).message; }
+  check("exchange: any other refusal keeps the general sentence", msg.includes("expired, was already used"), msg);
 
   // Review 2, the platform lens (against GoTrue's own source).
   const skewed = fakeFetch(() => ({ body: { access_token: token, refresh_token: "R1", expires_in: 3600, expires_at: 999_999, user: { id: "user-1", email: "sam@example.com" } } }));
@@ -1524,18 +1530,49 @@ await (async () => {
     late.includes("five minutes") && !canRetrySignIn(), late);
   sb.codeTtlMs = Infinity;
 
-  // Asking again for the same address keeps the first link working (review 2: the second request
-  // replaced the verifier, so the valid first link failed as "opened in a different browser").
+  // Asking again for the same address keeps the link already sent working (review 2: the second request
+  // replaced the verifier, so the valid first link failed as "opened in a different browser"). Within a
+  // minute GoTrue REFUSES the second request (429), and an accepted one would retire the first link.
+  // GoTrue still records a refused request as the person's latest (so a refused one cannot break the
+  // link); what keeping the verifier protects against is a request that NEVER REACHED it (offline), which
+  // leaves GoTrue's latest where it was. The live run checks the same sequence against the real GoTrue.
   fakeWindow.localStorage = new MemoryStorage();
+  sb.linkIntervalMs = 60_000;
   await sendSignInLink("nia@example.com");
   const firstCode = sb.lastCode.get("nia@example.com");
-  await sendSignInLink("nia@example.com");
+  let refusedAgain = "";
+  try { await sendSignInLink("nia@example.com"); } catch (e) { refusedAgain = (e as Error).message; }
+  sb.down = true;
+  let lostAgain = "";
+  try { await sendSignInLink("nia@example.com"); } catch (e) { lostAgain = (e as Error).message; }
+  sb.down = false;
+  sb.linkIntervalMs = 0;
   fakeWindow.location.search = `?code=${firstCode}`;
   const viaFirst = await mayThrow(completeSignInFromUrl());
-  check("sign-in: after asking twice, the FIRST link still signs in", viaFirst?.userId === "uid-nia");
+  check("sign-in: requests refused (429) or never received (offline) leave the link already sent working, and it signs in",
+    /too many sign-in emails/i.test(refusedAgain) && /offline/i.test(lostAgain) && viaFirst?.userId === "uid-nia",
+    json({ refusedAgain, lostAgain, signedIn: viaFirst?.userId ?? null }));
   await signOut();
   check("sign-in: …and signing out straight after works (the tab shows the account it just signed in to)",
     currentSession() === null, json({ session: currentSession()?.userId ?? null, status: accountStatus() }));
+
+  // Another browser asks for the same address after this one, even too soon: GoTrue issues the link's code
+  // for THAT request, so this browser cannot finish, and must say why instead of blaming the person.
+  fakeWindow.localStorage = new MemoryStorage();
+  sb.linkIntervalMs = 60_000;
+  await sendSignInLink("ola@example.com");
+  const olaCode = sb.lastCode.get("ola@example.com");
+  const elsewhere = await sb.fetch(`${readAccountConfig()!.url}/auth/v1/otp`, {
+    method: "POST", headers: { apikey: "ANON" },
+    body: JSON.stringify({ email: "ola@example.com", create_user: true, code_challenge: s256("another browser's verifier"), code_challenge_method: "s256" }),
+  });
+  sb.linkIntervalMs = 0;
+  fakeWindow.location.search = `?code=${olaCode}`;
+  let takenOver = "";
+  try { await completeSignInFromUrl(); } catch (e) { takenOver = (e as Error).message; }
+  check("sign-in: a link another browser's later request took over, though GoTrue refused it as too soon, says a newer request took it",
+    elsewhere.status === 429 && takenOver.includes("newer sign-in request took this link over") && currentSession() === null,
+    json({ elsewhere: elsewhere.status, takenOver }));
 
   // A mistyped address never touches the pending sign-in.
   fakeWindow.localStorage = new MemoryStorage();

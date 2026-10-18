@@ -210,6 +210,18 @@ const MUTATIONS = [
     to: "  const reuse = false;",
   },
   {
+    name: "a request GoTrue refuses (429) drops the pending verifier, so the link already sent fails",
+    file: "src/lib/account/client.ts",
+    from: "  await requestMagicLink(cfg, address, `${window.location.origin}${window.location.pathname}`, await challengeFor(verifier));",
+    to: "  await requestMagicLink(cfg, address, `${window.location.origin}${window.location.pathname}`, await challengeFor(verifier)).catch((e) => { savePendingSignIn(null); throw e; });",
+  },
+  {
+    name: "a link a newer request took over (bad_code_verifier) is blamed on a different browser",
+    file: "src/lib/account/supabase.ts",
+    from: "  if (res.status === 400 && ((await res.clone().json().catch(() => ({}))) as { error_code?: string }).error_code === \"bad_code_verifier\") {\n    throw new AccountError(LINK_TAKEN_OVER, \"auth\");\n  }\n",
+    to: "",
+  },
+  {
     name: "a mistyped address is stored as the pending sign-in before it is checked",
     file: "src/lib/account/client.ts",
     from: "  if (!looksLikeEmail(address)) throw new AccountError(\"That doesn't look like an email address.\");",
