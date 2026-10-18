@@ -108,12 +108,36 @@ This needs no project and no keys. It runs both migrations, each twice to prove 
 below plus exact grant checks. Supabase's own pieces are stubbed the way Supabase defines them,
 **including its default grants**. Without those, "anon gets nothing" would pass whether or not the
 migration revoked anything, which is how the `truncate` gap above stayed hidden until the stub had them.
-`--mutate` removes fifteen guards one at a time (each policy, each revoke, the cascade, the size limit,
-the forward-only rule) and fails if any removal goes unnoticed. PGlite installs itself once into the OS
-temp folder; `package.json` does not change.
+`--mutate` removes sixteen guards one at a time (each policy, each revoke, the cascade and the foreign
+key, the size limit, the forward-only rule) and fails if any removal goes unnoticed. PGlite installs
+itself once into the OS temp folder; `package.json` does not change.
 
-Not covered locally, and left to the live run: whether the `postgres` role may delete from
-`auth.users` on a hosted project (the stub's is a superuser), PostgREST's routing, and sign-in itself.
+### And the whole sign-in and sync, against the real servers
+
+```bash
+node scripts/account-live/run.mjs          # from the repo root; --keep leaves the stack running
+```
+
+This runs the app's own `client.ts` and `storage.ts` against **the real GoTrue (Supabase's auth
+server), PostgREST and Postgres**, the same programs a project runs, started as user-level binaries in
+WSL. It needs no Docker and no admin rights. The first run fetches them into `~/.cache/nutriflow-live`
+inside WSL; nothing lands in the repo. A small gateway stands in for Supabase's, and a mail catcher
+receives the sign-in emails, so the run opens the real link GoTrue sent.
+
+It covers the PKCE link and its redirect, GoTrue's 60-second limit on a second link, two devices
+syncing, `upsert_state` skipping a stale write, token renewal, RLS between two people, a reused link,
+sign-out ending the session, and an account deleted on one device as the other device sees it. It takes
+about 80 seconds once the binaries are cached, 60 of them waiting out that limit. GoTrue and PostgREST
+are configured as step 3 of this guide says ("Confirm email" off, a custom mail server, the account page
+as Site URL).
+
+One platform fact it surfaced: GoTrue accepts a just-rotated refresh token again for about ten seconds
+(its reuse window, so two tabs renewing at once both succeed). The suite's fake refuses it outright,
+which only makes those tests stricter.
+
+Not covered by either, and left to the hosted project: whether the `postgres` role may delete from
+`auth.users` there (locally it is a superuser), Supabase's own gateway and its publishable keys, and real
+email delivery.
 
 ## The RLS test plan — run it once after applying the migrations
 

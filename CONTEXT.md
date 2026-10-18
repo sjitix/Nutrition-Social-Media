@@ -35,7 +35,8 @@ threads at session start, with the boards.
 
 #### PARALLEL LANE — accounts (written by the accounts agent only)
 
-**2026-10-03 — accounts are built up to the keys, adversarially reviewed three times, and the SQL has run.**
+**2026-10-18 — accounts are built up to the keys, adversarially reviewed three times, and now proven
+live: 20/20 against the real GoTrue, PostgREST and Postgres, with no Supabase project.**
 Live status, the plan and the asks: `docs/parallel/lane-accounts.md`. Design: **local-first, the
 account is a mirror** — `storage.ts`'s load/save API did not change, so no screen had to; underneath,
 every real save stamps a write time and notifies listeners, and a sync layer mirrors each store to one
@@ -95,18 +96,32 @@ Supabase row per user under RLS.
   The account's sentences ("your account had newer data…", "this account was deleted…") now show on
   every `/sage` screen, as a small notice from `<AccountSync/>`, instead of only on the account page.
   And several guards the review showed no test could catch are now tested.
+- **The live run (2026-10-18): `node scripts/account-live/run.mjs`, 20/20.** It runs the real
+  `client.ts` against the real GoTrue v2.197.0, PostgREST 16.4 and Postgres 17.11. These are
+  user-level binaries in WSL, so the run needs no Docker or admin rights, and nothing from them lands
+  in the repo. A small gateway and a mail catcher are all that stand in for Supabase.
+  - It covers four devices: the PKCE link, GoTrue's 60 s limit on a second link, two-device sync,
+    `upsert_state` skipping a stale write, token renewal, RLS between two people, a reused link,
+    sign-out, and a deletion on one device as the other sees it (409/23503, then "was deleted").
+  - It confirmed the platform facts batches 3, 5 and 6 were built on.
+  - One fact was new: GoTrue accepts a just-rotated refresh token for about 10 s. The suite's fake
+    refuses it outright, which only makes it stricter.
+  - About 80 s once the binaries are cached, 60 s of it waiting out that limit.
 - **Gate for this lane:** `node scripts/test-account.mjs` runs two suites: **333 checks** in one tab,
   including the real `client.ts` end to end against an in-memory Supabase (RLS, PKCE, conditional
   writes, jsonb order, skewed clocks, token expiry, a deleted account), and **43 checks across tabs**
   of one browser (stale tabs, the write fence, a tab that hears late, races between tabs signing in
   and out) · `node scripts/test-account-sql.mjs --mutate` — **39 checks in real Postgres, 16/16
   broken guards caught** · `node scripts/mutate-account.mjs` — **85/85** (`--only "text"` re-checks
-  one guard in seconds; an interrupted run is undone on the next start).
+  one guard in seconds; an interrupted run is undone on the next start) · `node
+  scripts/account-live/run.mjs` — **20/20 live**.
 - **Owner, to switch accounts on:** `supabase/README.md` — create a project, run **both** migrations,
   set the Site URL to the account page, turn off "Confirm email" and "Write audit logs to the
   database", **configure custom SMTP** (without it only your own organisation receives sign-in
   emails), then put `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in
-  `.env.local` and Vercel. Never the `service_role` key.
+  `.env.local` and Vercel. Never the `service_role` key. Three things only a hosted project can
+  show: its gateway and publishable keys, real email delivery, and whether `postgres` may delete
+  from `auth.users` there. Running the README's RLS plan once there covers the last.
 - **Asked of the v1 lane (lane file has the detail):** make `AssistantChat` re-read on
   `PLAN_CHANGED_EVENT`, and drop `actions.ts`'s undo snapshot when sync pulls or the browser is
   cleared — until then `<AccountSync/>` reloads the tab once when the week or profile comes down.

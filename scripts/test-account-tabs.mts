@@ -206,23 +206,23 @@ function mountAccountSync(T: Tab, name: string) {
 // =================================================================================================
 // 1. A tab left open while the browser changes hands (review 2, ui-tests-2)
 // =================================================================================================
-// Tab A: Ana is signed in with the assistant open, so its screen holds her week and profile in memory.
-// In tab B, Ana signs out and Bob signs in. Tab A was never reloaded, so its next assistant turn
-// wrote Ana's profile and week into storage that was now Bob's, and Bob's sync uploaded them.
+// Tab A: Sam is signed in with the assistant open, so its screen holds her week and profile in memory.
+// In tab B, Sam signs out and Bob signs in. Tab A was never reloaded, so its next assistant turn
+// wrote Sam's profile and week into storage that was now Bob's, and Bob's sync uploaded them.
 {
   const hourAgo = new Date(Date.now() - 3_600_000).toISOString();
   sb.user("bob@example.com");
   sb.table("uid-bob").set("plan", { value: week("BOB"), updated_at: hourAgo });
 
-  A.storage.saveProfile({ ...PROFILE, name: "Ana", allergies: "peanuts" });
-  A.storage.savePlan(week("ANA"));
-  await signIn(A, "A", "ana@example.com");
+  A.storage.saveProfile({ ...PROFILE, name: "Sam", allergies: "peanuts" });
+  A.storage.savePlan(week("SAM"));
+  await signIn(A, "A", "sam@example.com");
   await A.client.startSync();
   mountAccountSync(A, "A");
   mountAccountSync(B, "B");
   await B.client.startSync();
   await settle();
-  check("setup: Ana's week is in her account", summary(sb.table("uid-ana").get("plan")?.value) === "week ANA");
+  check("setup: Sam's week is in her account", summary(sb.table("uid-sam").get("plan")?.value) === "week SAM");
 
   const before = reloads.A;
   // A token refreshed in tab B is the same person: no reason to disturb tab A.

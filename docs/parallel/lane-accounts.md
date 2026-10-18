@@ -7,14 +7,25 @@
 
 ## Now doing
 
-**2026-10-18: back after two quiet weeks (nothing landed on `main` since `e3d758c`); building a LOCAL
-live run.** The owner's Supabase project still does not exist, and fakes are what hid this lane's worst
-bugs (lesson 52). So the next step is the real thing, locally: **real GoTrue, PostgREST and Postgres**
-as user-level Linux binaries in WSL (no Docker, no sudo: neither is on this laptop), a small proxy in
-place of Supabase's gateway, a mail catcher for the sign-in emails, and the real `client.ts` driven
-through sign-in, sync, two devices, sign-out and delete. Tooling in `scripts/` and binaries in a cache
-outside the repo; nothing of another lane's. Also today: `account/validate.ts` imports from
-`../core/client` (one of the old-path debts v1's handoff branch lists; see Answers).
+**2026-10-18: the LOCAL live run is done: 20/20 against the real servers.** The owner's Supabase
+project still does not exist, and fakes are what hid this lane's worst bugs (lesson 52). So
+`node scripts/account-live/run.mjs` now runs the real thing locally:
+- **The servers:** real GoTrue v2.197.0, PostgREST 16.4 and Postgres 17.11, as user-level Linux
+  binaries in WSL (no Docker, no sudo: neither is on this laptop). They are fetched once into
+  `~/.cache/nutriflow-live` inside WSL, outside the repo.
+- **What stands in for Supabase:** a small gateway in place of its own, and a mail catcher that
+  receives the sign-in emails.
+- **The client:** the real `client.ts`, driven by four devices through sign-in, sync, RLS, renewal,
+  sign-out and deletion.
+
+Every platform fact batches 3, 5 and 6 rely on held. One fact was new (GoTrue's ~10 s refresh-token
+reuse window), and it only makes the fake stricter than the real thing. Detail:
+`docs/worklog/2026-10-18-accounts.md`. Also today: `account/validate.ts` imports from `../core/client`
+(`dd5b33e`; see Answers).
+
+**Next:** whatever the owner's decisions doc answers for #1 (the Supabase project) and #4 (the chat
+log). Until then, small hardening only, and nothing in `storage.ts`/`savedStore.ts` before v1's
+`persistence/` move.
 
 **2026-10-03: review 2 is fully fixed, and so is the review of that work (batch 6, `ea71ca6`).**
 Everything ran against fakes that behave like GoTrue and PostgREST, and against real Postgres (PGlite).
@@ -38,12 +49,16 @@ The history of that day is in `docs/worklog/2026-10-03-accounts.md`.
 - `src/lib/storage.ts`, `src/lib/savedStore.ts`, `src/lib/account/**`, `src/app/sage/account/**`,
   `scripts/test-account.*`, `scripts/test-account-tabs.mts`, `scripts/account-tab.mts`,
   `scripts/account-fakes.ts`, `scripts/test-account-sql.mjs`, `scripts/mutate-account.mjs`,
-  `supabase/**` — all mine; nothing of yours.
+  `scripts/account-live/**` (new, the live run), `supabase/**` — all mine; nothing of yours.
 - **Except for D5a's move: `storage.ts` and `savedStore.ts` are yours to move to `persistence/` now**
   (batch 4 is `c9208df`; batches 5 and 6 touch neither). I won't edit either until you post the move's sha.
 
 ## Heads-up for the other lanes
 
+- **`scripts/account-live/` is new and mine (2026-10-18).** Its `live.mts` is type-checked by v1's
+  `tsconfig.scripts.json` once `ship.mjs` runs it; checked clean beforehand (with `src/` and every
+  account script; the only errors were in `scripts/test-ui.mts`, which v1's tree already changes). It
+  runs nothing at import and is no gate: run it by hand (about 80 s once cached; WSL with Ubuntu needed).
 - **`<AccountSync/>` now RENDERS something (batch 6).** While the account has something to say ("your
   account had newer data, so it replaced some of what was on this device", "this account was deleted"),
   it shows one small notice, `fixed` at the bottom right (full width on a phone), out of the page's
@@ -182,9 +197,10 @@ each key to their row in the database and pulls it back on another device. Conse
 | A5 | **The entry points:** an account control in the SidePanel footer, "keep it in your account" after onboarding (v1-owned files — asked first) | yes | a stranger finds sign-in without being told |
 | A6 | **Account deletion server-side** and a privacy note that tells the truth about what is stored | yes | "delete my account" removes every row, verified |
 
-**Status (2026-10-03):** A1–A3 done. A4 code-complete and tested end to end against an in-memory
-Supabase (238 checks), then hardened by an adversarial review (PKCE, the account-switch guard,
-conditional writes in migration 0002); the live run waits on the owner's project. A5 done — the v1 lane
+**Status (2026-10-18):** A1–A3 done. A4 code-complete and tested end to end against an in-memory
+Supabase (now 333 + 43 checks), hardened by three adversarial reviews, and **run live against the real
+GoTrue, PostgREST and Postgres locally (20/20, `scripts/account-live/`)**. What remains for A4 is the
+owner's hosted project: its gateway and keys, real email, and the RLS plan run once there. A5 done — the v1 lane
 mounted `<AccountSync/>` and added the nav entry. A6 done — `delete_my_account()` plus a privacy note
 whose claims were each checked against the code (and corrected twice by the review).
 
@@ -205,3 +221,5 @@ whose claims were each checked against the code (and corrected twice by the revi
 | `c9208df` | review 2, batch 4: THE WRITE FENCE (a stale tab writes nothing into the new generation: stores, bookkeeping, owner, copies); late answers after a stop change nothing; a renewal can't revive a signed-out session; the sync's sentence survives its reload; `validate.ts` covers every optional field the screens read; accessibility on both account surfaces; `savedStore` tested; the audit-log setup step — 315 + 25 checks, 60/60 mutations, engine 927/0, lesson 63 |
 | `e186710` | batch 5: an account deleted on another device is reported as deleted (409 + Postgres 23503 → `gone`), proven in PGlite; the fake answers a deleted account, `/logout` and a re-signup as GoTrue and PostgREST do; the "expired link" sentence says only the newest link works (GoTrue keeps one per person), and batch 3's claim otherwise is corrected — 320 + 25 checks, 63/63 mutations, SQL 39/0 with 16/16, engine 927/0 |
 | `ea71ca6` | batch 6, the review of batches 4–5: sign-out and "Delete everything" re-check who is signed in after every wait (another tab's sign-in was ended or wiped); the account's sentences on every `/sage` screen (`<AccountSync/>` notice, `notice.ts`); the carried note tagged with its account; after a deletion elsewhere, true sentences on sign-out and in other tabs; the tests the review showed could not fail; the mutation runner recovers from an interrupted run — 333 + 43 checks, 85/85 mutations, engine 927/0, lesson 64 |
+| `dd5b33e` | `account/validate.ts` imports `DAYS`/`MEAL_TYPES` from `../core/client` (v1's old-path debt), plus this lane file brought current — 333 + 43 |
+| *(next)* | the local live run: `scripts/account-live/` (real GoTrue v2.197.0, PostgREST 16.4, Postgres 17.11 in WSL; a gateway and mail catcher), 20/20; `supabase/README.md` says what it covers and what only a hosted project can show |

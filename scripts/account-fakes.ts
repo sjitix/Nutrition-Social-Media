@@ -262,7 +262,7 @@ export class FakeSupabase {
 
 // ---- fixtures ------------------------------------------------------------------------------------
 export const PROFILE: UserProfile = {
-  name: "Ana", goal: "maintain", diet: "none", allergies: "", dislikes: "", budget: "medium",
+  name: "Sam", goal: "maintain", diet: "none", allergies: "", dislikes: "", budget: "medium",
   mealsPerDay: 3, targetCalories: 2000, proteinGrams: 150, carbsGrams: 200, fatGrams: 65,
   maxCookTime: 30, maxIngredients: 10,
 };

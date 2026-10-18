@@ -182,6 +182,9 @@ nothing (measured: without it, 3–7 kB per route) — a module that must run on
   (lessons 52–55, 59, 63).
   **The SQL itself is executed** by `node scripts/test-account-sql.mjs`: real Postgres (PGlite, in
   WebAssembly) with Supabase's default grants stubbed in, so no project is needed (lesson 56).
+  **And the whole thing runs live** by `node scripts/account-live/run.mjs`: the real `client.ts` against
+  the real GoTrue, PostgREST and Postgres (user-level binaries in WSL, fetched once into
+  `~/.cache/nutriflow-live` there; a small gateway and mail catcher in `scripts/account-live/`).
 - `src/lib/savedStore.ts` — a three-method async interface (`list`/`add`/`remove`) over saved
   recipes, delegating to `storage.ts`. **Async on purpose even though localStorage is not**: a
   synchronous interface would have to change shape the moment a network sat behind it, and every
@@ -334,6 +337,7 @@ npm run test:api        # HTTP route integration tests
 node scripts/test-account.mjs  # accounts: export file, sync, REST client, client.ts end to end vs a fake Supabase, and across tabs — no network
 node scripts/mutate-account.mjs [--only "text"]  # accounts: removes each guard in turn and proves a test goes red
 node scripts/test-account-sql.mjs [--mutate]  # accounts: the migrations + RLS plan in real Postgres (PGlite; installs once to the OS temp dir)
+node scripts/account-live/run.mjs [--keep]  # accounts: the LIVE run, real GoTrue + PostgREST + Postgres as user-level binaries in WSL (no Docker), driving the real client.ts (~80 s once cached)
 npm run export:recipes  # library -> NutriFlow-recipes.xls, incl. a coverage/gaps report
 npm run build:nutrients # regenerate the USDA table (needs --emit to write)
 ```
