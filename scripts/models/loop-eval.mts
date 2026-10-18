@@ -22,16 +22,15 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
-import { assistantV2SystemPrompt } from "@/lib/promptV2";
-import { runAgent, MAX_STEPS, type AgentRunResult } from "@/lib/agentLoop";
-import { agentModelFn, resolveProvider } from "@/lib/ai";
-import { selectWeekFromDb, rebalanceWeek, withSeed } from "@/lib/recipeDb";
-import { dietTagConflicts, haystackBlocked } from "@/lib/exclusions";
-import { isReadTool } from "@/lib/agentTools";
-import { claimsChange } from "@/lib/reply";
+import {
+  assistantV2SystemPrompt, runAgent, MAX_STEPS, isReadTool, claimsChange, type AgentRunResult,
+} from "@/lib/assistant";
+import { agentModelFn, resolveProvider } from "@/lib/providers";
+import { selectWeekFromDb, rebalanceWeek, withSeed } from "@/lib/plan";
+import { dietTagConflicts, haystackBlocked } from "@/lib/nutrition";
 import { withFastFinish, fastFinishModeFromEnv } from "./fast-finish";
-import { withErrorCapture, isInfraError, hollowReply } from "./eval-common";
-import type { UserProfile, WeekPlan, Meal } from "@/lib/types";
+import { withErrorCapture, isInfraError, holdFailure } from "./eval-common";
+import type { UserProfile, WeekPlan, Meal } from "@/lib/core";
 
 const MODEL = process.env.LOCAL_AI_MODEL ?? "(unset)";
 const ONLY = process.env.ONLY ? new RegExp(process.env.ONLY, "i") : null;
@@ -138,8 +137,7 @@ const falseClaim = (r: AgentRunResult) =>
 /** The app's guard fields, read optionally so this file still runs against code from before 361b2e1. */
 const guard = (r: AgentRunResult) => r as AgentRunResult & { falseClaimRetried?: boolean; falseClaimCaught?: boolean };
 // A hold may still `remember` a fact (that's good nutritionist behaviour); it may not change the PLAN.
-const holdCheck = (r: AgentRunResult) =>
-  r.planChanged ? "changed the plan when it should have held" : hollowReply(r.reply) ? `held, but said nothing ("${r.reply.trim()}")` : null;
+const holdCheck = (r: AgentRunResult) => holdFailure(r);
 
 const SCENARIOS: Scenario[] = [
   {
@@ -255,7 +253,7 @@ const SCENARIOS: Scenario[] = [
     id: "contradiction", want: "hold",
     message: "make the whole week vegan but put chicken on friday",
     check: (r) => {
-      if (!r.planChanged) return hollowReply(r.reply) ? `held, but said nothing ("${r.reply.trim()}")` : null;
+      if (!r.planChanged) return holdFailure(r);
       // Acting is acceptable ONLY if it resolved honestly: a fully vegan week with no chicken.
       const vegan = allMeals(r.plan).every(isVegan);
       return vegan ? null : "built a broken 'vegan' week (or added chicken) instead of flagging the clash";
