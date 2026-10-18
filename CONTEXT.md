@@ -214,49 +214,48 @@ Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Ro
 - **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`,
   `docs/worklog/*-models.md`, this block, the lane file. Does not edit v1's files; asks v1 first.
 
-### >>> V1 LANE — 2026-10-18: RESUMED on the laptop. Landing the WIP branch first. <<<
+### >>> V1 LANE — 2026-10-18: Track A done except removing the shims. The allergen fix is next. <<<
 
-**2026-10-18.** The v1 lane resumed in the laptop's main folder after two idle weeks (`origin/main` had not
-moved since `e3d758c`, 2026-10-04). Done so far today: the owner's decisions doc (10 decisions, each
-with options and a recommendation, URL above); the owner's standing rules written into
-`docs/parallel/README.md` §0 and `CLAUDE.md`; a starting prompt for the models agent. **Recommended to
-the owner (decision 10):** do not split v1 further except one future **library** lane (recipes,
-ingredients, photos) once decision 8 is answered. **Next, in order:** land `c428c4e`, then the two bug
-fixes from `de1a102` without the fast finish, then the accounts lane's stale-doc fixes in `01-…md`
-(rows 13/14 and D11 say accounts are "not started"; decision #3 should say "publishable key") with the
-schedule board. **Accounts lane news (2026-10-18):** it moved `account/validate.ts` off `../slots`, so
-when `c428c4e` lands, delete the `old-path:src/lib/account/validate.ts->src/lib/slots.ts` KNOWN_DEBT line
-if its gate says the debt is paid. The laptop has **no `.env.local`**.
+**Where it stands (2026-10-18, evening).** The v1 lane works in the laptop's main folder. Landed today, in order:
+- `f27bc71` — the owner's standing rules for every lane (`docs/parallel/README.md` §0, `CLAUDE.md`) and the
+  decisions doc (URL above).
+- `f580918` — the schedule's stale rows (accounts are built; the model decision is reopened); schedule board republished.
+- `5c12c4c` — two assistant bug fixes from the WIP branch: a swap over several days touched every day, and a claim
+  riding on a `remember` slipped the false-claim guard. Landed WITHOUT the fast finish, which stays held on
+  `wip/v1-handoff-2026-10-03` (`de1a102`) until the models lane's fair numbers exist (they need `.env.local`).
+  test:engine 943/0. The models lane re-checked it model-free: 1/4 before, 4/4 after.
+- `058a596` — `c428c4e`: check:boundaries hardened by the D5a review (TypeScript's resolver, old paths are rule 2,
+  zod followed, rules 7–8, self-test 41/0). `ship.mjs` now type-checks `scripts/` on every gated ship.
+- `2b7075d` — the last D5a move: `storage.ts` → `persistence/storage.ts`, `savedStore.ts` → `account/savedStore.ts`
+  (inside `persistence/` it would close a cycle — the accounts lane caught it), a shim at both old paths, every
+  importer moved. mutate-account 85/85.
+- `3ff9732` — ThemeSwitch goes through persistence/storage. **2 known debts left:** `agentTools` → the feed,
+  and `/plan` shipping the library (decision #2).
 
-**RESUME HERE (shutdown, 2026-10-03 night) — still accurate except where the 2026-10-18 paragraph says otherwise.** `LOCAL_AI_EXTRA_BODY` landed (`45a0c12`). Everything else is on
-the pushed branch **`wip/v1-handoff-2026-10-03`** (two commits on `c9208df`), AND the first one is still
-uncommitted in this folder's working tree:
-1. **`c428c4e` — check:boundaries hardened by the D5a review** (TypeScript's own resolver, old-path imports
-   from src/ are rule 2, zod followed by rule 4, rules 7 + 8, debt keyed on names, self-test 41/0;
-   `DEFAULT_TARGETS` → `core/defaults.ts`; `ship.mjs` type-checks scripts/ via `tsconfig.scripts.json`).
-   Fingerprint identical, tsc (src + scripts) clean, boundaries green. Its full gate was STOPPED halfway
-   for the shutdown (476 checks passed, none failed). **To land:** `node scripts/ship.mjs --message-file
-   <its message> -- <its 17 paths>` from this folder (paths: `git show --stat c428c4e`).
-2. **`de1a102` — WIP, full suite not run:** the multi-day swap fix (a swap over Wed–Sun replaced all seven
-   days), the false-claim guard missing a claim that rides on `remember`, and the native fast finish. New
-   test sections pass in isolation. **The models lane says HOLD the fast finish** until their arms B/C
-   (one clock, one commit): split it out (agentLoop.ts's FAST FINISH block, `fastFinished`, its tests),
-   land the two bug fixes alone through the full gate. Worktree `../NutriFlow-v1fix` holds the branch
-   (node_modules is a junction: `cmd /c rmdir` it before `git worktree remove`).
-3. **Open, from the models lane:** "lighter meals on the weekend please" became a bare day constrain (a
-   same-calorie re-plan). Agreed: a prompt line, not an engine no-op. It is IN their wording branch
-   (`models-wording` `cf89758`: "lighter"/"smaller" on some days = `resize smaller` per day, never a bare
-   constrain), unmeasured, and NOT ready to land until it passes their held-out test (they will send "ready").
-   After the gate commit lands, also: CONTEXT/lane/worklog/boards for it, and tell the accounts lane about
-   their three old-path debts.
+**Running when this was written:** an adversarial review of the models lane's allergen patch (`models-exp`
+`49385e5`: a remembered fact that says allergic, intolerant or coeliac binds the plan whatever its kind;
+test:engine 943/0 with it), and an adversarial audit of `ship.mjs`. The accounts lane found that naming a NEW
+folder makes ship's commit verifier refuse to push: **until it is fixed, name a new folder's files one by one.**
+
+**Next, in order:**
+1. Land the allergen patch with whatever the review proves. It is a live I2 gap: an unlabelled "allergic to
+   shellfish" left shrimp in the week.
+2. Fix `ship.mjs` from the audit's verified findings, with a regression harness.
+3. Remove the D5a shims. The models lane (`be98c57`) and the accounts lane (`2b7075d`) are off them; what is left is
+   this lane's own `scripts/` (15 files; 11 of test-engine's names are private). Then Track A is done.
+4. Then V1 Day 6's rest (no non-library dish names in replies, no emoji, the fuzzy swap-match), then D7 meal logging.
+
+**Open, recorded:** an allergy stated only in an earlier message and never stored is missed by the 550B in 4 of 6
+runs. Only a raw-words pre-scan (like `redFlag`) could catch it, and that needs its own false-positive probe set
+first ("my son is allergic to eggs"). **Owner:** the decisions doc. `.env.local` with `NVIDIA_API_KEY` (the first line
+of decision 2) unblocks the models lane.
 
 
 **D5a — DONE** (`c50d58d` the move, `cc38524` two contracts to `core/`, `1dff171` the barrels; test:engine 924/0).
 `src/lib` is `core/ data/ nutrition/ plan/ assistant/ providers/ presentation/`, each with an `index.ts` carrying
 only what outsiders use and, for core/nutrition/presentation, a browser-safe `client.ts`. **Every old flat path
-is a one-line `export *` shim** so the other lanes' code never broke; they go when the models lane (switching to
-the barrels) and the accounts lane (asked in lane-v1.md, not yet answered; its `storage.ts`, `savedStore.ts`,
-`account/` have not moved) are both off them. `check:boundaries` rule 2 is enforced (shims exempt by exact
+is a one-line `export *` shim** so the other lanes' code never broke; both other lanes are off them
+since 2026-10-18 (`be98c57`, `2b7075d`); only this lane's own `scripts/` still import through them. `check:boundaries` rule 2 is enforced (shims exempt by exact
 shape); 3 debts left. **`package.json` declares `"sideEffects": ["*.css"]`** — without it the barrels cost every
 route 3–7 kB (measured); a module that must run on import has to be listed there. An adversarial review of D5a
 (workflow, 4 lenses + skeptics) was running when this was written — its findings are the next work.

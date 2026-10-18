@@ -7,21 +7,20 @@
 
 ## Now doing
 
-**2026-10-18 — resumed on the LAPTOP's main folder.** This conversation is the v1 lane from now on.
-- **New owner rules for every lane: `README.md` §0.** Pull constantly, push every step, keep every context
-  file current as you go, message every running lane at session start and after each ship that touches
-  them.
-- **The owner's decisions doc:** https://claude.ai/code/artifact/a3290f96-fc25-43a6-932d-9982a46bb70f, with
-  10 decisions. Read its threads at session start. If you need a new owner decision, add it there in the same
-  plain form and tell me.
+**2026-10-18, evening — Track A is done except the shims. Next: the allergen fix.** This conversation is the v1 lane.
+- **The owner's rules for every lane: `README.md` §0.** Pull constantly, push every step, keep every context file
+  current as you go, message every running lane at session start and after each ship that touches them.
+- **The owner's decisions doc:** https://claude.ai/code/artifact/a3290f96-fc25-43a6-932d-9982a46bb70f. Read its threads at
+  session start. If you need a new owner decision, add it there in the same plain form and tell me.
+- **Landed today:** `5c12c4c` (multi-day swap; a false claim riding on `remember`; NO fast finish), `058a596` (the
+  hardened check:boundaries; ship.mjs type-checks scripts/), `2b7075d` (storage.ts → persistence/, savedStore.ts →
+  account/), `3ff9732` (ThemeSwitch through persistence). 2 known debts left.
 - **Next, in order:**
-  1. Land `c428c4e` (the hardened `check:boundaries`) through the full gate.
-  2. Land `de1a102`'s two bug fixes (multi-day swap; a false claim riding on `remember`) WITHOUT the fast
-     finish, which stays held for the models lane's fair numbers.
-  3. Fix the stale accounts rows in `docs/v1/01-…md` and the schedule board.
-- **Accounts:** your `validate.ts` → `../core/client` change is noted. When `c428c4e` lands I delete that
-  KNOWN_DEBT line if the gate reports it paid. `storage.ts` and `savedStore.ts` still move to `persistence/`
-  only when I post the sha.
+  1. The models lane's allergen patch (`49385e5`) with whatever the running review proves.
+  2. The `ship.mjs` fixes from the running audit. Until then, name a new folder's files one by one.
+  3. The D5a shims go once my own scripts/ are off them. Track A is then done.
+- **Models lane:** the fast finish stays held until your fair numbers exist. I'll tell you before any change to how
+  `falseClaimCaught` is computed.
 
 **2026-10-03 ~18:30 — D5b done and its review fixed; the false-claim guard landed (`361b2e1`); next the
 local-date change, then D5a.** Since the D5b notes below:
@@ -133,10 +132,9 @@ In order this session:
 
 *(the accounts agent: if you need one of these, message me first)*
 
-**2026-10-18:** `CLAUDE.md`, `CONTEXT.md` (the shared intro and my block), `docs/parallel/README.md`,
-this file and today's worklog are being shipped now. Next: the 17 paths of `c428c4e` (`git show --stat
-c428c4e`). **Models lane:** it touches `src/lib/providers/ai.ts` (10 lines) and
-`src/lib/assistant/agentTools.ts` (1 line), plus `scripts/ship.mjs`, which every lane uses.
+**2026-10-18, evening:** `CONTEXT.md` (my block), this file, today's worklog and two boards, shipped as docs
+now. Next src commit: `src/lib/assistant/primitives.ts` (the allergen patch) and `scripts/test-engine.mts`.
+Then `scripts/ship.mjs`.
 
 **Shut down for the night (2026-10-03).** In flight, on the pushed branch `wip/v1-handoff-2026-10-03`: the
 boundary-gate hardening (adds an `old-path:` rule — your `storage.ts` → `./types`, `./import` and
