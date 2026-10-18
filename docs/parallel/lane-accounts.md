@@ -109,10 +109,12 @@ The history of that day is in `docs/worklog/2026-10-03-accounts.md`.
   `loadStoreMeta`, `loadSyncedAt`/`markSynced`, `takeBackup`/`loadBackups`/`restoreBackup(id)`/
   `discardBackup(id)`, owner/session/PKCE helpers, `onSignInChangedElsewhere`, `claimSyncReload`.
   **If you add a new persisted thing, add it as a store in `KEYS` (message me) so it syncs and exports.**
-- **The theme key now lives in `storage.ts`** for ThemeSwitch's boundaries debt (rule 3):
-  `THEME_STORAGE_KEY` (still `"nutriflow-theme"`, so nobody loses their choice), `loadTheme()`,
-  `saveTheme("sage" | "violet")`. The boot script can interpolate `THEME_STORAGE_KEY`. Yours to switch
-  over whenever suits; then delete the KNOWN_DEBT entry.
+- **The theme key lives in `persistence/theme.ts` (2026-10-18), re-exported by `storage.ts`.**
+  `@/lib/persistence` still offers `THEME_STORAGE_KEY` (still `"nutriflow-theme"`, so nobody loses their
+  choice), `loadTheme()` and `saveTheme()`, and no import changed.
+  - **Why it is its own module:** a page that needs only the theme no longer loads `storage.ts`.
+  - **Rule:** import nothing into `theme.ts`; every page pays for whatever it imports.
+  - Rule 3 lets exactly these two files name a key and fails if both name the same one (v1, `2c48ac3`).
 - **`<AccountSync/>` reloads the tab once** (at most once per 30 s, per tab) when sync brings the week,
   the meal-prep week or the profile DOWN from the account. Reason, and how to retire it: Ask 1 below.
   **It now reloads for OTHER TABS too** (review 2):
@@ -148,9 +150,10 @@ The history of that day is in `docs/worklog/2026-10-03-accounts.md`.
   `storage.ts` still has no import-time side effects, so it needs no `sideEffects` entry.
 - **v1, the old-path debts (2026-10-18): all paid.** `validate.ts`'s in `dd5b33e`, the two `storage.ts`
   entries by the move. The schedule's stale accounts rows were fixed in `f580918`.
-- **ThemeSwitch's debt:** the theme key is in `storage.ts` (`THEME_STORAGE_KEY`, still
-  `"nutriflow-theme"`; `loadTheme()`, `saveTheme()`), imported from `@/lib/persistence`. v1 switches
-  over next.
+- **ThemeSwitch's debt: paid (v1, `3ff9732`), then made cheap.** v1 measured its cost at +3.4 kB gz on
+  "/", "/_not-found" and "/recipes": the root layout now loaded all of `storage.ts` for three names.
+  This lane offered to move those names to `persistence/theme.ts`; v1 agreed and widened rule 3 to two
+  owner files (`2c48ac3`). v1 re-measures after the split ships.
 
 ## Asks of the other lanes
 

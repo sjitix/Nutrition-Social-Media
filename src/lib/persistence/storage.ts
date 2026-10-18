@@ -629,33 +629,13 @@ export function claimSyncReload(windowMs = 30_000): boolean {
 }
 
 /**
- * The original layout's violet/sage theme choice — a per-device display preference, so it is neither
- * synced nor exported. Owned here so storage.ts stays the only module that touches localStorage
- * (check:boundaries rule 3; this was ThemeSwitch's known debt). The key keeps its original spelling and
- * its value stays a plain string, so every browser that already chose a theme keeps it.
- *
- * `THEME_STORAGE_KEY` is exported for one reason: the pre-hydration boot script has to read the choice
- * before any module loads, so it is a string of JavaScript and needs the key's name spelled into it.
+ * The theme choice (`THEME_STORAGE_KEY`, `loadTheme`, `saveTheme`) lives in ./theme.ts, re-exported
+ * here so `@/lib/persistence` still offers it. It is a separate module so that a page needing only
+ * the theme does not load this one (see theme.ts). Never spell its key in this file.
  */
-export const THEME_STORAGE_KEY = "nutriflow-theme";
-export function loadTheme(): "sage" | "violet" | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const v = window.localStorage.getItem(THEME_STORAGE_KEY);
-    return v === "sage" || v === "violet" ? v : null;
-  } catch {
-    return null;
-  }
-}
-export function saveTheme(theme: "sage" | "violet"): void {
-  try {
-    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
-  } catch {
-    /* storage unavailable (private mode): the choice simply isn't remembered */
-  }
-}
+export * from "./theme";
 
-/** The signed-in session, kept here so this stays the only module that names a storage key. */
+/** The signed-in session, kept here: key names stay in persistence/ (check:boundaries rule 3). */
 export const loadSessionRaw = () => readKey<unknown>(INTERNAL.session);
 export function saveSessionRaw(s: unknown): void {
   if (s === null || s === undefined) window.localStorage.removeItem(INTERNAL.session);

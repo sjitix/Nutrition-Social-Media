@@ -165,6 +165,10 @@ nothing (measured: without it, 3–7 kB per route) — a module that must run on
   clears it, a tab still working from the earlier data can write nothing (stores, write times, the
   owner, the copies): its saves are dropped with a console warning, `takeBackup` throws, and
   `<AccountSync/>` reloads it (lesson 63). Owned by the accounts lane (`docs/parallel/`).
+  **One key lives beside it, in `persistence/theme.ts`:** the theme choice. The root layout's
+  ThemeSwitch needs only that, every page loads the root layout, and in `storage.ts` it made every
+  page load all of `storage.ts`. `storage.ts` re-exports it, so `@/lib/persistence` still offers it.
+  `check:boundaries` rule 3 lets exactly these two files name a key, and fails if both name the same one.
 - `src/lib/account/` — **accounts: local-first, the account is a mirror.** `portable.ts` (the export
   file), `validate.ts` (ONE zod-free check per store, for files AND rows pulled from the account),
   `merge.ts` (the pure sync rules — key-order-blind, because Postgres jsonb reorders keys; and every

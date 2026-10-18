@@ -131,7 +131,10 @@ Supabase row per user under RLS.
   close an import cycle. The old paths are one-line re-exports, so the write fence's state is still one
   instance per tab. Checked: in this lane's files only import lines and the mutation runner's 21 path
   strings changed; the suites pass 333 + 43 on the moved tree, and v1 ran all 85 mutations, 85/85.
-  `storage.ts` owns the theme key, so ThemeSwitch's debt is v1's to pay next.
+  **The theme key lives beside it, in `persistence/theme.ts`**, re-exported by `storage.ts`.
+  ThemeSwitch is in the root layout, which every page loads. While the key sat in `storage.ts`, every
+  page loaded all of it: +3.4 kB gz on "/", the first page anyone opens. Rule 3 lets exactly these two
+  files name a key (v1, `2c48ac3`).
 
 One-time handoff carried through this lane: the `modelFailed` fix an earlier session left uncommitted
 in the main folder (`2fd6f02`). Its WORKPLAN lesson was renumbered 38 → 48 because 38–47 were taken.
