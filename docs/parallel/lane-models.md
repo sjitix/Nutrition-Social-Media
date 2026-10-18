@@ -24,6 +24,13 @@ Done today, key-free (`be98c57`):
 - **v1's `5c12c4c` re-checked model-free** (`probe-fixes.mts`): 1/4 against the code before the fix
   (both bugs reproduce), 4/4 after.
 
+**RUNNING NOW (2026-10-18, evening): an audit of every check in both evals** (workflow
+`wf_373d28af-e1b`). It covers 29 loop scenarios and 14 conversations through `MODEL_SCRIPT` (`b16f0a4`):
+for each, a correct answer must pass and 3–4 plausible wrong ones must fail. Each finding gets two
+skeptics, then a completeness critic and a second round. It is key-free and touches no repo file. The
+check fixes it yields land here as this lane's files. **Also running:** v1's `test:engine` on the patched
+`models-exp` tree, 615/0 so far.
+
 **Ready for the key: `scripts/models/fair-arms.mjs`**, one command for the fair arms. It bundles each
 eval once from one commit and refuses a dirty tree. It runs one arm at a time, round-robin across
 repeats, with a cool-down, and clears every inherited knob. It writes a manifest after each arm. It reads
