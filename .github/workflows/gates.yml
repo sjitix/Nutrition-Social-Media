@@ -43,6 +43,8 @@ jobs:
         run: npm run check:ingredients
       - name: Presentation-layer pure functions
         run: npm run test:ui
+      - name: The ship tool's own scenarios (throwaway repositories, no network)
+        run: npm run test:ship
 
   engine:
     name: Engine suite

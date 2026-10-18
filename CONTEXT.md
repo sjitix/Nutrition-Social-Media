@@ -249,9 +249,9 @@ Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Ro
 - **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`,
   `docs/worklog/*-models.md`, this block, the lane file. Does not edit v1's files; asks v1 first.
 
-### >>> V1 LANE — 2026-10-18: Track A done except removing the shims. The allergen fix is next. <<<
+### >>> V1 LANE — 2026-10-18 (night): the allergen binding landed (A, B1), ship.mjs v2 landed, B2 in review <<<
 
-**Where it stands (2026-10-18, evening).** The v1 lane works in the laptop's main folder. Landed today, in order:
+**Where it stands (2026-10-18, night).** The v1 lane works in the laptop's main folder. Landed today, in order:
 - `f27bc71` — the owner's standing rules for every lane (`docs/parallel/README.md` §0, `CLAUDE.md`) and the
   decisions doc (URL above).
 - `f580918` — the schedule's stale rows (accounts are built; the model decision is reopened); schedule board republished.
@@ -264,26 +264,54 @@ Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Ro
 - `2b7075d` — the last D5a move: `storage.ts` → `persistence/storage.ts`, `savedStore.ts` → `account/savedStore.ts`
   (inside `persistence/` it would close a cycle — the accounts lane caught it), a shim at both old paths, every
   importer moved. mutate-account 85/85.
-- `3ff9732` — ThemeSwitch goes through persistence/storage. **2 known debts left:** `agentTools` → the feed,
-  and `/plan` shipping the library (decision #2).
+- `3ff9732` — ThemeSwitch goes through persistence/storage; `2c48ac3` — rule 3 with two owners plus a duplicate-key
+  guard (self-test 44/0); `7c2d360` — a size claim withdrawn (its control was not like-for-like; lesson 66).
+  **2 known debts left:** `agentTools` → the feed, and `/plan` shipping the library (decision #2).
+- `09f325f` (A, test:engine 971/0) and `ba23884` (B1, 984/0) — **the allergen binding**, after a six-agent adversarial
+  review of the models lane's patch:
+  - A fact that says allergy, intolerance or coeliac binds the plan, whatever the model labelled it.
+  - A denial never binds, and neither does a carrier word on its own ("oil", "powder").
+  - Plurals and misspellings count, every cue in a fact is read, and plural category words count.
+  - The parse is linear.
+  The models lane re-checked both (28/28 on B1, `aa057f7`). The review's 36 findings (the LC-, OVER- and
+  U-numbers used below) get a one-page summary, with each one's status, in `docs/v1/allergen-review.md` with B2.
+- The `ship.mjs` v2 commit — the tool every lane ships with, rebuilt after a 45-finding adversarial audit:
+  - it works from a private-index snapshot, commits by compare-and-swap, and rebuilds on top of a moved remote,
+    never with stash or pull;
+  - it refuses unpushed commits it did not make (`--resume` pushes its own), `--no-gate` on a gate input, and
+    unrelated uncommitted work under the gate;
+  - its exit codes say what is true.
+  `scripts/test-ship.mjs` holds 43 scenarios (v1 fails 34), and CI runs it. **Every lane: `docs/parallel/README.md` §3.**
 
-**Running when this was written:** an adversarial review of the models lane's allergen patch (`models-exp`
-`49385e5`: a remembered fact that says allergic, intolerant or coeliac binds the plan whatever its kind;
-test:engine 943/0 with it), and an adversarial audit of `ship.mjs`. The accounts lane found that naming a NEW
-folder makes ship's commit verifier refuse to push: **until it is fixed, name a new folder's files one by one.**
+**Running when this was written:** B2, the allergen NOTES. A workflow builds it in `../NutriFlow-allergy-fix`
+(branch `allergy-fix`) and three skeptics try to break it. It covers:
+- an engine note on every allergy remark (LC-06/11);
+- the stored list deduped through the matcher's parser (LC-09/16);
+- swap notes that name the blocking allergy (LC-07);
+- undo grammar, plus a note when an undo took an allergy off (LC-12);
+- `allergies=` in promptV2's Profile line (LC-13).
+
+The baseline for its comparisons is `../NutriFlow-allergy-review` (detached at `ba23884`). Remove both worktrees
+once C lands, taking the node_modules junction out first (`cmd //c "rmdir <wt>\\node_modules"`).
 
 **Next, in order:**
-1. Land the allergen patch with whatever the review proves. It is a live I2 gap: an unlabelled "allergic to
-   shellfish" left shrimp in the week.
-2. Fix `ship.mjs` from the audit's verified findings, with a regression harness.
+1. Review and ship B2; send the models lane the sha.
+2. C: an imported dish containing a newly bound allergen stays in the week today (LC-01). Re-pick it in
+   `plan/select.ts`'s `!base` branch, and have the note name it.
 3. Remove the D5a shims. The models lane (`be98c57`) and the accounts lane (`2b7075d`) are off them; what is left is
    this lane's own `scripts/` (15 files; 11 of test-engine's names are private). Then Track A is done.
 4. Then V1 Day 6's rest (no non-library dish names in replies, no emoji, the fuzzy swap-match), then D7 meal logging.
 
-**Open, recorded:** an allergy stated only in an earlier message and never stored is missed by the 550B in 4 of 6
-runs. Only a raw-words pre-scan (like `redFlag`) could catch it, and that needs its own false-positive probe set
-first ("my son is allergic to eggs"). **Owner:** the decisions doc. `.env.local` with `NVIDIA_API_KEY` (the first line
-of decision 2) unblocks the models lane.
+**Open, recorded:**
+- **LC-08:** "allergic to hazelnuts" binds nothing unlabelled, while a hazelnut dish exists. Binding every unknown
+  word brings back over-blocks ("spring" from "hay fever allergy in spring"), so it needs its own design.
+- **LC-02/03/10** (removing an allergy; undo dropping one) wait on owner decision 12.
+- An allergy stated only in an earlier message and never stored is missed by the 550B in 4 of 6 runs. Only a
+  raw-words pre-scan (like `redFlag`) could catch it, and that needs its own false-positive probe set first.
+- Lanes' gates share `node_modules/.cache` through the junctions: a rare race between two test:engine bundles.
+
+**Owner:** the decisions doc. `.env.local` with `NVIDIA_API_KEY` (the first line of decision 2) unblocks the
+models lane.
 
 
 **D5a — DONE** (`c50d58d` the move, `cc38524` two contracts to `core/`, `1dff171` the barrels; test:engine 924/0).
@@ -314,9 +342,9 @@ share `gramsFor`'s parser (latent: no library quantity differs).
 **The false-claim guard LANDED `361b2e1` (879/0):** `claimsChange` in `reply.ts` (the models lane's
 regex; their evals import it, `77e7caf`); `runAgent` gives an unbacked claim one nudge and one retry,
 then `composeReply` shows `NOTHING_CHANGED_REPLY`; `falseClaimRetried` / `falseClaimCaught` on the result.
-**`ship.mjs` now stops on an autostash that came back in conflict** (`82fe92e`, lesson 62): it once
-reported "rebased cleanly" with WORKPLAN.md unmerged. After every ship, `git status` and
-`git stash list` should both be clean.
+**`ship.mjs` v1 stopped on an autostash that came back in conflict** (`82fe92e`, lesson 62): it once
+reported "rebased cleanly" with WORKPLAN.md unmerged. (v2, 2026-10-18, never stashes or pulls at all.)
+After every ship, `git status` and `git stash list` should both be clean.
 
 **Next, in order:**
 1. **Local date — LANDED `9aaff8d` (917/0).** `requestDay(sent, now)` in `streak.ts` accepts the browser's

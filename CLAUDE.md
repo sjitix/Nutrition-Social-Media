@@ -340,8 +340,9 @@ npm run check:recipes   # every ingredient priced, every dish plausible, Atwater
 npm run check:ingredients # every recipe ingredient resolves to a curated slug + USDA food (D5)
 npm run check:boundaries # the module map enforced: layers, entry points + old paths, storage keys, client
                          # payload (modules AND zod), cycles, emoji, unresolved imports, import-time effects
-                         # (~1.5 s; ship.mjs runs it on any src/ change; `-- --self-test` proves it fails, 41 cases)
+                         # (~1.5 s; ship.mjs runs it on any src/ change; `-- --self-test` proves it fails, 44 cases)
 npx tsc --noEmit -p tsconfig.scripts.json # types for src/ AND scripts/ (.mts) — ship.mjs runs it on every gated commit
+npm run test:ship       # ship.mjs's 43 scenarios in throwaway repos under the OS temp folder (~45 s); its own gate
 npm run check:data      # gates the training data
 npm run test:api        # HTTP route integration tests
 node scripts/test-account.mjs  # accounts: export file, sync, REST client, client.ts end to end vs a fake Supabase, and across tabs — no network
@@ -412,14 +413,25 @@ LM Studio: load model, push GPU offload to max, context >= 8192, Start Server on
 
   ```bash
   node scripts/ship.mjs --message-file msg.txt -- src/lib/foo.ts docs/bar.md
+  node scripts/ship.mjs --resume     # pushes the one commit a failed ship left behind (exit 3)
   ```
 
-  It fetches, **stops** if the remote has touched a file you are about to commit (naming the overlap,
-  because that is where a careless merge loses someone's work), rebases otherwise and **aborts the
-  rebase on conflict** rather than resolving blindly, runs the right gate, commits **only** the named
-  paths atomically, **verifies the commit holds exactly those paths** and refuses to push if a file
-  was swept in or dropped, then confirms the push landed. `--no-gate` for docs-only; `--dry-run` to
-  look first.
+  It fetches and **stops** if the remote has touched a file you are about to commit, naming the
+  overlap, because that is where a careless merge loses someone's work. It checks again after the gate.
+  - **The snapshot.** It copies the named files into a PRIVATE index (the shared one is never staged
+    into) and runs every gate that reads them. It commits that snapshot only if nothing changed while
+    the gate ran, and only by compare-and-swap, so a commit made meanwhile stops it instead of riding
+    along.
+  - **When the remote moved,** it rebuilds the commit on top of it, without stash or pull, pushes,
+    verifies the push, and catches the folder up without touching local edits.
+  - **It refuses:** unpushed commits it did not make; `--no-gate` on any file a gate reads; a gated ship
+    while other uncommitted work that gate reads is in the tree.
+  - **Exit codes:** 0 pushed; 1 nothing committed (an error or a red gate); 2 nothing committed
+    (stopped on purpose); **3 committed locally, not pushed: run `--resume`**; 4 pushed, but the folder
+    could not catch up (it prints the two commands that finish it).
+
+  `--dry-run` to look first. Its 43 scenarios (`npm run test:ship`) are its own gate whenever it
+  changes, and CI runs them too.
 
   **Why it exists, and the rule even without it:** `git add` leaves work in `.git/index`, which is
   **shared state for the whole working directory**. Staging and then waiting out a 25-minute engine

@@ -1534,6 +1534,24 @@ Each of these was discovered by doing the work, and each earned its place.
     mutation: it was to test the case where the guard matters (a request GoTrue never received), give
     the real case its own sentence, and make the fake follow GoTrue's rule.
 
+68. **The tool that commits for every lane needs the same proof as the code it commits, and the git
+    flag that sounds safe can be safe in the wrong way.** `ship.mjs` v1 had one test, which was being
+    used. An adversarial audit (2026-10-18) reproduced 45 ways it could:
+    - push the wrong thing or miss an overlap. It compared raw argument strings, so a new folder, a
+      move, "./x" or "dir\x" slipped through. And its "0 behind" was 25 minutes stale.
+    - lose work. `pull --rebase --autostash` stashed into the one stack every worktree shares, and a
+      commit made during the gate rode out under ship's message.
+    - strand a commit while telling the agent to "run ship again".
+
+    v2 is built from different parts: files rather than strings, a private index, compare-and-swap,
+    a rebuild in a private index instead of stash + pull, and exit codes that say what is true.
+    `test-ship.mjs` replays 43 scenarios in throwaway repositories, and v1 fails 34 of them.
+
+    **The harness caught v2's own mistake on its first run.** The catch-up used `git reset --keep`,
+    chosen because it refuses rather than merges. But it also resets every index entry, so the staged
+    version of a file nobody named vanished. `git read-tree -m -u` (what `git checkout` does) keeps it.
+    **Read the whole contract of the "safe" flag, then test the exact state it promises to keep.**
+
 ---
 
 ## 4. Training track (runs in parallel, never blocked by the above)

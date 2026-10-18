@@ -171,7 +171,7 @@
     <div class="stamp">
       <b><i>source</i> docs/worklog/</b>
       <b><i>synced</i> 2026-10-18</b>
-      <b><i>commit</i> 3ff9732+</b>
+      <b><i>commit</i> ba23884+</b>
     </div>
   </header>
 
@@ -192,7 +192,7 @@
       <div class="stat"><div class="v">4</div><div class="l">days logged</div></div>
       <div class="stat"><div class="v">10</div><div class="l">milestones done</div></div>
       <div class="stat"><div class="v">9</div><div class="l">days to V1</div></div>
-      <div class="stat"><div class="v">8</div><div class="l">open deferrals</div></div>
+      <div class="stat"><div class="v">10</div><div class="l">open deferrals</div></div>
     </div>
   </section>
 
@@ -209,14 +209,24 @@
             <span class="date">2026-10-18</span>
             <span class="pill part">solved &middot; partial</span>
           </div>
-          <h3>Back after two weeks: the architecture is finished except one cleanup, and your decisions are in one place</h3>
+          <h3>Back after two weeks: the allergy gap is closed, the commit tool is rebuilt, and your decisions are in one place</h3>
           <p class="sub">Three agents worked at once, all on this laptop. This one is the app-and-engine lane.</p>
           <div class="blocks">
             <div class="blk">
               <h4>What moved</h4>
               <ul>
-                <li><b>Every decision waiting on you is in <a href="https://claude.ai/code/artifact/a3290f96-fc25-43a6-932d-9982a46bb70f">one doc</a></b>, ten of them, each with the options
+                <li><b>Every decision waiting on you is in <a href="https://claude.ai/code/artifact/a3290f96-fc25-43a6-932d-9982a46bb70f">one doc</a></b>, twelve of them, each with the options
                   and a recommendation. Comment on any line and it gets answered there.</li>
+                <li><b>An allergy now always keeps the dish out.</b> Before, an allergy the assistant saved without the label
+                  &ldquo;allergy&rdquo; did not: &ldquo;allergic to shellfish&rdquo; left shrimp in the week. Six reviewers tried
+                  to break the fix, and it landed in two steps:
+                  <ul>
+                    <li>plurals, misspellings (&ldquo;alergic&rdquo;, &ldquo;celiak&rdquo;) and a second allergy in the same
+                      message now count too;</li>
+                    <li>&ldquo;no allergies&rdquo; never bans anything.</li>
+                  </ul></li>
+                <li><b>The commit tool every agent uses was rebuilt.</b> A review found 45 ways it could send the wrong
+                  thing or lose work. It now has 43 tests of its own, and the old version fails 34 of them.</li>
                 <li><b>Two assistant bugs fixed:</b> a swap meant for Wednesday to Sunday changed every day, and a claim of a
                   change could slip through when the assistant had only saved a note.</li>
                 <li><b>The last file moved into its folder,</b> with the other agent&rsquo;s agreement. They caught a loop that
@@ -228,16 +238,19 @@
             <div class="blk found">
               <h4>Found along the way</h4>
               <ul>
-                <li><b>A safety gap, found by the models agent:</b> an allergy the assistant saved without the label
-                  &ldquo;allergy&rdquo; did not stop the dish. A fix is under review and lands next.</li>
-                <li><b>The commit tool could not commit a new folder.</b> A review of it is running, and new folders are
-                  committed file by file until it is fixed.</li>
+                <li><b>The models agent found the allergy gap,</b> by testing what a real model actually sends.</li>
+                <li><b>The new commit tool had a bug on its first day,</b> and its own tests caught it before anyone used
+                  it: it would have quietly dropped a half-finished change in a file nobody named.</li>
+                <li><b>What the assistant SAYS after an allergy can still be wrong.</b> For example, &ldquo;I&rsquo;ve excluded
+                  celery&rdquo; when nothing was excluded. That fix is being built and reviewed now.</li>
+                <li><b>A recipe you imported keeps its place in the week</b> even when it contains an allergy you add
+                  later. That is next.</li>
                 <li>This laptop has no key file, so the models agent cannot measure anything here until you add one
                   (decision 2, first line).</li>
               </ul>
             </div>
           </div>
-          <div class="gate">GATE &middot; engine 943/0, three times &middot; account suite 333/0 + 43/0 &middot; 85/85 mutations caught &middot; production build</div>
+          <div class="gate">GATE &middot; engine 943/0, then 971/0 and 984/0 with the allergy fix &middot; commit tool 43/43 &middot; account suite 333/0 + 43/0 &middot; 85/85 mutations caught &middot; production build</div>
         </div>
       </article>
 
@@ -755,9 +768,11 @@
     <h2>Open deferrals</h2>
     <p class="lede">Every deferral names a destination and a reason. “Later” is not a destination.</p>
     <div class="defers" style="margin-top:16px">
-      <div class="defer"><div><b>The allergen fix</b> &mdash; a remembered allergy stops a dish only when the assistant labels it &ldquo;allergy&rdquo;. The models agent&rsquo;s fix is under an adversarial review.</div><span class="to">next</span></div>
-      <div class="defer"><div><b>The commit tool&rsquo;s fixes</b> &mdash; it cannot commit a new folder; an audit of every path it compares is running.</div><span class="to">next</span></div>
-      <div class="defer"><div><b>Remove the old file addresses</b> &mdash; the other two agents no longer use them; this lane&rsquo;s own test scripts still do. Then the architecture work is finished.</div><span class="to">next</span></div>
+      <div class="defer"><div><b>What the assistant says about an allergy</b> &mdash; every allergy remark gets a sentence that says exactly what happened, and a swap says which allergy blocked a dish. Being built and reviewed now.</div><span class="to">next</span></div>
+      <div class="defer"><div><b>Imported recipes and a new allergy</b> &mdash; an imported dish that contains it stays in the week; it should be replaced, and the reply should name it.</div><span class="to">after that</span></div>
+      <div class="defer"><div><b>Taking an allergy off</b> &mdash; chat has no way to do it, and an undo can drop one without saying so.</div><span class="to">your decision 12</span></div>
+      <div class="defer"><div><b>Allergy words the app does not know</b> &mdash; &ldquo;allergic to hazelnuts&rdquo; stops nothing unless labelled, yet a hazelnut dish exists. Blocking every unknown word would ban words like &ldquo;spring&rdquo; (from &ldquo;hay fever in spring&rdquo;), so it needs its own design.</div><span class="to">own design</span></div>
+      <div class="defer"><div><b>Remove the old file addresses</b> &mdash; the other two agents no longer use them; this lane&rsquo;s own test scripts still do. Then the architecture work is finished.</div><span class="to">after the allergy work</span></div>
       <div class="defer"><div><b>The fast finish</b> &mdash; a faster assistant reply, held until the models agent can measure it fairly, which needs your key file.</div><span class="to">when the key exists</span></div>
       <div class="defer"><div><b>An allergy said once and never saved</b> &mdash; only a scan of the person&rsquo;s own words could catch it, and that needs its own false-alarm tests first (&ldquo;my son is allergic to eggs&rdquo;).</div><span class="to">backlog</span></div>
       <div class="defer"><div><b>A real-phone pass on the sheet and the drag</b> — sub-500px is still unverified by the headless tool.</div><span class="to">day 12</span></div>

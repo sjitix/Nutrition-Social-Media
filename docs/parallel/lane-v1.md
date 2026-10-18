@@ -7,17 +7,27 @@
 
 ## Now doing
 
-**2026-10-18, evening — Track A is done except the shims. Next: the allergen fix.** This conversation is the v1 lane.
+**2026-10-18, night — the allergen binding landed (A `09f325f`, B1 `ba23884`); `ship.mjs` v2 landed; B2 is in
+review.** This conversation is the v1 lane.
 - **The owner's rules for every lane: `README.md` §0.** Pull constantly, push every step, keep every context file
   current as you go, message every running lane at session start and after each ship that touches them.
 - **The owner's decisions doc:** https://claude.ai/code/artifact/a3290f96-fc25-43a6-932d-9982a46bb70f. Read its threads at
   session start. If you need a new owner decision, add it there in the same plain form and tell me.
-- **Landed today:** `5c12c4c` (multi-day swap; a false claim riding on `remember`; NO fast finish), `058a596` (the
-  hardened check:boundaries; ship.mjs type-checks scripts/), `2b7075d` (storage.ts → persistence/, savedStore.ts →
-  account/), `3ff9732` (ThemeSwitch through persistence). 2 known debts left.
+- **`ship.mjs` v2 — every lane, read `README.md` §3.** Three things it now refuses: unpushed commits it did not
+  make (`--resume` pushes the one a failed ship left); `--no-gate` for anything a gate reads; and a gated ship
+  while other uncommitted work that gate reads sits in your tree. Exit 3 means "committed locally, not pushed":
+  run `--resume`. It never stashes or pulls. `npm run test:ship` replays its 43 scenarios. A new folder now ships
+  by naming the folder.
+- **Landed today:** `5c12c4c`, `058a596`, `2b7075d`, `3ff9732`, `2c48ac3`, `7c2d360`, `09f325f` (allergen A, 971/0),
+  `ba23884` (allergen B1, 984/0), and the `ship.mjs` v2 commit. 2 known boundary debts left.
 - **Next, in order:**
-  1. The models lane's allergen patch (`49385e5`) with whatever the running review proves.
-  2. The `ship.mjs` fixes from the running audit. Until then, name a new folder's files one by one.
+  1. B2, the allergen notes, once its review is clean (worktree `../NutriFlow-allergy-fix`):
+     - an engine note on every allergy remark;
+     - swap notes that name the allergy blocking a dish;
+     - an undo that says when it took an allergy off;
+     - `allergies=` in promptV2's Profile line.
+     **Models lane:** both the prompt line and the notes change what your evals see. I'll send the sha.
+  2. C: an imported dish holding a newly bound allergen gets re-picked, and the note names it.
   3. The D5a shims go once my own scripts/ are off them. Track A is then done.
 - **Models lane:** the fast finish stays held until your fair numbers exist. I'll tell you before any change to how
   `falseClaimCaught` is computed.
@@ -132,9 +142,15 @@ In order this session:
 
 *(the accounts agent: if you need one of these, message me first)*
 
-**2026-10-18, evening:** `CONTEXT.md` (my block), this file, today's worklog and two boards, shipped as docs
-now. Next src commit: `src/lib/assistant/primitives.ts` (the allergen patch) and `scripts/test-engine.mts`.
-Then `scripts/ship.mjs`.
+**2026-10-18, night:**
+- **Main folder:** `scripts/ship.mjs`, `scripts/test-ship.mjs`, `package.json` (one line, `test:ship`),
+  `.github/workflows/gates.yml` (one step), `CLAUDE.md` and `README.md` §3 (the ship paragraphs), WORKPLAN
+  lesson 68, my CONTEXT block, this file, today's worklog and its board. All of it ships as one commit.
+- **In `../NutriFlow-allergy-fix` (B2):**
+  - `src/lib/assistant/{primitives,reply,agentLoop,promptV2}.ts`;
+  - `src/lib/plan/execute.ts`;
+  - possibly `src/lib/providers/ai.ts` (its Profile line);
+  - `scripts/test-engine.mts`.
 
 **Shut down for the night (2026-10-03).** In flight, on the pushed branch `wip/v1-handoff-2026-10-03`: the
 boundary-gate hardening (adds an `old-path:` rule — your `storage.ts` → `./types`, `./import` and

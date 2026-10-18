@@ -99,25 +99,41 @@ v1 agent never has to wait on the accounts agent. Sync happens underneath.
 
 ## 3. Shipping
 
-Both lanes ship with `scripts/ship.mjs` (never `git add` + wait + `git commit`):
+Every lane ships with `scripts/ship.mjs` (never `git add` + wait + `git commit`):
 
 ```bash
 # v1 lane, in the main folder:
 node scripts/ship.mjs --message-file msg.txt -- <paths>
-# accounts lane, in its worktree:
+# a lane in its own worktree:
 node scripts/ship.mjs --onto main --message-file msg.txt -- <paths>
+# a ship that exited 3 (committed locally, not pushed), once the reason is fixed:
+node scripts/ship.mjs --resume [--onto main]
 ```
 
 `ship` fetches first and **stops if the remote has changed a file you are about to commit** — that is
-the conflict detector, and it fires most often on the shared docs. When it does: `git pull --rebase`
-(accounts lane: `git rebase origin/main`), re-read the other agent's change, re-apply yours by hand,
-ship again. **Never force-push, never resolve a conflict by taking one side wholesale.**
+the conflict detector, and it fires most often on the shared docs. It checks again after the gate.
+When it fires, nothing is committed, and it prints the way through: copy your versions aside,
+`git checkout -- <them>`, `git merge --ff-only origin/main`, re-read the other agent's change,
+re-apply yours by hand, then ship again. **Never force-push, and never resolve a conflict by taking one
+side wholesale.**
+
+Since 2026-10-18 (v2, `node scripts/test-ship.mjs` replays all 43 scenarios), it also **refuses**:
+- unpushed commits it did not make (`--resume` pushes the single one a failed ship left);
+- `--no-gate` for any file a gate reads;
+- a gated ship while other uncommitted work that gate reads sits in your tree. Name that work in
+  the ship, or copy it aside.
+
+Its exit code says what is true: 0 pushed; 1 nothing committed (an error, or the gate went red);
+2 nothing committed (stopped on purpose); **3 committed locally, not pushed: run `--resume`**;
+4 pushed, but your folder could not catch up without touching local edits (it prints the two
+commands that finish it).
 
 **Never `git stash` by hand in any lane.** The stash stack belongs to the repository, not to a
 worktree: a stash pushed in one worktree is `stash@{0}` in every other, so the next lane to run
 `git stash pop` applies YOUR work to ITS tree. To get uncommitted work out of the way (a fast-forward,
 say), copy the changed files aside, check the copies byte for byte, and copy them back afterwards.
-(`ship`'s own `--autostash` is short-lived and checked, so it is the one exception.)
+`ship` itself no longer stashes or pulls at all: when the remote moved, it rebuilds the commit on top
+in a private index.
 
 ## 4. The shared documents
 
