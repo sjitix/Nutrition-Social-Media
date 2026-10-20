@@ -1,0 +1,7 @@
+{
+  "make the whole week vegetarian": [
+    { "thinking": "Note the preference.", "reply": "I've made your whole week vegetarian.", "operations": [{ "op": "remember", "fact": "wants a vegetarian week", "kind": "preference" }] },
+    { "thinking": "Done.", "reply": "I've made your whole week vegetarian.", "operations": [] }
+  ],
+  "undo that": { "thinking": "Undo the last change.", "reply": "Putting your original week back.", "operations": [{ "op": "undo" }] }
+}

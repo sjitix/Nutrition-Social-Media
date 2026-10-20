@@ -1,0 +1,19 @@
+{
+  "make the whole week vegetarian": [
+    {
+      "thinking": "Whole week, vegetarian. Check the current plan first, then one week-scoped constrain.",
+      "reply": "",
+      "operations": [{ "op": "get_plan" }]
+    },
+    {
+      "thinking": "Several meat and fish dishes across the week. One constrain does it.",
+      "reply": "Making your whole week vegetarian now.",
+      "operations": [{ "op": "constrain", "diet": "vegetarian" }]
+    }
+  ],
+  "undo that": {
+    "thinking": "Reverse the last change with undo, and note that they want meat in their plan.",
+    "reply": "Sure - bringing your original week back.",
+    "operations": [{ "op": "undo" }, { "op": "remember", "fact": "wants meat in the plan; tried a vegetarian week and changed their mind", "kind": "preference" }]
+  }
+}

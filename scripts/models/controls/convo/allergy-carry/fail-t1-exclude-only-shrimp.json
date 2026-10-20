@@ -1,0 +1,4 @@
+{
+  "allergic to shellfish": { "reply": "Got it, shrimp is off your plan.", "operations": [ { "op": "constrain", "exclude": ["shrimp"] } ] },
+  "put some seafood in for friday dinner": [ { "reply": "", "operations": [ { "op": "find_recipes", "mealType": "dinner", "query": "salmon", "maxTime": 30 } ] }, { "reply": "Friday dinner is a salmon dish now.", "operations": [ { "op": "swap", "dish": "Lemon Salmon, Rice & Broccoli", "slot": "dinner", "days": ["Friday"] } ] } ]
+}

@@ -1,0 +1,4 @@
+{
+  "really run down and tired": { "reply": "That sounds exhausting, I'm sorry. How long have you been feeling like this?", "operations": [] },
+  "yes please, go ahead": { "reply": "Leaning your week toward iron.", "operations": [ { "op": "constrain", "boostNutrient": "iron" } ] }
+}

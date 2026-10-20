@@ -1,0 +1,19 @@
+{
+  "make tuesday vegetarian": {
+    "thinking": "One day, a diet: a day-scoped constrain on Tuesday.",
+    "reply": "Making Tuesday vegetarian.",
+    "operations": [{ "op": "constrain", "scope": { "days": ["Tuesday"] }, "diet": "vegetarian" }]
+  },
+  "wednesday too": [
+    {
+      "thinking": "'Too' = make Wednesday vegetarian as well. Wednesday's only meat dish is the Chicken & Sweet Potato Bowl at lunch; breakfast and dinner are already vegetarian. Find a high-protein vegetarian lunch.",
+      "reply": "",
+      "operations": [{ "op": "find_recipes", "mealType": "lunch", "diet": "vegetarian", "sort": "protein", "maxTime": 30, "limit": 5 }]
+    },
+    {
+      "thinking": "Tempeh & Quinoa Protein Bowl is the closest on protein. Swap only Wednesday lunch; leave the rest of Wednesday as it is.",
+      "reply": "Wednesday's chicken bowl is swapped for a tempeh and quinoa protein bowl, so Wednesday is vegetarian too.",
+      "operations": [{ "op": "swap", "dish": "Tempeh & Quinoa Protein Bowl", "slot": "lunch", "days": ["Wednesday"], "only": true }]
+    }
+  ]
+}

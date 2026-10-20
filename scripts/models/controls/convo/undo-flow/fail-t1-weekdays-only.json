@@ -1,0 +1,8 @@
+{
+  "make the whole week vegetarian": {
+    "thinking": "Vegetarian across the working week.",
+    "reply": "Your week is going vegetarian.",
+    "operations": [{ "op": "constrain", "scope": { "days": ["Monday","Tuesday","Wednesday","Thursday","Friday"] }, "diet": "vegetarian" }]
+  },
+  "undo that": { "thinking": "Undo the last change.", "reply": "Putting your original week back.", "operations": [{ "op": "undo" }] }
+}

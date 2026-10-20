@@ -1,0 +1,8 @@
+{
+  "make the whole week vegetarian": { "thinking": "Whole week vegetarian: one week-scoped constrain.", "reply": "Making your whole week vegetarian.", "operations": [{ "op": "constrain", "diet": "vegetarian" }] },
+  "undo that": {
+    "thinking": "Undo, and since they miss meat, put chicken in Thursday dinner too (the original Thursday was meat-free).",
+    "reply": "Back to your original week - and I've added some chicken on Thursday since you're missing meat.",
+    "operations": [{ "op": "undo" }, { "op": "swap", "dish": "Chicken & Sweet Potato Bowl", "slot": "dinner", "days": ["Thursday"] }]
+  }
+}

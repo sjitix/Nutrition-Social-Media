@@ -1,0 +1,4 @@
+{
+  "allergic to shellfish": { "reply": "Noted. Sunday's shrimp dinner is now chicken fajitas.", "operations": [ { "op": "remember", "fact": "allergic to shellfish" }, { "op": "swap", "dish": "Chicken Fajitas", "slot": "dinner", "days": ["Sunday"] } ] },
+  "put some seafood in for friday dinner": [ { "reply": "", "operations": [ { "op": "find_recipes", "mealType": "dinner", "query": "salmon", "maxTime": 30 } ] }, { "reply": "Friday dinner is a salmon dish now.", "operations": [ { "op": "swap", "dish": "Lemon Salmon, Rice & Broccoli", "slot": "dinner", "days": ["Friday"] } ] } ]
+}

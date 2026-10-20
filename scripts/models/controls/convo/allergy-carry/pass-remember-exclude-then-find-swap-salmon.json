@@ -1,0 +1,24 @@
+{
+  "allergic to shellfish": {
+    "reply": "Thanks for telling me. I've saved your shellfish allergy and taken shellfish out of your week.",
+    "operations": [
+      { "op": "remember", "fact": "allergic to shellfish", "kind": "allergy" },
+      { "op": "constrain", "exclude": ["shellfish"] }
+    ]
+  },
+  "put some seafood in for friday dinner": [
+    {
+      "reply": "",
+      "operations": [
+        { "op": "find_recipes", "mealType": "dinner", "query": "salmon", "maxTime": 30 }
+      ]
+    },
+    {
+      "reply": "Friday dinner is now a salmon dish, and shellfish stays out because of your allergy.",
+      "operations": [
+        { "op": "constrain", "exclude": ["shellfish"] },
+        { "op": "swap", "dish": "Lemon Salmon, Rice & Broccoli", "slot": "dinner", "days": ["Friday"] }
+      ]
+    }
+  ]
+}

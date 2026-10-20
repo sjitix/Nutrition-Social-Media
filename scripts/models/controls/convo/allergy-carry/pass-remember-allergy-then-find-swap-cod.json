@@ -1,0 +1,23 @@
+{
+  "allergic to shellfish": {
+    "reply": "Got it, I'll treat shellfish as an allergy from now on.",
+    "operations": [
+      { "op": "remember", "fact": "allergic to shellfish", "kind": "allergy" }
+    ]
+  },
+  "put some seafood in for friday dinner": [
+    {
+      "reply": "",
+      "operations": [
+        { "op": "find_recipes", "mealType": "dinner", "query": "cod" }
+      ]
+    },
+    {
+      "reply": "Friday dinner is now baked cod. No shellfish, since you're allergic.",
+      "operations": [
+        { "op": "swap", "dish": "Baked Cod with Lemon Quinoa & Asparagus", "slot": "dinner", "days": ["Friday"] },
+        { "op": "constrain", "exclude": ["shellfish"] }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "make the whole week vegetarian": {
+    "thinking": "Plant-based week.",
+    "reply": "Switching your week to fully plant-based.",
+    "operations": [{ "op": "constrain", "diet": "vegan" }]
+  },
+  "undo that": { "thinking": "Undo the last change.", "reply": "Putting your original week back.", "operations": [{ "op": "undo" }] }
+}

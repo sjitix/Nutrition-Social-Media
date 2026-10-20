@@ -36,9 +36,12 @@ import {
 } from "@/lib/assistant";
 import { agentModelFn, resolveProvider } from "@/lib/providers";
 import { selectWeekFromDb, rebalanceWeek, withSeed } from "@/lib/plan";
-import { dietTagConflicts, haystackBlocked } from "@/lib/nutrition";
+import { haystackBlocked, parseExclusionTokens, MICRO_LABEL, type MicroKey } from "@/lib/nutrition";
 import { withFastFinish, fastFinishModeFromEnv } from "./fast-finish";
-import { withErrorCapture, isInfraError, holdFailure, scriptedModel, scriptLabel, reseedEngine, engineSeedConfig } from "./eval-common";
+import {
+  withErrorCapture, isInfraError, holdFailure, scriptedModel, scriptLabel, reseedEngine, engineSeedConfig,
+  outsideScope, unaskedProfileEdit, writesSent, isVegMeal, isVeganMeal, symptomTexts, quotesUser, holdWrites,
+} from "./eval-common";
 import type { UserProfile, WeekPlan, Meal, PlanSnapshot } from "@/lib/core";
 
 const SCRIPT = process.env.MODEL_SCRIPT ?? "";
@@ -68,8 +71,18 @@ const day = (p: WeekPlan, d: string) => p.days.find((x) => x.day === d);
 const meal = (p: WeekPlan, d: string, t: string): Meal | undefined => day(p, d)?.meals.find((m) => m.type === t);
 const allMeals = (p: WeekPlan) => p.days.flatMap((d) => d.meals);
 const ingNames = (m: Meal) => m.ingredients.map((i) => i.name);
-const isVeg = (m: Meal) => dietTagConflicts("vegetarian", ingNames(m)).length === 0;
-const isVegan = (m: Meal) => dietTagConflicts("vegan", ingNames(m)).length === 0;
+// The engine's own rule (the recipe's dietTags), name-aware off the library: the ingredient-only test passed
+// "Pepperoni & Mozzarella Pizza", whose seed lists no pepperoni (audit, 2026-10-18).
+const isVeg = isVegMeal;
+const isVegan = isVeganMeal;
+/** The reply the user read at the end of the previous turn (history keeps only reply text). */
+const previousReply = (r: AgentRunResult) => {
+  const lastUser = r.transcript.map((e) => e.role).lastIndexOf("user");
+  const prev = r.transcript.slice(0, lastUser).reverse().find((e) => e.role === "assistant");
+  return prev && prev.role === "assistant" ? prev.turn.reply ?? "" : "";
+};
+/** A constrain that set a diet the user did not name (vegan for "vegetarian" passed; audit, 2026-10-18). */
+const setVegan = (r: AgentRunResult) => writesSent(r).some((o) => o.op === "constrain" && o.diet === "vegan");
 const hay = (m: Meal) => `${m.name} ${m.description} ${ingNames(m).join(" ")}`;
 const contains = (m: Meal, tokens: string[]) => haystackBlocked(hay(m), tokens);
 const sig = (m?: Meal) => (m ? `${m.name}|${m.calories}` : "");
@@ -128,25 +141,49 @@ const CONVOS: Convo[] = [
         // The offer can come from the model OR from the engine's symptom note, which replaces the model's
         // reply and phrases its offer without a question mark (v1, 2026-10-03: "I can rebuild your week
         // around <X> if you'd like." / "I can lean your week further toward <X> — just say so.").
-        check: (r) => first(holding(r), /\?|if you'd like|just say so/i.test(r.reply) ? null : "offered nothing") },
+        // The prompt's ALWAYS: the symptom op, verbatim. And a real offer, not any question mark: a clarifying
+        // question passed as "offered" (audit, 2026-10-18).
+        check: (r) => first(holding(r),
+          quotesUser(symptomTexts(r), "i've been feeling really run down and tired lately") ? null : "no `symptom` op carrying the user's own words",
+          /want me to|would you like me to|shall i|if you'd like|just say so/i.test(r.reply) ? null : "offered nothing") },
       { user: "yes please, go ahead", want: "act",
-        check: (r) => (r.planChanged ? null : "said yes to its own offer and nothing changed") },
+        // Follow through on what was OFFERED: any change counted before, so boosting iron after a vitamin D offer,
+        // or making every meal bigger, passed (audit, 2026-10-18).
+        check: (r, c) => {
+          if (!r.planChanged) return "said yes to its own offer and nothing changed";
+          // Only the sentence that makes the offer: the engine's note also LISTS the nutrients tiredness is linked
+          // with ("iron, vitamin B12, folate, vitamin D and magnesium"), then offers the one that is low.
+          const offer = previousReply(r).split(/(?<=[.!?])\s+/).filter((s) => /want me to|would you like me to|shall i|if you'd like|just say so/i.test(s)).join(" ");
+          const offered = (Object.keys(MICRO_LABEL) as MicroKey[]).filter((k) => new RegExp(`\\b${MICRO_LABEL[k]}\\b`, "i").test(offer));
+          if (offered.length && !writesSent(r).some((o) => o.op === "constrain" && offered.includes(o.boostNutrient as MicroKey)))
+            return `the offer was ${offered.map((k) => MICRO_LABEL[k]).join(" or ")}, and that is not what was boosted`;
+          return unaskedProfileEdit(c.beforeProfile, r.profile);
+        } },
     ],
   },
   {
     id: "allergy-carry", skill: "memory",
     turns: [
       { user: "fyi i'm allergic to shellfish", want: "act",
+        // Bound in the engine (allergies or dislikes), not only remembered: a memory-only allergy, which the engine
+        // never enforces, passed both turns (audit, 2026-10-18).
         check: (r) => first(
-          knows(r.profile, /shellfish/i) ? null : "shellfish allergy not kept anywhere in the profile",
+          parseExclusionTokens(r.profile.allergies ?? "", r.profile.dislikes ?? "").some((t) => /shellfish|crustacean/i.test(t)) ? null : "shellfish allergy not bound (allergies or dislikes)",
           allMeals(r.plan).some((m) => contains(m, ["shellfish"])) ? "shellfish still in the plan" : null) },
       { user: "put some seafood in for friday dinner, i love it", want: "act",
-        check: (r) => {
+        check: (r, c) => {
           const fri = meal(r.plan, "Friday", "dinner");
           if (!fri) return "no Friday dinner";
           const shell = allMeals(r.plan).filter((m) => contains(m, ["shellfish"]));
           if (shell.length) return `served shellfish after the allergy: ${shell.map((m) => m.name).join(", ")}`;
-          return contains(fri, ["fish"]) ? null : `Friday dinner is not seafood ("${fri.name}")`;
+          if (!contains(fri, ["fish"])) return `Friday dinner is not seafood ("${fri.name}")`;
+          // The memory skill, not the engine's rescue: a model that forgot and ASKED for a shrimp dish passed
+          // whenever the engine's refusal landed on fish (audit, 2026-10-18).
+          const asked = writesSent(r).filter((o) => (o.op === "swap" || o.op === "log") && /shrimp|prawn|crab|lobster|scallop|mussel|clam|oyster|shellfish/i.test(String(o.dish ?? "")));
+          if (asked.length) return `asked for a shellfish dish ("${String(asked[0].dish)}") after the allergy`;
+          if (writesSent(r).some((o) => o.op === "log")) return "logged Friday's dinner as already eaten";
+          // Friday dinner only: a swap with no days put fish into every dinner, and passed.
+          return outsideScope(c.before, r.plan, (d) => d === "Friday");
         } },
     ],
   },
@@ -156,7 +193,9 @@ const CONVOS: Convo[] = [
       { user: "make the whole week vegetarian", want: "act",
         check: (r) => {
           const bad = allMeals(r.plan).filter((m) => !isVeg(m));
-          return bad.length ? `non-veg meals left: ${bad.length}` : null;
+          if (bad.length) return `non-veg meals left: ${bad.length}`;
+          // Vegetarian, not vegan: a vegan week passed (audit, 2026-10-18).
+          return setVegan(r) ? "set the week vegan for a vegetarian request" : null;
         } },
       { user: "actually no, undo that, i miss meat", want: "act",
         check: (r, c) => {
@@ -173,11 +212,22 @@ const CONVOS: Convo[] = [
     id: "and-too", skill: "reference",
     turns: [
       { user: "make tuesday vegetarian", want: "act",
-        check: (r) => (nonVegOn(r.plan, "Tuesday").length ? `Tuesday still has ${nonVegOn(r.plan, "Tuesday").join(", ")}` : null) },
+        // One day, nothing saved: a week-scoped constrain re-planned six days and saved diet=vegetarian, and passed.
+        check: (r, c) => first(
+          nonVegOn(r.plan, "Tuesday").length ? `Tuesday still has ${nonVegOn(r.plan, "Tuesday").join(", ")}` : null,
+          setVegan(r) ? "set Tuesday vegan for a vegetarian request" : null,
+          outsideScope(c.before, r.plan, (d) => d === "Tuesday"),
+          unaskedProfileEdit(c.beforeProfile, r.profile)) },
       { user: "wednesday too", want: "act",
-        check: (r) => first(
+        // "Too" = Wednesday as well, and only Wednesday: the whole week, or Tuesday re-planned again, passed.
+        check: (r, c) => first(
           nonVegOn(r.plan, "Wednesday").length ? `Wednesday still has ${nonVegOn(r.plan, "Wednesday").join(", ")}` : null,
-          nonVegOn(r.plan, "Tuesday").length ? "Tuesday lost its vegetarian meals" : null) },
+          nonVegOn(r.plan, "Tuesday").length ? "Tuesday lost its vegetarian meals" : null,
+          setVegan(r) ? "set Wednesday vegan for a vegetarian request" : null,
+          // Re-planning Tuesday again sometimes lands on the same dishes, so the dishes alone made this luck.
+          writesSent(r).some((o) => o.op === "constrain" && /Tuesday/.test(JSON.stringify(o.scope ?? ""))) ? "re-planned Tuesday again" : null,
+          outsideScope(c.before, r.plan, (d) => d === "Wednesday"),
+          unaskedProfileEdit(c.beforeProfile, r.profile)) },
     ],
   },
   {
