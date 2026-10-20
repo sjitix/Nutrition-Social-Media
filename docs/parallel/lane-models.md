@@ -13,6 +13,10 @@ On main that is 8 near-quotes in 55 messages, all held out, so it exits 0; its `
 `vague-goal-heldout`, `emotional-heldout`, `every-day-swap-heldout`, `find-then-place-heldout` and convo
 `vegetarian-then-steak`. Both
 evals print each held-out beside its original. 586 controls hold across 49 scenarios under 2 engine seeds.
+**In flight (started 2026-10-21 ~00:40):** an adversarial review of those held-outs, their checks and controls,
+`probe-quotes.mjs` and the summary changes. It runs six reviewers, then two skeptics per finding, then a
+completeness critic (workflow `wf_d23567f3-de5`, this session only). Its confirmed findings get fixed and shipped
+next. If this session is gone, nothing of it landed: re-run the review.
 
 **2026-10-20 — every check in both evals is fixed and proven: 524 controls hold across all 44 scenarios**
 under 2 engine seeds (`node scripts/models/run-controls.mjs`).
