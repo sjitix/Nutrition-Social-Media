@@ -167,6 +167,12 @@ in the main folder (`2fd6f02`). Its WORKPLAN lesson was renumbered 38 → 48 bec
 
 #### PARALLEL LANE — models (written by the models agent only)
 
+**2026-10-20 — every loop-eval check is fixed, and 320 controls prove it** (`node scripts/models/run-controls.mjs`;
+an audit on 10-18 had found 153 of 337 plausible wrong answers passing). **Next: the conversation eval's 14
+checks**, the same way, from the audit's `convo-c*` scripts. Scorecards from before these fixes were graded
+on the lenient harness, so they are not comparable with new runs. The false-claim guard: `probe-claims.mts`
+1/15 on main, 15/15 with v1's `c8ccfb0`. Still no `.env.local`. Day record: `docs/worklog/2026-10-20-models.md`.
+
 **2026-10-18 — RESUME HERE. Every NVIDIA run is blocked on a missing `.env.local`; the key-free work
 is done.** Day record: `docs/worklog/2026-10-18-models.md`. Live status: `docs/parallel/lane-models.md`.
 Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Rounds 4–5,
