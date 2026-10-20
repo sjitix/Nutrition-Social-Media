@@ -1,0 +1,14 @@
+{
+  "swap just wednesday's dinner": [
+    {
+      "thinking": "One slot, one day, and 'just' limits the change to that meal. Look up salmon dinners first, then swap an exact name in with only: true.",
+      "reply": "",
+      "operations": [ { "op": "find_recipes", "mealType": "dinner", "query": "salmon" } ]
+    },
+    {
+      "thinking": "Baked Salmon & Pepper Couscous is a salmon dinner in the results. Wednesday only, dinner only, keep the other meals.",
+      "reply": "Wednesday's dinner becomes Baked Salmon & Pepper Couscous; breakfast and lunch stay as they are.",
+      "operations": [ { "op": "swap", "dish": "Baked Salmon & Pepper Couscous", "slot": "dinner", "days": ["Wednesday"], "only": true } ]
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "swap just wednesday's dinner": {
+    "thinking": "Put salmon in Wednesday's dinner.",
+    "reply": "Salmon is down for Wednesday's dinner; breakfast and lunch stay.",
+    "operations": [ { "op": "log", "day": "Wednesday", "slot": "dinner", "dish": "salmon" } ]
+  }
+}

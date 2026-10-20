@@ -1,0 +1,13 @@
+{
+  "my doctor said my iron is low": [
+    {
+      "thinking": "Persist vegetarian for the week, then rebuild every day with an iron bias.",
+      "reply": "I'll keep you vegetarian and rebuild each day around iron-rich meals.",
+      "operations": [
+        {"op": "constrain", "diet": "vegetarian"},
+        {"op": "constrain", "scope": {"days": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]}, "boostNutrient": "iron"}
+      ]
+    },
+    { "thinking": "Applied. Finish.", "reply": "Vegetarian all week, and each day rebuilt around iron.", "operations": [] }
+  ]
+}

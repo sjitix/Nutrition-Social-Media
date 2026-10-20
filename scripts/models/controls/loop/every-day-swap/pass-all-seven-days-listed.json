@@ -1,0 +1,7 @@
+{
+  "pancakes for breakfast every single day": {
+    "thinking": "Every day, so all seven days, breakfast slot.",
+    "reply": "Pancakes go into breakfast on all seven days.",
+    "operations": [ { "op": "swap", "dish": "pancakes", "slot": "breakfast", "days": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"] } ]
+  }
+}

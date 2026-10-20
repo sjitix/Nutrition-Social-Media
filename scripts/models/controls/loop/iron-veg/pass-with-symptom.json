@@ -1,0 +1,14 @@
+{
+  "my doctor said my iron is low": [
+    {
+      "thinking": "A body state from the doctor plus a clear instruction. Pass the words through symptom (changes nothing), remember the facts, then constrain(boostNutrient:iron, diet:vegetarian).",
+      "reply": "Thanks for telling me. I'll keep your week vegetarian and lean it toward iron-rich meals.",
+      "operations": [
+        {"op": "symptom", "text": "my doctor said my iron is low. i'm vegetarian though, keep it that way"},
+        {"op": "remember", "fact": "doctor said iron is low", "kind": "condition"},
+        {"op": "constrain", "diet": "vegetarian", "boostNutrient": "iron"}
+      ]
+    },
+    { "thinking": "Applied. Finish.", "reply": "Vegetarian all week and leaning toward iron-rich dishes.", "operations": [] }
+  ]
+}

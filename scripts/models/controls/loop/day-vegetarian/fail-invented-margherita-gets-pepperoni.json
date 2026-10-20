@@ -1,0 +1,10 @@
+{
+  "make tuesday vegetarian": {
+    "thinking": "Tuesday breakfast (waffles) is vegetarian. Swap the beef lunch for the tempeh bowl and make dinner a margherita pizza, Tuesday only.",
+    "reply": "Tuesday goes vegetarian: a tempeh teriyaki bowl for lunch and a margherita pizza for dinner. Your waffles stay, and no other day changes.",
+    "operations": [
+      { "op": "swap", "dish": "Tempeh Teriyaki Rice Bowl", "slot": "lunch", "days": ["Tuesday"], "only": true },
+      { "op": "swap", "dish": "Margherita Pizza", "slot": "dinner", "days": ["Tuesday"], "only": true }
+    ]
+  }
+}

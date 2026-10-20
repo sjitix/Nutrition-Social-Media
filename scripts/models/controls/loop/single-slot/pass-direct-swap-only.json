@@ -1,0 +1,7 @@
+{
+  "swap just wednesday's dinner": {
+    "thinking": "Scoped swap: Wednesday, dinner, salmon, only: true because of 'just'.",
+    "reply": "Putting a salmon dinner on Wednesday and leaving the rest of the day alone.",
+    "operations": [ { "op": "swap", "dish": "salmon", "slot": "dinner", "days": ["Wednesday"], "only": true } ]
+  }
+}

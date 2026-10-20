@@ -1,0 +1,6 @@
+{
+  "my doctor said my iron is low": [
+    { "thinking": "Engine probe only (not a candidate answer): diet switch + a boost the vegetarian week is poorer in.", "reply": "", "operations": [ {"op": "constrain", "diet": "vegetarian", "boostNutrient": "b12"} ] },
+    { "thinking": "Finish.", "reply": "Finished.", "operations": [] }
+  ]
+}

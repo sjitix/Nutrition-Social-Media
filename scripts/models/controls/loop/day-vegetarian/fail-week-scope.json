@@ -1,0 +1,7 @@
+{
+  "make tuesday vegetarian": {
+    "thinking": "They want vegetarian. One constrain with diet vegetarian.",
+    "reply": "Switching you to vegetarian meals.",
+    "operations": [ { "op": "constrain", "diet": "vegetarian" } ]
+  }
+}

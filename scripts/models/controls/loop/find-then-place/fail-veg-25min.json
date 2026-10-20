@@ -1,0 +1,7 @@
+{
+  "find me a vegetarian dinner": [
+    {"thinking": "Look up vegetarian dinners.", "reply": "", "operations": [{"op": "find_recipes", "mealType": "dinner", "diet": "vegetarian"}]},
+    {"thinking": "Chickpea Curry is vegetarian and quick enough.", "reply": "Putting Chickpea Curry on Thursday.", "operations": [{"op": "swap", "dish": "Chickpea Curry", "slot": "dinner", "days": ["Thursday"]}]},
+    {"thinking": "Done.", "reply": "Thursday dinner is now Chickpea Curry.", "operations": []}
+  ]
+}

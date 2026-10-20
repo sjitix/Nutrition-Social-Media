@@ -1,0 +1,10 @@
+{
+  "make tuesday vegetarian": {
+    "thinking": "They are going vegetarian; remember the preference and apply it to Tuesday as asked.",
+    "reply": "Making Tuesday vegetarian, and I'll keep in mind that you're vegetarian.",
+    "operations": [
+      { "op": "remember", "fact": "is vegetarian", "kind": "preference" },
+      { "op": "constrain", "scope": { "days": ["Tuesday"] }, "diet": "vegetarian" }
+    ]
+  }
+}

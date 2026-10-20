@@ -1,0 +1,7 @@
+{
+  "pancakes for breakfast every single day": {
+    "thinking": "Every day of the week.",
+    "reply": "Pancakes for breakfast every day this week.",
+    "operations": [ { "op": "swap", "dish": "pancakes", "slot": "breakfast", "days": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"] } ]
+  }
+}

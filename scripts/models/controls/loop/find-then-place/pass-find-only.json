@@ -1,0 +1,7 @@
+{
+  "find me a vegetarian dinner": [
+    {"thinking": "Look up vegetarian dinners, fastest first.", "reply": "", "operations": [{"op": "find_recipes", "mealType": "dinner", "diet": "vegetarian", "maxTime": 20, "sort": "time"}]},
+    {"thinking": "Teriyaki Tempeh & Veg Rice is 18 minutes and vegetarian. Place it on Thursday dinner; keep the rest of Thursday's dishes.", "reply": "Putting Teriyaki Tempeh & Veg Rice on Thursday night.", "operations": [{"op": "swap", "dish": "Teriyaki Tempeh & Veg Rice", "slot": "dinner", "days": ["Thursday"], "only": true}]},
+    {"thinking": "Applied. Finish.", "reply": "Thursday's dinner is now Teriyaki Tempeh & Veg Rice, an 18-minute vegetarian dish.", "operations": []}
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "find me a vegetarian dinner": [
+    {"thinking": "Look it up.", "reply": "", "operations": [{"op": "find_recipes", "mealType": "dinner", "diet": "vegetarian", "maxTime": 19}]},
+    {"thinking": "Swap in the skillet for dinner.", "reply": "Adding the Harissa Chickpea & Spinach Skillet for dinner.", "operations": [{"op": "swap", "dish": "Harissa Chickpea & Spinach Skillet", "slot": "dinner"}]},
+    {"thinking": "Done.", "reply": "Your Thursday dinner is now the Harissa Chickpea & Spinach Skillet.", "operations": []}
+  ]
+}

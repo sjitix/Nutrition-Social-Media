@@ -31,7 +31,7 @@ import { dietTagConflicts, haystackBlocked, parseExclusionTokens } from "@/lib/n
 import { withFastFinish, fastFinishModeFromEnv } from "./fast-finish";
 import {
   withErrorCapture, isInfraError, holdFailure, scriptedModel, scriptLabel, reseedEngine, engineSeedConfig,
-  outsideScope, unaskedProfileEdit, writesSent, inventedFigures,
+  outsideScope, unaskedProfileEdit, writesSent, inventedFigures, isVegMeal, isVeganMeal, memoryAdded,
 } from "./eval-common";
 import type { UserProfile, WeekPlan, Meal } from "@/lib/core";
 
@@ -61,8 +61,10 @@ const TODAY = "2026-10-05"; // a Monday
 const day = (p: WeekPlan, d: string) => p.days.find((x) => x.day === d);
 const meal = (p: WeekPlan, d: string, t: string): Meal | undefined => day(p, d)?.meals.find((m) => m.type === t);
 const ingNames = (m: Meal) => m.ingredients.map((i) => i.name);
-const isVeg = (m: Meal) => dietTagConflicts("vegetarian", ingNames(m)).length === 0;
-const isVegan = (m: Meal) => dietTagConflicts("vegan", ingNames(m)).length === 0;
+// The engine's own rule (the recipe's dietTags), name-aware off the library: the ingredient-only test passed
+// "Pepperoni & Mozzarella Pizza", whose seed lists no pepperoni (audit, 2026-10-18).
+const isVeg = isVegMeal;
+const isVegan = isVeganMeal;
 const hay = (m: Meal) => `${m.name} ${m.description} ${ingNames(m).join(" ")}`;
 const contains = (m: Meal, tokens: string[]) => haystackBlocked(hay(m), tokens);
 const allMeals = (p: WeekPlan) => p.days.flatMap((d) => d.meals);
@@ -176,7 +178,11 @@ const SCENARIOS: Scenario[] = [
       const t = day(r.plan, "Tuesday")!.meals;
       if (!t.every(isVeg)) return `Tuesday still has non-veg: ${t.filter((m) => !isVeg(m)).map((m) => m.name).join(", ")}`;
       if (!unchangedExcept(b, r.plan, (d) => d === "Tuesday")) return "touched days other than Tuesday";
-      return null;
+      // One day, not a lasting diet: a remembered "is vegetarian" reaches every later prompt as "remember and
+      // apply these" (audit, 2026-10-18). A memory that names Tuesday is fine.
+      const lasting = memoryAdded(PROFILE, r.profile).filter((f) => /vegetarian|vegan|meat/i.test(f) && !/tuesday/i.test(f));
+      if (lasting.length) return `saved a one-day request as a lasting preference ("${lasting[0]}")`;
+      return unaskedProfileEdit(PROFILE, r.profile);
     },
   },
   {
@@ -199,11 +205,16 @@ const SCENARIOS: Scenario[] = [
       if (!m || !contains(m, ["salmon"])) return `Wednesday dinner is "${m?.name}", no salmon`;
       if (!unchangedExcept(b, r.plan, (d) => d === "Wednesday")) return "changed days other than Wednesday";
       const replaced = replacedOnDay(r, b, "Wednesday", "dinner");
-      return replaced.length ? `"just" not honoured — also replaced ${replaced.join("; ")}` : null;
+      if (replaced.length) return `"just" not honoured — also replaced ${replaced.join("; ")}`;
+      // "just" must be SAID (only: true, which the prompt mandates). Without it the engine's default rebalance
+      // replaces another meal for some salmon dishes and not others, so the grade was the dish's luck (audit).
+      return swapSentOnly(r) ? null : '"just" not expressed: no swap sent with only: true';
     },
-    // ENGINE: if the model DID ask for only:true, the engine must not replace another dish anyway.
+    // ENGINE: if the model DID ask for only:true on Wednesday's dinner, the engine must not replace another
+    // dish anyway. Gated on that exact swap, so a model's own wrong-slot swap is not blamed on the engine.
     engine: (r, b) => {
-      if (!swapSentOnly(r)) return null;
+      const onlyHere = writesSent(r).some((o) => o.op === "swap" && o.only === true && o.slot === "dinner" && Array.isArray(o.days) && (o.days as string[]).includes("Wednesday"));
+      if (!onlyHere) return null;
       const replaced = replacedOnDay(r, b, "Wednesday", "dinner");
       return replaced.length ? `swap had only:true but the engine still replaced ${replaced.join("; ")}` : null;
     },
@@ -252,14 +263,18 @@ const SCENARIOS: Scenario[] = [
   {
     id: "find-then-place", want: "act", expectRead: true,
     message: "find me a vegetarian dinner that takes under 20 minutes and put it on thursday",
-    check: (r) => {
+    check: (r, b) => {
       const m = meal(r.plan, "Thursday", "dinner");
       if (!m) return "no Thursday dinner";
       if (!isVeg(m)) return `Thursday dinner "${m.name}" is not vegetarian`;
       if (m.timeMinutes > 20) return `Thursday dinner "${m.name}" takes ${m.timeMinutes} min`;
       // The start week's Thursday dinner may already qualify; doing nothing must not pass.
       if (m.name === meal(PLAN, "Thursday", "dinner")?.name) return "Thursday dinner unchanged";
-      return null;
+      // One dish into one slot is a swap (LOOP RULE 1). A day-scoped constrain re-planned all of Thursday and
+      // passed when its guessed cook time happened to fit (audit, 2026-10-18).
+      if (writesSent(r).some((o) => o.op === "constrain")) return "re-planned with a constrain instead of swapping the dish into Thursday's dinner";
+      // A swap with no days put the dish on every dinner, and passed.
+      return outsideScope(b, r.plan, (d) => d === "Thursday") ?? unaskedProfileEdit(PROFILE, r.profile);
     },
   },
   {
@@ -401,9 +416,15 @@ const SCENARIOS: Scenario[] = [
     id: "iron-veg", want: "act",
     message: "my doctor said my iron is low. i'm vegetarian though, keep it that way",
     check: (r) => {
-      if (r.profile.diet !== "vegetarian" && r.profile.diet !== "vegan") return `diet=${r.profile.diet}`;
+      // Vegetarian, "keep it that way": a switch to vegan passed before (audit, 2026-10-18).
+      if (r.profile.diet !== "vegetarian") return `diet=${r.profile.diet}`;
       const bad = allMeals(r.plan).filter((m) => !isVeg(m));
-      return bad.length ? `non-veg meals: ${bad.map((m) => m.name).join(", ")}` : null;
+      if (bad.length) return `non-veg meals: ${bad.map((m) => m.name).join(", ")}`;
+      // The iron itself: any vegetarian constrain passed, with no boost or the wrong nutrient. The boost must be
+      // sent AND the engine must report it (its micro note names the nutrient).
+      if (!writesSent(r).some((o) => o.op === "constrain" && o.boostNutrient === "iron")) return "iron never boosted (no constrain with boostNutrient: iron)";
+      if (!r.notes.some((n) => /\biron\b/i.test(n))) return "the engine reported no iron boost";
+      return unaskedProfileEdit(PROFILE, r.profile, ["diet"]);
     },
   },
   {
