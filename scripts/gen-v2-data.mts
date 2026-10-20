@@ -6,7 +6,7 @@
  * is the JSON {thinking, reply, operations}. A few distinct plans are cycled through the system
  * prompt so the model doesn't overfit one week's context.
  *
- *   npx esbuild scripts/gen-v2-data.mts --bundle --platform=node --format=esm --tsconfig=tsconfig.json --outfile=node_modules/.cache/gen-v2.mjs && node node_modules/.cache/gen-v2.mjs
+ *   npx esbuild scripts/gen-v2-data.mts --bundle --platform=node --format=esm --tsconfig=tsconfig.json --outfile=.cache/gen-v2.mjs && node .cache/gen-v2.mjs
  */
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
