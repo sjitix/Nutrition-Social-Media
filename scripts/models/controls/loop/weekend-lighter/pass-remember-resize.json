@@ -1,0 +1,6 @@
+{
+  "lighter meals on the weekend": [
+    {"thinking": "Lasting fact: less active on weekends. Remember it and resize both weekend days smaller.", "reply": "Noted that you're less active at weekends, and trimming Saturday and Sunday.", "operations": [{"op": "remember", "fact": "less active on weekends", "kind": "context"}, {"op": "resize", "direction": "smaller", "day": "Saturday"}, {"op": "resize", "direction": "smaller", "day": "Sunday"}]},
+    {"thinking": "Applied; report the engine's totals.", "reply": "Saturday and Sunday are lighter now; your weekdays are as they were.", "operations": []}
+  ]
+}

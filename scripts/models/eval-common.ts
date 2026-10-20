@@ -170,6 +170,16 @@ export const opsSent = (r: AgentRunResult) =>
   r.transcript.flatMap((e) => (e.role === "assistant" ? e.turn.operations : [])) as unknown as Array<Record<string, unknown> & { op?: string }>;
 /** The model's WRITE operations (look-ups left out), with their arguments. */
 export const writesSent = (r: AgentRunResult) => opsSent(r).filter((o) => !isReadTool(String(o.op)));
+/**
+ * Calorie or macro figures the model put on a `log` or `reserve` when the user's message gave no number.
+ * The prompt forbids the model stating any such number itself, and the engine takes the figure as the
+ * user's own (types.ts estimatedCalories) and drops its "not a measured number" line, so the user reads
+ * a guess as a fact (audit, 2026-10-18).
+ */
+export const inventedFigures = (r: AgentRunResult, userText: string) =>
+  /\d/.test(userText) ? [] : writesSent(r)
+    .filter((o) => (o.op === "log" || o.op === "reserve") && ["calories", "protein"].some((k) => o[k] != null))
+    .map((o) => `${o.op} ${String(o.day)} ${String(o.slot)}`);
 /** The texts of every `symptom` operation sent. */
 export const symptomTexts = (r: AgentRunResult) => opsSent(r).filter((o) => o.op === "symptom").map((o) => String(o.text ?? ""));
 /** The reply asks the user something. */

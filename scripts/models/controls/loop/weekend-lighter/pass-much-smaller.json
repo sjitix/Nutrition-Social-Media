@@ -1,0 +1,6 @@
+{
+  "lighter meals on the weekend": [
+    {"thinking": "Way less active: go much smaller on Saturday and Sunday.", "reply": "Trimming your weekend portions noticeably.", "operations": [{"op": "resize", "direction": "much_smaller", "day": "Saturday"}, {"op": "resize", "direction": "much_smaller", "day": "Sunday"}]},
+    {"thinking": "Applied.", "reply": "Saturday and Sunday are lighter; weekdays untouched.", "operations": []}
+  ]
+}

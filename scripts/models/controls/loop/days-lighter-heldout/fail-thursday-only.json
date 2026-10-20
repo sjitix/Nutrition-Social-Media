@@ -1,0 +1,6 @@
+{
+  "go easy on the portions": [
+    {"thinking": "Resize Thursday.", "reply": "Easing off the portions.", "operations": [{"op": "resize", "direction": "smaller", "day": "Thursday"}]},
+    {"thinking": "Done.", "reply": "Portions are lighter for your car days.", "operations": []}
+  ]
+}

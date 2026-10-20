@@ -1,0 +1,14 @@
+{
+  "dinner reservation on friday night": [
+    {
+      "thinking": "Check Friday first so I know what is planned there, then reserve dinner.",
+      "reply": "",
+      "operations": [{"op": "get_plan", "day": "Friday"}]
+    },
+    {
+      "thinking": "Friday dinner is Turkey & Bean Chilli. Reserve the dinner slot; no number from the user, so no calories.",
+      "reply": "Enjoy the dinner. I'm keeping room for it on Friday and lightening the rest of the day.",
+      "operations": [{"op": "remember", "fact": "dinner reservation on Friday night", "kind": "context"}, {"op": "reserve", "day": "Friday", "slot": "dinner"}]
+    }
+  ]
+}

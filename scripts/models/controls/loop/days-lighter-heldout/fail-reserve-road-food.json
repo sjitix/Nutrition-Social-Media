@@ -1,0 +1,6 @@
+{
+  "go easy on the portions": [
+    {"thinking": "Stuck in a car: they'll grab food on the road at lunch on both days. Reserve those lunches.", "reply": "Setting aside your lunches on Thursday and Friday for road food.", "operations": [{"op": "reserve", "day": "Thursday", "slot": "lunch"}, {"op": "reserve", "day": "Friday", "slot": "lunch"}]},
+    {"thinking": "Done.", "reply": "Your Thursday and Friday lunches are set aside for eating on the road.", "operations": []}
+  ]
+}

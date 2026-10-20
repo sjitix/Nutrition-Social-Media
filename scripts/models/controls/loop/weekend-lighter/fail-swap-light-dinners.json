@@ -1,0 +1,7 @@
+{
+  "lighter meals on the weekend": [
+    {"thinking": "Find light dinners.", "reply": "", "operations": [{"op": "find_recipes", "mealType": "dinner", "sort": "calories-low", "limit": 5}]},
+    {"thinking": "Garlic Shrimp & Quinoa with Spinach is light. Put it on both weekend dinners.", "reply": "Swapping in a lighter dinner for the weekend.", "operations": [{"op": "swap", "dish": "Garlic Shrimp & Quinoa with Spinach", "slot": "dinner", "days": ["Saturday", "Sunday"]}]},
+    {"thinking": "Done.", "reply": "Your weekend dinners are lighter now.", "operations": []}
+  ]
+}

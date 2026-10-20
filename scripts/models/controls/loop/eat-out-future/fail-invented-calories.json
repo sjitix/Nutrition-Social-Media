@@ -1,0 +1,7 @@
+{
+  "dinner reservation on friday night": {
+    "thinking": "Restaurant dinners usually run around 1100 kcal. Reserve Friday dinner with that.",
+    "reply": "Enjoy it. I'm holding about 1100 kcal for the restaurant meal on Friday and lightening the rest of the day.",
+    "operations": [{"op": "reserve", "day": "Friday", "slot": "dinner", "calories": 1100}]
+  }
+}

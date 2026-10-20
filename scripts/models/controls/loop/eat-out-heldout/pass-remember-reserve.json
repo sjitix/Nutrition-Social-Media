@@ -1,0 +1,14 @@
+{
+  "going to a restaurant for dinner": [
+    {
+      "thinking": "Look at Saturday before changing it.",
+      "reply": "",
+      "operations": [{"op": "get_plan", "day": "Saturday"}]
+    },
+    {
+      "thinking": "Saturday dinner is Turkey Keema with Peas. Reserve it for the restaurant and note the occasion.",
+      "reply": "Sounds like a fun night. Saturday's dinner is set aside for the restaurant and the rest of the day is lighter.",
+      "operations": [{"op": "remember", "fact": "sister's birthday dinner at a restaurant on Saturday", "kind": "context"}, {"op": "reserve", "day": "Saturday", "slot": "dinner"}]
+    }
+  ]
+}

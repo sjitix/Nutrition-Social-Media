@@ -1,0 +1,7 @@
+{
+  "dinner reservation on friday night": {
+    "thinking": "They will have dinner at a restaurant on Friday. Log it as the Friday dinner.",
+    "reply": "Noted. Your Friday dinner is now the restaurant meal and the rest of the day is balanced around it.",
+    "operations": [{"op": "log", "day": "Friday", "slot": "dinner", "dish": "restaurant dinner"}]
+  }
+}

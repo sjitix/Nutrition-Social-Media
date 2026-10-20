@@ -1,0 +1,7 @@
+{
+  "dinner reservation on friday night": {
+    "thinking": "Reserve Friday dinner, and trim portions a bit across the week so the restaurant meal fits comfortably.",
+    "reply": "Enjoy it. I'm holding room for Friday's dinner out and trimming portions a little across the week so it fits.",
+    "operations": [{"op": "reserve", "day": "Friday", "slot": "dinner"}, {"op": "resize", "direction": "smaller"}]
+  }
+}

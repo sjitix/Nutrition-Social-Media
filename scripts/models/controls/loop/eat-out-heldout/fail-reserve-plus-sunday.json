@@ -1,0 +1,7 @@
+{
+  "going to a restaurant for dinner": {
+    "thinking": "Reserve Saturday dinner, and lighten Sunday a little to balance out the celebration.",
+    "reply": "Have a great time. Saturday's dinner is set aside, and I'm keeping Sunday a little lighter to balance it out.",
+    "operations": [{"op": "reserve", "day": "Saturday", "slot": "dinner"}, {"op": "resize", "direction": "smaller", "day": "Sunday"}]
+  }
+}

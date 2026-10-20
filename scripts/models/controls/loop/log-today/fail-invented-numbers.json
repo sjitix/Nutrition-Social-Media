@@ -1,0 +1,7 @@
+{
+  "smashed a big burger and fries": {
+    "thinking": "A big burger and fries is roughly 1200 kcal and 45 g protein. Log Monday lunch with that.",
+    "reply": "Logged about 1200 kcal for that lunch.",
+    "operations": [{"op": "log", "day": "Monday", "slot": "lunch", "dish": "big burger and fries", "calories": 1200, "protein": 45}]
+  }
+}

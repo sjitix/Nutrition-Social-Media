@@ -29,7 +29,10 @@ import { agentModelFn, resolveProvider } from "@/lib/providers";
 import { selectWeekFromDb, rebalanceWeek, withSeed } from "@/lib/plan";
 import { dietTagConflicts, haystackBlocked } from "@/lib/nutrition";
 import { withFastFinish, fastFinishModeFromEnv } from "./fast-finish";
-import { withErrorCapture, isInfraError, holdFailure, scriptedModel, scriptLabel, reseedEngine, engineSeedConfig } from "./eval-common";
+import {
+  withErrorCapture, isInfraError, holdFailure, scriptedModel, scriptLabel, reseedEngine, engineSeedConfig,
+  outsideScope, unaskedProfileEdit, writesSent, inventedFigures,
+} from "./eval-common";
 import type { UserProfile, WeekPlan, Meal } from "@/lib/core";
 
 const SCRIPT = process.env.MODEL_SCRIPT ?? "";
@@ -76,6 +79,26 @@ const unchangedExcept = (before: WeekPlan, after: WeekPlan, keep: (d: string, t:
     });
   });
 const dayKcal = (p: WeekPlan, d: string) => (day(p, d)?.meals ?? []).reduce((s, m) => s + m.calories, 0);
+/** "Lighter on <days>" (audit, 2026-10-18). Each named day drops by more than 100 kcal: a smaller resize
+ *  drops about 200, and the 50 kcal margin passed a resize of the dinners alone. Its dishes keep their
+ *  names: the prompt's tool is a resize, and a re-plan at a calorie number the model picked passed.
+ *  Nothing else in the week changes, and the saved profile stays as it was (a week-wide target cut passed). */
+const lighterOn = (r: AgentRunResult, b: WeekPlan, days: string[]) => {
+  const heavy = days.filter((d) => !(dayKcal(r.plan, d) < dayKcal(b, d) - 100));
+  if (heavy.length) return `${days.join("/")} not lighter (${days.map((d) => `${d.slice(0, 3)} ${dayKcal(b, d)}→${dayKcal(r.plan, d)}`).join(", ")})`;
+  const renamed = days.flatMap((d) => day(b, d)!.meals.filter((m) => meal(r.plan, d, m.type)?.name !== m.name).map((m) => `${d} ${m.type}`));
+  if (renamed.length) return `re-planned instead of resizing (${renamed.join(", ")} got a different dish)`;
+  return outsideScope(b, r.plan, (d) => days.includes(d)) ?? unaskedProfileEdit(PROFILE, r.profile);
+};
+/** Dinner out on `d` (audit, 2026-10-18): reserved, with no calorie figure the user never gave, and nothing
+ *  outside that day changes (the day's other meals may shrink to make room). */
+const reservedOut = (r: AgentRunResult, b: WeekPlan, d: string, message: string) => {
+  const m = meal(r.plan, d, "dinner");
+  if (!/^Eating out/i.test(m?.description ?? "")) return `${d} dinner not reserved ("${m?.name}")`;
+  const invented = inventedFigures(r, message);
+  if (invented.length) return `a calorie figure the user never gave (${invented.join(", ")})`;
+  return outsideScope(b, r.plan, (x) => x === d) ?? unaskedProfileEdit(PROFILE, r.profile);
+};
 
 type Want = "act" | "hold";
 interface Scenario {
@@ -224,11 +247,7 @@ const SCENARIOS: Scenario[] = [
   {
     id: "weekend-lighter", want: "act",
     message: "lighter meals on the weekend please, i'm way less active then",
-    check: (r, b) => {
-      const sat = dayKcal(r.plan, "Saturday") < dayKcal(b, "Saturday") - 50;
-      const sun = dayKcal(r.plan, "Sunday") < dayKcal(b, "Sunday") - 50;
-      return sat && sun ? null : `weekend not lighter (Sat ${dayKcal(b, "Saturday")}→${dayKcal(r.plan, "Saturday")}, Sun ${dayKcal(b, "Sunday")}→${dayKcal(r.plan, "Sunday")})`;
-    },
+    check: (r, b) => lighterOn(r, b, ["Saturday", "Sunday"]),
   },
   {
     id: "lookup-question", want: "hold", expectRead: true,
@@ -269,14 +288,22 @@ const SCENARIOS: Scenario[] = [
   {
     id: "eat-out-future", want: "act",
     message: "i've got a dinner reservation on friday night, save some room for it",
-    check: (r) => /^Eating out/i.test(meal(r.plan, "Friday", "dinner")?.description ?? "")
-      ? null : `Friday dinner not reserved ("${meal(r.plan, "Friday", "dinner")?.name}")`,
+    check: (r, b) => reservedOut(r, b, "Friday", "i've got a dinner reservation on friday night, save some room for it"),
   },
   {
     // TODAY is a Monday. Fails on any model if the prompt never tells it the date — tracked on purpose.
     id: "log-today", want: "act",
     message: "welp, i already smashed a big burger and fries for lunch today",
-    check: (r, b) => (loggedOn(r, b, "Monday", "lunch") ? null : `Monday lunch not logged ("${meal(r.plan, "Monday", "lunch")?.name}")`),
+    check: (r, b) => {
+      const name = meal(r.plan, "Monday", "lunch")?.name ?? "";
+      if (!loggedOn(r, b, "Monday", "lunch")) return `Monday lunch not logged ("${name}")`;
+      // The burger, not whatever a look-up returned first (audit, 2026-10-18).
+      const sent = writesSent(r).filter((o) => o.op === "log" && o.day === "Monday" && o.slot === "lunch").map((o) => String(o.dish ?? ""));
+      if (!/burger/i.test(name) && !sent.some((s) => /burger/i.test(s))) return `logged "${name}" for Monday lunch, not the burger`;
+      const invented = inventedFigures(r, "welp, i already smashed a big burger and fries for lunch today");
+      if (invented.length) return `a calorie figure the user never gave (${invented.join(", ")})`;
+      return outsideScope(b, r.plan, (d) => d === "Monday") ?? unaskedProfileEdit(PROFILE, r.profile);
+    },
   },
   {
     id: "pin", want: "act",
@@ -309,19 +336,14 @@ const SCENARIOS: Scenario[] = [
   {
     id: "eat-out-heldout", want: "act",
     message: "my sister's birthday is saturday and we're all going to a restaurant for dinner",
-    check: (r) => /^Eating out/i.test(meal(r.plan, "Saturday", "dinner")?.description ?? "")
-      ? null : `Saturday dinner not reserved ("${meal(r.plan, "Saturday", "dinner")?.name}")`,
+    check: (r, b) => reservedOut(r, b, "Saturday", "my sister's birthday is saturday and we're all going to a restaurant for dinner"),
   },
   // Added 2026-10-18 for the wording branch's third line, which quotes "lighter on the weekend" (the
   // weekend-lighter scenario's own words). No "lighter", "smaller" or "weekend"; graded like weekend-lighter.
   {
     id: "days-lighter-heldout", want: "act",
     message: "can you go easy on the portions thursday and friday? i'll be stuck in a car both days",
-    check: (r, b) => {
-      const thu = dayKcal(r.plan, "Thursday") < dayKcal(b, "Thursday") - 50;
-      const fri = dayKcal(r.plan, "Friday") < dayKcal(b, "Friday") - 50;
-      return thu && fri ? null : `Thursday/Friday not lighter (Thu ${dayKcal(b, "Thursday")}→${dayKcal(r.plan, "Thursday")}, Fri ${dayKcal(b, "Friday")}→${dayKcal(r.plan, "Friday")})`;
-    },
+    check: (r, b) => lighterOn(r, b, ["Thursday", "Friday"]),
   },
   {
     id: "four-meals", want: "act",
