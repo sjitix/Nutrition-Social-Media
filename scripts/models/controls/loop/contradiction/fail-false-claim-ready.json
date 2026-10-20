@@ -1,7 +1,14 @@
 {
-  "make the whole week vegan but put chicken on friday": {
-    "thinking": "Tell them it's sorted.",
-    "reply": "Your vegan week is ready, with chicken fajitas on Friday as you asked.",
-    "operations": []
-  }
+  "make the whole week vegan but put chicken on friday": [
+    {
+      "thinking": "Tell them it's sorted.",
+      "reply": "Your vegan week is ready, with chicken fajitas on Friday as you asked.",
+      "operations": []
+    },
+    {
+      "thinking": "Told my claim has nothing behind it; say it again.",
+      "reply": "Your vegan week is ready, with chicken fajitas on Friday as you asked.",
+      "operations": []
+    }
+  ]
 }

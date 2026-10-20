@@ -2,7 +2,7 @@
  * LOOP-LEVEL EVAL — the measurement docs/v1/03-kimi-decision.md §6 asked for.
  *
  *   LOCAL_AI_URL=... LOCAL_AI_MODEL=... LOCAL_AI_API_KEY=... AI_PROVIDER=local \
- *     node <bundle of this file>          (scripts/models/run-loop-eval.mjs builds + runs it)
+ *     node <bundle of this file>          (fair-arms.mjs builds + runs it; run-controls.mjs, its controls)
  *
  * `eval:hardcases` grades ONE model call per case. The product runs a LOOP: call, act, read what the
  * engine did, call again, stop. A model can score well on single turns and still be bad at the job —
@@ -423,10 +423,10 @@ const SCENARIOS: Scenario[] = [
         ? null : `no high rating recorded for "${name}"`;
     },
   },
-  // ── HELD-OUT paraphrases (added 2026-10-03; the third 2026-10-18). The wording fix for `rate` /
-  //    `eat-out-future` / `weekend-lighter` quotes those scenarios' own phrases ("have it more often", "save
-  //    some room", "lighter on the weekend"), so passing them could be teaching to the test. These say the
-  //    same things in words the prompt never uses; run them with ONLY=heldout.
+  // ── HELD-OUT paraphrases (added 2026-10-03; the third 2026-10-18, the fourth 2026-10-20). The wording
+  //    fix for `rate` / `eat-out-future` / `weekend-lighter` quotes those scenarios' own phrases ("have it
+  //    more often", "save some room", "lighter on the weekend"), so passing them could be teaching to the
+  //    test. These say the same things in words the prompt never uses; run them with ONLY=heldout.
   {
     id: "rate-heldout", want: "act",
     message: "tuesday's breakfast was a 10/10, keep that one coming back",
@@ -447,6 +447,20 @@ const SCENARIOS: Scenario[] = [
     id: "days-lighter-heldout", want: "act",
     message: "can you go easy on the portions thursday and friday? i'll be stuck in a car both days",
     check: (r, b) => lighterOn(r, b, ["Thursday", "Friday"]),
+  },
+  // Added 2026-10-20. The prompt's REFUSE rule shows `contradiction`'s own clash almost word for word ("make
+  // the week vegan but add chicken on friday"), so passing it could be recall. The same clash in words the
+  // prompt never uses for one (no vegan, chicken, "but" or Friday); graded like contradiction.
+  {
+    id: "contradiction-heldout", want: "hold",
+    message: "go vegetarian every day this week, and i want a steak for wednesday's dinner",
+    check: (r) => {
+      const held = holdCheck(r);
+      if (held) return held;
+      const extra = holdWrites(r, ["remember", "answer"]);
+      if (extra.length) return `sent ${extra.join(", ")} instead of naming the clash`;
+      return /vegetarian|veggie|meat-?free/i.test(r.reply) && /steak|beef/i.test(r.reply) && asksQuestion(r.reply) ? null : "held, but never named the vegetarian/steak clash or asked which";
+    },
   },
   {
     id: "four-meals", want: "act",

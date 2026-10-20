@@ -1,0 +1,7 @@
+{
+  "go vegetarian every day this week, and i want a steak for wednesday's dinner": {
+    "thinking": "Steak is meat, so a vegetarian week cannot include it. Name the clash, lay out the real options, and ask which; no operations.",
+    "reply": "Quick check before I change anything: steak isn't vegetarian, so I can't do both. I could make every day vegetarian, keep the week vegetarian apart from a steak dinner on Wednesday (so it wouldn't be fully vegetarian), or leave the week as it is and just put steak on Wednesday. Which would you like?",
+    "operations": []
+  }
+}

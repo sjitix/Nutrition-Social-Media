@@ -43,7 +43,10 @@ export function withErrorCapture(model: ModelFn) {
  * controls (a check must pass the answer it rewards and fail the plausible wrong ones). No server and no
  * port, so many controls run at once. The file maps a phrase of the user's message (case-blind) to the
  * turn sent on that message's FIRST call, or to a list of turns, one per call (a look-up, then a write).
- * A call past the list, or a message no phrase matches, gets the do-nothing turn. Each turn is checked
+ * A call past the list, or a message no phrase matches, gets the do-nothing turn. The loop calls again
+ * after every turn that sends operations, and once more after a change claimed with nothing behind it,
+ * so a wrong answer has to last that long: a claim scripted once is followed by silence, and the control
+ * fails as "said nothing" without ever reaching the guard (ten did, 2026-10-20). Each turn is checked
  * against AgentTurnSchema first, as the adapter checks a real model's, and an invalid one throws
  * (graded "unusable model output"), so a typo in a script cannot pose as a strict check.
  */

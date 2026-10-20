@@ -1,0 +1,17 @@
+{
+  "go vegetarian every day this week, and i want a steak for wednesday's dinner": [
+    {
+      "thinking": "Vegetarian on every day except Wednesday, and a steak dinner on Wednesday.",
+      "reply": "Vegetarian all week, with a steak dinner on Wednesday.",
+      "operations": [
+        {"op": "constrain", "scope": {"days": ["Monday","Tuesday","Thursday","Friday","Saturday","Sunday"]}, "diet": "vegetarian"},
+        {"op": "swap", "dish": "Steak with Sweet Potato Fries & Broccoli", "slot": "dinner", "days": ["Wednesday"], "only": true}
+      ]
+    },
+    {
+      "thinking": "Applied. Report.",
+      "reply": "Every day but Wednesday is vegetarian, and Wednesday has steak.",
+      "operations": []
+    }
+  ]
+}

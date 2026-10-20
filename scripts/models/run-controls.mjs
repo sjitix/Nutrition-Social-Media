@@ -5,6 +5,7 @@
  *   node scripts/models/run-controls.mjs                 # every control, engine seed 1
  *   node scripts/models/run-controls.mjs --seeds 5       # each control under 5 engine seeds: luck shows
  *   node scripts/models/run-controls.mjs --only 'lighter|pin'   # scenarios whose id matches
+ *   node scripts/models/run-controls.mjs --verbose       # also why each must-fail control failed
  *
  * A control is a MODEL_SCRIPT file (eval-common.ts scriptedModel) at
  *   scripts/models/controls/<loop|convo>/<scenario id>/<name>.json
@@ -117,7 +118,10 @@ for (const w of work) {
   if (!bad && !verbose) continue;
   if (key !== lastScenario) { console.log(`\n${key}`); lastScenario = key; }
   const miss = rs.find((r) => !r.held);
-  const why = miss ? (miss.error ?? (w.name.startsWith("pass-") ? `failed: ${miss.reason}` : "PASSED, so the check is lenient")) : "";
+  // A must-fail control that fails for some other reason proves nothing about the defect it was written
+  // for, so --verbose prints why each one failed (under the first seed).
+  const why = miss ? (miss.error ?? (w.name.startsWith("pass-") ? `failed: ${miss.reason}` : "PASSED, so the check is lenient"))
+    : verbose && !w.name.startsWith("pass-") ? `failed: ${rs[0]?.reason ?? "(no reason given)"}` : "";
   console.log(`  ${bad ? "BROKEN" : "ok    "} ${w.name.padEnd(46)} ${seeds > 1 ? `held under ${ok}/${rs.length} seeds  ` : ""}${why}`);
 }
 const scen = new Set(work.map((w) => `${w.kind}/${w.id}`)).size;

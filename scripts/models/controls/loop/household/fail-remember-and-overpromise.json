@@ -1,6 +1,25 @@
 {
   "cooking for me and my girlfriend": [
-    { "thinking": "Remember it and say I'll plan for two.", "reply": "", "operations": [ {"op": "remember", "fact": "cooks for two (self and girlfriend)", "kind": "context"} ] },
-    { "thinking": "Saved. Confirm.", "reply": "Got it! I'll plan every meal for two of you from now on, with portions and groceries for both.", "operations": [] }
+    {
+      "thinking": "Remember it and say I'll plan for two.",
+      "reply": "",
+      "operations": [
+        {
+          "op": "remember",
+          "fact": "cooks for two (self and girlfriend)",
+          "kind": "context"
+        }
+      ]
+    },
+    {
+      "thinking": "Saved. Confirm.",
+      "reply": "Got it! I'll plan every meal for two of you from now on, with portions and groceries for both.",
+      "operations": []
+    },
+    {
+      "thinking": "Told my claim has nothing behind it; say it again.",
+      "reply": "Got it! I'll plan every meal for two of you from now on, with portions and groceries for both.",
+      "operations": []
+    }
   ]
 }
