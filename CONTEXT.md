@@ -184,7 +184,7 @@ in the main folder (`2fd6f02`). Its WORKPLAN lesson was renumbered 38 → 48 bec
 
 #### PARALLEL LANE — models (written by the models agent only)
 
-**2026-10-20 — RESUME HERE. Every check in both evals is fixed, and 512 controls prove it** (all 43 scenarios,
+**2026-10-20 — RESUME HERE. Every check in both evals is fixed, and 524 controls prove it** (all 44 scenarios,
 2 engine seeds; `node scripts/models/run-controls.mjs`). An audit on 10-18 had found 153 of 337 plausible wrong
 answers passing. The do-nothing and hollow-claim fakes score 0 on both evals.
 - **Scorecards from before `b43873f` were graded on the lenient harness** and are not comparable with new runs.
@@ -193,8 +193,10 @@ answers passing. The do-nothing and hollow-claim fakes score 0 on both evals.
 - **Next, key-free:**
   - re-run `run-controls.mjs` when v1's C/D/E/F commit lands;
   - after D (the answer op keeps the latest reply), add a must-pass control for an answer-op hold (dropped
-    for now, because today the user reads "Happy to help.");
-  - write a held-out paraphrase for `contradiction`, whose message the prompt quotes almost word for word.
+    for now, because today the user reads "Happy to help.").
+- **Done since:** `contradiction-heldout`, the same clash in words the prompt never uses for one. Ten claim
+  controls that failed only because their script ran out now reach the guard; `run-controls --verbose` prints
+  why each must-fail control fails.
 - The false-claim guard: `probe-claims.mts` 1/15 on main, 15/15 with v1's `c8ccfb0`. Day record:
   `docs/worklog/2026-10-20-models.md`.
 
