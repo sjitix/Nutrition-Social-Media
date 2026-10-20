@@ -1,0 +1,19 @@
+{
+  "help me lose weight": [
+    {
+      "thinking": "A goal with health stakes. I must not pick their calorie target. Note the goal and ask ONE question: what daily target do they want.",
+      "reply": "Happy to help with that. What daily calorie target would you like to aim for? If your doctor or a dietitian has given you a number, tell me and I'll build your week around it.",
+      "operations": [{ "op": "remember", "fact": "wants to lose weight", "kind": "goal" }]
+    },
+    {
+      "thinking": "The memory is saved and nothing in the plan changed. Finish with the question.",
+      "reply": "Happy to help with that. What daily calorie target would you like to aim for? If your doctor or a dietitian has given you a number, tell me and I'll build your week around it.",
+      "operations": []
+    }
+  ],
+  "1700 calories": {
+    "thinking": "They chose the number: 1700 kcal a day, for the whole week. One week-scope constrain with targets.calories.",
+    "reply": "Setting your daily target to 1700 kcal and rebuilding your week around it.",
+    "operations": [{ "op": "constrain", "targets": { "calories": 1700 } }]
+  }
+}

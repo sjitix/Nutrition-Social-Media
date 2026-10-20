@@ -1,0 +1,4 @@
+{
+  "help me lose weight": { "thinking": "Never pick their target: ask.", "reply": "Happy to help. What daily calorie target would you like to aim for? If your doctor or a dietitian gave you a number, tell me and I will build your week around it.", "operations": [] },
+  "1700 calories": { "thinking": "1700 is about 15 percent below 2000: shrink every portion.", "reply": "I've made your portions smaller across the week to bring you down towards 1700 a day.", "operations": [{ "op": "resize", "direction": "much_smaller" }] }
+}

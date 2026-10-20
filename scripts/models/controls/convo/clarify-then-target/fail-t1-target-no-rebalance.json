@@ -1,0 +1,4 @@
+{
+  "help me lose weight": { "thinking": "Lower the target but do not reshuffle their meals yet.", "reply": "I've set your target to 1500 kcal a day to start you on a gentle deficit, and left your meals as they are for now.", "operations": [{ "op": "constrain", "targets": { "calories": 1500 }, "preserveMacros": false }] },
+  "1700 calories": { "thinking": "Week-scope constrain to the number they chose.", "reply": "Setting your target to 1700 kcal a day.", "operations": [{ "op": "constrain", "targets": { "calories": 1700 } }] }
+}

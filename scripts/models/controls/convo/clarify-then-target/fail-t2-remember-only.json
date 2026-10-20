@@ -1,0 +1,7 @@
+{
+  "help me lose weight": { "thinking": "Never pick their target: ask.", "reply": "Happy to help. What daily calorie target would you like to aim for? If your doctor or a dietitian gave you a number, tell me and I will build your week around it.", "operations": [] },
+  "1700 calories": [
+    { "thinking": "Note their target.", "reply": "", "operations": [{ "op": "remember", "fact": "daily calorie target 1700 kcal", "kind": "goal" }] },
+    { "thinking": "Saved. Confirm.", "reply": "Got it: 1700 calories a day it is. I'll plan your meals around that from now on.", "operations": [] }
+  ]
+}

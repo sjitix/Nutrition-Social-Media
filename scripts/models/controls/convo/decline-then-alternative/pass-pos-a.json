@@ -1,0 +1,13 @@
+{
+  "portions for two people": {
+    "thinking": "Cooking for several people is something the app can't do. Decline honestly, offer the nearest real thing, change nothing.",
+    "reply": "I can't plan portions for two people yet: your plan is built around your own targets, so every recipe is sized for one. The nearest thing I can do is make your own portions bigger, or you can double the ingredient quantities yourself when you cook. Want me to make your meals bigger?",
+    "operations": []
+  },
+  "make all my meals bigger": [
+    { "thinking": "Direction named, whole week: resize bigger with no day or slot.",
+      "reply": "Sure, I'll make every meal a bit bigger.",
+      "operations": [ { "op": "resize", "direction": "bigger" } ] },
+    { "reply": "Every meal is a bit bigger now.", "operations": [] }
+  ]
+}

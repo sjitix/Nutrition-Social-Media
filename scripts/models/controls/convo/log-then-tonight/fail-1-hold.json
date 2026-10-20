@@ -1,0 +1,2 @@
+{ "massive pizza": { "thinking": "A confession, not a request. Reassure, offer.", "reply": "No guilt needed, one big pizza won't undo a good week. Want me to keep tonight's dinner on the lighter side to balance it out?", "operations": [] },
+  "go easy on dinner": { "reply": "Sure, I will keep tonight lighter.", "operations": [ { "op": "resize", "direction": "smaller", "day": "Monday", "slot": "dinner" } ] } }

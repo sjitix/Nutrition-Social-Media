@@ -1,0 +1,11 @@
+{
+  "how much protein am i getting at breakfast": [
+    { "thinking": "Look it up.", "reply": "", "operations": [{ "op": "get_plan" }] },
+    { "thinking": "Answer from the plan.", "reply": "Your breakfasts range from 29 g to 65 g of protein this week: Monday 65 g, Tuesday 48 g, Wednesday 41 g, Thursday 45 g, Friday 37 g, Saturday 32 g, Sunday 29 g. Sunday is the lowest.", "operations": [] }
+  ],
+  "bump that up a bit": [
+    { "thinking": "More protein at breakfast is a swap into the breakfast slot. Find options.", "reply": "", "operations": [{ "op": "find_recipes", "mealType": "breakfast", "sort": "protein", "maxTime": 30 }] },
+    { "thinking": "Put the Tofu & Edamame Scramble Bowl in every breakfast slot.", "reply": "", "operations": [{ "op": "swap", "dish": "Tofu & Edamame Scramble Bowl", "slot": "breakfast" }] },
+    { "thinking": "Done; report.", "reply": "Your breakfasts are now the Tofu & Edamame Scramble Bowl.", "operations": [] }
+  ]
+}

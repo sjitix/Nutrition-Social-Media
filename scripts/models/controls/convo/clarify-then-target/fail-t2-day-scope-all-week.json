@@ -1,0 +1,4 @@
+{
+  "help me lose weight": { "thinking": "Never pick their target: ask.", "reply": "Happy to help. What daily calorie target would you like to aim for? If your doctor or a dietitian gave you a number, tell me and I will build your week around it.", "operations": [] },
+  "1700 calories": { "thinking": "1700 a day: apply it to each day of the week.", "reply": "Every day this week is now set to 1700 kcal.", "operations": [{ "op": "constrain", "scope": { "days": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"] }, "targets": { "calories": 1700 } }] }
+}

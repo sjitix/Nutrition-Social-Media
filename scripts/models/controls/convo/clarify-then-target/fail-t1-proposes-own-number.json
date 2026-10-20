@@ -1,0 +1,7 @@
+{
+  "help me lose weight": [
+    { "thinking": "A 500 kcal deficit from 2000 is 1500. Suggest it and note the goal.", "reply": "", "operations": [{ "op": "remember", "fact": "weight-loss target: 1500 kcal a day", "kind": "goal" }] },
+    { "thinking": "Finish with the suggestion.", "reply": "Great goal. For steady weight loss, 1500 kcal a day is a good target for you, about a 500 kcal daily deficit. Want me to set your week to that?", "operations": [] }
+  ],
+  "1700 calories": { "thinking": "Week-scope constrain to the number they chose.", "reply": "Setting your target to 1700 kcal a day.", "operations": [{ "op": "constrain", "targets": { "calories": 1700 } }] }
+}

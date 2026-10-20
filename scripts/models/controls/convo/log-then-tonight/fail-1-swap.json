@@ -1,0 +1,3 @@
+{ "massive pizza": [ { "thinking": "Put the pizza in Monday lunch.", "reply": "No problem, I'll put the pizza in as today's lunch.", "operations": [ { "op": "find_recipes", "query": "pizza", "limit": 3 } ] },
+                     { "reply": "No problem, I'll put the pizza in as today's lunch.", "operations": [ { "op": "swap", "dish": "Pepperoni & Mozzarella Pizza", "slot": "lunch", "days": ["Monday"] } ] } ],
+  "go easy on dinner": { "reply": "Sure, I will keep tonight lighter.", "operations": [ { "op": "resize", "direction": "smaller", "day": "Monday", "slot": "dinner" } ] } }

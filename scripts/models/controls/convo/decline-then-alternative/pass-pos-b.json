@@ -1,0 +1,15 @@
+{
+  "portions for two people": [
+    { "thinking": "Unsupported (several people). Decline + nearest option. Remember the lasting context.",
+      "reply": "That's not something I can do yet.",
+      "operations": [ { "op": "remember", "fact": "cooks for their partner too", "kind": "context" } ] },
+    { "thinking": "Memory saved, plan untouched. Finish with the decline and the offer.",
+      "reply": "That's not something I can do yet. Plans are sized for one person, around your own calorie and protein targets. What I can do is make all your meals bigger, or keep them as they are and you scale the recipes up when you shop. Which would you like?",
+      "operations": [] }
+  ],
+  "make all my meals bigger": {
+    "thinking": "Whole week, clearly bigger.",
+    "reply": "Sure, I'll make every meal noticeably bigger.",
+    "operations": [ { "op": "resize", "direction": "much_bigger" } ]
+  }
+}

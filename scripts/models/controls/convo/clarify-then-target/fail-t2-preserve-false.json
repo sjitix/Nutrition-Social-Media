@@ -1,0 +1,4 @@
+{
+  "help me lose weight": { "thinking": "Never pick their target: ask.", "reply": "Happy to help. What daily calorie target would you like to aim for? If your doctor or a dietitian gave you a number, tell me and I will build your week around it.", "operations": [] },
+  "1700 calories": { "thinking": "New target; the old macros should not be preserved.", "reply": "Your target is now 1700 kcal a day.", "operations": [{ "op": "constrain", "targets": { "calories": 1700 }, "preserveMacros": false }] }
+}

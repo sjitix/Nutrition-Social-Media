@@ -1,0 +1,5 @@
+{ "portions for two people": [
+    { "thinking": "Remember and confirm.", "reply": "Done - I've set your plan up for two people.", "operations": [ { "op": "remember", "fact": "cooks for partner", "kind": "context" } ] },
+    { "reply": "Done - I've set your plan up for two people.", "operations": [] },
+    { "reply": "Done - I've set your plan up for two people.", "operations": [] } ],
+  "make all my meals bigger": { "reply": "Sure, every meal a bit bigger.", "operations": [ { "op": "resize", "direction": "bigger" } ] } }

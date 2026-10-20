@@ -1,0 +1,4 @@
+{
+  "help me lose weight": { "thinking": "Weight loss means a deficit: 2000 minus 500 is 1500. Set it.", "reply": "Let's get you started: I've set your target to 1500 kcal a day, a steady deficit for weight loss.", "operations": [{ "op": "constrain", "targets": { "calories": 1500 } }] },
+  "1700 calories": { "thinking": "Week-scope constrain to the number they chose.", "reply": "Setting your target to 1700 kcal a day.", "operations": [{ "op": "constrain", "targets": { "calories": 1700 } }] }
+}

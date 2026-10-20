@@ -1,0 +1,2 @@
+{ "massive pizza": { "thinking": "Log it; the engine re-solves dinner.", "reply": "Logging it.", "operations": [ { "op": "log", "day": "Monday", "slot": "lunch", "dish": "pizza" } ] },
+  "go easy on dinner": { "reply": "Sure.", "operations": [ { "op": "resize", "direction": "smaller", "day": "Monday", "slot": "dinner" }, { "op": "remember", "fact": "prefers a light dinner after a big lunch", "kind": "preference" } ] } }

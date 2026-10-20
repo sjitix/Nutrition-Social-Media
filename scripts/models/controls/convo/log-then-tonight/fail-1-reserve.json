@@ -1,0 +1,2 @@
+{ "massive pizza": { "thinking": "Pizza out at lunch - reserve the calories.", "reply": "Got it, I'll set aside calories for that pizza lunch.", "operations": [ { "op": "reserve", "day": "Monday", "slot": "lunch" } ] },
+  "go easy on dinner": { "reply": "Sure, I will keep tonight lighter.", "operations": [ { "op": "resize", "direction": "smaller", "day": "Monday", "slot": "dinner" } ] } }

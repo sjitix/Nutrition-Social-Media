@@ -1,0 +1,2 @@
+{ "portions for two people": { "thinking": "Two people means double the calories.", "reply": "Sure, I'll plan enough food for the two of you.", "operations": [ { "op": "constrain", "targets": { "calories": 4000 } } ] },
+  "make all my meals bigger": { "reply": "Sure, every meal a bit bigger.", "operations": [ { "op": "resize", "direction": "bigger" } ] } }

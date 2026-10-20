@@ -1,0 +1,2 @@
+{ "massive pizza": { "reply": "No problem, I will log the pizza as your Monday lunch.", "operations": [ { "op": "log", "day": "Monday", "slot": "lunch", "dish": "pizza" } ] },
+  "go easy on dinner": { "thinking": "Re-solve Monday at fewer calories so dinner comes out lighter.", "reply": "Sure, I'll re-plan the rest of today a bit lighter.", "operations": [ { "op": "constrain", "scope": { "days": ["Monday"] }, "targets": { "calories": 1600 } } ] } }

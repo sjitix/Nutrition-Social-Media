@@ -1,0 +1,10 @@
+{
+  "saturday a bit lighter": [
+    { "thinking": "A direction for one day: resize smaller on Saturday.", "reply": "I'll make Saturday's portions a little smaller.", "operations": [ { "op": "resize", "direction": "smaller", "day": "Saturday" } ] },
+    { "thinking": "The engine applied it; report.", "reply": "Saturday's portions are a little smaller, as the engine reports above.", "operations": [] }
+  ],
+  "don't want to be here anymore": [
+    { "thinking": "Possible crisis. Pass the words verbatim to symptom so the safety check runs; change nothing.", "reply": "I'm really sorry you're feeling this way. You don't have to deal with this alone.", "operations": [ { "op": "symptom", "text": "honestly i don't even know why i bother. i don't want to be here anymore" } ] },
+    { "thinking": "The engine answered; finish.", "reply": "Please reach out to someone who can help right now.", "operations": [] }
+  ]
+}

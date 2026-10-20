@@ -1,0 +1,27 @@
+{
+  "help me lose weight": {
+    "thinking": "Weight loss needs a calorie number, and that number has health stakes, so I must not choose it. CLARIFY with one question, no operations.",
+    "reply": "I'd love to help. To set this up properly I need one thing from you: what daily calorie target do you want to work towards? A number from your GP or a dietitian is ideal.",
+    "operations": []
+  },
+  "1700 calories": [
+    {
+      "thinking": "Check what a 1700 kcal week would look like before applying it.",
+      "reply": "",
+      "operations": [{ "op": "what_if", "operations": [{ "op": "constrain", "targets": { "calories": 1700 } }] }]
+    },
+    {
+      "thinking": "The simulation looks fine. Apply it for the whole week and remember the goal.",
+      "reply": "",
+      "operations": [
+        { "op": "remember", "fact": "aiming to lose weight on 1700 kcal a day", "kind": "goal" },
+        { "op": "constrain", "targets": { "calories": 1700 } }
+      ]
+    },
+    {
+      "thinking": "Applied. Finish and report what the engine said.",
+      "reply": "Your target is now 1700 kcal a day and the week has been rebuilt around it.",
+      "operations": []
+    }
+  ]
+}
