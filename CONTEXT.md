@@ -184,11 +184,19 @@ in the main folder (`2fd6f02`). Its WORKPLAN lesson was renumbered 38 → 48 bec
 
 #### PARALLEL LANE — models (written by the models agent only)
 
-**2026-10-20 — every loop-eval check is fixed, and 320 controls prove it** (`node scripts/models/run-controls.mjs`;
-an audit on 10-18 had found 153 of 337 plausible wrong answers passing). **Next: the conversation eval's 14
-checks**, the same way, from the audit's `convo-c*` scripts. Scorecards from before these fixes were graded
-on the lenient harness, so they are not comparable with new runs. The false-claim guard: `probe-claims.mts`
-1/15 on main, 15/15 with v1's `c8ccfb0`. Still no `.env.local`. Day record: `docs/worklog/2026-10-20-models.md`.
+**2026-10-20 — RESUME HERE. Every check in both evals is fixed, and 512 controls prove it** (all 43 scenarios,
+2 engine seeds; `node scripts/models/run-controls.mjs`). An audit on 10-18 had found 153 of 337 plausible wrong
+answers passing. The do-nothing and hollow-claim fakes score 0 on both evals.
+- **Scorecards from before `b43873f` were graded on the lenient harness** and are not comparable with new runs.
+- **Next, the moment `.env.local` exists** (OWNER-TODO item 0, `NVIDIA_API_KEY=`): the fair arms, then the
+  wording test (block below). The evals can now be trusted to grade them.
+- **Next, key-free:**
+  - re-run `run-controls.mjs` when v1's C/D/E/F commit lands;
+  - after D (the answer op keeps the latest reply), add a must-pass control for an answer-op hold (dropped
+    for now, because today the user reads "Happy to help.");
+  - write a held-out paraphrase for `contradiction`, whose message the prompt quotes almost word for word.
+- The false-claim guard: `probe-claims.mts` 1/15 on main, 15/15 with v1's `c8ccfb0`. Day record:
+  `docs/worklog/2026-10-20-models.md`.
 
 **2026-10-18 — RESUME HERE. Every NVIDIA run is blocked on a missing `.env.local`; the key-free work
 is done.** Day record: `docs/worklog/2026-10-18-models.md`. Live status: `docs/parallel/lane-models.md`.

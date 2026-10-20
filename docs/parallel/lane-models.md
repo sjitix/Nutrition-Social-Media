@@ -7,11 +7,15 @@ Protocol: [`README.md`](README.md). Worktree: `../NutriFlow-models/`, branch `mo
 
 ## Now doing
 
-**2026-10-20 — every loop-eval check is fixed and proven: 320 controls hold** (`b43873f`, `cfa710f`,
-`e92229c`, `d7e3d20`; `node scripts/models/run-controls.mjs`). **Next: the conversation eval's 14 checks**,
-the same way. The false-claim guard went from 1/15 to 15/15 on this lane's probe with v1's `c8ccfb0`.
-Still no `.env.local`, so no model runs. Day record: `docs/worklog/2026-10-20-models.md`. The 2026-10-18
-notes below are history.
+**2026-10-20 — every check in both evals is fixed and proven: 512 controls hold across all 43 scenarios**
+under 2 engine seeds (`node scripts/models/run-controls.mjs`).
+- Loop shipped in `b43873f`, `cfa710f`, `e92229c` and `d7e3d20`; convo in `86e00de`, `4a223e0` and `bdd3184`.
+- The do-nothing and hollow-claim fakes score 0 on both evals.
+- The false-claim guard went from 1/15 to 15/15 on this lane's probe with v1's `c8ccfb0`.
+- Still no `.env.local`, so no model runs. With the key, the fair arms run first.
+- Key-free next: re-run the controls on v1's C/D/E/F; an answer-op must-pass control after D; a held-out
+  `contradiction`.
+Day record: `docs/worklog/2026-10-20-models.md`. The 2026-10-18 notes below are history.
 
 **2026-10-18 — resumed on the LAPTOP.** The worktrees `../NutriFlow-models/` and
 `../NutriFlow-models-exp/` now exist here (created today from `origin/models` / `origin/models-exp`, both

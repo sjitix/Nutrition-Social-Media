@@ -18,7 +18,8 @@ message (8 at worst), so **per-call latency × steps** is the number a user feel
 | single-turn judgement | `npm run eval:hardcases` (45 cases, engine-verified); also regraded strictly by `scripts/models/regrade-hardcases.mjs` (v3) | beat **84%** (gpt-oss-20b, old prompt) — every big model now clears it; the ruler has saturated |
 | honest declines | the `decline` bucket of the same eval | ≥ 5/6 |
 | loop behaviour | `scripts/models/loop-eval.mts` (29 scenarios through the real loop, 3 of them held-out paraphrases) — reads before writes, stops cleanly, no `gaveUp` | read-before-write 2/2, gave up 0 |
-| **conversation** | `scripts/models/convo-eval.mts` (14 two-turn conversations, state carried like the client) | **the ruler that separates sizes** — 550B 79%, 20B 43% (2026-10-03) |
+| **conversation** | `scripts/models/convo-eval.mts` (14 two-turn conversations, state carried like the client) | **the ruler that separates sizes** — 550B 79%, 20B 43% (2026-10-03, on the lenient harness: re-measure) |
+| **the harness itself** | `node scripts/models/run-controls.mjs` — 512 scripted controls: every check must pass its correct answers and fail its wrong ones, under several engine seeds | all hold (2026-10-20) |
 | latency | median + p90 seconds **per message** from the loop/convo evals | message-level ≤ ~10 s |
 | cost | $/message at beta volume | free now; priced before launch |
 
@@ -35,7 +36,9 @@ message (8 at worst), so **per-call latency × steps** is the number a user feel
 5. **Repeat before you claim.** Identical runs swing up to 9 points on the hard cases; quote ranges.
 6. **Grade what the engine did, not what the model sent.** Counting emitted operations hid three
    engine bugs on 2026-10-03 (a slot-scoped constrain that did nothing while the reply said it had).
-7. **Every new check scores 0 against a fake model, and passes the answer it rewards.**
+7. **Every new check scores 0 against a fake model, and passes the answer it rewards.** Put both in
+   `scripts/models/controls/<eval>/<id>/` (`pass-*.json`, `fail-*.json`) and run `run-controls.mjs`. A check
+   change ships only with its controls holding.
    `node scripts/models/stub-model.mjs --mode nothing|hollow|garbage`, then the eval with
    `LOCAL_AI_URL=http://127.0.0.1:4011/v1`: every mode must score 0. On 2026-10-18 the `hollow` mode
    (claims a change, makes none) passed 8/10 holds until that was fixed. Then `--mode script --script
