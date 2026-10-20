@@ -249,9 +249,30 @@ Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Ro
 - **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`,
   `docs/worklog/*-models.md`, this block, the lane file. Does not edit v1's files; asks v1 first.
 
-### >>> V1 LANE — 2026-10-18 (night): the allergen binding landed (A, B1), ship.mjs v2 landed, B2 in review <<<
+### >>> V1 LANE — 2026-10-20: allergen notes (B2) landed; imported dishes (C) + the loop's lost answers (D) next <<<
 
-**Where it stands (2026-10-18, night).** The v1 lane works in the laptop's main folder. Landed today, in order:
+**2026-10-20.** Landed: `6509cdb` (script bundles in each worktree's own `.cache/`, so two lanes' gates can't run
+each other's code), `9aa3410` (the schedule's stale 20/20), and **`c8ccfb0` — B2**, the allergen notes:
+- every allergy remark gets an engine note that is true of what is enforced;
+- swaps name the allergy or dislike that refused them;
+- the undo says when it took an allergy off;
+- `allergies=` is in the prompts;
+- the false-claim guard catches 38/38 claims with 0/37 honest lines tripped.
+test:engine 1010/0. `docs/v1/allergen-review.md` holds every finding's status. **The owner opened their own
+accounts (`-fd`) and models (`-83`) sessions**, so the background lane agents this session had started were stood
+down: check `ListAgents` before starting a lane.
+
+**Running / queued:** the accounts lane's gate (its 17-file batch), then **C+D in ONE commit** from
+`../NutriFlow-allergy-c`, worktree branch `allergy-c`. One commit because a gate takes over an hour on this loaded
+machine; each was proven on its own parent first.
+- **C:** an imported dish holding a newly bound allergy is re-picked and named. A logged meal stays, and a dislike
+  never removes an import.
+- **D:** an `{op:"answer"}` turn finishes with its own reply; an empty finishing turn falls back to the newest reply
+  said beside a change; only a step that changed something takes the undo slot.
+If this session ends first, the work sits uncommitted in that worktree. Ship it from there with
+`node scripts/ship.mjs --onto main -- src/lib/plan/select.ts src/lib/assistant/agentLoop.ts scripts/test-engine.mts`.
+
+**Where it stood (2026-10-18, night).** The v1 lane works in the laptop's main folder. Landed that day, in order:
 - `f27bc71` — the owner's standing rules for every lane (`docs/parallel/README.md` §0, `CLAUDE.md`) and the
   decisions doc (URL above).
 - `f580918` — the schedule's stale rows (accounts are built; the model decision is reopened); schedule board republished.
@@ -283,24 +304,22 @@ Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Ro
   - its exit codes say what is true.
   `scripts/test-ship.mjs` holds 43 scenarios (v1 fails 34), and CI runs it. **Every lane: `docs/parallel/README.md` §3.**
 
-**Running when this was written:** B2, the allergen NOTES. A workflow builds it in `../NutriFlow-allergy-fix`
-(branch `allergy-fix`) and three skeptics try to break it. It covers:
-- an engine note on every allergy remark (LC-06/11);
-- the stored list deduped through the matcher's parser (LC-09/16);
-- swap notes that name the blocking allergy (LC-07);
-- undo grammar, plus a note when an undo took an allergy off (LC-12);
-- `allergies=` in promptV2's Profile line (LC-13).
-
-The baseline for its comparisons is `../NutriFlow-allergy-review` (detached at `ba23884`). Remove both worktrees
-once C lands, taking the node_modules junction out first (`cmd //c "rmdir <wt>\\node_modules"`).
+**Worktrees of this lane:**
+- `../NutriFlow-allergy-c`: C+D, to ship.
+- `../NutriFlow-allergy-fix`: D's first copy, redundant once C+D lands.
+- `../NutriFlow-allergy-review`: the baseline, detached.
+Remove all three once C+D lands, taking each node_modules junction out first
+(`cmd //c "rmdir <wt>\\node_modules"`).
 
 **Next, in order:**
-1. Review and ship B2; send the models lane the sha.
-2. C: an imported dish containing a newly bound allergen stays in the week today (LC-01). Re-pick it in
-   `plan/select.ts`'s `!base` branch, and have the note name it.
-3. Remove the D5a shims. The models lane (`be98c57`) and the accounts lane (`2b7075d`) are off them; what is left is
-   this lane's own `scripts/` (15 files; 11 of test-engine's names are private). Then Track A is done.
-4. Then V1 Day 6's rest (no non-library dish names in replies, no emoji, the fuzzy swap-match), then D7 meal logging.
+1. Ship C+D after the accounts lane's gate; send both lanes the sha.
+2. Remove the D5a shims. Only `scripts/test-engine.mts` is left on them; the migration is mechanical (each import
+   goes to its shim's own target; scripts may import deep). Delete the 28 shims, update check-boundaries' shim lists
+   and the module map with its board. Then Track A is done.
+3. **E:** a constrain plus a boost in one turn can bring back dishes of the OLD diet with no warning
+   (`guaranteeBoost` upgrades the previous week; from the models lane's audit, iron-veg#2). That is a hard-rule
+   break, so it comes before feature work.
+4. The rest of the audit's v1 candidates (today's worklog lists them), then V1 Day 6's rest, then D7 meal logging.
 
 **Open, recorded:**
 - **LC-08:** "allergic to hazelnuts" binds nothing unlabelled, while a hazelnut dish exists. Binding every unknown
@@ -308,7 +327,11 @@ once C lands, taking the node_modules junction out first (`cmd //c "rmdir <wt>\\
 - **LC-02/03/10** (removing an allergy; undo dropping one) wait on owner decision 12.
 - An allergy stated only in an earlier message and never stored is missed by the 550B in 4 of 6 runs. Only a
   raw-words pre-scan (like `redFlag`) could catch it, and that needs its own false-positive probe set first.
-- Lanes' gates share `node_modules/.cache` through the junctions: a rare race between two test:engine bundles.
+- Lanes' gates used to share `node_modules/.cache` through the junctions. Fixed for npm scripts in `6509cdb`; the
+  accounts lane moved its own runners in its batch.
+- Placing an import while the allergy is already bound (`/plan`'s `placeImported`) gives no warning. It needs the
+  matcher in the browser bundle, which is a module-map change.
+- The adversarial attack on `ship.mjs` v2 died on the usage limit, so v2 rests on its own 43 scenarios.
 
 **Owner:** the decisions doc. `.env.local` with `NVIDIA_API_KEY` (the first line of decision 2) unblocks the
 models lane.

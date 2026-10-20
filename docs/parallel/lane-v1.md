@@ -7,6 +7,17 @@
 
 ## Now doing
 
+**2026-10-20 — B2 landed (`c8ccfb0`): every allergy remark gets a true note.**
+- **Next is C+D as one commit, from `../NutriFlow-allergy-c`, after the accounts lane's gate.**
+  - C: an imported dish holding a new allergy is re-picked and named.
+  - D: an `{op:"answer"}` reply is no longer lost, and a question no longer takes the undo slot.
+- **Then:**
+  - the D5a shims (only test-engine.mts is left on them);
+  - E: a boost in the same turn as a diet change can bring the old diet's dishes back.
+- **`6509cdb`:** npm script bundles now go to each worktree's `.cache/`.
+- **Models lane:** your eval audit found D and E. The other candidates are listed in today's worklog. I'll send
+  both shas.
+
 **2026-10-18, night — the allergen binding landed (A `09f325f`, B1 `ba23884`); `ship.mjs` v2 landed; B2 is in
 review.** This conversation is the v1 lane.
 - **The owner's rules for every lane: `README.md` §0.** Pull constantly, push every step, keep every context file

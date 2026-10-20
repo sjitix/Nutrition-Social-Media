@@ -16,8 +16,8 @@ stored allergies block.
 |---|---|
 | **A** `09f325f` | A fact that says allergy binds, whatever its label. A fact whose every cue is denied binds nothing. A carrier word ("oil", "powder", "breast") never binds on its own. test:engine 971/0. |
 | **B1** `ba23884` | One closed cue list (plurals, misspellings), every cue in a fact read, plural category words, a linear-time parse. 984/0. |
-| **B2** *(in review)* | What the person is told: an engine note on every allergy remark, swap notes that name the blocking allergy, the undo wording, the bound list in the prompt, and dedupe. |
-| **C** *(next)* | An imported dish holding a newly bound allergen is re-picked, and named. |
+| **B2** `c8ccfb0` | What the person is told: an engine note on every allergy remark, swap notes that name the blocking allergy, the undo wording, the bound list in the prompt, dedupe, and a false-claim guard widened with the models lane's audit (38/38 claims caught, 0/37 honest lines tripped). test:engine 1010/0. |
+| **C** *(in its gate)* | An imported dish holding a newly bound allergen is re-picked, and named. A logged meal stays; a dislike never removes an import. |
 
 ## Status
 
@@ -38,14 +38,14 @@ stored allergies block.
 
 | ID | The fact | Now | Status |
 |---|---|---|---|
-| U1 = LC-01 | an imported dish when its allergen is bound later | the dish stays | **C, next** |
+| U1 = LC-01 | an imported dish when its allergen is bound later | the dish stays | **C** (in its gate) |
 | U2 | "can't have dairy" (no cue word) | nothing unlabelled | **open by design**: every cue-less fix over-blocks. Labelled, it binds. |
 | U3 | "food intolerances: lactose" | lactose (193) | fixed, B1 |
 | U4 | "allergic to crustaceans" | crustaceans (24) | fixed, B1 |
 | U5 | "lactose intolerent" | lactose (193) | fixed, B1 |
 | U6 | "Allergic to peanuts. Also allergic to sesame." | both (100) | fixed, B1 |
 | U7 | "egg-allergic toddler"; "allergic to the following: peanuts" | nothing (labelled: "toddler"; "following") | **open** |
-| U8 | the model's "I've excluded it" stands when nothing bound | | **B2** |
+| U8 | the model's "I've excluded it" stands when nothing bound | | fixed, B2 `c8ccfb0` |
 | U9 | "I love prawns but I'm allergic to them" | nothing | **open**: "them" is not resolved |
 | U10 | "allergic to satay" / "allergic to hummus" | satay (0) / hummus (8) | **open**: the dish is stored, its allergen (peanut, sesame) is not |
 | U11 | "allergic to legumes" | nothing (labelled: blocks 0) | **open**: chickpeas and lentils are still planned |
@@ -56,20 +56,20 @@ stored allergies block.
 
 | ID | What happens | Status |
 |---|---|---|
-| LC-02 | undoing a swap also drops an allergy bound in the same turn | **decision 12**. B2 makes the undo say so. |
+| LC-02 | undoing a swap also drops an allergy bound in the same turn | **decision 12**. Since B2 the undo says so ("That also took eggs off your allergies"). |
 | LC-03 | nothing in chat removes an allergy | **decision 12** |
 | LC-04 | "not allergic to eggs any more" ADDED eggs | fixed, A |
 | LC-05 | a carrier word bound alone ("oil") | fixed, A |
-| LC-06 | an allergy remark with no engine note lets the model's prose stand | **B2** |
-| LC-07 | a swap refused for an allergy said "I didn't have …" | **B2** |
-| LC-09 | a token the matcher ignores ("red" from "red dye") was stored and announced | **B2** |
+| LC-06 | an allergy remark with no engine note lets the model's prose stand | fixed, B2 `c8ccfb0` |
+| LC-07 | a swap refused for an allergy said "I didn't have …" | fixed, B2 `c8ccfb0` |
+| LC-09 | a token the matcher ignores ("red" from "red dye") was stored and announced | fixed, B2 `c8ccfb0` |
 | LC-10 | a re-sent memory would re-add a removed allergy | **decision 12**; latent until removal exists |
-| LC-11 | restating a bound allergy wrote no note | **B2** |
-| LC-12 | the undo reply's grammar ("before I your last change") | **B2** |
-| LC-13 | the next prompt never shows the bound list | **B2** |
+| LC-11 | restating a bound allergy wrote no note | fixed, B2 `c8ccfb0` |
+| LC-12 | the undo reply's grammar ("before I your last change") | fixed, B2 `c8ccfb0` |
+| LC-13 | the next prompt never shows the bound list | fixed, B2 `c8ccfb0` |
 | LC-14 | the before-cue scan was quadratic (3.2 s on 40k characters) | fixed, B1 (32 ms) |
 | LC-15 | a logged meal can be re-picked by a bind | with D7 meal logging (a logged meal needs a mark) |
-| LC-16 | the same allergy stored by surface form ("peanuts, peanut") | **B2** |
+| LC-16 | the same allergy stored by surface form ("peanuts, peanut") | fixed, B2 `c8ccfb0` |
 
 ## Rejected fixes, and why (do not repeat these)
 

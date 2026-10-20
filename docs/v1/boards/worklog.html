@@ -170,8 +170,8 @@
       the schedule ahead.</p>
     <div class="stamp">
       <b><i>source</i> docs/worklog/</b>
-      <b><i>synced</i> 2026-10-18</b>
-      <b><i>commit</i> ba23884+</b>
+      <b><i>synced</i> 2026-10-20</b>
+      <b><i>commit</i> c8ccfb0+</b>
     </div>
   </header>
 
@@ -189,7 +189,7 @@
 
   <section id="totals">
     <div class="stats">
-      <div class="stat"><div class="v">4</div><div class="l">days logged</div></div>
+      <div class="stat"><div class="v">5</div><div class="l">days logged</div></div>
       <div class="stat"><div class="v">10</div><div class="l">milestones done</div></div>
       <div class="stat"><div class="v">9</div><div class="l">days to V1</div></div>
       <div class="stat"><div class="v">10</div><div class="l">open deferrals</div></div>
@@ -202,6 +202,50 @@
     <p class="lede">Only days that actually happened, each with its date, appended at the end of every work-day.
       Nothing planned appears here — the schedule ahead is in its own collapsed block below.</p>
     <div class="tl" style="margin-top:20px">
+
+      <article class="entry" id="d-2026-10-20">
+        <div class="box">
+          <div class="ehead">
+            <span class="date">2026-10-20</span>
+            <span class="pill part">solved &middot; partial</span>
+          </div>
+          <h3>What the assistant says about an allergy is now always true</h3>
+          <p class="sub">Picked up after the usage limit stopped the last session, with all three agents running again.</p>
+          <div class="blocks">
+            <div class="blk">
+              <h4>What moved</h4>
+              <ul>
+                <li><b>Every allergy you mention gets an honest answer.</b> &ldquo;I&rsquo;ve added shellfish&rdquo;,
+                  &ldquo;eggs are already in your allergies&rdquo;, or &ldquo;I haven&rsquo;t added celery, so meals aren&rsquo;t
+                  checked for it&rdquo;. Before, the assistant could say &ldquo;I&rsquo;ve excluded celery&rdquo; while nothing
+                  was excluded.</li>
+                <li><b>When a dish is refused because of an allergy, it says so:</b> &ldquo;Shrimp &amp; Tomato Rice contains
+                  shellfish, which is in your allergies&rdquo;, where before it said &ldquo;I didn&rsquo;t have it&rdquo;.</li>
+                <li><b>An undo now says when it took an allergy off.</b> It used to read &ldquo;before I your last change&rdquo;.</li>
+                <li><b>The check that stops the assistant claiming a change it never made</b> now catches every false claim in
+                  the models agent&rsquo;s test set, and no longer blocks honest replies like &ldquo;I&rsquo;ve made a note of
+                  that&rdquo;.</li>
+              </ul>
+            </div>
+            <div class="blk found">
+              <h4>Found along the way</h4>
+              <ul>
+                <li><b>A recipe you imported stayed in the week</b> after you added an allergy it contains. The fix is built
+                  and tested, and ships next.</li>
+                <li><b>The models agent&rsquo;s tests found two assistant bugs:</b>
+                  <ul>
+                    <li>an answer to a question could be replaced by &ldquo;Happy to help.&rdquo;;</li>
+                    <li>asking a question after a change made that change impossible to undo.</li>
+                  </ul>
+                  Both are fixed and ship with the import fix.</li>
+                <li>Each agent was accidentally started twice, once by you and once by this session. Mine were stopped before
+                  either touched anything.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="gate">GATE &middot; engine 1010/0 &middot; every new test fails without its fix and passes with it</div>
+        </div>
+      </article>
 
       <article class="entry" id="d-2026-10-18">
         <div class="box">
@@ -768,8 +812,8 @@
     <h2>Open deferrals</h2>
     <p class="lede">Every deferral names a destination and a reason. “Later” is not a destination.</p>
     <div class="defers" style="margin-top:16px">
-      <div class="defer"><div><b>What the assistant says about an allergy</b> &mdash; every allergy remark gets a sentence that says exactly what happened, and a swap says which allergy blocked a dish. Being built and reviewed now.</div><span class="to">next</span></div>
-      <div class="defer"><div><b>Imported recipes and a new allergy</b> &mdash; an imported dish that contains it stays in the week; it should be replaced, and the reply should name it.</div><span class="to">after that</span></div>
+      <div class="defer"><div><b>Imported recipes and a new allergy</b> &mdash; an imported dish that contains it stays in the week. The fix is built and tested, together with the two assistant bugs the models agent found.</div><span class="to">next</span></div>
+      <div class="defer"><div><b>A boost that ignores a diet change</b> &mdash; asking for more iron in the same message as &ldquo;go vegetarian&rdquo; can bring back meat dishes without a word. Found by the models agent&rsquo;s tests.</div><span class="to">after the cleanup</span></div>
       <div class="defer"><div><b>Taking an allergy off</b> &mdash; chat has no way to do it, and an undo can drop one without saying so.</div><span class="to">your decision 12</span></div>
       <div class="defer"><div><b>Allergy words the app does not know</b> &mdash; &ldquo;allergic to hazelnuts&rdquo; stops nothing unless labelled, yet a hazelnut dish exists. Blocking every unknown word would ban words like &ldquo;spring&rdquo; (from &ldquo;hay fever in spring&rdquo;), so it needs its own design.</div><span class="to">own design</span></div>
       <div class="defer"><div><b>Remove the old file addresses</b> &mdash; the other two agents no longer use them; this lane&rsquo;s own test scripts still do. Then the architecture work is finished.</div><span class="to">after the allergy work</span></div>
