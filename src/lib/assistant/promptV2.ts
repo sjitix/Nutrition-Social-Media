@@ -91,7 +91,7 @@ ${opts.agent ? AGENT_SECTION : ""}${mem ? "\n" + mem + "\n" : ""}
 ${todayLine(opts.today)}Weekly averages: ${avgKcal} kcal, ${avgP} g protein per day.
 Current plan:
 ${planText}
-Profile: diet=${profile.diet}, budget=${profile.budget}, ~${profile.targetCalories} kcal/day, dislikes=${profile.dislikes || "none"}.
+Profile: diet=${profile.diet}, budget=${profile.budget}, ~${profile.targetCalories} kcal/day, allergies=${profile.allergies?.trim() || "none"}, dislikes=${profile.dislikes || "none"}.
 
 Examples:
 User: "ugh so bloated lately, i went vegetarian, i hate mushrooms, and keep the cooking quick i work late" → {"thinking":"A feeling plus three real changes, which fit in ONE constrain: diet, an exclusion, quick cooking. The bloating goes through symptom, word for word; I won't diagnose it.","reply":"Got it — I've made your week vegetarian, dropped mushrooms, and kept the cooking quick. Hope the bloating eases up.","operations":[{"op":"symptom","text":"ugh so bloated lately, i went vegetarian, i hate mushrooms, and keep the cooking quick i work late"},{"op":"remember","fact":"felt bloated recently","kind":"context"},{"op":"constrain","diet":"vegetarian","exclude":["mushrooms"],"maxCookTime":20}]}

@@ -4315,6 +4315,120 @@ console.log("\n--- THE ASSISTANT'S WORDS BIND THE ENGINE ---");
     check("allergen extraction: a 40k-character fact is read in linear time (< 1 s)", ms < 1000 && got.includes("peanuts"), `${ms.toFixed(0)} ms`);
   }
 
+  // B2 (2026-10-20): what the person is TOLD after an allergy remark. composeReply shows the engine's
+  // notes instead of the model's prose, so a remark the engine stayed silent on let the model's "I've
+  // excluded celery" stand while nothing was screened (review of 49385e5: LC-06, LC-08, LC-11). Now every
+  // remark that reaches the allergy branch gets a note, and each note is true of what is enforced.
+  {
+    const P = (allergies: string, dislikes = "") => ({ ...BASE, allergies, dislikes });
+    const said = (p: UserProfile, fact: string, kind?: string) =>
+      applyPrimitives(p, aw, [{ op: "remember", fact, ...(kind ? { kind } : {}) } as PrimitiveOp]);
+    const blockedIds = (allergies: string) => {
+      const tokens = parseExclusionTokens(allergies, "");
+      return RECIPES.filter((r) => haystackBlocked(`${r.name} ${r.ingredients.map((i) => i.name).join(" ")} ${r.steps.join(" ")}`, tokens)).map((r) => r.id).join(",");
+    };
+    const NOTES: [string, UserProfile, string, string | undefined, RegExp][] = [
+      ["restating a bound allergy says it is already there (LC-11)", P("eggs"), "I am allergic to eggs", undefined, /^Eggs are already in your allergies, so nothing with them is planned\.$/],
+      ["the singular after the plural is the same allergy, not a new one (LC-16)", P("peanuts"), "peanut allergy", "condition", /^Peanut is already in your allergies/],
+      ["a food a broader allergy already blocks is named as covered", P("nuts"), "allergic to hazelnuts", undefined, /^Hazelnuts are already covered by your allergies/],
+      ["a word the matcher does not know is never claimed as screened (LC-08)", BASE, "allergic to celery", undefined, /haven't added it as an allergy, so your meals aren't screened for it/],
+      ["a remark that names no food says so", BASE, "I have bad allergies", undefined, /doesn't name a food, so your allergies haven't changed/],
+      ["a denial while the allergy is bound says it is STILL enforced, never removed", P("eggs"), "not allergic to eggs any more", undefined, /^Your allergies still include eggs, so nothing with them is planned\.$/],
+      ["'No allergies' over a bound allergy says what is still enforced", P("peanuts"), "No allergies", undefined, /^Your allergies still include peanuts/],
+      ["a denial with nothing bound changes nothing and says so", BASE, "not allergic to eggs any more", undefined, /^I've noted that\. Your allergies haven't changed\.$/],
+    ];
+    for (const [what, p, fact, kind, want] of NOTES) {
+      const r = said(p, fact, kind);
+      check(`allergy note: ${what}`, r.notes.some((n) => want.test(n)) && (r.profile.allergies ?? "") === (p.allergies ?? ""), `${JSON.stringify(r.notes)} | ${r.profile.allergies}`);
+    }
+    {
+      const r = said(P("peanuts"), "allergic to peanuts and sesame");
+      check("allergy note: a fact with a new and a known allergy says both", r.notes.some((n) => /^I've added sesame to your allergies/.test(n)) &&
+        r.notes.some((n) => /^Peanuts are already in your allergies/.test(n)) && r.profile.allergies === "peanuts, sesame", JSON.stringify(r.notes));
+    }
+    // LC-16's dedupe stores less TEXT and must never block less FOOD: the same recipes, id for id.
+    for (const [start, fact] of [["peanuts", "peanut allergy"], ["eggs", "egg allergy"], ["peanut", "allergic to peanuts"], ["nut", "allergic to tree nuts"]]) {
+      const r = said(P(start), fact);
+      const before = blockedIds([start, ...allergensInFact(fact)].join(", "));
+      check(`allergy dedupe: "${start}" + "${fact}" blocks exactly the recipes storing both would`, blockedIds(r.profile.allergies ?? "") === before, r.profile.allergies);
+    }
+
+    // LC-07: a dish refused for an allergy or a dislike says WHY. The unconstrained lookup that finds the
+    // reason only feeds the note: no blocked dish is ever placed.
+    const sh = said(BASE, "allergic to shellfish");
+    const shellfishIn = (plan: WeekPlan) => plan.days.flatMap((d) => d.meals).filter((m) => haystackBlocked(`${m.name} ${m.ingredients.map((i) => i.name).join(" ")}`, ["shellfish"]));
+    for (const [what, op] of [
+      ["a day swap", { tool: "swap_meal", day: "Monday", mealType: "dinner", dish: "Shrimp & Tomato Rice" }],
+      ["an every-day swap", { tool: "swap_meal", mealType: "dinner", dish: "shrimp" }],
+    ] as [string, Operation][]) {
+      const r = applyOperations(sh.profile, sh.plan, [op]);
+      check(`swap refused for an allergy: ${what} names it ("…contains shellfish, which is in your allergies…")`,
+        /contains shellfish, which is in your allergies, so I (used .+ instead|left the week as it is)\.$/.test(r.notes[0] ?? ""), r.notes[0]);
+      check(`swap refused for an allergy: ${what} places no shellfish (the explaining lookup places nothing)`, shellfishIn(r.plan).length === 0,
+        shellfishIn(r.plan).map((m) => m.name).join(", "));
+    }
+    {
+      const r = applyPrimitives(sh.profile, sh.plan, [{ op: "constrain", use: ["shrimp"] } as unknown as PrimitiveOp]);
+      check("use-up refused for an allergy: 'use the shrimp' says shellfish is in the allergies, not 'nothing fits'",
+        r.notes.some((n) => /couldn't work shrimp into the week — .*contains? shellfish, which is in your allergies/.test(n)) && shellfishIn(r.plan).length === 0,
+        r.notes.filter((n) => /shrimp/.test(n)).join(" | "));
+    }
+    {
+      const r = applyOperations(P("", "mushrooms"), aw, [{ tool: "swap_meal", mealType: "dinner", dish: "Mushroom Barley Risotto" }]);
+      check("swap refused for a dislike: it says which food the person avoids",
+        /^Mushroom Barley Risotto contains mushrooms, which you avoid, so I/.test(r.notes[0] ?? "") &&
+        r.plan.days.every((d) => d.meals.every((m) => !/mushroom/i.test(m.name))), r.notes[0]);
+    }
+
+    // LC-12: the undo's sentence. labelOps gave a noun phrase to a "before I …" template, so every undo
+    // through the agent loop read "before I your last change (remember)", and an allergy leaving the
+    // profile went unsaid.
+    {
+      const once = (t: AgentTurn): ModelFn => async () => t;
+      const t1 = await runAgent({ profile: BASE, plan: aw, message: "my son is allergic to eggs", today: "2026-10-20",
+        model: once({ thinking: "", reply: "Noted.", operations: [{ op: "remember", fact: "my son is allergic to eggs", kind: "context" } as PrimitiveOp] }) });
+      check("agent undo label: a past-tense verb phrase", t1.previous?.label === "noted what you told me", t1.previous?.label);
+      let calls = 0;
+      const t2 = await runAgent({ profile: t1.profile, plan: t1.plan, message: "undo that", today: "2026-10-20", previous: t1.previous,
+        model: async () => (calls++ === 0 ? { thinking: "", reply: "Undone.", operations: [{ op: "undo" } as PrimitiveOp] } : { thinking: "", reply: "Undone.", operations: [] }) });
+      check("agent undo: the sentence reads 'before I noted what you told me', never 'before I your last change'",
+        /before I noted what you told me\./.test(t2.reply) && !/before I your/.test(t2.reply), t2.reply);
+      check("agent undo: an allergy the undo takes off is SAID ('That also took eggs off your allergies')",
+        /That also took eggs off your allergies\./.test(t2.reply) && (t2.profile.allergies ?? "") === "", t2.reply);
+    }
+
+    // LC-13: the model sees the bound list every turn, as it sees the dislikes.
+    check("v2 prompt: the Profile line carries the bound allergies",
+      /^Profile: .*allergies=peanuts, eggs, dislikes=none\.$/m.test(assistantV2SystemPrompt(P("peanuts, eggs"), aw)));
+    check("v2 prompt: ...and says none when there are none", /^Profile: .*allergies=none, /m.test(assistantV2SystemPrompt(BASE, aw)));
+
+    // LC-06 and the models lane's audit (probe-claims.mts, 2026-10-20): claims the engine never backed,
+    // and the honest lines the guard must leave alone.
+    const UNBACKED = [
+      "I've removed celery from all your meals.", "Celery is now excluded from your plan.", "Got it — no more celery in your week.",
+      "I've removed eggs from your allergies, so they're back on the menu.", "Got it, I've taken eggs off your allergy list.",
+      "Great news! Eggs can go back into your plan now.", "I've switched you to 16:8: your first meal is at noon.",
+      "You're all set for 16:8, nothing before noon.", "Lovely! Your plan is set up for two now.", "I've pinned Sunday's dinner, so it stays.",
+      "I've locked Sunday's dinner in place.", "I've rated it 5 stars, so it'll come back more often.",
+      "Your vegan week is ready, with chicken fajitas on Friday as you asked.", "I've doubled your portions so there's enough for two.",
+      "No more mushrooms in your week.", "Sure thing! I'll put a tasty chicken dish on your Friday lunch.",
+      "Got it! I'll plan every meal for two of you from now on.", "I've made Tuesday vegetarian.", "I've made a few changes to your dinners.",
+    ];
+    const BACKED_OR_HONEST = [
+      "Shall I exclude celery from your plan?", "I can take eggs off your allergy list if you like.", "Want me to cut back on dairy?",
+      "Would you like eggs back on the menu?", "I can put them back into your plan if you like.", "I've taken note of that.",
+      "Do you want no more fish in your week?", "There's no more room in your plan for a snack.", "Once you confirm, I'll take eggs off the menu.",
+      "I've made a quick comparison for you: quinoa has more protein and fibre than white rice.",
+      "I've made a note that you cook for your partner, but I can only plan for one person right now.",
+      "Got it, I'll keep in mind that you'd like to eat less meat.", "I'll make sure to keep that in mind.",
+      "Want me to put a chicken dish on Friday? I'll swap it in if you say yes.",
+    ];
+    const missed = UNBACKED.filter((t) => !claimsChange(t));
+    const tripped = BACKED_OR_HONEST.filter((t) => claimsChange(t));
+    check("false claim (B2): every unbacked change, state and promise is caught", missed.length === 0, missed.join(" | "));
+    check("false claim (B2): ...and no offer, question, note or comparison trips it", tripped.length === 0, tripped.join(" | "));
+  }
+
   // (1) A slot-scoped constrain is not built yet — so it must change nothing AND say so.
   const slot = applyPrimitives(BASE, aw, [{ op: "constrain", scope: { slot: "breakfast" }, targets: { protein: 40 } } as PrimitiveOp]);
   check("slot-scoped constrain: changes nothing", slot.planChanged === false);

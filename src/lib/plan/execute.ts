@@ -10,7 +10,7 @@
 import { DAYS, type DayPlan, type Meal, type Operation, type UserProfile, type WeekPlan, type LockedMeal, type MealRating, type PlanSnapshot } from "../core";
 import { computeTargets, explainTargets, hydrationTarget, explainHydration, CALORIE_FLOOR, DEFAULT_CALORIE_FLOOR, BODY_LIMITS, bodyStatProblems, bodyStatMessage, isRealBody, referenceWeightKg } from "../nutrition/client";
 import { type Recipe } from "../data";
-import { wordMatches } from "../nutrition";
+import { expandExclusion, haystackBlocked, parseExclusionTokens, wordMatches } from "../nutrition";
 import { RECIPES, baseRecipeOf, scaleRecipeToTarget, toMeal } from "./library";
 import { bannedForUser, blockedByExclusions, budgetCap, exclusionTokens, fiberOn, keepMacros, localSplit, mergeDislikes, normalizeCuisine, passesDiet } from "./rules";
 import { SCALE_LO, clampScale, dayTargetMacros, macroDistance, rebalanceDay, rebalanceWeek, recipeMacros, scaleRecipeByFactor, scaleToTargets, slotShare, slotTargetMacros, slotsUpTo } from "./rebalance";
@@ -71,6 +71,58 @@ function findRecipeForSwap(
   if (top.length === 1) return top[0];
   const st = slotTargetMacros(profile, type ?? top[0].type);
   return top.slice().sort((a, b) => macroDistance(recipeMacros(a), st) - macroDistance(recipeMacros(b), st))[0];
+}
+
+/* ------------------------------------------------------------------------- *
+ * Saying WHY a dish was refused
+ *
+ * After a shellfish allergy bound, "swap in the Shrimp & Tomato Rice" answered "I didn't have "Shrimp &
+ * Tomato Rice" — I used Turkey & Bean Chilli instead": the library has it, and the reason, the allergy,
+ * was hidden at the one moment a wrongly bound allergy would surface (review of 49385e5, LC-07). So when
+ * a lookup fails or lands on another dish, the SAME lookup runs again with the allergies and dislikes
+ * cleared, only to explain. What it finds is named in a note and NEVER placed.
+ * ------------------------------------------------------------------------- */
+
+/** Two tokens are the same exclusion when the matcher expands them to the same foods (egg / eggs). */
+const exclusionKey = (t: string) => [...new Set(expandExclusion(t))].sort().join("|");
+const uniqueByKey = (tokens: string[]) => {
+  const seen = new Set<string>();
+  return tokens.filter((t) => !seen.has(exclusionKey(t)) && Boolean(seen.add(exclusionKey(t))));
+};
+const pluralList = (items: string[]) => items.length > 1 || /[^siu]s$/.test(items[0] ?? "");
+/** A typed "coeliac" blocks gluten, and the dish contains gluten, not "coeliac". */
+const shownToken = (t: string) => (/^c(?:o)?eli(?:ac|ak)s?$/.test(t) ? "gluten" : t);
+
+/** "shellfish, which is in your allergies" / "mushrooms, which you avoid" — or null when neither the
+ *  allergies nor the dislikes block this recipe. */
+function exclusionReason(r: Recipe, p: UserProfile): string | null {
+  const hay = `${r.name} ${r.ingredients.map((i) => i.name).join(" ")} ${r.steps.join(" ")}`;
+  const hits = (tokens: string[]) => uniqueByKey(tokens.filter((t) => haystackBlocked(hay, [t]))).map(shownToken);
+  const allergy = [...new Set(hits(parseExclusionTokens(p.allergies ?? "", "")))];
+  const avoid = [...new Set(hits(parseExclusionTokens("", p.dislikes ?? "")))].filter((t) => !allergy.includes(t));
+  const parts = [
+    ...(allergy.length ? [`${listPhrase(allergy)}, which ${pluralList(allergy) ? "are" : "is"} in your allergies`] : []),
+    ...(avoid.length ? [`${listPhrase(avoid)}, which you avoid`] : []),
+  ];
+  return parts.length ? parts.join(", and ") : null;
+}
+
+/**
+ * The dish the person most likely meant, if only their allergies or dislikes kept it out: the swap
+ * lookup with both cleared. `placed` is what the real lookup chose (null when it found nothing); the
+ * result is used for a note and nothing else.
+ */
+function refusedForExclusions(
+  query: string,
+  type: Recipe["type"] | undefined,
+  p: UserProfile,
+  placed: Recipe | null,
+  respectSoft = true,
+): { dish: Recipe; reason: string } | null {
+  const free = findRecipeForSwap(query, type, { ...p, allergies: "", dislikes: "" }, respectSoft);
+  if (!free || free.name === placed?.name) return null;
+  const reason = exclusionReason(free, p);
+  return reason ? { dish: free, reason } : null;
 }
 
 /* ------------------------------------------------------------------------- *
@@ -232,8 +284,28 @@ function guaranteeFridge(p: UserProfile, plan: WeekPlan, wanted: string[], notes
     notes.push(`Nothing with ${listPhrase(relaxed)} fits your ${p.maxCookTime}-min limit, so that meal takes a little longer.`);
   if (forcedBanned.length)
     notes.push(`The only dish I have that uses ${listPhrase(forcedBanned)} is one you rated poorly — I've used it anyway so nothing goes to waste.`);
-  if (unusable.length)
-    notes.push(`I couldn't work ${listPhrase(unusable)} into the week — nothing I have with ${unusable.length > 1 ? "them" : "it"} fits your plan.`);
+  // An ingredient only the allergies or dislikes rule out says so (LC-07): "use up the shrimp" after a
+  // shellfish allergy used to read "nothing I have with it fits your plan". Those dishes are only named.
+  const unexplained: string[] = [];
+  const inWeek = new Set(cur.days.flatMap((d) => d.meals.map((m) => m.name.toLowerCase())));
+  for (const ing of unusable) {
+    const withIt = RECIPES.filter(
+      (r) =>
+        !r.treatOnly && passesDiet(r, p.diet) && !inWeek.has(r.name.toLowerCase()) &&
+        r.ingredients.some((i) => i.name.trim().toLowerCase() === ing),
+    );
+    const reasons = withIt.every((r) => blockedByExclusions(r, tokens)) ? withIt.map((r) => exclusionReason(r, p)) : [];
+    if (!reasons.length || reasons.some((x) => !x)) {
+      unexplained.push(ing);
+      continue;
+    }
+    const why = [...new Set(reasons)];
+    notes.push(why.length === 1
+      ? `I couldn't work ${ing} into the week — ${withIt.length === 1 ? "the only dish I have with it contains" : "the dishes I have with it contain"} ${why[0]}.`
+      : `I couldn't work ${ing} into the week — every dish I have with it contains something in your allergies or that you avoid.`);
+  }
+  if (unexplained.length)
+    notes.push(`I couldn't work ${listPhrase(unexplained)} into the week — nothing I have with ${unexplained.length > 1 ? "them" : "it"} fits your plan.`);
   return cur;
 }
 
@@ -700,7 +772,11 @@ export function applyOperations(
         if (p.planMode === "batch") {
           const match = findRecipeForSwap(op.dish, op.mealType ?? undefined, p);
           if (!match) {
-            notes.push(`I don't have anything like "${op.dish}" that fits your plan, so I left the week as it is.`);
+            const refused = refusedForExclusions(op.dish, op.mealType ?? undefined, p, null) ??
+              refusedForExclusions(op.dish, op.mealType ?? undefined, p, null, false);
+            notes.push(refused
+              ? `${refused.dish.name} contains ${refused.reason}, so I left the week as it is.`
+              : `I don't have anything like "${op.dish}" that fits your plan, so I left the week as it is.`);
             break;
           }
           const slot = op.mealType ?? match.type;
@@ -739,8 +815,12 @@ export function applyOperations(
               : b),
           };
           const asked = op.dish.toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 2);
-          if (asked.length && asked.some((w) => !match.name.toLowerCase().includes(w)))
-            notes.push(`I didn't have "${op.dish}" — I used ${match.name}.`);
+          if (asked.length && asked.some((w) => !match.name.toLowerCase().includes(w))) {
+            const refused = refusedForExclusions(op.dish, op.mealType ?? undefined, p, match);
+            notes.push(refused
+              ? `${refused.dish.name} contains ${refused.reason}, so I used ${match.name} instead.`
+              : `I didn't have "${op.dish}" — I used ${match.name}.`);
+          }
           notes.push(op.day
             ? `Swapped your ${op.day} ${slot} to ${match.name} — that's a whole batch, so every day it feeds now has it.`
             : `Set ${match.name} as your ${slot} across the week.`);
@@ -753,7 +833,11 @@ export function applyOperations(
         if (!op.day) {
           const match = findRecipeForSwap(op.dish, op.mealType ?? undefined, p);
           if (!match) {
-            notes.push(`I don't have anything like "${op.dish}" that fits your plan, so I left the week as it is.`);
+            const refused = refusedForExclusions(op.dish, op.mealType ?? undefined, p, null) ??
+              refusedForExclusions(op.dish, op.mealType ?? undefined, p, null, false);
+            notes.push(refused
+              ? `${refused.dish.name} contains ${refused.reason}, so I left the week as it is.`
+              : `I don't have anything like "${op.dish}" that fits your plan, so I left the week as it is.`);
             break;
           }
           const slot = op.mealType ?? match.type;
@@ -795,8 +879,12 @@ export function applyOperations(
             break;
           }
           const wanted = op.dish.toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 2);
-          if (wanted.length && wanted.some((w) => !match.name.toLowerCase().includes(w)))
-            notes.push(`I didn't have "${op.dish}" — I used ${match.name}.`);
+          if (wanted.length && wanted.some((w) => !match.name.toLowerCase().includes(w))) {
+            const refused = refusedForExclusions(op.dish, op.mealType ?? undefined, p, match);
+            notes.push(refused
+              ? `${refused.dish.name} contains ${refused.reason}, so I used ${match.name} instead.`
+              : `I didn't have "${op.dish}" — I used ${match.name}.`);
+          }
           // Say what changed, then disclose the week's macros honestly (the same achievementNote the
           // regenerate paths use) rather than an unverified blanket "kept each day on target".
           notes.push(placedDays === DAYS.length
@@ -832,12 +920,19 @@ export function applyOperations(
         const origDay = curPlan.days.find((d) => d.day === op.day);
         if (!origDay) break;
         if (!match) {
-          // Say WHY we couldn't. A silent no-op looks like the app ignored you.
-          const loose = findRecipeForSwap(op.dish, op.mealType ?? undefined, p, false);
+          // Say WHY we couldn't. A silent no-op looks like the app ignored you. An allergy or a dislike
+          // that refused the closest dish comes first; then the cook-time limit; then "not stocked".
+          const mt = op.mealType ?? undefined;
+          const refused = refusedForExclusions(op.dish, mt, p, null);
+          const loose = refused ? null : findRecipeForSwap(op.dish, mt, p, false);
+          const refusedSlow = refused || loose ? null : refusedForExclusions(op.dish, mt, p, null, false);
+          const why = refused ?? refusedSlow;
           notes.push(
-            loose
-              ? `${loose.name} takes ${loose.timeMinutes} min, over your ${p.maxCookTime}-min limit — I left ${op.day} as it is.`
-              : `I don't have anything like "${op.dish}" that fits your plan.`,
+            why
+              ? `${why.dish.name} contains ${why.reason}, so I left ${op.day} as it is.`
+              : loose
+                ? `${loose.name} takes ${loose.timeMinutes} min, over your ${p.maxCookTime}-min limit — I left ${op.day} as it is.`
+                : `I don't have anything like "${op.dish}" that fits your plan.`,
           );
           break;
         }
@@ -858,8 +953,13 @@ export function applyOperations(
         const asked = op.dish.toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 2);
         const got = match.name.toLowerCase();
         const unmatched = asked.filter((w) => !got.includes(w));
-        if (asked.length && unmatched.length)
-          notes.push(`I didn't have "${op.dish}" — I used ${match.name} instead.`);
+        if (asked.length && unmatched.length) {
+          // …unless the library HAS the dish and an allergy or a dislike kept it out: then say that.
+          const refused = refusedForExclusions(op.dish, op.mealType ?? undefined, p, match);
+          notes.push(refused
+            ? `${refused.dish.name} contains ${refused.reason}, so I used ${match.name} instead.`
+            : `I didn't have "${op.dish}" — I used ${match.name} instead.`);
+        }
 
         const swapped = origDay.meals.map((m) => (m.type === match.type ? meal : m));
         // Keep the day on its macro targets by rebalancing the OTHER meals — the swapped-in dish stays
@@ -1102,6 +1202,16 @@ export function applyOperations(
           notes.push("There's nothing to undo — I haven't changed anything yet.");
           break;
         }
+        // An allergy leaving the profile (or coming back) is never silent: the undo of a remembered
+        // allergy read only "put things back", while eggs left the allergies (LC-12). Compared by what
+        // each token blocks, so "peanut" against "peanuts" is no difference. Wording only: what is
+        // restored below is unchanged.
+        const nowAllergies = parseExclusionTokens(p.allergies ?? "", "");
+        const thenAllergies = parseExclusionTokens(previous.profile.allergies ?? "", "");
+        const nowKeys = new Set(nowAllergies.map(exclusionKey));
+        const thenKeys = new Set(thenAllergies.map(exclusionKey));
+        const takenOff = uniqueByKey(nowAllergies.filter((t) => !thenKeys.has(exclusionKey(t))));
+        const putBack = uniqueByKey(thenAllergies.filter((t) => !nowKeys.has(exclusionKey(t))));
         curPlan = previous.plan;
         // Replace the working profile wholesale. Assigning field-by-field would leave anything the
         // last turn ADDED (a pin, a rating, a stored body weight) sitting on the restored profile.
@@ -1110,6 +1220,8 @@ export function applyOperations(
         profileChanged = true;
         undone = true;
         notes.push(`Done — I've put things back to how they were before I ${previous.label}.`);
+        if (takenOff.length) notes.push(`That also took ${listPhrase(takenOff)} off your allergies.`);
+        if (putBack.length) notes.push(`That also put ${listPhrase(putBack)} back on your allergies.`);
         break;
       }
       case "scale_portions": {

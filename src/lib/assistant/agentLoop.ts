@@ -26,9 +26,9 @@
  * remains the only thing allowed to claim that something changed.
  */
 import { runReadTool, isReadTool, type AgentContext } from "./agentTools";
-import { applyPrimitives, type PrimitiveOp } from "./primitives";
-import { claimsChange, composeReply } from "./reply";
-import type { PlanSnapshot, UserProfile, WeekPlan } from "../core";
+import { applyPrimitives, expandConstrain, noOpConstrain, verbToOperations, type ConstrainOp, type PrimitiveOp, type VerbOp } from "./primitives";
+import { claimsChange, composeReply, joinPhrases, operationPhrases } from "./reply";
+import type { Operation, PlanSnapshot, UserProfile, WeekPlan } from "../core";
 
 /** A cap, not a target. Reaching it is a bug to investigate, not a normal outcome. */
 export const MAX_STEPS = 8;
@@ -120,9 +120,21 @@ export interface AgentRunResult {
 
 const isRead = (o: PrimitiveOp): boolean => isReadTool(String((o as { op?: string }).op ?? ""));
 
+/**
+ * What `undo` says it reversed: "…before I noted what you told me and swapped Monday's dinner." A
+ * past-tense verb phrase, built from the same phrases as the routes' labels (describeOperations). It
+ * was a noun phrase, so every undo through the loop read "before I your last change (remember)" (review
+ * of 49385e5, LC-12).
+ */
 function labelOps(ops: PrimitiveOp[]): string {
-  const names = ops.map((o) => (o as { op?: string }).op).filter(Boolean);
-  return names.length ? `your last change (${names.join(", ")})` : "your last change";
+  const phrases = ops.flatMap((o): string[] => {
+    const op = (o as { op?: string }).op;
+    if (op === "remember") return ["noted what you told me"];
+    if (op === "constrain") return noOpConstrain(o as ConstrainOp) ? [] : operationPhrases(expandConstrain(o as ConstrainOp));
+    if (op) return operationPhrases(verbToOperations(o as VerbOp));
+    return operationPhrases([o as Operation]); // a raw engine Operation, passed straight through
+  });
+  return joinPhrases([...new Set(phrases)]) || "made that change";
 }
 
 /**
@@ -160,6 +172,9 @@ export async function runAgent(args: {
   // Taken before the first WRITE, not here — a run that only looks things up must not consume the
   // undo slot, or "undo" after a question would throw away the change before it.
   let snapshot: PlanSnapshot | undefined;
+  // Every write of the run, so the snapshot's label names all of what an undo reverses, not only the
+  // first step's. Only the wording grows: what is restored is still the state before the first write.
+  const written: PrimitiveOp[] = [];
 
   let steps = 0;
   let lastReply = "";
@@ -220,7 +235,8 @@ export async function runAgent(args: {
     //    change, and its notes are fed BACK so the model can see what it actually did — including
     //    a refusal or a relaxed constraint it should now respond to.
     if (writes.length) {
-      if (!snapshot) snapshot = { plan, profile, label: labelOps(writes) };
+      written.push(...writes);
+      snapshot = { plan: snapshot?.plan ?? plan, profile: snapshot?.profile ?? profile, label: labelOps(written) };
       const res = applyPrimitives(profile, plan, writes, args.today, args.previous);
       plan = res.plan;
       profile = res.profile;

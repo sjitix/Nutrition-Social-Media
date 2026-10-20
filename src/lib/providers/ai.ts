@@ -738,7 +738,7 @@ export function assistantTurnSystemPrompt(profile: UserProfile, plan: WeekPlan):
     "- reply: natural and friendly — say what you did or answer the question.\n\n" +
     `Weekly AVERAGES per day: ${avgKcal} kcal, ${avgProtein}g protein, ${avgFiber}g fiber.\n` +
     `Current plan:\n${planText}\n\n` +
-    `Profile: diet=${profile.diet}, budget=${profile.budget}, ~${profile.targetCalories} kcal/day, dislikes=${profile.dislikes || "none"}.\n\n` +
+    `Profile: diet=${profile.diet}, budget=${profile.budget}, ~${profile.targetCalories} kcal/day, allergies=${profile.allergies?.trim() || "none"}, dislikes=${profile.dislikes || "none"}.\n\n` +
     "Examples (operations shown):\n" +
     "'make it cheaper and vegetarian, no onions' → [{tool:update_profile, budget:low, diet:vegetarian, excludeFoods:['onions']}]\n" +
     "'make Tuesday vegetarian' → [{tool:regenerate_day, day:Tuesday, diet:vegetarian}]\n" +
