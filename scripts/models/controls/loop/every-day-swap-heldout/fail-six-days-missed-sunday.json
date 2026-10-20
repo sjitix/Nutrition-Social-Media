@@ -1,0 +1,21 @@
+{
+  "an omelette every morning": {
+    "thinking": "Every day of the week.",
+    "reply": "An omelette for breakfast every day this week.",
+    "operations": [
+      {
+        "op": "swap",
+        "dish": "omelette",
+        "slot": "breakfast",
+        "days": [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday"
+        ]
+      }
+    ]
+  }
+}

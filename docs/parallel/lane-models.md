@@ -7,6 +7,13 @@ Protocol: [`README.md`](README.md). Worktree: `../NutriFlow-models/`, branch `mo
 
 ## Now doing
 
+**2026-10-21 — every eval message the prompt quotes has a held-out paraphrase, and a probe keeps it so.**
+`node scripts/models/probe-quotes.mjs` reads the prompt the model gets and lists the eval messages it quotes.
+On main that is 8 near-quotes in 55 messages, all held out, so it exits 0; its `--self-test` passes 4/4. New:
+`vague-goal-heldout`, `emotional-heldout`, `every-day-swap-heldout`, `find-then-place-heldout` and convo
+`vegetarian-then-steak`. Both
+evals print each held-out beside its original. 586 controls hold across 49 scenarios under 2 engine seeds.
+
 **2026-10-20 — every check in both evals is fixed and proven: 524 controls hold across all 44 scenarios**
 under 2 engine seeds (`node scripts/models/run-controls.mjs`).
 - Loop shipped in `b43873f`, `cfa710f`, `e92229c` and `d7e3d20`; convo in `86e00de`, `4a223e0` and `bdd3184`.
@@ -17,7 +24,7 @@ under 2 engine seeds (`node scripts/models/run-controls.mjs`).
   failed only because their script ran out now reach the guard (`run-controls --verbose` shows why each
   must-fail control fails).
 - Key-free next: re-run the controls on v1's C/D/E/F; an answer-op must-pass control after D.
-Day record: `docs/worklog/2026-10-20-models.md`. The 2026-10-18 notes below are history.
+Day records: `docs/worklog/2026-10-20-models.md`, `2026-10-21-models.md`. The 2026-10-18 notes below are history.
 
 **2026-10-18 — resumed on the LAPTOP.** The worktrees `../NutriFlow-models/` and
 `../NutriFlow-models-exp/` now exist here (created today from `origin/models` / `origin/models-exp`, both

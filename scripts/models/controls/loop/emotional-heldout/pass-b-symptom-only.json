@@ -1,0 +1,19 @@
+{
+  "time of the month and i've got zero energy": [
+    {
+      "thinking": "Body state: symptom verbatim, empathy, an offer, no plan change.",
+      "reply": "I'm sorry you're feeling so drained, that is really common during a period. Go easy on yourself today. Want me to lean the next few days toward iron-rich meals?",
+      "operations": [
+        {
+          "op": "symptom",
+          "text": "it's that time of the month and i've got zero energy"
+        }
+      ]
+    },
+    {
+      "thinking": "Done; finish without further operations.",
+      "reply": "I'm sorry you're feeling so drained, that is really common during a period. Go easy on yourself today. Want me to lean the next few days toward iron-rich meals?",
+      "operations": []
+    }
+  ]
+}

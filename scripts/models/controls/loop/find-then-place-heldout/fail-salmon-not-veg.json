@@ -1,0 +1,7 @@
+{
+  "meat-free dinner": [
+    {"thinking": "Look up quick dinners.", "reply": "", "operations": [{"op": "find_recipes", "mealType": "dinner", "maxTime": 15}]},
+    {"thinking": "Miso Salmon & Bok Choy Bowl is 15 minutes.", "reply": "Putting the Miso Salmon & Bok Choy Bowl on Tuesday.", "operations": [{"op": "swap", "dish": "Miso Salmon & Bok Choy Bowl", "slot": "dinner", "days": ["Tuesday"]}]},
+    {"thinking": "Applied.", "reply": "Tuesday dinner is a quick miso salmon bowl.", "operations": []}
+  ]
+}

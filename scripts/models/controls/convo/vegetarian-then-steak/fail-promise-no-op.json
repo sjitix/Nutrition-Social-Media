@@ -1,0 +1,28 @@
+{
+  "gone vegetarian": {
+    "reply": "Got it, switching your whole week to vegetarian.",
+    "operations": [
+      {
+        "op": "remember",
+        "fact": "vegetarian",
+        "kind": "preference"
+      },
+      {
+        "op": "constrain",
+        "diet": "vegetarian"
+      }
+    ]
+  },
+  "steak for wednesday dinner": [
+    {
+      "thinking": "Easy request.",
+      "reply": "Sure thing! I'll put a steak on your Wednesday dinner.",
+      "operations": []
+    },
+    {
+      "thinking": "Told my claim has nothing behind it; say it again.",
+      "reply": "Sure thing! I'll put a steak on your Wednesday dinner.",
+      "operations": []
+    }
+  ]
+}

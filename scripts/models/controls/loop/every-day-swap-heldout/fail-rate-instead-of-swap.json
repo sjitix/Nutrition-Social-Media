@@ -1,0 +1,18 @@
+{
+  "an omelette every morning": {
+    "thinking": "A preference. Remember it and rate omelette highly so the planner favours them.",
+    "reply": "Noted that you love omelettes. I'll make sure they show up for breakfast a lot more.",
+    "operations": [
+      {
+        "op": "remember",
+        "fact": "wants an omelette every morning",
+        "kind": "preference"
+      },
+      {
+        "op": "rate",
+        "rating": 5,
+        "dish": "Veggie Omelette"
+      }
+    ]
+  }
+}

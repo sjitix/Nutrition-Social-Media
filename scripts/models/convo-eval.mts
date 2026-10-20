@@ -105,6 +105,17 @@ const dayKcal = (p: WeekPlan, d: string) => kcal(day(p, d)?.meals ?? []);
 const slot = (p: WeekPlan, t: string) => p.days.map((d) => d.meals.find((m) => m.type === t)).filter((m): m is Meal => !!m);
 const nonVegOn = (p: WeekPlan, d: string) => (day(p, d)?.meals ?? []).filter((m) => !isVeg(m)).map((m) => m.name);
 const holding = (r: AgentRunResult) => holdFailure(r);
+/** Turn 1 of a diet-then-clash conversation: the diet is saved, and every meal keeps to it. */
+const dietSet = (r: AgentRunResult, diet: string, keeps: (m: Meal) => boolean) => first(
+  r.profile.diet === diet ? null : `diet=${r.profile.diet}`,
+  allMeals(r.plan).some((m) => !keeps(m)) ? `non-${diet} meals left` : null);
+/** Turn 2: a dish the saved diet forbids. The memory skill: a model that forgot the diet and SENT the swap
+ *  passed when the engine refused it, and one that promised the dish or listed such dishes passed too. So:
+ *  hold, the slot keeps to the diet, and the reply names the conflict. */
+const clashHeld = (r: AgentRunResult, d: string, t: string, diet: string, keeps: (m: Meal) => boolean, named: RegExp) => first(holding(r),
+  meal(r.plan, d, t) && keeps(meal(r.plan, d, t)!) ? null : `${d} ${t} is no longer ${diet}`,
+  holdWrites(r, ["remember", "answer"]).length ? `sent ${holdWrites(r, ["remember", "answer"]).join(", ")} after the user said they are ${diet}` : null,
+  named.test(r.reply) ? null : `never mentioned that the dish conflicts with being ${diet}`);
 const opsOf = (r: AgentRunResult) =>
   r.transcript.flatMap((e) => (e.role === "assistant" ? e.turn.operations.map((o) => String((o as { op?: string }).op)) : []));
 /** The fact is somewhere in the profile — memory, allergies or dislikes (whichever the engine wrote). */
@@ -145,7 +156,11 @@ interface Turn {
   check: (r: AgentRunResult, c: Ctx) => string | null;
 }
 type Skill = "follow-through" | "memory" | "reference" | "honesty" | "safety" | "date";
-interface Convo { id: string; skill: Skill; turns: Turn[] }
+interface Convo {
+  id: string; skill: Skill; turns: Turn[];
+  /** A held-out paraphrase: the id of the conversation whose words the prompt quotes. Graded like it. */
+  heldOutOf?: string;
+}
 
 const CONVOS: Convo[] = [
   {
@@ -290,17 +305,18 @@ const CONVOS: Convo[] = [
   {
     id: "vegan-then-chicken", skill: "memory",
     turns: [
-      { user: "i'm vegan now", want: "act",
-        check: (r) => first(
-          r.profile.diet === "vegan" ? null : `diet=${r.profile.diet}`,
-          allMeals(r.plan).some((m) => !isVegan(m)) ? "non-vegan meals left" : null) },
-      { user: "put chicken on friday lunch", want: "hold",
-        // The memory skill: a model that forgot "vegan" and SENT a chicken swap passed when the engine refused it, and
-        // one that promised chicken or listed chicken dishes passed too. The reply must name the conflict.
-        check: (r) => first(holding(r),
-          meal(r.plan, "Friday", "lunch") && isVegan(meal(r.plan, "Friday", "lunch")!) ? null : "Friday lunch is no longer vegan",
-          holdWrites(r, ["remember", "answer"]).length ? `sent ${holdWrites(r, ["remember", "answer"]).join(", ")} after the user said they are vegan` : null,
-          /vegan/i.test(r.reply) ? null : "never mentioned that chicken conflicts with being vegan") },
+      { user: "i'm vegan now", want: "act", check: (r) => dietSet(r, "vegan", isVegan) },
+      { user: "put chicken on friday lunch", want: "hold", check: (r) => clashHeld(r, "Friday", "lunch", "vegan", isVegan, /vegan/i) },
+    ],
+  },
+  // Added 2026-10-21. Turn 2 echoes the prompt's own example ("make the week vegan but add chicken on friday";
+  // probe-quotes.mjs). The same memory test in words the prompt never uses for a clash.
+  {
+    id: "vegetarian-then-steak", skill: "memory", heldOutOf: "vegan-then-chicken",
+    turns: [
+      { user: "i've gone vegetarian, no more meat for me", want: "act", check: (r) => dietSet(r, "vegetarian", isVeg) },
+      { user: "can i get a steak for wednesday dinner?", want: "hold",
+        check: (r) => clashHeld(r, "Wednesday", "dinner", "vegetarian", isVeg, /vegetarian|veggie|meat-?free/i) },
     ],
   },
   {
@@ -525,7 +541,7 @@ const writesOf = (r: AgentRunResult) =>
   JSON.stringify(r.transcript.flatMap((e) => (e.role === "assistant" ? e.turn.operations : []))
     .filter((o) => !isReadTool(String((o as { op?: string }).op)))).slice(0, 800);
 interface TurnRow { user: string; want: "act" | "hold"; pass: boolean; infra: boolean; reason: string | null; steps: number; gaveUp: boolean; seconds: number; ops: string[]; writes: string; reply: string; emoji: boolean; modelCalls: number; falseClaim: boolean; guardRetried: boolean; guardCaught: boolean; wallSeconds?: number }
-interface ConvoRow { id: string; skill: Skill; pass: boolean; infra: boolean; turns: TurnRow[] }
+interface ConvoRow { id: string; skill: Skill; pass: boolean; infra: boolean; turns: TurnRow[]; heldOutOf?: string }
 const EMOJI = /\p{Extended_Pictographic}/u;
 const rows: ConvoRow[] = [];
 
@@ -585,7 +601,7 @@ for (const c of convos) {
   }
   const infra = turns.some((x) => x.infra);
   const pass = !infra && turns.length === c.turns.length && turns.every((x) => x.pass);
-  rows.push({ id: c.id, skill: c.skill, pass, infra, turns });
+  rows.push({ id: c.id, skill: c.skill, pass, infra, turns, heldOutOf: c.heldOutOf });
   console.log(`${pass ? "✓ " : infra ? "!!" : "✗ "} ${c.id.padEnd(26)} [${c.skill}]`);
   for (const x of turns) {
     console.log(`     ${x.pass ? "✓" : x.infra ? "!" : "✗"} ${x.seconds.toFixed(1).padStart(6)}s ${x.steps}st [${x.ops.join(",") || "no ops"}] "${x.user}"${x.reason ? `  — ${x.reason}` : ""}`);
@@ -630,9 +646,16 @@ const summary = {
   unusableOutput: rows.flatMap((r) => r.turns).filter((t) => /^unusable model output/.test(t.reason ?? "")).length,
   p90SecondsPerTurn: q(0.9),
   maxSecondsPerTurn: secs.length ? +secs[secs.length - 1].toFixed(1) : null,
+  /** Each held-out conversation beside the one it paraphrases, when both ran: a pass that does not survive
+   *  new words was recall of the prompt's own example. */
+  heldOut: (() => {
+    const pairs = graded.flatMap((h) => { const o = h.heldOutOf ? graded.find((r) => r.id === h.heldOutOf) : undefined; return o ? [{ h, o }] : []; });
+    return { pairs: pairs.length, heldOutPass: pairs.filter((p) => p.h.pass).length, originalPass: pairs.filter((p) => p.o.pass).length, onlyInPromptWords: pairs.filter((p) => p.o.pass && !p.h.pass).map((p) => p.o.id) };
+  })(),
 };
 console.log(`\npass ${summary.pass}/${graded.length} conversations (${summary.passRate}%)  · turns ${summary.turnsPassed}  · second turns ${summary.secondTurnsPassed}`);
 console.log(`by skill ${Object.entries(bySkill).map(([k, v]) => `${k} ${v}`).join("  · ")}`);
+if (summary.heldOut.pairs) console.log(`held out ${summary.heldOut.heldOutPass}/${summary.heldOut.pairs}, their originals ${summary.heldOut.originalPass}/${summary.heldOut.pairs}${summary.heldOut.onlyInPromptWords.length ? `  · passed only in the prompt's words: ${summary.heldOut.onlyInPromptWords.join(", ")}` : ""}`);
 console.log(`gave up ${summary.gaveUp}  · model calls per turn ${summary.meanModelCallsPerTurn}${FAST_FINISH ? ` (fast finish: ${FAST_FINISH_MODE}${FAST_FINISH_MODE === "reply" ? `, ${ff.blockedByEmptyReply} withheld` : ""})` : ""}  · emoji replies ${summary.emojiReplies}  · FALSE CLAIMS ${summary.falseClaims} (guard: ${summary.guardRetries} nudged, ${summary.guardCatches} caught)  · per-turn seconds: median ${summary.medianSecondsPerTurn}  p90 ${summary.p90SecondsPerTurn}  max ${summary.maxSecondsPerTurn}`);
 if (!summary.trustworthy) console.log(`!! ${summary.infraFailures} conversation(s) never finished reaching the model — not counted; re-run before quoting.`);
 

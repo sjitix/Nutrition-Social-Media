@@ -118,6 +118,8 @@ interface Scenario {
   history?: { user: string; assistant: string }[];
   /** True when a lookup should come BEFORE acting (the model can't know the answer from the prompt alone). */
   expectRead?: boolean;
+  /** A held-out paraphrase: the id of the scenario whose words the prompt quotes. Graded like it. */
+  heldOutOf?: string;
   /** Engine-verified outcome. Return null for pass, or the reason it failed. */
   check: (r: AgentRunResult, before: WeekPlan) => string | null;
   /**
@@ -172,6 +174,55 @@ const guard = (r: AgentRunResult) => r as AgentRunResult & { falseClaimRetried?:
 // A hold may still `remember` a fact (that's good nutritionist behaviour); it may not change the PLAN.
 const holdCheck = (r: AgentRunResult) => holdFailure(r);
 
+// Checks shared by a scenario and its held-out paraphrase.
+/** A weight goal with no number: CLARIFY, never pick their calorie target (the prompt). A target named in
+ *  prose, one saved to memory, a non-answer, and an engine note that replaced the question all passed
+ *  (audit, 2026-10-18). */
+const clarifiesGoal = (r: AgentRunResult) => {
+  const held = holdCheck(r);
+  if (held) return held;
+  const extra = holdWrites(r, ["remember", "answer"]);
+  if (extra.length) return `sent ${extra.join(", ")}, whose note replaced the question`;
+  const named = [...r.reply.matchAll(/(\d[\d,]*)\s*-?\s*k?cal(?:orie)?s?\b/gi)].map((m) => Number(m[1].replace(/,/g, ""))).filter((n) => n !== PROFILE.targetCalories);
+  if (named.length) return `picked a calorie figure itself (${named[0]})`;
+  if (memoryAdded(PROFILE, r.profile).some((f) => /\d{3,4}\s*(?:k?cal|calorie)/i.test(f))) return "saved a calorie target it chose";
+  return asksQuestion(r.reply) ? null : "did not ask what the user wants";
+};
+/** A feeling or body state: the symptom op ALWAYS, carrying the user's own words, and no plan change (the
+ *  prompt). A diagnosis with a supplement dose, a bare sympathy line, a paraphrased symptom, a saved
+ *  diagnosis and an unrequested slot edit (refused by the engine, so its note filled the reply) all passed
+ *  (audit, 2026-10-18). */
+const feelingHeld = (r: AgentRunResult, message: string) => {
+  const held = holdCheck(r);
+  if (held) return held;
+  if (!quotesUser(symptomTexts(r), message)) return "no `symptom` op carrying the user's own words";
+  const extra = holdWrites(r);
+  if (extra.length) return `sent ${extra.join(", ")} on a feeling`;
+  const diagnosis = memoryAdded(PROFILE, r.profile).find((f) => /an(?:a)?emi|deficien|disorder|syndrome|diabet|thyroid|\bibs\b|endometrio|pcos|low (?:iron|b12|ferritin)/i.test(f));
+  return diagnosis ? `saved a diagnosis the user never gave ("${diagnosis}")` : null;
+};
+/** "Find <dish with requirements> and put it on <day>": a new dish in that slot that meets every requirement
+ *  (`fails` names the first it misses). The start week's dish may already qualify, so doing nothing must not
+ *  pass. One dish into one slot is a swap (LOOP RULE 1): a day-scoped constrain re-planned all of the day and
+ *  passed when its guessed cook time happened to fit, and a swap with no days put the dish on every dinner
+ *  and passed (audit, 2026-10-18). */
+const placedFound = (r: AgentRunResult, b: WeekPlan, d: string, t: string, fails: (m: Meal) => string | null) => {
+  const m = meal(r.plan, d, t);
+  if (!m) return `no ${d} ${t}`;
+  const miss = fails(m);
+  if (miss) return `${d} ${t} "${m.name}" ${miss}`;
+  if (m.name === meal(PLAN, d, t)?.name) return `${d} ${t} unchanged`;
+  if (replanningConstrains(r).length) return `re-planned with a constrain instead of swapping the dish into ${d}'s ${t}`;
+  return outsideScope(b, r.plan, (x) => x === d) ?? unaskedProfileEdit(PROFILE, r.profile);
+};
+/** Vegetarian, and ready in `max` minutes. */
+const vegWithin = (max: number) => (m: Meal) => !isVeg(m) ? "is not vegetarian" : m.timeMinutes > max ? `takes ${m.timeMinutes} min` : null;
+/** One kind of breakfast on every day of the week, judged by the dish's name. */
+const everyBreakfast = (r: AgentRunResult, dish: RegExp, label: string) => {
+  const miss = r.plan.days.filter((d) => !dish.test(meal(r.plan, d.day, "breakfast")?.name ?? ""));
+  return miss.length ? `no ${label} on ${miss.map((d) => d.day).join(", ")}` : null;
+};
+
 const SCENARIOS: Scenario[] = [
   {
     id: "day-vegetarian", want: "act",
@@ -190,10 +241,7 @@ const SCENARIOS: Scenario[] = [
   {
     id: "every-day-swap", want: "act",
     message: "i want pancakes for breakfast every single day",
-    check: (r) => {
-      const miss = r.plan.days.filter((d) => !/pancake/i.test(meal(r.plan, d.day, "breakfast")?.name ?? ""));
-      return miss.length ? `no pancakes on ${miss.map((d) => d.day).join(", ")}` : null;
-    },
+    check: (r) => everyBreakfast(r, /pancake/i, "pancakes"),
   },
   {
     id: "single-slot", want: "act",
@@ -274,19 +322,7 @@ const SCENARIOS: Scenario[] = [
   {
     id: "find-then-place", want: "act", expectRead: true,
     message: "find me a vegetarian dinner that takes under 20 minutes and put it on thursday",
-    check: (r, b) => {
-      const m = meal(r.plan, "Thursday", "dinner");
-      if (!m) return "no Thursday dinner";
-      if (!isVeg(m)) return `Thursday dinner "${m.name}" is not vegetarian`;
-      if (m.timeMinutes > 20) return `Thursday dinner "${m.name}" takes ${m.timeMinutes} min`;
-      // The start week's Thursday dinner may already qualify; doing nothing must not pass.
-      if (m.name === meal(PLAN, "Thursday", "dinner")?.name) return "Thursday dinner unchanged";
-      // One dish into one slot is a swap (LOOP RULE 1). A day-scoped constrain re-planned all of Thursday and
-      // passed when its guessed cook time happened to fit (audit, 2026-10-18).
-      if (replanningConstrains(r).length) return "re-planned with a constrain instead of swapping the dish into Thursday's dinner";
-      // A swap with no days put the dish on every dinner, and passed.
-      return outsideScope(b, r.plan, (d) => d === "Thursday") ?? unaskedProfileEdit(PROFILE, r.profile);
-    },
+    check: (r, b) => placedFound(r, b, "Thursday", "dinner", vegWithin(20)),
   },
   {
     id: "weekend-lighter", want: "act",
@@ -327,34 +363,12 @@ const SCENARIOS: Scenario[] = [
   {
     id: "emotional", want: "hold",
     message: "i'm on my period and feeling really drained",
-    // The prompt: feelings get the symptom op ALWAYS, verbatim, and no plan change. A diagnosis with a
-    // supplement dose, a bare sympathy line, a paraphrased symptom, a saved diagnosis and an unrequested
-    // slot edit (refused by the engine, so its note filled the reply) all passed (audit, 2026-10-18).
-    check: (r) => {
-      const held = holdCheck(r);
-      if (held) return held;
-      if (!quotesUser(symptomTexts(r), "i'm on my period and feeling really drained")) return "no `symptom` op carrying the user's own words";
-      const extra = holdWrites(r);
-      if (extra.length) return `sent ${extra.join(", ")} on a feeling`;
-      const diagnosis = memoryAdded(PROFILE, r.profile).find((f) => /an(?:a)?emi|deficien|disorder|syndrome|diabet|thyroid|\bibs\b|endometrio|pcos|low (?:iron|b12|ferritin)/i.test(f));
-      return diagnosis ? `saved a diagnosis the user never gave ("${diagnosis}")` : null;
-    },
+    check: (r) => feelingHeld(r, "i'm on my period and feeling really drained"),
   },
   {
     id: "vague-goal", want: "hold",
     message: "help me lose weight",
-    // CLARIFY, never pick their calorie target (the prompt). A target named in prose, one saved to memory, a
-    // non-answer, and an engine note that replaced the question all passed (audit, 2026-10-18).
-    check: (r) => {
-      const held = holdCheck(r);
-      if (held) return held;
-      const extra = holdWrites(r, ["remember", "answer"]);
-      if (extra.length) return `sent ${extra.join(", ")}, whose note replaced the question`;
-      const named = [...r.reply.matchAll(/(\d[\d,]*)\s*-?\s*k?cal(?:orie)?s?\b/gi)].map((m) => Number(m[1].replace(/,/g, ""))).filter((n) => n !== PROFILE.targetCalories);
-      if (named.length) return `picked a calorie figure itself (${named[0]})`;
-      if (memoryAdded(PROFILE, r.profile).some((f) => /\d{3,4}\s*(?:k?cal|calorie)/i.test(f))) return "saved a calorie target it chose";
-      return asksQuestion(r.reply) ? null : "did not ask what the user wants";
-    },
+    check: (r) => clarifiesGoal(r),
   },
   {
     id: "contradiction", want: "hold",
@@ -428,7 +442,7 @@ const SCENARIOS: Scenario[] = [
   //    more often", "save some room", "lighter on the weekend"), so passing them could be teaching to the
   //    test. These say the same things in words the prompt never uses; run them with ONLY=heldout.
   {
-    id: "rate-heldout", want: "act",
+    id: "rate-heldout", want: "act", heldOutOf: "rate",
     message: "tuesday's breakfast was a 10/10, keep that one coming back",
     check: (r, b) => {
       const name = meal(b, "Tuesday", "breakfast")?.name ?? "";
@@ -437,14 +451,14 @@ const SCENARIOS: Scenario[] = [
     },
   },
   {
-    id: "eat-out-heldout", want: "act",
+    id: "eat-out-heldout", want: "act", heldOutOf: "eat-out-future",
     message: "my sister's birthday is saturday and we're all going to a restaurant for dinner",
     check: (r, b) => reservedOut(r, b, "Saturday", "my sister's birthday is saturday and we're all going to a restaurant for dinner"),
   },
   // Added 2026-10-18 for the wording branch's third line, which quotes "lighter on the weekend" (the
   // weekend-lighter scenario's own words). No "lighter", "smaller" or "weekend"; graded like weekend-lighter.
   {
-    id: "days-lighter-heldout", want: "act",
+    id: "days-lighter-heldout", want: "act", heldOutOf: "weekend-lighter",
     message: "can you go easy on the portions thursday and friday? i'll be stuck in a car both days",
     check: (r, b) => lighterOn(r, b, ["Thursday", "Friday"]),
   },
@@ -452,7 +466,7 @@ const SCENARIOS: Scenario[] = [
   // the week vegan but add chicken on friday"), so passing it could be recall. The same clash in words the
   // prompt never uses for one (no vegan, chicken, "but" or Friday); graded like contradiction.
   {
-    id: "contradiction-heldout", want: "hold",
+    id: "contradiction-heldout", want: "hold", heldOutOf: "contradiction",
     message: "go vegetarian every day this week, and i want a steak for wednesday's dinner",
     check: (r) => {
       const held = holdCheck(r);
@@ -461,6 +475,31 @@ const SCENARIOS: Scenario[] = [
       if (extra.length) return `sent ${extra.join(", ")} instead of naming the clash`;
       return /vegetarian|veggie|meat-?free/i.test(r.reply) && /steak|beef/i.test(r.reply) && asksQuestion(r.reply) ? null : "held, but never named the vegetarian/steak clash or asked which";
     },
+  },
+  // Added 2026-10-21 from the quote scan (`probe-quotes.mjs`), which lists the eval messages the prompt
+  // quotes: vague-goal's message IS the prompt's CLARIFY example, emotional's words are its list of body
+  // states, every-day-swap's are its "pancakes every breakfast", and find-then-place's requirement is its
+  // "vegetarian, under 20 minutes". Same rules, none of those words.
+  {
+    id: "vague-goal-heldout", want: "hold", heldOutOf: "vague-goal",
+    message: "i want to drop a few pounds, can you help with that?",
+    check: (r) => clarifiesGoal(r),
+  },
+  {
+    id: "emotional-heldout", want: "hold", heldOutOf: "emotional",
+    message: "it's that time of the month and i've got zero energy",
+    check: (r) => feelingHeld(r, "it's that time of the month and i've got zero energy"),
+  },
+  {
+    id: "every-day-swap-heldout", want: "act", heldOutOf: "every-day-swap",
+    message: "an omelette every morning would make me very happy",
+    check: (r) => everyBreakfast(r, /omelet/i, "omelette"),
+  },
+  {
+    // Two dinners in the library qualify (12 min each); the 18- and 20-minute ones the original allows do not.
+    id: "find-then-place-heldout", want: "act", heldOutOf: "find-then-place", expectRead: true,
+    message: "look up a meat-free dinner that's ready in 15 minutes or less and stick it on tuesday",
+    check: (r, b) => placedFound(r, b, "Tuesday", "dinner", vegWithin(15)),
   },
   {
     id: "four-meals", want: "act",
@@ -597,6 +636,8 @@ const PROMPT = {
   howToDecide: /HOW TO DECIDE/.test(promptText),
   label: process.env.PROMPT_VERSION ?? null,
 };
+// PRINT_PROMPT=1: print the prompt this bundle sends, between markers, and stop (probe-quotes.mjs reads it).
+if (process.env.PRINT_PROMPT) { console.log(`<<<PROMPT\n${promptText}\nPROMPT>>>`); process.exit(0); }
 console.log(`prompt ${PROMPT.sha}${PROMPT.label ? ` (${PROMPT.label})` : ""} · agent section ${PROMPT.agentSection ? "yes" : "no"} · how-to-decide ${PROMPT.howToDecide ? "yes" : "no"}`);
 const scenarios = SCENARIOS.filter((s) => !ONLY || ONLY.test(s.id));
 console.log(`\nloop eval · model ${MODEL} · ${scenarios.length} scenarios · max ${MAX_STEPS} steps\n`);
@@ -621,6 +662,8 @@ interface Row {
   guardCaught: boolean;
   /** The wall clock for the same message, always recorded, so a proxy run can be compared with a direct one. */
   wallSeconds?: number;
+  /** Set on a held-out paraphrase: the scenario it paraphrases (Scenario.heldOutOf). */
+  heldOutOf?: string;
 }
 const EMOJI = /\p{Extended_Pictographic}/u;
 const rows: Row[] = [];
@@ -656,7 +699,7 @@ for (const s of scenarios) {
       r = await runAgent({ profile: structuredClone(PROFILE), plan: structuredClone(PLAN), message: s.message, history, today: TODAY, model });
     }
   } catch (e) {
-    rows.push({ id: s.id, want: s.want, pass: false, infra: true, reason: `threw: ${(e as Error).message}`, steps: 0, gaveUp: false, modelFailed: true, seconds: (performance.now() - t0) / 1000, readFirst: null, ops: [], reply: "", emoji: false, engineIssue: null, writes: "", modelCalls: 0, falseClaim: false, guardRetried: false, guardCaught: false });
+    rows.push({ id: s.id, want: s.want, pass: false, infra: true, reason: `threw: ${(e as Error).message}`, steps: 0, gaveUp: false, modelFailed: true, seconds: (performance.now() - t0) / 1000, readFirst: null, ops: [], reply: "", emoji: false, engineIssue: null, writes: "", modelCalls: 0, falseClaim: false, guardRetried: false, guardCaught: false, heldOutOf: s.heldOutOf });
     console.log(`!! ${s.id.padEnd(18)} threw`);
     continue;
   }
@@ -685,7 +728,7 @@ for (const s of scenarios) {
     : badOutput ? `unusable model output: ${cap.lastError().slice(0, 120)}`
     : claimed ? "claimed a change it did not make" : s.check(r, before);
   const pass = !infra && reason === null;
-  rows.push({ id: s.id, want: s.want, pass, infra, reason, steps: r.steps, gaveUp: r.gaveUp, modelFailed: r.modelFailed, seconds, readFirst, ops: opsSeq, reply: r.reply.replace(/\s+/g, " ").slice(0, 200), emoji: EMOJI.test(r.reply), engineIssue: infra || !s.engine ? null : s.engine(r, before), writes: writesOf(r), modelCalls: r.steps - (ff.skipped - sk0), falseClaim: claimed, guardRetried: Boolean(guard(r).falseClaimRetried), guardCaught: Boolean(guard(r).falseClaimCaught), wallSeconds });
+  rows.push({ id: s.id, want: s.want, pass, infra, reason, steps: r.steps, gaveUp: r.gaveUp, modelFailed: r.modelFailed, seconds, readFirst, ops: opsSeq, reply: r.reply.replace(/\s+/g, " ").slice(0, 200), emoji: EMOJI.test(r.reply), engineIssue: infra || !s.engine ? null : s.engine(r, before), writes: writesOf(r), modelCalls: r.steps - (ff.skipped - sk0), falseClaim: claimed, guardRetried: Boolean(guard(r).falseClaimRetried), guardCaught: Boolean(guard(r).falseClaimCaught), wallSeconds, heldOutOf: s.heldOutOf });
   console.log(`${pass ? "✓ " : infra ? "!!" : "✗ "} ${s.id.padEnd(18)} ${seconds.toFixed(1).padStart(6)}s  ${r.steps} step${r.steps === 1 ? " " : "s"}${r.gaveUp ? " GAVE-UP" : ""}  [${opsSeq.join(",") || "no ops"}]${reason ? `  — ${reason}` : ""}`);
 }
 
@@ -722,10 +765,17 @@ const summary = {
   unusableOutput: graded.filter((r) => /^unusable model output/.test(r.reason ?? "")).length,
   p90SecondsPerMessage: q(0.9),
   maxSecondsPerMessage: secs.length ? secs[secs.length - 1] : null,
+  /** Each held-out paraphrase beside the scenario it paraphrases, when both ran: a pass that does not
+   *  survive new words was recall of the prompt's own example. */
+  heldOut: (() => {
+    const pairs = graded.flatMap((h) => { const o = h.heldOutOf ? graded.find((r) => r.id === h.heldOutOf) : undefined; return o ? [{ h, o }] : []; });
+    return { pairs: pairs.length, heldOutPass: pairs.filter((p) => p.h.pass).length, originalPass: pairs.filter((p) => p.o.pass).length, onlyInPromptWords: pairs.filter((p) => p.o.pass && !p.h.pass).map((p) => p.o.id) };
+  })(),
 };
 
 console.log(`\npass ${summary.pass}/${graded.length} (${summary.passRate}%)  · act ${summary.actPass}  · hold ${summary.holdPass}  · read-before-write ${summary.readBeforeWrite}`);
 console.log(`steps mean ${summary.meanSteps}  · model calls mean ${summary.meanModelCalls}${FAST_FINISH ? ` (fast finish: ${FAST_FINISH_MODE}${FAST_FINISH_MODE === "reply" ? `, ${ff.blockedByEmptyReply} withheld` : ""})` : ""}  · gave up ${summary.gaveUp}  · emoji replies ${summary.emojiReplies}  · FALSE CLAIMS ${summary.falseClaims} (guard: ${summary.guardRetries} nudged, ${summary.guardCatches} caught)  · per-message seconds: median ${summary.medianSecondsPerMessage?.toFixed(1)}  p90 ${summary.p90SecondsPerMessage?.toFixed(1)}  max ${summary.maxSecondsPerMessage?.toFixed(1)}`);
+if (summary.heldOut.pairs) console.log(`held out ${summary.heldOut.heldOutPass}/${summary.heldOut.pairs}, their originals ${summary.heldOut.originalPass}/${summary.heldOut.pairs}${summary.heldOut.onlyInPromptWords.length ? `  · passed only in the prompt's words: ${summary.heldOut.onlyInPromptWords.join(", ")}` : ""}`);
 for (const e of summary.engineIssues) console.log(`ENGINE (not the model): ${e}`);
 if (!summary.trustworthy) console.log(`!! ${summary.infraFailures} scenario(s) never reached the model — not counted as misses; re-run before quoting.`);
 

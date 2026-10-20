@@ -1,0 +1,17 @@
+{
+  "time of the month and i've got zero energy": {
+    "thinking": "Body state: symptom verbatim plus a remember; the loop will call me again.",
+    "reply": "I'm sorry you're feeling so drained, that is really common during a period. Go easy on yourself today. Want me to lean the next few days toward iron-rich meals?",
+    "operations": [
+      {
+        "op": "symptom",
+        "text": "it's that time of the month and i've got zero energy"
+      },
+      {
+        "op": "remember",
+        "fact": "period started Monday",
+        "kind": "context"
+      }
+    ]
+  }
+}

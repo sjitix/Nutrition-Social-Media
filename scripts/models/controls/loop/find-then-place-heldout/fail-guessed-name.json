@@ -1,0 +1,6 @@
+{
+  "meat-free dinner": [
+    {"thinking": "A veggie stir-fry is quick and meat-free; no need to look it up.", "reply": "Putting a veggie stir-fry on Tuesday.", "operations": [{"op": "swap", "dish": "Veggie Stir-Fry", "slot": "dinner", "days": ["Tuesday"]}]},
+    {"thinking": "Done.", "reply": "Tuesday dinner is a quick veggie stir-fry.", "operations": []}
+  ]
+}

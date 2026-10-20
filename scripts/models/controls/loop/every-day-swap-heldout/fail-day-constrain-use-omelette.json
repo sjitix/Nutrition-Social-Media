@@ -1,0 +1,25 @@
+{
+  "an omelette every morning": {
+    "thinking": "Re-plan every day around omelette.",
+    "reply": "Re-planning each day around omelettes.",
+    "operations": [
+      {
+        "op": "constrain",
+        "scope": {
+          "days": [
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+            "Sunday"
+          ]
+        },
+        "use": [
+          "omelette"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "an omelette every morning": [
+    {
+      "thinking": "Find the omelette breakfasts in the library first, then swap an exact name in for every day.",
+      "reply": "",
+      "operations": [
+        {
+          "op": "find_recipes",
+          "mealType": "breakfast",
+          "query": "omelette"
+        }
+      ]
+    },
+    {
+      "thinking": "Veggie Omelette has the most protein of the two. One swap, no days = every day.",
+      "reply": "A veggie omelette is now your breakfast every day of the week.",
+      "operations": [
+        {
+          "op": "swap",
+          "dish": "Veggie Omelette",
+          "slot": "breakfast"
+        }
+      ]
+    }
+  ]
+}

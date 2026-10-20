@@ -1,0 +1,7 @@
+{
+  "meat-free dinner": [
+    {"thinking": "Look up vegetarian dinners of 15 minutes or less.", "reply": "", "operations": [{"op": "find_recipes", "mealType": "dinner", "diet": "vegetarian", "maxTime": 15}]},
+    {"thinking": "The skillet fits.", "reply": "Adding the skillet.", "operations": [{"op": "swap", "dish": "Harissa Chickpea & Spinach Skillet", "slot": "dinner", "days": ["Thursday"]}]},
+    {"thinking": "Applied.", "reply": "The skillet is in your plan.", "operations": []}
+  ]
+}

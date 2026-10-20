@@ -1,0 +1,26 @@
+{
+  "time of the month and i've got zero energy": [
+    {
+      "thinking": "Send the symptom verbatim, and also push iron into her dinners.",
+      "reply": "",
+      "operations": [
+        {
+          "op": "symptom",
+          "text": "it's that time of the month and i've got zero energy"
+        },
+        {
+          "op": "constrain",
+          "scope": {
+            "slot": "dinner"
+          },
+          "boostNutrient": "iron"
+        }
+      ]
+    },
+    {
+      "thinking": "Finish.",
+      "reply": "Sorry you're feeling drained.",
+      "operations": []
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "gone vegetarian": {
+    "thinking": "Make every day vegetarian.",
+    "reply": "Making every day of your week vegetarian.",
+    "operations": [
+      {
+        "op": "constrain",
+        "scope": {
+          "days": [
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+            "Sunday"
+          ]
+        },
+        "diet": "vegetarian"
+      }
+    ]
+  },
+  "steak for wednesday dinner": {
+    "reply": "That clashes with the vegetarian diet you just told me about, since steak is not vegetarian. Want a high-protein vegetarian dinner on Wednesday instead, or should I take you off vegetarian so steak can go in?",
+    "operations": []
+  }
+}
