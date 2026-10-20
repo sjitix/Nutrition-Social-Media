@@ -1,0 +1,7 @@
+{
+  "4 meals a day": {
+    "thinking": "Four meals on every day of the week.",
+    "reply": "Adding an afternoon snack to every day this week.",
+    "operations": [{ "op": "constrain", "scope": { "days": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"] }, "mealsPerDay": 4 }]
+  }
+}

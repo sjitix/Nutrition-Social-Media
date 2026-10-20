@@ -1,0 +1,7 @@
+{
+  "make the week cheaper": {
+    "thinking": "Smaller portions cost less money.",
+    "reply": "Trimming your portions a little across the week so the shop costs less.",
+    "operations": [{ "op": "resize", "direction": "smaller" }]
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "meal prep": {
+    "thinking": "I'll fake bulk cooking: the same dinner Mon-Wed and another Thu-Sun, so they cook twice and eat leftovers.",
+    "reply": "I've set you up to cook twice a week: one dinner covers Monday to Wednesday, another covers Thursday to Sunday.",
+    "operations": [
+      { "op": "swap", "dish": "Turkey & Bean Chilli", "slot": "dinner", "days": ["Monday","Tuesday","Wednesday"] },
+      { "op": "swap", "dish": "Red Lentil & Tofu Curry", "slot": "dinner", "days": ["Thursday","Friday","Saturday","Sunday"] }
+    ]
+  }
+}

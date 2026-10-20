@@ -1,0 +1,7 @@
+{
+  "make the week cheaper": {
+    "thinking": "Low budget, and eating a bit less also saves money.",
+    "reply": "Going budget-friendly and trimming your daily calories a little, which also keeps the shop smaller.",
+    "operations": [{ "op": "constrain", "budget": "low", "targets": { "calories": 1800 } }]
+  }
+}

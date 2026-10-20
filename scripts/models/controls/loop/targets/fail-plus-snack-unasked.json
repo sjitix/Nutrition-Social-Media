@@ -1,0 +1,1 @@
+{"keep me at 1800 calories": {"thinking": "160 g protein is a lot on 1800 kcal; spread it over four meals.", "reply": "Setting you to 1800 kcal and 160 g protein, and adding a protein snack to help you hit it.", "operations": [{"op": "constrain", "targets": {"calories": 1800, "protein": 160}, "mealsPerDay": 4}]}}

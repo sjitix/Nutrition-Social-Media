@@ -1,0 +1,1 @@
+{"can't stand eggs": {"thinking": "One constrain with the exclusion.", "reply": "No problem, removing egg from your plan.", "operations": [{"op": "constrain", "scope": "week", "exclude": ["egg"]}]}}

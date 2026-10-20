@@ -1,0 +1,10 @@
+{
+  "4 meals a day": {
+    "thinking": "A lasting preference (4 meals a day with an afternoon snack): remember it and apply it with one week-scope constrain. Adding a snack means mealsPerDay: 4.",
+    "reply": "Got it, four meals a day from now on, with an afternoon snack fitted into your usual targets.",
+    "operations": [
+      { "op": "remember", "fact": "wants four meals a day, including an afternoon snack", "kind": "preference" },
+      { "op": "constrain", "scope": "week", "mealsPerDay": 4 }
+    ]
+  }
+}

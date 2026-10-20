@@ -1,0 +1,7 @@
+{
+  "make the week cheaper": {
+    "thinking": "Cheaper meals on every day of this week.",
+    "reply": "Making every day this week cheaper.",
+    "operations": [{ "op": "constrain", "scope": { "days": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"] }, "budget": "low" }]
+  }
+}

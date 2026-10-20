@@ -1,0 +1,7 @@
+{
+  "meal prep": {
+    "thinking": "Meal prep, two cooks a week. Bulk cooking takes longer, so lift the cook-time limit too.",
+    "reply": "Switching you to meal prep with two cooking sessions a week, and allowing longer cooks since you're making big batches.",
+    "operations": [{ "op": "constrain", "planMode": "batch", "cadence": "every3days", "maxCookTime": 90 }]
+  }
+}

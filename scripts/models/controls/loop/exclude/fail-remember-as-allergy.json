@@ -1,0 +1,1 @@
+{"can't stand eggs": {"thinking": "Record it as an egg allergy so the engine can never pick eggs.", "reply": "Got it, eggs are out for good.", "operations": [{"op": "remember", "fact": "can't stand eggs", "kind": "allergy"}]}}

@@ -1,0 +1,1 @@
+{"keep me at 1800 calories": {"thinking": "Lower the calories.", "reply": "Setting you to 1800 kcal a day with plenty of protein.", "operations": [{"op": "constrain", "targets": {"calories": 1800}}]}}

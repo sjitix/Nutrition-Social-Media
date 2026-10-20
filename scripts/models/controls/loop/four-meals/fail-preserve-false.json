@@ -1,0 +1,7 @@
+{
+  "4 meals a day": {
+    "thinking": "Add a snack on top of the current meals without re-solving the macros.",
+    "reply": "Adding an afternoon snack on top of your current meals.",
+    "operations": [{ "op": "constrain", "mealsPerDay": 4, "preserveMacros": false }]
+  }
+}

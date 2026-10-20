@@ -1,0 +1,7 @@
+{
+  "meal prep": {
+    "thinking": "A lasting switch to meal prep: cook in bulk twice a week and eat leftovers. That is planMode batch; cooking twice a week is the every-3-days cadence (a Monday and a Thursday cook). One week-scope constrain.",
+    "reply": "Switching you to meal prep: two big cooks a week, with the leftovers filling the days in between.",
+    "operations": [{ "op": "constrain", "planMode": "batch", "cadence": "every3days" }]
+  }
+}

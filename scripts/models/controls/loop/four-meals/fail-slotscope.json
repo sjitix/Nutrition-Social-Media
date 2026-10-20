@@ -1,0 +1,7 @@
+{
+  "4 meals a day": {
+    "thinking": "Target the snack slot specifically.",
+    "reply": "Adding an afternoon snack every day.",
+    "operations": [{ "op": "constrain", "scope": { "slot": "snack" }, "mealsPerDay": 4 }]
+  }
+}

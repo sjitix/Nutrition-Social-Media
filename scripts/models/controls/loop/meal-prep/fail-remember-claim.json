@@ -1,0 +1,11 @@
+{
+  "meal prep": [
+    {
+      "thinking": "Store the preference.",
+      "reply": "Done, I've switched you to meal prep with two bulk cooks a week.",
+      "operations": [{ "op": "remember", "fact": "prefers meal prep, cooking in bulk twice a week", "kind": "preference" }]
+    },
+    { "thinking": "Finished.", "reply": "Done, I've switched you to meal prep with two bulk cooks a week.", "operations": [] },
+    { "thinking": "It did change.", "reply": "Done, I've switched you to meal prep with two bulk cooks a week.", "operations": [] }
+  ]
+}

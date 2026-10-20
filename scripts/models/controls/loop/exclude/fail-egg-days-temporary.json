@@ -1,0 +1,4 @@
+{"can't stand eggs": [
+  {"thinking": "Find the egg days first.", "reply": "", "operations": [{"op": "get_plan"}]},
+  {"thinking": "Eggs sit on Tuesday, Thursday, Friday and Saturday. Rebuild just those days without eggs and leave the rest alone.", "reply": "Rebuilding the days that had eggs, without them.", "operations": [{"op": "constrain", "scope": {"days": ["Tuesday", "Thursday", "Friday", "Saturday"]}, "exclude": ["eggs"]}]}
+]}

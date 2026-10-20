@@ -1,0 +1,4 @@
+{"can't stand eggs": [
+  {"thinking": "Remember and exclude for the week.", "reply": "", "operations": [{"op": "remember", "fact": "can't stand eggs", "kind": "preference"}, {"op": "constrain", "exclude": ["eggs"]}]},
+  {"thinking": "(audit probe, read only) would the engine still place an egg dish?", "reply": "", "operations": [{"op": "what_if", "operations": [{"op": "swap", "dish": "Veggie Omelette", "slot": "breakfast", "days": ["Wednesday"]}]}]}
+]}

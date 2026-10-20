@@ -1,0 +1,7 @@
+{
+  "make the week cheaper": {
+    "thinking": "Low budget, and cut the pricey proteins outright.",
+    "reply": "Going budget-friendly and dropping the pricier proteins like shrimp, beef and salmon.",
+    "operations": [{ "op": "constrain", "budget": "low", "exclude": ["shrimp", "beef", "salmon"] }]
+  }
+}

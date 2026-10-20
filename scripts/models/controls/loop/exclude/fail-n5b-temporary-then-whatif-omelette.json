@@ -1,0 +1,5 @@
+{"can't stand eggs": [
+  {"thinking": "Find the egg days first.", "reply": "", "operations": [{"op": "get_plan"}]},
+  {"thinking": "Rebuild just the egg days without eggs.", "reply": "", "operations": [{"op": "constrain", "scope": {"days": ["Tuesday", "Thursday", "Friday", "Saturday"]}, "exclude": ["eggs"]}]},
+  {"thinking": "(audit probe, read only) would the engine still place an egg dish?", "reply": "", "operations": [{"op": "what_if", "operations": [{"op": "swap", "dish": "Veggie Omelette", "slot": "breakfast", "days": ["Wednesday"]}]}]}
+]}

@@ -26,8 +26,8 @@ import {
   assistantV2SystemPrompt, runAgent, MAX_STEPS, isReadTool, claimsChange, type AgentRunResult,
 } from "@/lib/assistant";
 import { agentModelFn, resolveProvider } from "@/lib/providers";
-import { selectWeekFromDb, rebalanceWeek, withSeed } from "@/lib/plan";
-import { dietTagConflicts, haystackBlocked } from "@/lib/nutrition";
+import { selectWeekFromDb, rebalanceWeek, withSeed, RECIPES } from "@/lib/plan";
+import { dietTagConflicts, haystackBlocked, parseExclusionTokens } from "@/lib/nutrition";
 import { withFastFinish, fastFinishModeFromEnv } from "./fast-finish";
 import {
   withErrorCapture, isInfraError, holdFailure, scriptedModel, scriptLabel, reseedEngine, engineSeedConfig,
@@ -79,6 +79,11 @@ const unchangedExcept = (before: WeekPlan, after: WeekPlan, keep: (d: string, t:
     });
   });
 const dayKcal = (p: WeekPlan, d: string) => (day(p, d)?.meals ?? []).reduce((s, m) => s + m.calories, 0);
+/** The week's average day, in kcal. */
+const weekAvg = (p: WeekPlan) => p.days.reduce((s, d) => s + dayKcal(p, d.day), 0) / p.days.length;
+/** A week's price in the library's own units (approxCost 1–3 per serving; 2 for a dish outside it). */
+const COST = new Map(RECIPES.map((x) => [x.name, x.approxCost]));
+const weekCost = (p: WeekPlan) => allMeals(p).reduce((s, m) => s + (COST.get(m.name) ?? 2), 0);
 /** "Lighter on <days>" (audit, 2026-10-18). Each named day drops by more than 100 kcal: a smaller resize
  *  drops about 200, and the 50 kcal margin passed a resize of the dinners alone. Its dishes keep their
  *  names: the prompt's tool is a resize, and a re-plan at a calorie number the model picked passed.
@@ -206,10 +211,17 @@ const SCENARIOS: Scenario[] = [
   {
     id: "targets", want: "act",
     message: "keep me at 1800 calories with 160g of protein",
-    check: (r) =>
-      r.profile.targetCalories === 1800 && r.profile.proteinGrams === 160
-        ? null
-        : `targets now ${r.profile.targetCalories} kcal / ${r.profile.proteinGrams} g`,
+    check: (r) => {
+      if (r.profile.targetCalories !== 1800 || r.profile.proteinGrams !== 160) return `targets now ${r.profile.targetCalories} kcal / ${r.profile.proteinGrams} g`;
+      // The week must follow the numbers: preserveMacros:false left it at 2000, a resize on top took it to
+      // 1621, and both passed (audit, 2026-10-18).
+      const avg = weekAvg(r.plan);
+      if (Math.abs(avg - 1800) > 100) return `the week averages ${Math.round(avg)} kcal, not about 1800`;
+      // Carbs and fat the user never named are numbers the model made up.
+      if (writesSent(r).some((o) => o.op === "constrain" && o.targets && ["carbs", "fat"].some((k) => (o.targets as Record<string, unknown>)[k] != null)))
+        return "set carb or fat targets the user never gave";
+      return unaskedProfileEdit(PROFILE, r.profile, ["targetCalories", "proteinGrams", "carbsGrams", "fatGrams"]);
+    },
   },
   {
     id: "exclude", want: "act",
@@ -217,8 +229,14 @@ const SCENARIOS: Scenario[] = [
     // (a do-nothing stub scored it, 2026-10-03). It has eggs in three breakfasts.
     message: "i really can't stand eggs, get rid of them",
     check: (r) => {
-      const bad = allMeals(r.plan).filter((m) => contains(m, ["egg", "eggs"]));
-      return bad.length ? `still has eggs: ${bad.map((m) => m.name).join(", ")}` : null;
+      // The engine's own haystack (name, ingredients, method), never the description: "no egg needed" in a
+      // description failed an egg-free dish (audit, 2026-10-18).
+      const bad = allMeals(r.plan).filter((m) => haystackBlocked(`${m.name} ${ingNames(m).join(" ")} ${m.steps.join(" ")}`, ["egg", "eggs"]));
+      if (bad.length) return `still has eggs: ${bad.map((m) => m.name).join(", ")}`;
+      // A lasting dislike, so saved: a day-scoped exclusion over the egg days saved nothing, and passed.
+      if (!parseExclusionTokens("", r.profile.dislikes ?? "").some((x) => /^eggs?$/.test(x))) return "eggs not saved as a dislike, so the next week can bring them back";
+      // Only the dislike: a vegan switch, or the dislike filed as an allergy, passed.
+      return unaskedProfileEdit(PROFILE, r.profile, ["dislikes"]);
     },
   },
   {
@@ -348,18 +366,36 @@ const SCENARIOS: Scenario[] = [
   {
     id: "four-meals", want: "act",
     message: "add an afternoon snack, i want 4 meals a day from now on",
-    check: (r) => r.profile.mealsPerDay === 4 && r.plan.days.every((d) => d.meals.some((m) => m.type === "snack"))
-      ? null : `mealsPerDay=${r.profile.mealsPerDay}, snack on ${r.plan.days.filter((d) => d.meals.some((m) => m.type === "snack")).length}/7 days`,
+    check: (r) => {
+      const snackDays = r.plan.days.filter((d) => d.meals.some((m) => m.type === "snack")).length;
+      if (r.profile.mealsPerDay !== 4 || snackDays !== r.plan.days.length) return `mealsPerDay=${r.profile.mealsPerDay}, snack on ${snackDays}/7 days`;
+      // The snack fits the day; stacked on top of unchanged meals it overshot every day by ~220 kcal and passed.
+      const avg = weekAvg(r.plan);
+      if (avg > PROFILE.targetCalories + 100) return `the snack sits on top: the week averages ${Math.round(avg)} kcal against ${PROFILE.targetCalories}`;
+      return unaskedProfileEdit(PROFILE, r.profile, ["mealsPerDay"]);
+    },
   },
   {
     id: "meal-prep", want: "act",
     message: "i'd rather meal prep — cook in bulk twice a week and eat the leftovers",
-    check: (r) => (r.profile.planMode === "batch" ? null : `planMode=${r.profile.planMode ?? "fresh"}`),
+    check: (r) => {
+      if (r.profile.planMode !== "batch") return `planMode=${r.profile.planMode ?? "fresh"}`;
+      // "Twice a week": one cooking session a week passed (audit, 2026-10-18).
+      const sessions = r.plan.sessions?.length ?? 0;
+      if (sessions < 2) return `${sessions} cooking session(s) a week, not two`;
+      return unaskedProfileEdit(PROFILE, r.profile, ["planMode", "batchCadence"]);
+    },
   },
   {
     id: "cheaper", want: "act",
     message: "money's tight this month, can you make the week cheaper?",
-    check: (r) => (r.profile.budget === "low" ? null : `budget=${r.profile.budget}`),
+    check: (r, b) => {
+      if (r.profile.budget !== "low") return `budget=${r.profile.budget}`;
+      // The week itself must get cheaper, not only the setting (audit, 2026-10-18).
+      if (weekCost(r.plan) >= weekCost(b)) return `the week is not cheaper (cost ${weekCost(b)} -> ${weekCost(r.plan)})`;
+      // Only the budget: a vegetarian switch, permanent exclusions or a calorie cut alongside it all passed.
+      return unaskedProfileEdit(PROFILE, r.profile, ["budget"]);
+    },
   },
   {
     id: "iron-veg", want: "act",

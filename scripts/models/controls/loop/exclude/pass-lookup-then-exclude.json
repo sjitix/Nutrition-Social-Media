@@ -1,0 +1,4 @@
+{"can't stand eggs": [
+  {"thinking": "See where eggs are first.", "reply": "", "operations": [{"op": "get_plan"}]},
+  {"thinking": "Eggs on Tuesday, Thursday, Friday and Saturday. Exclude them for good.", "reply": "Taking eggs out of every meal.", "operations": [{"op": "remember", "fact": "dislikes eggs", "kind": "preference"}, {"op": "constrain", "exclude": ["eggs"]}]}
+]}

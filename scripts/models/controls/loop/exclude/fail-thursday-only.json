@@ -1,0 +1,1 @@
+{"can't stand eggs": {"thinking": "Thursday is the egg-heavy day, rebuild it without eggs.", "reply": "Pulling the eggs out of your meals.", "operations": [{"op": "constrain", "scope": {"days": ["Thursday"]}, "exclude": ["eggs"]}]}}

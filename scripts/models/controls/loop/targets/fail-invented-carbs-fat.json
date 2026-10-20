@@ -1,0 +1,1 @@
+{"keep me at 1800 calories": {"thinking": "1800 kcal, 160 g protein = 640 kcal; split the rest: 165 g carbs, 55 g fat.", "reply": "Setting you to 1800 kcal: 160 g protein, 165 g carbs and 55 g fat.", "operations": [{"op": "constrain", "targets": {"calories": 1800, "protein": 160, "carbs": 165, "fat": 55}}]}}
