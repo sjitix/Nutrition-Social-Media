@@ -1520,19 +1520,26 @@ Each of these was discovered by doing the work, and each earned its place.
     The fixes ask of each check what its failure would look like. Each check now names what it proves,
     asserts its preconditions (Sam has no `imports` row before the forged insert), and identifies the
     token each request carried (the gateway logs a hash of it). **And it is proven by mutation, like
-    the other suites:** `mutate-live.mjs` loosens each policy, breaks the allow list, turns audit logs
-    back on and removes each renewal path, and requires the named check to go red. Lesson 52 was about
-    fakes kinder than the platform; this is the same mistake one level up, in a test kinder than its
-    name.
+    the other suites:** `mutate-live.mjs` breaks 17 guards, among them all four RLS policies, the allow
+    list, the audit setting and each renewal path, and requires each one's named check to go red. Lesson
+    52 was about fakes kinder than the platform; this is the same mistake one level up, in a test kinder
+    than its name.
 
     **And a survivor against the REAL platform may be teaching you the platform** (lesson 63, one level
-    further). The first mutation run caught 7 of 9. "Replace the verifier on a second request" survived
-    because GoTrue binds a link's code to the person's most recent request, refused ones included, so
-    a refused request cannot break the link whatever the app does. Reading GoTrue's source confirmed
-    it. The fake had modelled a per-link binding, and the app's sentence blamed the person ("opened in a
-    different browser") for what was really a second device asking. The fix was not to delete the
-    mutation: it was to test the case where the guard matters (a request GoTrue never received), give
-    the real case its own sentence, and make the fake follow GoTrue's rule.
+    further). The first mutation run caught 7 of 9. "Replace the verifier on a second request" survived.
+    GoTrue binds a link's code to the person's most recent request, refused ones included (with
+    "Confirm email" off), so a refused request cannot break the link whether the app replaces or reuses
+    its verifier; dropping it still would. Reading GoTrue's source confirmed it. The fake had modelled a
+    per-link binding, and the app's sentence blamed the person ("opened in a different browser") for
+    what was really a second device asking. The fix was not to delete the mutation. It was to test the
+    case where the guard matters (a request GoTrue never received), give the real case a true sentence,
+    and make the fake follow GoTrue's rule.
+
+    **Then the same lesson again, about the fix's own docs.** A second review of that batch found them
+    claiming "every live check is proven by mutation", when the 10 mutations required 9 of 38 checks to
+    fail. It also found the new sentence false for the other cause of the same server error. Now it is
+    17 of 38, each named, with the other 21 accounted for, and a sentence that names both causes. **Count
+    what the mutations require, never what they suggest.**
 
 68. **The tool that commits for every lane needs the same proof as the code it commits, and the git
     flag that sounds safe can be safe in the wrong way.** `ship.mjs` v1 had one test, which was being
@@ -1551,6 +1558,21 @@ Each of these was discovered by doing the work, and each earned its place.
     chosen because it refuses rather than merges. But it also resets every index entry, so the staged
     version of a file nobody named vanished. `git read-tree -m -u` (what `git checkout` does) keeps it.
     **Read the whole contract of the "safe" flag, then test the exact state it promises to keep.**
+
+69. **A gated commit that carries a shared doc can lose its whole gate to another lane's doc edit, so
+    ship the shared docs in a commit of their own.** On 2026-10-20 the accounts lane's batch named 17
+    files: the code, and six docs, among them `CONTEXT.md` and the worklog index, which every lane
+    edits. Its gate passed (`test:engine` 1010/0) after 24 minutes. In those 24 minutes three other
+    commits landed, and two of them changed `CONTEXT.md` and the worklog index. `ship` stopped with
+    nothing committed, as it must: merging there, unseen, is how another lane's words get lost
+    (lesson 47). One green gate was spent, and v1's next commit waited behind it.
+
+    A gate now takes longer than the gap between the lanes' doc commits (an hour on a loaded machine,
+    against three commits in 24 minutes that evening), so a gated commit holding a shared doc will
+    lose that race routinely. **Ship the code gated. Ship `CONTEXT.md`, `CLAUDE.md`, `WORKPLAN.md`,
+    `VISION.md` and the worklog index straight after, as their own commit with `--no-gate`.** `ship`
+    allows that because no gate reads a doc. And a docs commit takes seconds, so the window in which
+    another lane can collide with it is seconds too.
 
 ---
 

@@ -7,8 +7,8 @@
 
 ## Now doing
 
-**2026-10-18: the LOCAL live run, then a review of it: 38/38 against the real servers, each check
-proven by mutation (10/10).** The owner's Supabase project still does not exist, and fakes are what hid this
+**2026-10-18: the LOCAL live run, then two reviews of it: 38/38 against the real servers, with 17 of
+the 38 checks proven able to fail by mutation (17/17).** The owner's Supabase project still does not exist, and fakes are what hid this
 lane's worst bugs (lesson 52). So `node scripts/account-live/run.mjs` runs the real thing locally:
 - **The servers:** real GoTrue v2.197.0, PostgREST 16.4 and Postgres 17.11, as user-level Linux
   binaries in WSL (no Docker, no sudo: neither is on this laptop). They are fetched once into
@@ -34,21 +34,32 @@ confirmed 35 findings:
   - `--keep` that could not keep.
 - **A setup instruction from 2026-10-03 that cannot work:** phone testing by LAN address.
 
-All 35 are fixed in this batch. The live run is 38 checks now, and `mutate-live.mjs` proves each can
-fail (lesson 67). Its first run caught 7 of 9. One check crashed instead of failing (fixed). One
-mutation survived, and that survivor was a platform fact nobody here knew:
-- **GoTrue issues a link's code for the person's MOST RECENT request, from whichever browser, even one
-  it refused as too soon** (verify.go `FindFlowStateByUserID(...).Last()`; magic_link.go writes the
-  flow state before the rate limit).
+All 35 are fixed (`766e243`). The live run is 38 checks now. Its mutation runner's first run caught 7
+of 9: one check crashed instead of failing (fixed), and one mutation survived. That survivor was a
+platform fact nobody here knew:
+- **GoTrue issues a link's code for the person's MOST RECENT request, from whichever browser.** The
+  chain is verify.go -> pkce.go issueAuthCode -> models/flow_state.go `FindFlowStateByUserID(...).Last()`,
+  ordered by created_at. With "Confirm email" off, as the setup sets it, that includes a request it
+  refused as too soon: magic_link.go writes the flow state before the rate limit.
 - **What follows for a person:** a second device asking moves the sign-in there, and the first
-  browser's link then fails. The app blamed them ("opened in a different browser"); it now says a
-  newer sign-in request took the link over.
+  browser's link then fails.
 - **What follows for the code:** the app's verifier reuse only matters for a request GoTrue never
   received, so that is what the checks now test (a dropped connection, through a gateway hook).
 
-The fake models GoTrue's rule now: one link per person, the latest request's challenge, and an optional
-60 s refusal. Also found: WSL's clock steps backwards, so the run orders emails and requests by sequence
-number. Detail: `docs/worklog/2026-10-18-accounts.md`.
+**A second review, of that batch (6 agents), confirmed 16 more.** All are fixed (`4663a81`, 2026-10-20):
+- **"Every live check is proven by mutation" was itself an overclaim.** It is 17 of the 38 now: seven
+  more mutations, the select policy among them, and the other 21 are accounted for.
+- **The new sentence was wrong for the other cause.** GoTrue's `bad_code_verifier` also comes back
+  when a link asked for in another browser is opened where a different sign-in is pending, so the
+  sentence now names both causes.
+- **Two clock dependences were left in the takeover checks.** GoTrue orders requests by WSL's clock, so
+  the run now reads `auth.flow_state` to confirm GoTrue's latest before relying on it.
+- **Smaller fixes:** a socket lock that could block Postgres after a crash; `setup.sh` outside the
+  stack's lock; a lockfile hash that CRLF broke; and the fake binding a code at exchange time, where
+  GoTrue binds it when the link is opened.
+
+The fake models GoTrue's rule: one link per person, a code bound to the latest request when first
+presented, and an optional 60 s refusal. Detail: `docs/worklog/2026-10-18-accounts.md`.
 
 Also today: `account/validate.ts` imports from `../core/client` (`dd5b33e`); the theme key moved to its
 own module, which took 3.16 kB gz off "/" (`2d9e024`); and two script imports moved off a D5a shim
@@ -87,13 +98,25 @@ The history of that day is in `docs/worklog/2026-10-03-accounts.md`.
 
 ## Heads-up for the other lanes
 
+- **This lane ships shared docs in a commit of their own (2026-10-20, WORKPLAN lesson 69).** The code
+  goes gated. Straight after it, `CONTEXT.md`, `CLAUDE.md`, `WORKPLAN.md`, `VISION.md` and the worklog
+  index go with `--no-gate`, which `ship` allows because no gate reads a doc. A gated commit holding
+  one of those was stopped here by two other lanes' doc commits during its 24-minute gate, green and
+  delivering nothing. The same split would spare any lane that.
 - **`scripts/account-live/` is mine (2026-10-18).** `live.mts` is type-checked by `tsconfig.scripts.json`
   like every script. Nothing in it is a gate: run it by hand, about 80 s once cached. It needs WSL 2
   with an x86-64 Ubuntu (`LIVE_WSL_DISTRO` names another distro).
-  - **One run at a time, across all lanes:** a second waits 15 s for the stack's lock, then exits saying
-    another run is using it. It never tears the first one down, as it used to.
-  - **`mutate-live.mjs` edits files in place while it runs** (migration 0001, `stack.sh`, `supabase.ts`,
-    `client.ts`), like `mutate-account.mjs`. Do not run a gate in this worktree at the same time.
+  - **One run at a time, across all lanes:** setup and the stack both take the stack's lock. A second
+    run waits 15 s, then exits saying another run is using it, before it touches anything.
+  - **`mutate-live.mjs` edits files in place while it runs** (migrations 0001 and 0002, `stack.sh`,
+    `supabase.ts`, `client.ts`), like `mutate-account.mjs`. Do not run a gate in this worktree at the
+    same time.
+  - **This lane's bundles and mutation journals live in the worktree's own `.cache/`** (since
+    2026-10-20, after v1's `6509cdb` did the same for `package.json`), never in `node_modules/.cache`,
+    which worktrees can share through a junction. A journal left at the old place is still restored.
+  - **This laptop's WSL clock steps backwards** (dmesg: "Time jumped backwards", offsets from Windows
+    moving by seconds). Anything that compares WSL timestamps across seconds can flake. The live run
+    orders by sequence numbers, and checks GoTrue's own ordering where it depends on that clock.
   - **The fake now follows GoTrue's link rules (`account-fakes.ts`):**
     - an accepted request retires the address's earlier link;
     - a link's code is checked against the person's LATEST request's challenge, refused requests
@@ -275,4 +298,5 @@ whose claims were each checked against the code (and corrected twice by the revi
 | `c2bd5a0` | the local live run: `scripts/account-live/` (real GoTrue v2.197.0, PostgREST 16.4, Postgres 17.11 in WSL; a gateway and mail catcher), 20/20; `supabase/README.md` says what it covers and what only a hosted project can show |
 | `555a97b` | D5a's move (`2b7075d`) checked in this lane's files; the docs that named the old paths name the new ones |
 | `2d9e024` | `persistence/theme.ts`: the theme key in its own module, so "/", "/_not-found" and "/recipes" stop loading `storage.ts` (−3.16 kB gz each, both builds in one folder) — engine 943/0 |
-| *(next)* | the live run's review, all 35 findings: checks that can fail (RLS insert, unfiltered update and delete; renewal of really expired tokens before a push and after a 401; where every link lands; the newest-link rule; a re-signup's id; the audit table), proven by `mutate-live.mjs`; the stack hardened (lock, PID identity, socket-only Postgres, gateway on 127.0.0.1, SHA-256 pins, a locked `pg` client, `--keep`/`--down`); the README's phone advice fixed; the fake keeps one link per person. The first `mutate-live` run surfaced GoTrue's latest-request rule (a link's code goes to the person's most recent request, even a refused one): a "newer request took this link over" sentence, the fake modelling it, and the verifier tested through a lost request; WSL's backward clock steps designed out — 38/38 live, 10/10, 335 + 43, 87/87, lessons 66–67 |
+| `766e243` | the live run's review, all 35 findings: checks that can fail (RLS insert, unfiltered update and delete; renewal of really expired tokens before a push and after a 401; where every link lands; the newest-link rule; a re-signup's id; the audit table), with `mutate-live.mjs`; the stack hardened (lock, PID identity, socket-only Postgres, gateway on 127.0.0.1, SHA-256 pins, a locked `pg` client, `--keep`/`--down`); the README's phone advice fixed; the fake keeps one link per person. The first `mutate-live` run surfaced GoTrue's latest-request rule (a link's code goes to the person's most recent request, even a refused one): a takeover sentence, the fake modelling it, and the verifier tested through a lost request — 38/38 live, 10/10, 335 + 43, 87/87, lessons 66–67 |
+| `4663a81` | the second review of the live run (16 findings): 17 of the 38 checks proven able to fail (seven more mutations, the select policy among them), and the docs saying so instead of "every check"; the `bad_code_verifier` sentence names both causes (asked for elsewhere, or taken over), with a test for the first; GoTrue's ordering confirmed from `auth.flow_state` before the takeover checks; the stale socket lock cleared; `setup.sh` under the stack's lock; a CR-blind lockfile hash; the fake binds a code when it is first presented; the takeover rule qualified ("Confirm email" off); the Referer fallback documented; bundles and journals in the worktree's own `.cache/`. Shipped apart from its docs, which follow in the next commit (lesson 69) — 38/38 live, 17/17, 336 + 43, 87/87, engine 1010/0, test:ui 51/0 |

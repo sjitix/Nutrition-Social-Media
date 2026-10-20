@@ -37,7 +37,15 @@ threads at session start, with the boards.
 
 **2026-10-18 — accounts are built up to the keys, adversarially reviewed three times, and run live
 against the real GoTrue, PostgREST and Postgres with no Supabase project: 38/38. The live run's own
-tooling was then reviewed (35 confirmed findings), and every live check is now proven by mutation.**
+tooling was then reviewed twice (35, then 16 confirmed findings), and 17 of its 38 checks are proven
+able to fail by mutation, with the other 21 accounted for.**
+
+**Where it stopped (2026-10-20):** the second review's fixes landed as `4663a81`, their docs in the
+commit after. Nothing of this lane's is running or uncommitted. Next is whatever the owner's decisions
+doc answers for #1 (the Supabase project) and #4 (the chat log); it had no comments at 23:05. This lane
+now ships the shared docs in a commit of their own, with `--no-gate` (lesson 69): a gated commit
+carrying them was stopped, green, by two other lanes' doc commits.
+
 Live status, the plan and the asks: `docs/parallel/lane-accounts.md`. Design: **local-first, the
 account is a mirror** — `storage.ts`'s load/save API did not change, so no screen had to; underneath,
 every real save stamps a write time and notifies listeners, and a sync layer mirrors each store to one
@@ -115,30 +123,39 @@ Supabase row per user under RLS.
     - RLS on read, insert, and unfiltered update and delete;
     - sign-out, and a deletion as the other device sees it;
     - a re-signup's new id, and an empty audit table.
-  - **`node scripts/account-live/mutate-live.mjs` proves each check can fail** (10 mutations,
-    ~15 min). The first version could not have: its review found an RLS write check satisfied by a
-    primary-key collision, renewals that never sent an expired token, and links nobody followed.
-    Lesson 67.
+  - **`node scripts/account-live/mutate-live.mjs` shows 17 of the 38 checks able to fail** (17
+    mutations, each requiring its own named check to go red, ~25 min). The other 21 are platform facts
+    the run records, preconditions and follow-ons of proven checks, and six landings the run never
+    reaches once the first sign-in fails (README lists them). Say "17 of 38", never "every check": the
+    second review caught exactly that claim. The first version's checks could not fail at all: an RLS
+    write check satisfied by a primary-key collision, renewals that never sent an expired token, links
+    nobody followed. Lesson 67.
   - **A platform fact the mutations found:** GoTrue issues a link's code for the person's MOST
-    RECENT request, whichever browser made it, and records a request even when it refuses it as too
-    soon (verify.go, magic_link.go). So a second device asking moves the sign-in there. The app now
-    says "a newer sign-in request took this link over", not "opened in a different browser". The fake
-    models the rule.
+    RECENT request, whichever browser made it (verify.go -> pkce.go issueAuthCode ->
+    FindFlowStateByUserID(...).Last(), by created_at). With "Confirm email" off, as the setup sets it,
+    it records a request even when it refuses it as too soon (magic_link.go). So a second device
+    asking moves the sign-in there. GoTrue's `bad_code_verifier` cannot say which cause applies:
+    asked for elsewhere, or taken over. So the app's sentence now names both, instead of only "opened
+    in a different browser". The fake models the rule, binding a code when it is first presented, as
+    GoTrue does when the link is opened.
   - **A fact corrected:** GoTrue accepts the refresh token a renewal just replaced with no time
     limit while it is the current one's parent, and answers with the current one. The "about ten
     seconds" written earlier was neither measured nor GoTrue's rule.
-  - **WSL's clock steps backwards** (dmesg), so the run orders emails and requests by sequence
-    number, never by time.
+  - **WSL's clock steps backwards** (dmesg). The run orders its own observations by sequence number.
+    For the two things that still rest on that clock, it checks rather than assumes: it reads
+    GoTrue's `auth.flow_state` to confirm which request GoTrue holds as latest before a takeover
+    check, and it retries a request GoTrue still counts as too soon after the wait.
   - Not exercised: a first link with "Confirm email" on, `/logout` among several sessions, and the
     Site URL fallback itself (see the README's list).
-- **Gate for this lane:** `node scripts/test-account.mjs` runs two suites: **335 checks** in one tab,
+- **Gate for this lane:** `node scripts/test-account.mjs` runs two suites: **336 checks** in one tab,
   including the real `client.ts` end to end against an in-memory Supabase (RLS, PKCE, conditional
   writes, jsonb order, skewed clocks, token expiry, a deleted account), and **43 checks across tabs**
   of one browser (stale tabs, the write fence, a tab that hears late, races between tabs signing in
   and out) · `node scripts/test-account-sql.mjs --mutate` — **39 checks in real Postgres, 16/16
   broken guards caught** · `node scripts/mutate-account.mjs` — **87/87** (`--only "text"` re-checks
   one guard in seconds; an interrupted run is undone on the next start) · `node
-  scripts/account-live/run.mjs` — **38/38 live**, and `mutate-live.mjs` **10/10**.
+  scripts/account-live/run.mjs` — **38/38 live**, and `mutate-live.mjs` **17/17** (17 of the 38 checks
+  shown able to fail).
 - **Owner, to switch accounts on:** `supabase/README.md` — create a project, run **both** migrations,
   set the Site URL to the account page, turn off "Confirm email" and "Write audit logs to the
   database", **configure custom SMTP** (without it only your own organisation receives sign-in
