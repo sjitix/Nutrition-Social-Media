@@ -1,7 +1,0 @@
-{
-  "cooking for me and my girlfriend": {
-    "thinking": "Remember the context and decline in the same turn.",
-    "reply": "I've noted that you're cooking for two, but I can't scale the plan for a second person yet. Double the ingredients when you cook and keep one portion for yourself.",
-    "operations": [ {"op": "remember", "fact": "cooks for two (self and girlfriend)", "kind": "context"} ]
-  }
-}

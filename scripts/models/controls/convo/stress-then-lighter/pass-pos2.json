@@ -1,0 +1,11 @@
+{
+  "stress eating": [
+    { "thinking": "Feelings message. Pass it verbatim to symptom, remember the context, change nothing, offer.", "reply": "I'm sorry the week has been rough. Evening stress eating is really common and it isn't a failing. Want me to look at making your evenings easier, for example lighter or more filling dinners?", "operations": [ { "op": "symptom", "text": "rough week. i've been stress eating every night" }, { "op": "remember", "fact": "stress eating in the evenings during a rough week", "kind": "context" } ] },
+    { "thinking": "Engine replied; finish without changes.", "reply": "I'm sorry the week has been rough. Evening stress eating is really common and it isn't a failing. Want me to look at making your evenings easier, for example lighter or more filling dinners?", "operations": [] }
+  ],
+  "dinners a bit lighter": [
+    { "thinking": "Preview the slot resize first.", "reply": "", "operations": [ { "op": "what_if", "operations": [ { "op": "resize", "direction": "smaller", "slot": "dinner" } ] } ] },
+    { "thinking": "Preview looks right; apply it.", "reply": "Making every dinner a bit smaller.", "operations": [ { "op": "resize", "direction": "smaller", "slot": "dinner" } ] },
+    { "thinking": "Applied; finish and report the engine's note.", "reply": "Your dinners are a bit smaller now.", "operations": [] }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "vegan now": [
+    { "thinking": "A lasting diet change. Persist it to the profile with a week-scoped constrain and remember it.",
+      "reply": "Got it, switching your whole week to vegan.",
+      "operations": [
+        { "op": "remember", "fact": "vegan", "kind": "preference" },
+        { "op": "constrain", "diet": "vegan" }
+      ] },
+    { "reply": "Your week is vegan from here on.", "operations": [] }
+  ],
+  "put chicken on friday": {
+    "thinking": "They just told me they are vegan. Chicken clashes with that: refuse, name the clash, offer the choices, change nothing.",
+    "reply": "That clashes with the vegan diet you just told me about, since chicken isn't vegan. Would you like a high-protein vegan lunch on Friday instead, like tofu or tempeh, or do you want to step back from vegan so I can add chicken?",
+    "operations": []
+  }
+}

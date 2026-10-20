@@ -1,0 +1,4 @@
+{
+  "stress eating": { "thinking": "A feeling. Empathy first, no diagnosis, no plan change; pass their exact words to symptom; offer one adjustment as a question.", "reply": "That sounds like a really tough week, and stress eating at night is something a lot of people go through, so please go easy on yourself. Would it help if I made your dinners a little more filling, so evenings feel easier?", "operations": [ { "op": "symptom", "text": "rough week. i've been stress eating every night" } ] },
+  "dinners a bit lighter": { "thinking": "A direction for one meal type across the week: resize smaller, slot dinner, no day.", "reply": "Making your dinners a bit smaller across the week.", "operations": [ { "op": "resize", "direction": "smaller", "slot": "dinner" } ] }
+}

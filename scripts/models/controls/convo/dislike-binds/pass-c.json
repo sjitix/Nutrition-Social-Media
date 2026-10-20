@@ -1,0 +1,12 @@
+{
+  "can't stand avocado": {
+    "thinking": "No avocado in the current week, so nothing to change now; remember the dislike so later picks respect it.",
+    "reply": "Noted, I'll keep avocado off your plate. There's none in this week's plan.",
+    "operations": [ { "op": "remember", "fact": "can't stand avocado", "kind": "preference" } ] },
+  "something mexican for saturday dinner": [
+    { "reply": "", "operations": [ { "op": "find_recipes", "mealType": "dinner", "query": "taco" } ] },
+    { "thinking": "The user dislikes avocado: send the exclusion with the pick so the engine can't choose it.",
+      "reply": "", "operations": [ { "op": "constrain", "exclude": ["avocado"] }, { "op": "swap", "dish": "Smoky Turkey & Sweet Potato Skillet", "slot": "dinner", "days": ["Saturday"] } ] },
+    { "reply": "Saturday dinner is the Smoky Turkey & Sweet Potato Skillet, and avocado is excluded.", "operations": [] }
+  ]
+}

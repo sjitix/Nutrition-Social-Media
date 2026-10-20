@@ -1,0 +1,3 @@
+{ "monday's dinner": { "reply": "Sure, happy to help you with your meal plan this week!", "operations": [] },
+  "swap it": [ { "reply": "", "operations": [ { "op": "find_recipes", "mealType": "dinner", "diet": "vegetarian", "maxTime": 30, "limit": 5 } ] },
+    { "reply": "Swapping Monday's dinner for the Ginger Tofu Stir-Fry.", "operations": [ { "op": "swap", "dish": "Ginger Tofu Stir-Fry", "slot": "dinner", "days": ["Monday"] } ] } ] }

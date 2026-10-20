@@ -1,0 +1,5 @@
+{ "monday's dinner": [
+    { "reply": "", "operations": [ { "op": "inspect_recipe", "name": "Chicken & Vegetable Stir-Fry with Rice" } ] },
+    { "reply": "Monday's dinner is the Chicken & Vegetable Stir-Fry with Rice: chicken breast, brown rice, mixed stir-fry vegetables, a soy-ginger sauce and a little sesame oil. It takes about 20 minutes.", "operations": [] }
+  ],
+  "swap it": [ { "reply": "Making Monday vegetarian.", "operations": [ { "op": "constrain", "scope": { "days": ["Monday"] }, "diet": "vegetarian" } ] } ] }

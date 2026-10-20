@@ -33,6 +33,7 @@ import {
   withErrorCapture, isInfraError, holdFailure, scriptedModel, scriptLabel, reseedEngine, engineSeedConfig,
   outsideScope, unaskedProfileEdit, writesSent, inventedFigures, isVegMeal, isVeganMeal, memoryAdded,
   symptomTexts, quotesUser, foodWordsAdded, holdWrites, mentions, declines, asksQuestion, changedOutside,
+  replanningConstrains,
 } from "./eval-common";
 import type { UserProfile, WeekPlan, Meal } from "@/lib/core";
 
@@ -282,7 +283,7 @@ const SCENARIOS: Scenario[] = [
       if (m.name === meal(PLAN, "Thursday", "dinner")?.name) return "Thursday dinner unchanged";
       // One dish into one slot is a swap (LOOP RULE 1). A day-scoped constrain re-planned all of Thursday and
       // passed when its guessed cook time happened to fit (audit, 2026-10-18).
-      if (writesSent(r).some((o) => o.op === "constrain")) return "re-planned with a constrain instead of swapping the dish into Thursday's dinner";
+      if (replanningConstrains(r).length) return "re-planned with a constrain instead of swapping the dish into Thursday's dinner";
       // A swap with no days put the dish on every dinner, and passed.
       return outsideScope(b, r.plan, (d) => d === "Thursday") ?? unaskedProfileEdit(PROFILE, r.profile);
     },

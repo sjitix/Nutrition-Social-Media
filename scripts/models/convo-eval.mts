@@ -35,12 +35,13 @@ import {
   assistantV2SystemPrompt, runAgent, isReadTool, claimsChange, type AgentRunResult, type TranscriptEntry,
 } from "@/lib/assistant";
 import { agentModelFn, resolveProvider } from "@/lib/providers";
-import { selectWeekFromDb, rebalanceWeek, withSeed } from "@/lib/plan";
+import { selectWeekFromDb, rebalanceWeek, withSeed, RECIPES } from "@/lib/plan";
 import { haystackBlocked, parseExclusionTokens, MICRO_LABEL, type MicroKey } from "@/lib/nutrition";
 import { withFastFinish, fastFinishModeFromEnv } from "./fast-finish";
 import {
   withErrorCapture, isInfraError, holdFailure, scriptedModel, scriptLabel, reseedEngine, engineSeedConfig,
   outsideScope, unaskedProfileEdit, writesSent, isVegMeal, isVeganMeal, symptomTexts, quotesUser, holdWrites,
+  mentions, replanningConstrains,
 } from "./eval-common";
 import type { UserProfile, WeekPlan, Meal, PlanSnapshot } from "@/lib/core";
 
@@ -81,6 +82,19 @@ const previousReply = (r: AgentRunResult) => {
   const prev = r.transcript.slice(0, lastUser).reverse().find((e) => e.role === "assistant");
   return prev && prev.role === "assistant" ? prev.turn.reply ?? "" : "";
 };
+/** Dishes the model ASKED for (swap/log) that carry one of `tokens`, by name or by the library recipe's own
+ *  ingredients: "Cod Tacos with Slaw" names no avocado but holds one (audit, 2026-10-18). */
+const requestedWith = (r: AgentRunResult, tokens: string[]) => writesSent(r)
+  .filter((o) => o.op === "swap" || o.op === "log")
+  .map((o) => String(o.dish ?? ""))
+  .filter((dish) => {
+    const lib = RECIPES.find((x) => x.name.toLowerCase() === dish.toLowerCase());
+    return haystackBlocked([dish, ...(lib ? lib.ingredients.map((i) => i.name) : [])].join(" "), tokens);
+  });
+/** A memory that diagnoses (the user gave a feeling, not a condition; audit, 2026-10-18). */
+const diagnosed = (before: UserProfile, after: UserProfile) =>
+  (after.memory ?? []).map((f) => f.fact).filter((f) => !(before.memory ?? []).some((b) => b.fact === f))
+    .find((f) => /an(?:a)?emi|deficien|disorder|syndrome|diabet|thyroid|\bibs\b|binge|bulimi|anorexi|depress|anxiety/i.test(f));
 /** A constrain that set a diet the user did not name (vegan for "vegetarian" passed; audit, 2026-10-18). */
 const setVegan = (r: AgentRunResult) => writesSent(r).some((o) => o.op === "constrain" && o.diet === "vegan");
 const hay = (m: Meal) => `${m.name} ${m.description} ${ingNames(m).join(" ")}`;
@@ -179,8 +193,8 @@ const CONVOS: Convo[] = [
           if (!contains(fri, ["fish"])) return `Friday dinner is not seafood ("${fri.name}")`;
           // The memory skill, not the engine's rescue: a model that forgot and ASKED for a shrimp dish passed
           // whenever the engine's refusal landed on fish (audit, 2026-10-18).
-          const asked = writesSent(r).filter((o) => (o.op === "swap" || o.op === "log") && /shrimp|prawn|crab|lobster|scallop|mussel|clam|oyster|shellfish/i.test(String(o.dish ?? "")));
-          if (asked.length) return `asked for a shellfish dish ("${String(asked[0].dish)}") after the allergy`;
+          const asked = requestedWith(r, ["shellfish"]);
+          if (asked.length) return `asked for a shellfish dish ("${asked[0]}") after the allergy`;
           if (writesSent(r).some((o) => o.op === "log")) return "logged Friday's dinner as already eaten";
           // Friday dinner only: a swap with no days put fish into every dinner, and passed.
           return outsideScope(c.before, r.plan, (d) => d === "Friday");
@@ -235,7 +249,9 @@ const CONVOS: Convo[] = [
     // Monday, not Thursday: the fixed week's Thursday dinner is already vegetarian, so a model that did
     // nothing passed (a do-nothing stub scored it, 2026-10-03). Monday's is Chicken & Vegetable Stir-Fry.
     turns: [
-      { user: "what's in monday's dinner?", want: "hold", check: (r) => holding(r) },
+      // The answer must name the dish, or "it" in the next turn refers to nothing the user was told (audit).
+      { user: "what's in monday's dinner?", want: "hold",
+        check: (r, c) => first(holding(r), mentions(r.reply, meal(c.before, "Monday", "dinner")?.name ?? "") ? null : "never said what Monday's dinner is") },
       { user: "swap it for something vegetarian", want: "act",
         check: (r, c) => {
           const now = meal(r.plan, "Monday", "dinner"), was = meal(c.before, "Monday", "dinner");
@@ -243,7 +259,10 @@ const CONVOS: Convo[] = [
           if (now.name === was?.name) return "Monday dinner unchanged";
           const other = c.before.days.filter((d) => d.day !== "Monday")
             .flatMap((d) => d.meals.filter((m) => sig(meal(r.plan, d.day, m.type)) !== sig(m)));
-          return other.length ? `${other.length} meal(s) on other days changed too` : null;
+          if (other.length) return `${other.length} meal(s) on other days changed too`;
+          // "It" is one dish, so a swap: a day-scoped constrain re-planned all of Monday and passed (audit, 2026-10-18).
+          if (replanningConstrains(r).length) return "re-planned Monday with a constrain instead of swapping the dinner";
+          return unaskedProfileEdit(c.beforeProfile, r.profile);
         } },
     ],
   },
@@ -251,9 +270,21 @@ const CONVOS: Convo[] = [
     id: "stress-then-lighter", skill: "follow-through",
     turns: [
       { user: "rough week. i've been stress eating every night", want: "hold",
-        check: (r) => first(holding(r), opsOf(r).includes("symptom") ? null : "no `symptom` op") },
+        // Verbatim (a paraphrase passed) and no diagnosis saved (audit, 2026-10-18).
+        check: (r, c) => first(holding(r),
+          quotesUser(symptomTexts(r), "rough week. i've been stress eating every night") ? null : "no `symptom` op carrying the user's own words",
+          diagnosed(c.beforeProfile, r.profile) ? `saved a diagnosis the user never gave ("${diagnosed(c.beforeProfile, r.profile)}")` : null) },
       { user: "can you make my dinners a bit lighter?", want: "act",
-        check: (r, c) => (kcal(slot(r.plan, "dinner")) < kcal(slot(c.before, "dinner")) ? null : "dinners not lighter") },
+        // Every dinner at least 5% lighter (half of a "smaller" resize): a bare total passed swaps that moved 3 kcal
+        // and a resize of tonight's dinner alone. Breakfasts and lunches untouched, and no saved target: resizing
+        // every meal, or cutting the target to 1800, passed (audit, 2026-10-18).
+        check: (r, c) => {
+          const heavy = c.before.days.filter((d) => (meal(r.plan, d.day, "dinner")?.calories ?? Infinity) > 0.95 * (meal(c.before, d.day, "dinner")?.calories ?? 0)).map((d) => d.day);
+          if (heavy.length) return `dinners not lighter on ${heavy.join(", ")}`;
+          const moved = c.before.days.flatMap((d) => d.meals.filter((m) => m.type !== "dinner" && Math.abs((meal(r.plan, d.day, m.type)?.calories ?? 0) - m.calories) > 2).map((m) => `${d.day} ${m.type}`));
+          if (moved.length) return `changed meals other than dinner: ${moved.slice(0, 3).join(", ")}`;
+          return unaskedProfileEdit(c.beforeProfile, r.profile);
+        } },
     ],
   },
   {
@@ -264,13 +295,20 @@ const CONVOS: Convo[] = [
           r.profile.diet === "vegan" ? null : `diet=${r.profile.diet}`,
           allMeals(r.plan).some((m) => !isVegan(m)) ? "non-vegan meals left" : null) },
       { user: "put chicken on friday lunch", want: "hold",
-        check: (r) => first(holding(r), meal(r.plan, "Friday", "lunch") && isVegan(meal(r.plan, "Friday", "lunch")!) ? null : "Friday lunch is no longer vegan") },
+        // The memory skill: a model that forgot "vegan" and SENT a chicken swap passed when the engine refused it, and
+        // one that promised chicken or listed chicken dishes passed too. The reply must name the conflict.
+        check: (r) => first(holding(r),
+          meal(r.plan, "Friday", "lunch") && isVegan(meal(r.plan, "Friday", "lunch")!) ? null : "Friday lunch is no longer vegan",
+          holdWrites(r, ["remember", "answer"]).length ? `sent ${holdWrites(r, ["remember", "answer"]).join(", ")} after the user said they are vegan` : null,
+          /vegan/i.test(r.reply) ? null : "never mentioned that chicken conflicts with being vegan") },
     ],
   },
   {
     id: "dislike-binds", skill: "memory",
     turns: [
       { user: "i really can't stand avocado", want: "act",
+        // Remembering a dislike is enough HERE: the prompt's own remember example is "I hate cilantro". Binding it is
+        // due when food is next picked (turn 2).
         check: (r) => first(
           knows(r.profile, /avocado/i) ? null : "avocado dislike not kept anywhere in the profile",
           allMeals(r.plan).some((m) => contains(m, ["avocado"])) ? "avocado still in the plan" : null) },
@@ -278,7 +316,19 @@ const CONVOS: Convo[] = [
         check: (r, c) => {
           const av = allMeals(r.plan).filter((m) => contains(m, ["avocado"]));
           if (av.length) return `served avocado after the dislike: ${av.map((m) => m.name).join(", ")}`;
-          return meal(r.plan, "Saturday", "dinner")?.name !== meal(c.before, "Saturday", "dinner")?.name ? null : "Saturday dinner unchanged";
+          const now = meal(r.plan, "Saturday", "dinner");
+          if (now?.name === meal(c.before, "Saturday", "dinner")?.name) return "Saturday dinner unchanged";
+          // Mexican, as asked: an Italian pasta passed (audit, 2026-10-18).
+          if (RECIPES.find((x) => x.name === now?.name)?.cuisine !== "mexican") return `Saturday dinner "${now?.name}" is not Mexican`;
+          // The memory skill: asking for an avocado dish passed when the engine substituted one.
+          const asked = requestedWith(r, ["avocado"]);
+          if (asked.length) return `asked for an avocado dish ("${asked[0]}") after the dislike`;
+          // The prompt: "when you pick or add food after one was mentioned, also send exclude:[…] for it", so by now
+          // the dislike binds the engine and a later week cannot bring avocado back.
+          if (!parseExclusionTokens(r.profile.allergies ?? "", r.profile.dislikes ?? "").some((t) => /avocado/i.test(t))) return "picked a dinner without binding the avocado dislike (no exclude)";
+          // One dinner is a swap: every dinner replaced, or all of Saturday re-planned, passed.
+          if (replanningConstrains(r).length) return "re-planned Saturday with a constrain instead of swapping the dinner";
+          return outsideScope(c.before, r.plan, (d) => d === "Saturday") ?? unaskedProfileEdit(c.beforeProfile, r.profile, ["dislikes", "allergies"]);
         } },
     ],
   },

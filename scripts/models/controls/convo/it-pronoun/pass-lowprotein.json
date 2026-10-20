@@ -1,0 +1,10 @@
+{
+  "monday's dinner": [
+    { "reply": "", "operations": [ { "op": "inspect_recipe", "name": "Chicken & Vegetable Stir-Fry with Rice" } ] },
+    { "reply": "Monday's dinner is the Chicken & Vegetable Stir-Fry with Rice: chicken breast, brown rice, mixed stir-fry vegetables, a soy-ginger sauce and a little sesame oil.", "operations": [] }
+  ],
+  "swap it": [
+    { "reply": "", "operations": [ { "op": "find_recipes", "mealType": "dinner", "diet": "vegetarian", "query": "curry", "limit": 5 } ] },
+    { "reply": "Swapping Monday's dinner for the Chickpea Curry.", "operations": [ { "op": "swap", "dish": "Chickpea Curry", "slot": "dinner", "days": ["Monday"] } ] }
+  ]
+}

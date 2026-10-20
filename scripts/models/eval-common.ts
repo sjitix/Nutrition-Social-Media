@@ -213,6 +213,18 @@ export const holdWrites = (r: AgentRunResult, allow: string[] = [...STILL]) =>
  */
 export const declines = (reply: string) =>
   /\b(?:can['’]?t(?! wait| go wrong)|cannot|can not|unable to|not able to|isn['’]t (?:yet )?(?:something|possible|supported|available|a feature)|aren['’]t (?:yet )?(?:supported|possible|available)|(?:does|do|won)n['’]?t (?:yet )?(?:support|do|handle|plan|have|offer)|(?:does|do) not (?:yet )?(?:support|do|handle|plan|have|offer)|not (?:yet )?(?:supported|possible|available|something i can)|no way to|only (?:plan|cook|cater|build|work) (?:meals )?for (?:one|a single|you)|one person)\b/i.test(reply);
+/**
+ * Constrains that RE-PLAN (a day scope, or any field beyond binding an exclusion), where one dish into one
+ * slot needed a swap. A day-scoped constrain re-solved the whole day and passed (audit, 2026-10-18). A
+ * week constrain carrying only `exclude` is the binding the prompt asks for ("when you pick or add food
+ * after one was mentioned, also send exclude:[…]"), so it is not counted.
+ */
+export const replanningConstrains = (r: AgentRunResult) => writesSent(r).filter((o) => {
+  if (o.op !== "constrain") return false;
+  const dayScoped = typeof o.scope === "object" && o.scope !== null;
+  const other = Object.keys(o).filter((k) => !["op", "exclude", "scope", "preserveMacros"].includes(k));
+  return dayScoped || other.length > 0;
+});
 /** The texts of every `symptom` operation sent. */
 export const symptomTexts = (r: AgentRunResult) => opsSent(r).filter((o) => o.op === "symptom").map((o) => String(o.text ?? ""));
 /** The reply asks the user something. */

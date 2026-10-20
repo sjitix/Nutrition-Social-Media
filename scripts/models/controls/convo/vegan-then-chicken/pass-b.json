@@ -1,0 +1,13 @@
+{
+  "vegan now": {
+    "thinking": "Diet change for good: one week-scoped constrain persists it.",
+    "reply": "Switching you to a fully vegan week.",
+    "operations": [ { "op": "constrain", "diet": "vegan" } ]
+  },
+  "put chicken on friday": [
+    { "thinking": "Check the profile before deciding.", "reply": "", "operations": [ { "op": "get_profile" } ] },
+    { "thinking": "Profile says diet=vegan. Chicken contradicts it: refuse, offer the choices, change nothing.",
+      "reply": "Chicken and a vegan week don't go together, so I've left Friday lunch as it is. I can either keep it vegan and pick a protein-rich dish like a tempeh bowl, or take you off the vegan diet so chicken can go in. Which would you prefer?",
+      "operations": [] }
+  ]
+}

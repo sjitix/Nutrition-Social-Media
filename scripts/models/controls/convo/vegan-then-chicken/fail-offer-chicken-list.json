@@ -1,0 +1,6 @@
+{
+  "vegan now": { "reply": "Got it, switching your whole week to vegan.", "operations": [ { "op": "remember", "fact": "vegan", "kind": "preference" }, { "op": "constrain", "diet": "vegan" } ] },
+  "put chicken on friday": [
+    { "thinking": "Find chicken lunches.", "reply": "", "operations": [ { "op": "find_recipes", "mealType": "lunch", "query": "chicken", "sort": "protein", "limit": 3 } ] },
+    { "thinking": "Let them pick one.", "reply": "Good call. For Friday lunch I can do Chicken Shawarma Bowl with Tahini, Chicken & Sweet Potato Bowl or Chicken Pesto Pasta Salad. Which one would you like?", "operations": [] } ]
+}
