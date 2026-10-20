@@ -184,21 +184,21 @@ in the main folder (`2fd6f02`). Its WORKPLAN lesson was renumbered 38 → 48 bec
 
 #### PARALLEL LANE — models (written by the models agent only)
 
-**2026-10-20 — RESUME HERE. Every check in both evals is fixed, and 524 controls prove it** (all 44 scenarios,
+**2026-10-21 — RESUME HERE. Every check in both evals is fixed, and 586 controls prove it** (all 49 scenarios,
 2 engine seeds; `node scripts/models/run-controls.mjs`). An audit on 10-18 had found 153 of 337 plausible wrong
 answers passing. The do-nothing and hollow-claim fakes score 0 on both evals.
 - **Scorecards from before `b43873f` were graded on the lenient harness** and are not comparable with new runs.
+- **Every eval message the prompt quotes now has a held-out paraphrase.** `node scripts/models/probe-quotes.mjs`
+  exits 0 on main: 8 near-quotes in 55 messages, all held out. Run it on any prompt change (`--code <branch>`,
+  `--prompt-file <draft>`). Both evals print each held-out beside its original.
 - **Next, the moment `.env.local` exists** (OWNER-TODO item 0, `NVIDIA_API_KEY=`): the fair arms, then the
   wording test (block below). The evals can now be trusted to grade them.
 - **Next, key-free:**
   - re-run `run-controls.mjs` when v1's C/D/E/F commit lands;
   - after D (the answer op keeps the latest reply), add a must-pass control for an answer-op hold (dropped
     for now, because today the user reads "Happy to help.").
-- **Done since:** `contradiction-heldout`, the same clash in words the prompt never uses for one. Ten claim
-  controls that failed only because their script ran out now reach the guard; `run-controls --verbose` prints
-  why each must-fail control fails.
-- The false-claim guard: `probe-claims.mts` 1/15 on main, 15/15 with v1's `c8ccfb0`. Day record:
-  `docs/worklog/2026-10-20-models.md`.
+- The false-claim guard: `probe-claims.mts` 1/15 on main, 15/15 with v1's `c8ccfb0`. Day records:
+  `docs/worklog/2026-10-20-models.md` and `2026-10-21-models.md`.
 
 **2026-10-18 — RESUME HERE. Every NVIDIA run is blocked on a missing `.env.local`; the key-free work
 is done.** Day record: `docs/worklog/2026-10-18-models.md`. Live status: `docs/parallel/lane-models.md`.
@@ -243,7 +243,7 @@ Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Ro
      - loop A (reasoning on), B (off), C (off + `FAST_FINISH=reply`), convo A, convo C;
      - wall clock, direct to NVIDIA, one arm at a time.
      **Arm A must be re-run.** The 10-03 arm A (21/26, median 23.3 s) ran 26 scenarios on a bundle from
-     before the held-out pair existed (today there are 29). And `5c12c4c` changed the loop: a claim on a
+     before the held-out pair existed (today there are 34). And `5c12c4c` changed the loop: a claim on a
      memory now costs a nudge call. Keep the old arm A as history, not as an arm.
      **One command, from `../NutriFlow-models`:** `node scripts/models/fair-arms.mjs` (try `--dry-run`
      first). It bundles each eval once, runs the five arms one at a time with a 60 s cool-down, clears
@@ -254,9 +254,10 @@ Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Ro
      The branch is main plus exactly those three prompt lines (`e078efd`, merged today), and its
      worktree is `../NutriFlow-models-wording`. **If main has moved, merge it into the branch again
      first**, and check that `git diff --stat origin/main models-wording` shows only `promptV2.ts`. Then run
-     `node scripts/models/fair-arms.mjs --arms C --repeat 3 --only 'heldout|^rate$|^eat-out-future$|^weekend-lighter$'`
+     `node scripts/models/fair-arms.mjs --arms C --repeat 3 --only '^(rate|eat-out-future|weekend-lighter|rate-heldout|eat-out-heldout|days-lighter-heldout)$'`
      once as is and once with `--code ../NutriFlow-models-wording`. That covers 6 scenarios: three quoted
-     by the wording and one held-out paraphrase for each line. Send v1 "ready to land" (the promptV2.ts
+     by the wording and one held-out paraphrase for each line; the eval prints `held out x/3, their
+     originals y/3`. (A bare `heldout` would now also run four held-outs whose originals are not in the run.) Send v1 "ready to land" (the promptV2.ts
      diff) only if the branch also fixes the held-out ones.
   3. **Send v1 the fair numbers.** The fast finish (`de1a102`, on `wip/v1-handoff-2026-10-03`) waits on them.
   4. When the owner adds a key from OWNER-TODO, measure that model first, with the loop and convo evals.
