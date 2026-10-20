@@ -1,0 +1,7 @@
+{
+  "set me up for 16:8 fasting": {
+    "thinking": "Unsupported: meal timing. Decline, nearest option, no ops.",
+    "reply": "Meal timing isn't something I can set yet, so I can't build a 16:8 window into your plan. What I can do is keep breakfast small and simple so it suits a noon start. Shall I?",
+    "operations": []
+  }
+}

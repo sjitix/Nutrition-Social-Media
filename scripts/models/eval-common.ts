@@ -180,6 +180,39 @@ export const inventedFigures = (r: AgentRunResult, userText: string) =>
   /\d/.test(userText) ? [] : writesSent(r)
     .filter((o) => (o.op === "log" || o.op === "reserve") && ["calories", "protein"].some((k) => o[k] != null))
     .map((o) => `${o.op} ${String(o.day)} ${String(o.slot)}`);
+/**
+ * The user's message, quoted. The prompt says to pass it "VERBATIM … copy, never paraphrase", because the
+ * symptom checks match the user's own phrasing. A text counts when it holds the whole message, or nearly
+ * all of it, ignoring case, punctuation and spacing (audit, 2026-10-18: a paraphrase that dropped
+ * "exhausted" passed, and so did an empty text).
+ */
+export const quotesUser = (texts: string[], message: string) => {
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const m = norm(message);
+  return texts.some((t) => { const n = norm(t); return n.includes(m) || (m.includes(n) && n.length >= 0.8 * m.length); });
+};
+// Every word of every library ingredient name, minus the describing words ("fresh", "ground", "sauce"…).
+const NOT_FOOD = new Set(["fresh", "large", "small", "medium", "ground", "whole", "dried", "frozen", "light", "extra", "virgin", "plain", "cooked", "sliced", "chopped", "mixed", "white", "brown", "green", "black", "sweet", "baby", "sauce", "powder", "juice", "stock", "fillet", "fillets", "canned", "tinned", "free", "range", "with", "skinless", "boneless", "lean", "fresh", "raw", "smoked", "roasted", "toasted", "flakes", "leaves", "seeds"]);
+const FOOD_WORDS = new Set(RECIPES.flatMap((r) => r.ingredients.flatMap((i) => i.name.toLowerCase().split(/[^a-z]+/))).filter((w) => w.length >= 4 && !NOT_FOOD.has(w)));
+/** Food words in `text` that the user's own words do not contain: something the model introduced, like an
+ *  invented trigger ("beans and lentils make them bloated") saved to memory (audit, 2026-10-18). */
+export const foodWordsAdded = (text: string, said: string) => {
+  const s = new Set(said.toLowerCase().split(/[^a-z]+/));
+  return [...new Set(text.toLowerCase().split(/[^a-z]+/))].filter((w) => FOOD_WORDS.has(w) && !s.has(w) && !s.has(w.replace(/s$/, "")));
+};
+/** Write operations that change nothing a hold must leave alone: the only writes a HOLD may send. */
+const STILL = new Set(["symptom", "remember", "answer", "report", "explain", "hydration"]);
+/** A hold's writes beyond those (a slot edit the engine refused still passed, because the refusal note
+ *  filled the reply; audit, 2026-10-18). `allow` narrows the set further for one scenario. */
+export const holdWrites = (r: AgentRunResult, allow: string[] = [...STILL]) =>
+  writesSent(r).map((o) => String(o.op)).filter((op) => !STILL.has(op) || !allow.includes(op));
+/**
+ * The reply declines: it says plainly that the app cannot do this. A request the app cannot serve must be
+ * DECLINED, not approximated or promised (the prompt). "Your plan is set up for two now", "You're all set
+ * for 16:8" and a clarifying question that implied the feature exists all passed (audit, 2026-10-18).
+ */
+export const declines = (reply: string) =>
+  /\b(?:can['’]?t(?! wait| go wrong)|cannot|can not|unable to|not able to|isn['’]t (?:yet )?(?:something|possible|supported|available|a feature)|aren['’]t (?:yet )?(?:supported|possible|available)|(?:does|do|won)n['’]?t (?:yet )?(?:support|do|handle|plan|have|offer)|(?:does|do) not (?:yet )?(?:support|do|handle|plan|have|offer)|not (?:yet )?(?:supported|possible|available|something i can)|no way to|only (?:plan|cook|cater|build|work) (?:meals )?for (?:one|a single|you)|one person)\b/i.test(reply);
 /** The texts of every `symptom` operation sent. */
 export const symptomTexts = (r: AgentRunResult) => opsSent(r).filter((o) => o.op === "symptom").map((o) => String(o.text ?? ""));
 /** The reply asks the user something. */

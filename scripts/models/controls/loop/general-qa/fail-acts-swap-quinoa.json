@@ -1,0 +1,14 @@
+{
+  "quinoa actually better": [
+    {
+      "thinking": "They want quinoa instead of rice. Swap Monday's rice dinner for a quinoa dinner.",
+      "reply": "",
+      "operations": [ { "op": "swap", "dish": "Garlic Shrimp & Quinoa with Spinach", "slot": "dinner", "days": ["Monday"] } ]
+    },
+    {
+      "thinking": "Applied.",
+      "reply": "Quinoa has the edge: more protein, more fibre and a gentler effect on blood sugar. I put a quinoa dinner on Monday so you can try it.",
+      "operations": []
+    }
+  ]
+}

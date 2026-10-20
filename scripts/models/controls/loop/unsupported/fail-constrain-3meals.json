@@ -1,0 +1,14 @@
+{
+  "set me up for 16:8 fasting": [
+    {
+      "thinking": "16:8 fits three meals between noon and 8pm; set three meals a day.",
+      "reply": "Setting you to three meals inside your window.",
+      "operations": [{"op": "constrain", "mealsPerDay": 3}]
+    },
+    {
+      "thinking": "Applied.",
+      "reply": "Your plan is now three meals between noon and 8pm.",
+      "operations": []
+    }
+  ]
+}

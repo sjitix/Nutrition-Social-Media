@@ -1,0 +1,14 @@
+{
+  "what exactly is in monday's dinner": [
+    {
+      "thinking": "Look up the dinner.",
+      "reply": "",
+      "operations": [ { "op": "get_plan", "day": "Tuesday" }, { "op": "inspect_recipe", "name": "White Bean & Tuna Bake" } ]
+    },
+    {
+      "thinking": "Answer from the lookup.",
+      "reply": "That dinner is the White Bean & Tuna Bake: tuna, white beans, chopped tomatoes and a crumb topping, baked together. As planned it has 57 g of protein.",
+      "operations": []
+    }
+  ]
+}

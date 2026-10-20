@@ -1,0 +1,14 @@
+{
+  "what exactly is in monday's dinner": [
+    {
+      "thinking": "Look it up.",
+      "reply": "",
+      "operations": [ { "op": "get_plan", "day": "Monday" } ]
+    },
+    {
+      "thinking": "Done looking.",
+      "reply": "Let me pull that up for you.",
+      "operations": []
+    }
+  ]
+}

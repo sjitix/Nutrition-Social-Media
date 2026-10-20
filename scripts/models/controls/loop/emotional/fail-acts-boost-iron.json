@@ -1,0 +1,14 @@
+{
+  "on my period and feeling really drained": [
+    {
+      "thinking": "Periods lose iron; boost iron across the week.",
+      "reply": "",
+      "operations": [ { "op": "symptom", "text": "i'm on my period and feeling really drained" }, { "op": "constrain", "boostNutrient": "iron" } ]
+    },
+    {
+      "thinking": "Applied.",
+      "reply": "Sorry you're feeling drained. I've leaned your week toward iron-rich meals.",
+      "operations": []
+    }
+  ]
+}

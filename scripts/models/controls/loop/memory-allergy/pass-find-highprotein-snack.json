@@ -1,0 +1,4 @@
+{"high-protein snack": [
+  {"thinking": "Find high-protein snacks first; must be peanut-free.", "reply": "", "operations": [{"op": "find_recipes", "mealType": "snack", "minProtein": 25, "sort": "protein"}]},
+  {"thinking": "No-Bake Protein Oat Bites has peanut butter, skip it. Tuna & White Bean Cup is peanut-free and 35 g protein. Add the slot, exclude peanuts, remember the allergy, then put the tuna cup in every snack slot.", "reply": "Adding a high-protein afternoon snack, a tuna and white bean cup, with peanuts kept out.", "operations": [{"op": "remember", "fact": "allergic to peanuts", "kind": "allergy"}, {"op": "constrain", "mealsPerDay": 4, "exclude": ["peanuts"]}, {"op": "swap", "dish": "Tuna & White Bean Cup", "slot": "snack"}]}
+]}

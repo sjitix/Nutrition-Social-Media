@@ -1,0 +1,7 @@
+{
+  "how much water should i drink": {
+    "thinking": "Hydration primitive with weight and activity; the engine's note is the answer.",
+    "reply": "",
+    "operations": [ {"op": "hydration", "weightKg": 80, "activity": "active"} ]
+  }
+}

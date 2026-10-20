@@ -1,0 +1,17 @@
+{
+  "on my period and feeling really drained": [
+    {
+      "thinking": "Send the symptom verbatim, and also push iron into her dinners.",
+      "reply": "",
+      "operations": [
+        { "op": "symptom", "text": "i'm on my period and feeling really drained" },
+        { "op": "constrain", "scope": { "slot": "dinner" }, "boostNutrient": "iron" }
+      ]
+    },
+    {
+      "thinking": "Finish.",
+      "reply": "Sorry you're feeling drained.",
+      "operations": []
+    }
+  ]
+}

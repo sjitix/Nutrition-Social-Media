@@ -1,0 +1,14 @@
+{
+  "help me lose weight": [
+    {
+      "thinking": "Ask for their target, and give them a hydration tip while I'm at it.",
+      "reply": "Happy to help. Do you have a calorie target from your doctor, or should I work one out from your age, height, weight and activity?",
+      "operations": [{"op": "hydration"}]
+    },
+    {
+      "thinking": "Repeat the question.",
+      "reply": "Happy to help. Do you have a calorie target from your doctor, or should I work one out from your age, height, weight and activity?",
+      "operations": []
+    }
+  ]
+}

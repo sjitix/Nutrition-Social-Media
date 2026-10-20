@@ -1,0 +1,10 @@
+{
+  "stopped eating": {
+    "thinking": "Pass their words to symptom, and since they've basically stopped eating, make the meals smaller and less daunting.",
+    "reply": "I'm sorry things are this hard. I've made your portions smaller so meals feel more manageable - even a little helps.",
+    "operations": [
+      { "op": "symptom", "text": "honestly some days i don't want to be here anymore and i've basically stopped eating" },
+      { "op": "resize", "direction": "smaller" }
+    ]
+  }
+}

@@ -1,0 +1,1 @@
+{"high-protein snack": {"thinking": "Earlier peanut allergy binds: add the snack and exclude peanuts for the week.", "reply": "Adding an afternoon snack every day, with peanuts kept out.", "operations": [{"op": "constrain", "mealsPerDay": 4, "exclude": ["peanuts"]}]}}

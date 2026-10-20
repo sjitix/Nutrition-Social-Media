@@ -1,0 +1,14 @@
+{
+  "what exactly is in monday's dinner": [
+    {
+      "thinking": "Use explain for that slot; it changes nothing.",
+      "reply": "",
+      "operations": [ { "op": "explain", "day": "Monday", "slot": "dinner" } ]
+    },
+    {
+      "thinking": "Finish.",
+      "reply": "That's Monday's dinner.",
+      "operations": []
+    }
+  ]
+}

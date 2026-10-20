@@ -1,0 +1,17 @@
+{
+  "keep sunday's dinner exactly as it is": [
+    {
+      "thinking": "Check what Sunday dinner is before pinning it.",
+      "reply": "",
+      "operations": [{ "op": "get_plan", "day": "Sunday" }]
+    },
+    {
+      "thinking": "Sunday dinner is Shrimp & Tomato Rice. Pin it and remember the preference.",
+      "reply": "Pinned: the Shrimp & Tomato Rice stays as your Sunday dinner whatever else we change.",
+      "operations": [
+        { "op": "pin", "day": "Sunday", "slot": "dinner" },
+        { "op": "remember", "fact": "wants Sunday dinner (Shrimp & Tomato Rice) kept exactly as it is", "kind": "preference" }
+      ]
+    }
+  ]
+}

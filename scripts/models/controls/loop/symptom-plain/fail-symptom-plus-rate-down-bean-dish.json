@@ -1,0 +1,10 @@
+{
+  "bloated and exhausted": {
+    "thinking": "The bean bake is the likely culprit. Pass the symptom verbatim and rate it down so it comes up less.",
+    "reply": "Sorry you're feeling that way. I'll show the White Bean & Tuna Bake less often since beans can bloat.",
+    "operations": [
+      { "op": "symptom", "text": "i've been so bloated and exhausted all week" },
+      { "op": "rate", "rating": 1, "dish": "White Bean & Tuna Bake" }
+    ]
+  }
+}

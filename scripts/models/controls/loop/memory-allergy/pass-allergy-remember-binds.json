@@ -1,0 +1,1 @@
+{"high-protein snack": {"thinking": "Store the allergy as an allergy (it binds the engine) and add the fourth meal.", "reply": "Adding an afternoon snack and locking peanuts out.", "operations": [{"op": "remember", "fact": "allergic to peanuts", "kind": "allergy"}, {"op": "constrain", "mealsPerDay": 4}]}}

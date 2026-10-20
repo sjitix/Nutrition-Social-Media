@@ -1,0 +1,7 @@
+{
+  "quinoa actually better": {
+    "thinking": "Answer with the answer op, as HOW TO DECIDE says.",
+    "reply": "Somewhat, though less than the hype suggests. Quinoa brings more protein and fibre than white rice, plus more minerals such as magnesium and iron, and it raises blood sugar more gently, so it tends to keep you fuller. White rice is not bad for you: it is easy to digest and fine as part of a balanced plate. Most of your week already uses brown rice, which sits between the two. Want me to swap one of your rice dinners for a quinoa dish?",
+    "operations": [ { "op": "answer" } ]
+  }
+}

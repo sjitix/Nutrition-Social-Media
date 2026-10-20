@@ -1,0 +1,4 @@
+{"high-protein snack": [
+  {"thinking": "Look for a snack.", "reply": "", "operations": [{"op": "find_recipes", "mealType": "snack", "query": "chickpea"}]},
+  {"thinking": "Roasted chickpeas are a classic protein snack and peanut-free.", "reply": "Adding crunchy roasted chickpeas as a high-protein afternoon snack, peanut-free.", "operations": [{"op": "remember", "fact": "allergic to peanuts", "kind": "allergy"}, {"op": "constrain", "mealsPerDay": 4, "exclude": ["peanuts"]}, {"op": "swap", "dish": "Crunchy Roasted Chickpeas", "slot": "snack"}]}
+]}

@@ -1,0 +1,14 @@
+{
+  "what exactly is in monday's dinner": [
+    {
+      "thinking": "Look up Monday.",
+      "reply": "",
+      "operations": [ { "op": "get_plan", "day": "Monday" }, { "op": "inspect_recipe", "name": "Chicken Shawarma Bowl with Tahini" } ]
+    },
+    {
+      "thinking": "Answer.",
+      "reply": "Monday's is the Chicken Shawarma Bowl with Tahini: chicken thigh, brown rice, chickpeas, tahini and shawarma spice. As planned it has 47 g of protein.",
+      "operations": []
+    }
+  ]
+}

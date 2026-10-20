@@ -1,0 +1,4 @@
+{"high-protein snack": [
+  {"thinking": "Find the highest-protein snacks.", "reply": "", "operations": [{"op": "find_recipes", "mealType": "snack", "minProtein": 25, "sort": "protein"}]},
+  {"thinking": "No-Bake Protein Oat Bites: 32 g protein, quick. Add the slot and use it.", "reply": "Adding No-Bake Protein Oat Bites as your afternoon snack.", "operations": [{"op": "constrain", "mealsPerDay": 4}, {"op": "swap", "dish": "No-Bake Protein Oat Bites", "slot": "snack"}]}
+]}

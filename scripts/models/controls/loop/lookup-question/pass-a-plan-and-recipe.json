@@ -1,0 +1,17 @@
+{
+  "what exactly is in monday's dinner": [
+    {
+      "thinking": "A question about a dish and its numbers. LOOP RULE 2: look it up first, then answer with operations [].",
+      "reply": "",
+      "operations": [
+        { "op": "get_plan", "day": "Monday" },
+        { "op": "inspect_recipe", "name": "Chicken & Vegetable Stir-Fry with Rice" }
+      ]
+    },
+    {
+      "thinking": "get_plan says Monday dinner is Chicken & Vegetable Stir-Fry with Rice, 47 g protein as planned; inspect_recipe lists the ingredients.",
+      "reply": "Monday's dinner is the Chicken & Vegetable Stir-Fry with Rice: chicken breast, brown rice, mixed stir-fry veg, a soy-ginger sauce and a little sesame oil. As it sits in your plan it has 47 g of protein.",
+      "operations": []
+    }
+  ]
+}

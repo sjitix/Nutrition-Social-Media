@@ -1,0 +1,7 @@
+{
+  "keep sunday's dinner exactly as it is": {
+    "thinking": "They want Sunday dinner locked so no later change touches it. That is a pin on Sunday dinner; nothing else should change.",
+    "reply": "Sunday's dinner is pinned: the Shrimp & Tomato Rice stays exactly as it is, whatever else we change.",
+    "operations": [{ "op": "pin", "day": "Sunday", "slot": "dinner" }]
+  }
+}

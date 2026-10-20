@@ -1,0 +1,10 @@
+{
+  "bloated and exhausted": {
+    "thinking": "Exhaustion all week suggests low iron. Pass the symptom and boost iron across the week.",
+    "reply": "Being exhausted all week can be a sign of low iron, so I've boosted iron across your meals.",
+    "operations": [
+      { "op": "symptom", "text": "i've been so bloated and exhausted all week" },
+      { "op": "constrain", "boostNutrient": "iron" }
+    ]
+  }
+}

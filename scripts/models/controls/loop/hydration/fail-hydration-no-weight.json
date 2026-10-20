@@ -1,0 +1,7 @@
+{
+  "how much water should i drink": {
+    "thinking": "Use the hydration tool.",
+    "reply": "",
+    "operations": [ {"op": "hydration"} ]
+  }
+}

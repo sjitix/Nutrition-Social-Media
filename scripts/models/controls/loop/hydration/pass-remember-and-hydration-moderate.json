@@ -1,0 +1,13 @@
+{
+  "how much water should i drink": [
+    {
+      "thinking": "Store the lasting context and let the engine compute fluid needs; 'pretty active' read as moderate.",
+      "reply": "",
+      "operations": [
+        {"op": "remember", "fact": "about 80 kg and fairly active", "kind": "context"},
+        {"op": "hydration", "weightKg": 80, "activity": "moderate"}
+      ]
+    },
+    { "thinking": "The engine answered; finish with a short pointer.", "reply": "That's worked out from your weight and activity; drink a bit more on hard training days.", "operations": [] }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "help me lose weight": [
+    {
+      "thinking": "Check what I know about them first.",
+      "reply": "",
+      "operations": [{"op": "get_profile"}]
+    },
+    {
+      "thinking": "No body stats or doctor's target on file. The calorie target is theirs to set; ask one question, change nothing.",
+      "reply": "I'd be glad to. Your plan is set to maintain your weight right now. To aim it at weight loss I need a target from you: do you have a daily calorie number from your doctor, or should I work one out from your age, height, weight and activity?",
+      "operations": []
+    }
+  ]
+}

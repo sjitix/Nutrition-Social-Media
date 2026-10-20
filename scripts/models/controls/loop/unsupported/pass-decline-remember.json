@@ -1,0 +1,14 @@
+{
+  "set me up for 16:8 fasting": [
+    {
+      "thinking": "A lasting preference worth remembering; the fasting window itself is unsupported, so decline and offer the nearest option. No plan change.",
+      "reply": "Noting that.",
+      "operations": [{"op": "remember", "fact": "follows 16:8 fasting, eats nothing before noon", "kind": "preference"}]
+    },
+    {
+      "thinking": "Memory saved, plan untouched. Decline honestly with the nearest option.",
+      "reply": "I've noted that you do 16:8 and eat nothing before noon, but I can't build a fasting window into the plan yet, so your meals are unchanged. I can make breakfast a light, quick one you could eat at noon instead. Want that?",
+      "operations": []
+    }
+  ]
+}

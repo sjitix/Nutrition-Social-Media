@@ -1,0 +1,10 @@
+{
+  "how much water should i drink": [
+    {
+      "thinking": "A question with the inputs given: 80 kg, active. The engine computes fluid needs via the hydration primitive; I never state the number myself. No plan change.",
+      "reply": "Good question. Here's what I'd aim for at your size and activity.",
+      "operations": [ {"op": "hydration", "weightKg": 80, "activity": "active"} ]
+    },
+    { "thinking": "The engine answered. Finish.", "reply": "That's your daily fluid target, worked out from your weight and training.", "operations": [] }
+  ]
+}
