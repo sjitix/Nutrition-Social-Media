@@ -20,10 +20,12 @@ creates a Supabase project; with no keys configured the app behaves exactly as i
    - an https tunnel with a fixed hostname, with exactly `https://<that host>/**` allow-listed;
    - on Android, Chrome's port forwarding (`chrome://inspect` → Port forwarding, 3000 → localhost:3000).
      The phone then opens `http://localhost:3000`, which is allowed and secure.
-   Why both matter: a link whose return address is NOT on the list silently goes to the Site URL
-   instead. If that were the bare domain, the root page's redirect to `/sage` would drop the sign-in
-   code, and the sign-in would do nothing at all, with no message. Landing on the account page, it
-   either completes or says why it didn't.
+   Why both matter: a link whose return address is NOT on the list silently goes elsewhere. It goes to
+   the asking page's origin (the browser's Referer) if the list admits that, and otherwise to the Site
+   URL. Landing on a bare domain, the root page's redirect to `/sage` would drop the sign-in code, and
+   the sign-in would do nothing at all, with no message. So use `/**` entries: a one-star entry such as
+   `http://localhost:3000/*` admits the origin but not the account page. Landing on the account page,
+   it either completes or says why it didn't.
    **Authentication → Sign In / Providers → Email:** turn **off "Confirm email"**. This app signs in
    only by email link, and opening the link already proves the address. With it on (the default), a
    new person's FIRST link expires five minutes after it was *requested*, not after it was opened, so
@@ -71,14 +73,17 @@ secret, and the link only completes in the browser that holds it. That is what s
 someone else — or session tokens pasted into the address — from signing a browser into a stranger's
 account and uploading its data there. The cost is one rule people need to know, which the app says at
 the moment they ask: **open the link in the same browser you asked for it in.** A link opened on
-another device or in another browser is refused with a sentence saying exactly that.
+another device or in another browser is refused, with a sentence saying it was asked for elsewhere.
 
 **And ask from one browser at a time.** GoTrue issues a link's code for the person's MOST RECENT
-request, whichever browser made it. It records a request even when it refuses to email it as too soon
-(the flow state is written before the rate limit). So once a second device has asked, even
-unsuccessfully, the link completes only on that device. Opened in the first browser, it is refused,
-with a sentence saying a newer request took it over. The live run shows both sides against the real
-GoTrue.
+request, whichever browser made it. For anyone already signed up, and for everyone while "Confirm email"
+is off (as step 3 sets it), it records a request even when it refuses to email it as too soon: the flow
+state is written before the rate limit. (With "Confirm email" on, a new person's refused request is
+rolled back with its email. A request stopped earlier, by the per-IP limit or CAPTCHA, never reaches
+GoTrue's handler at all.) So once a second device has asked, even unsuccessfully, the link completes
+only on that device. Opened in the first browser, it is refused. The sentence then names both possible
+causes, because the link cannot tell them apart: it was asked for in a different browser, or a newer
+request took it over. The live run shows both sides against the real GoTrue.
 
 ## What the schema is
 
@@ -131,7 +136,7 @@ itself once into the OS temp folder; `package.json` does not change.
 node scripts/account-live/run.mjs               # from the repo root, about 80 s once the binaries are cached
 node scripts/account-live/run.mjs --keep        # ...and the stack stays up until Ctrl+C
 node scripts/account-live/run.mjs --down        # stops a stack a crash left behind
-node scripts/account-live/mutate-live.mjs       # breaks each guard in turn: its check must fail (~15 min)
+node scripts/account-live/mutate-live.mjs       # breaks 17 guards in turn: each named check must fail (~25 min)
 ```
 
 This runs the app's own `client.ts` and `storage.ts` against **the real GoTrue (Supabase's auth
@@ -162,11 +167,12 @@ a time: a second one waits briefly, then says another run is using the stack.
 **What the run checks**, each against the real servers' own answer (38 checks):
 - **Links:**
   - a PKCE link signs a device in, and every link lands back on the page that asked for it. A return
-    address the allow list refused would land on the Site URL instead.
+    address the allow list refused would land on the Site URL instead. (A browser's Referer would be
+    tried first; the run sends none.)
   - a second request within a minute is refused (429), and a third whose connection drops before GoTrue
     sees it is lost. Neither loses the link already sent;
-  - once another browser asks, even refused, the link fails where it was asked for, with the "newer
-    request" sentence, and completes in the browser that asked last;
+  - once another browser asks, even refused, the link fails where it was asked for, with the sentence
+    naming a newer request, and completes in the browser that asked last;
   - an unused link that a newer one replaced is refused, and so is a used one, each with the sentence
     that says only the newest link works.
 - **Sync:** a second device pulls the week, an edit reaches the other device, and `upsert_state` skips
@@ -187,17 +193,33 @@ a time: a second one waits briefly, then says another run is using the stack.
   - signing up again with the same address gives a new id.
 - **Privacy:** `auth.audit_log_entries` is still empty at the end.
 
-`mutate-live.mjs` proves that the checks can fail. It loosens each RLS policy, breaks the allow list,
-turns audit logs back on, and removes each renewal path. It also breaks the verifier's handling across a
-refused and a lost request, and the "newer request" sentence. For each of those ten it requires the
-named check to go red. Its first run caught 7 of 9:
-- one check crashed instead of failing (now fixed);
-- one mutation survived, because GoTrue's latest-request rule (above) makes a refused request
-  harmless to it. Only a request GoTrue never receives shows whether the verifier is kept.
+**`mutate-live.mjs` shows 17 of the 38 checks able to fail.** It breaks 17 guards, one at a time, and
+each must turn its own named check red:
+- all four RLS policies, and `upsert_state`'s forward-only rule;
+- the allow list, GoTrue's per-person email limit, and the audit-log setting;
+- both renewal paths;
+- the verifier's handling across a refused and a lost request, and the address bar being cleared;
+- the takeover sentence and the newest-link sentence;
+- sign-out reaching GoTrue, and a deleted account being read as deleted.
 
-The run compares no clocks. WSL's clock steps backwards at times, so emails and requests are ordered
-by sequence numbers. A request that GoTrue, on that clock, still counts as under a minute old after the
-wait is retried, and the run says so.
+The other 21 checks are not shown to fail on their own. They are:
+- platform facts the run records rather than app guards: GoTrue's parent rule, the newest link signing
+  in, the takeover's other side, `/logout`'s 403, and a re-signup's new id;
+- preconditions and follow-ons of the proven checks;
+- six more landings, which the allow-list mutation would break too, but which the run never reaches
+  once the first sign-in fails.
+
+The first run of the mutations caught 7 of 9. One check crashed instead of failing (now fixed). One
+mutation survived, because GoTrue's latest-request rule (above) makes a refused request harmless to
+it. Only a request GoTrue never receives shows whether the verifier is kept.
+
+**Clocks.** WSL's clock steps backwards at times, so the run orders its own observations (emails,
+requests) by sequence number, never by time. Two things still rest on clocks, and both are handled:
+- GoTrue picks a person's latest request by `created_at` on that clock. So before a takeover check
+  relies on it, the run reads GoTrue's own `auth.flow_state` to confirm which request is latest, and
+  asks again if a clock step put it behind.
+- A request GoTrue still counts as under a minute old after the wait is retried, and the run says so.
+  The minted expired token assumes only that Windows' and WSL's clocks agree within ten minutes.
 
 **A platform fact it pins down:** GoTrue accepts the refresh token a renewal has just replaced, at any
 age, for as long as that token is the parent of the session's current one. It answers with that

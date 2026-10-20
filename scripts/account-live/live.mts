@@ -125,9 +125,11 @@ async function open(url: string): Promise<URL> {
   return new URL(to);
 }
 /**
- * The browser arrives where /verify sent it. It must be the page that asked: GoTrue sends a return
- * address the allow list refuses to the Site URL, which stack.sh sets to PRODUCTION as step 3 does. A
- * device whose link landed anywhere else would, in the real app, never finish signing in.
+ * The browser arrives where /verify sent it. It must be the page that asked. When the allow list refuses
+ * that return address, GoTrue sends the link to the asking page's origin (the browser's Referer) if the
+ * list admits it, and otherwise to the Site URL, which stack.sh sets to PRODUCTION as step 3 does. Node's
+ * fetch sends no Referer, so this run can only ever see the second. A device whose link landed anywhere
+ * else would, in the real app, never finish signing in.
  */
 async function landOn(name: string, to: URL, which = "link") {
   check(`redirect: ${name}'s ${which} lands back on ${PAGE}`, to.origin + to.pathname === PAGE, to.origin + to.pathname);
@@ -184,6 +186,27 @@ function expiredCopy(token: string): string {
   const body = b64({ ...claims, iat: nowSec() - 4200, exp: nowSec() - 600 });
   return `${head}.${body}.${createHmac("sha256", SECRET).update(`${head}.${body}`).digest("base64url")}`;
 }
+/**
+ * Is this device's pending request the one GoTrue now treats as the person's LATEST? GoTrue decides by
+ * flow_state.created_at on WSL's clock, which steps backwards at times, so a request made a moment
+ * after another can still sort before it. A takeover check must not start until this holds. If a clock
+ * step got in the way, the device asks again, which GoTrue refuses as too soon but still records, and
+ * the run says so.
+ */
+async function becomeLatest(d: Device, email: string): Promise<boolean> {
+  for (let tries = 0; tries < 6; tries++) {
+    const pending = d.storage.loadPendingSignIn() as { verifier: string } | null;
+    const latest = db(
+      `select f.code_challenge from auth.flow_state f join auth.users u on u.id = f.user_id
+       where u.email = '${email}' and f.authentication_method = 'magiclink' order by f.created_at desc, f.id desc limit 1`,
+    )[0] as { code_challenge?: string } | undefined;
+    if (pending && latest?.code_challenge === createHash("sha256").update(pending.verifier).digest("base64url")) return true;
+    console.log(`      (GoTrue holds another request for ${email} as the latest: WSL's clock stepped back; asking again)`);
+    await sleep(1500);
+    await mayThrow(d.client.sendSignInLink(email));
+  }
+  return false;
+}
 async function hide(name: string) {
   docs[name].visibilityState = "hidden";
   docs[name].dispatch("visibilitychange");
@@ -239,21 +262,23 @@ const robFirst = await newMail(rob);
 await Desk.client.sendSignInLink(ivy);
 const ivyLink = await newMail(ivy);
 const ivyFromTablet = await mayThrow(Tablet.client.sendSignInLink(ivy));
+const ivyTabletLatest = await becomeLatest(Tablet, ivy);
 await landOn("Desk", await open(ivyLink), "link (asked for here, then from the tablet)");
 const ivyOnDesk = await mayThrow(Desk.client.completeSignInFromUrl());
 check("takeover: once another browser asks, even refused as too soon (429), the link fails where it was asked for, and says why",
-  ivyFromTablet instanceof Error && /too many sign-in emails/i.test(ivyFromTablet.message) && ivyOnDesk instanceof Error &&
-    ivyOnDesk.message.includes("newer sign-in request took this link over") && Desk.client.currentSession() === null,
-  json({ tablet: errText(ivyFromTablet), desk: errText(ivyOnDesk) }));
+  ivyFromTablet instanceof Error && /too many sign-in emails/i.test(ivyFromTablet.message) && ivyTabletLatest && ivyOnDesk instanceof Error &&
+    ivyOnDesk.message.includes("newer sign-in request took it over") && Desk.client.currentSession() === null,
+  json({ tablet: errText(ivyFromTablet), tabletLatest: ivyTabletLatest, desk: errText(ivyOnDesk) }));
 // …and the other side of the same rule: Jo's link, sent for the desk's request, finishes on the tablet.
 await Desk.client.sendSignInLink(jo);
 const joLink = await newMail(jo);
 const joFromTablet = await mayThrow(Tablet.client.sendSignInLink(jo));
+const joTabletLatest = await becomeLatest(Tablet, jo);
 await landOn("Tablet", await open(joLink), "link (sent for the desk's request)");
 const joOnTablet = await mayThrow(Tablet.client.completeSignInFromUrl());
 check("takeover: …while the browser that asked last finishes with it, though the link was sent for the other's request",
-  joFromTablet instanceof Error && !(joOnTablet instanceof Error) && !!joOnTablet && joOnTablet.email === jo,
-  json({ tablet: errText(joFromTablet), session: errText(joOnTablet) }));
+  joFromTablet instanceof Error && joTabletLatest && !(joOnTablet instanceof Error) && !!joOnTablet && joOnTablet.email === jo,
+  json({ tablet: errText(joFromTablet), tabletLatest: joTabletLatest, session: errText(joOnTablet) }));
 
 console.log("      (waiting out GoTrue's 60-second per-person email limit)");
 await sleep(61_000);

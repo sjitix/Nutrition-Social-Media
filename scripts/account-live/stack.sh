@@ -43,7 +43,12 @@ down() {
     rm -f "$f"
   done
   # A postmaster.pid left by a stack that never shut down names a PID some other process may hold now.
+  # So does the lock beside the socket, which lives on the persistent disk with it (/tmp, emptied at every
+  # boot, no longer is its home): Postgres refuses to start while a stale one names a live process.
   if [ -f "$C/data/postmaster.pid" ] && ! ours "$(head -n 1 "$C/data/postmaster.pid")"; then rm -f "$C/data/postmaster.pid"; fi
+  if [ -f "$SOCK/.s.PGSQL.54322.lock" ] && ! ours "$(head -n 1 "$SOCK/.s.PGSQL.54322.lock")"; then
+    rm -f "$SOCK/.s.PGSQL.54322.lock" "$SOCK/.s.PGSQL.54322"
+  fi
   if [ -d "$C/data" ] && "$PG/pg_ctl" -D "$C/data" status >/dev/null 2>&1; then
     "$PG/pg_ctl" -D "$C/data" -m fast -w stop >/dev/null
   fi
@@ -90,8 +95,9 @@ export GOTRUE_DB_DATABASE_URL="$DATABASE_URL"
 export GOTRUE_DB_MIGRATIONS_PATH="$C/auth/migrations"
 # Step 3: the Site URL is the PRODUCTION account page, and localhost reaches the account page only through
 # the allow list, exactly as on the hosted project. A return address the list refused would land on the
-# Site URL instead, and the live run checks where every link lands. (open() never follows the redirect,
-# so nothing is fetched from production.)
+# browser's Referer origin if the list admitted that, and on the Site URL otherwise. The run sends no
+# Referer, so only the second can happen here, and the live run checks where every link lands. (open()
+# never follows the redirect, so nothing is fetched from production.)
 export GOTRUE_SITE_URL="https://ntrux.vercel.app/sage/account"
 export GOTRUE_URI_ALLOW_LIST="http://localhost:3000/**"
 export GOTRUE_JWT_SECRET="$SECRET"

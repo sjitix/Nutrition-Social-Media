@@ -68,10 +68,19 @@ export class FakeSupabase {
   /**
    * GoTrue's PKCE flow state: ONE per person, the most recent request's, whichever browser made it.
    * Opening a link issues its code for this, not for the request that sent the link (verify.go ->
-   * FindFlowStateByUserID ... .Last()). And it is written BEFORE the email limit is applied
-   * (magic_link.go), so even a request refused as too soon moves it. The live run checks both.
+   * pkce.go issueAuthCode -> FindFlowStateByUserID(...).Last()). And it is written BEFORE the email
+   * limit is applied (magic_link.go), so even a request refused as too soon moves it. That last part
+   * holds for someone already signed up, or anyone while "Confirm email" is off (the setup this app
+   * prescribes): with it on, a new person's refused request is rolled back with its email. This fake
+   * models the prescribed setup. The live run checks both sides against the real GoTrue.
    */
   private latestChallenge = new Map<string, string>();
+  /**
+   * The challenge each code was bound to when the link was OPENED. GoTrue fixes it then, at /verify, so
+   * a later request does not change a code already issued (a "Try again" after a transient failure still
+   * works). This fake has no open step, so it binds a code the first time the code is presented.
+   */
+  private boundChallenge = new Map<string, string>();
   down = false;
   refuseRefresh = false;
   /** A store whose rows Postgres refuses (e.g. a value jsonb can't hold); a batch containing it fails whole. */
@@ -182,6 +191,10 @@ export class FakeSupabase {
       return reply(200, {});
     }
     if (url.pathname === "/auth/v1/token" && url.searchParams.get("grant_type") === "pkce") {
+      const presented = this.codes.get(body?.auth_code);
+      if (presented && !this.boundChallenge.has(body.auth_code)) {
+        this.boundChallenge.set(body.auth_code, this.latestChallenge.get(presented.email) ?? "");
+      }
       if (this.exchangeDelayMs) await new Promise((r) => setTimeout(r, this.exchangeDelayMs));
       if (this.failExchange > 0) {
         this.failExchange--;
@@ -190,7 +203,7 @@ export class FakeSupabase {
       const c = this.codes.get(body?.auth_code);
       if (!c) return reply(404, { error_code: "flow_state_not_found" });
       if (Date.now() - c.at > this.codeTtlMs) return reply(422, { error_code: "flow_state_expired", msg: "invalid flow state, flow state has expired" });
-      if (s256(body.code_verifier ?? "") !== this.latestChallenge.get(c.email)) return reply(400, { error_code: "bad_code_verifier" });
+      if (s256(body.code_verifier ?? "") !== this.boundChallenge.get(body.auth_code)) return reply(400, { error_code: "bad_code_verifier" });
       this.codes.delete(body.auth_code); // one use
       return reply(200, this.issue(this.user(c.email).id));
     }

@@ -30,9 +30,13 @@ V_PGRST=16.4  SUM_PGRST=b47ecc82fce1dcebbbc4183d839e52f07f7630c9d7ad0f54db753d19
 V_NODE=24.13.1 SUM_NODE=30215f90ea3cd04dfbc06e762c021393fa173a1d392974298bbc871a8e461089
 
 C="$HOME/.cache/nutriflow-live"
-mkdir -p "$C/archives"
+mkdir -p "$C/archives" "$C/run"
 chmod 700 "$C"
 cd "$C"
+# The stack's own lock (stack.sh): replacing binaries or node_modules under a running stack would crash
+# that run with failures that look like bugs, so setup waits for it like everything else, then refuses.
+exec 9>"$C/run/lock"
+flock -w 15 9 || { echo "setup.sh: another live run is using the stack; try again when it has finished" >&2; exit 3; }
 rm -f pg.jar auth.tar.xz postgrest.tar.xz node.tar.xz # unversioned archives from before the pins counted
 
 # url, archive name, sha256: download unless a copy with exactly that sum is already here.
@@ -89,7 +93,8 @@ fi
 # The portable Postgres has no psql: db.mjs speaks SQL through the `pg` client instead. It is installed
 # into the cache from the lockfile committed beside this script: exact versions, every package checked
 # against the lock's integrity hash, install scripts off. Neither lane's package.json changes.
-LOCK_SUM="$(sha256sum "$LIVE/pg.package-lock.json" | cut -d' ' -f1)"
+# Hashed without CRs: a Windows checkout gives the lockfile CRLF, the same content to npm.
+LOCK_SUM="$(tr -d '\r' < "$LIVE/pg.package-lock.json" | sha256sum | cut -d' ' -f1)"
 if [ "$(cat .pg-client 2>/dev/null)" != "$LOCK_SUM" ]; then
   rm -f .pg-client
   cp "$LIVE/pg.package.json" package.json

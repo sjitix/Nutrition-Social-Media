@@ -555,12 +555,16 @@ const root = args[0] ?? process.cwd();
 // source, silently: the next test run then tested broken code, and the next commit could have shipped
 // it. It happened once (rule 6's backup check, left broken in merge.ts). So each file's original is
 // journalled before it is mutated, and a journal left behind is put back first thing on the next run.
-const journal = join(root, "node_modules", ".cache", "mutate-account.journal.json");
-if (existsSync(journal)) {
-  const left = JSON.parse(readFileSync(journal, "utf8"));
-  writeFileSync(left.path, left.original, "utf8");
-  rmSync(journal);
-  console.log(`RESTORED ${left.path}: the run before this one was interrupted while that file was mutated\n`);
+// It lives in the worktree's own .cache/ (gitignored), never node_modules/.cache, which worktrees can
+// share through a junction: another lane's run would then find this journal and "restore" this tree.
+// A journal at the old place, left by a run before the move, is still put back.
+const journal = join(root, ".cache", "mutate-account.journal.json");
+for (const left of [journal, join(root, "node_modules", ".cache", "mutate-account.journal.json")]) {
+  if (!existsSync(left)) continue;
+  const j = JSON.parse(readFileSync(left, "utf8"));
+  writeFileSync(j.path, j.original, "utf8");
+  rmSync(left);
+  console.log(`RESTORED ${j.path}: the run before this one was interrupted while that file was mutated\n`);
 }
 mkdirSync(dirname(journal), { recursive: true });
 

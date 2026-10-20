@@ -910,12 +910,13 @@ await (async () => {
   const s = await exchangeCode(cfg, "CODE123", pair.verifier, ex.f, 1000);
   check("exchange: POSTs the code and the verifier to grant_type=pkce", json(ex.calls[0].body) === json({ auth_code: "CODE123", code_verifier: pair.verifier }));
   check("exchange: returns the session", s.userId === "user-1" && s.email === "sam@example.com" && s.refreshToken === "R1" && s.expiresAt === 4600);
-  // GoTrue's bad_code_verifier means the code is bound to a NEWER request than this browser's: GoTrue
-  // issues a link's code for the person's latest request, wherever it came from (the live run shows it).
+  // GoTrue's bad_code_verifier has two causes the link cannot tell apart: it was asked for in another
+  // browser (which holds a pending sign-in of its own), or a newer request took it over (GoTrue issues a
+  // link's code for the person's latest request, wherever it came from; the live run shows it).
   const wrong = fakeFetch(() => ({ status: 400, body: { error_code: "bad_code_verifier" } }));
   try { await exchangeCode(cfg, "CODE123", "nope", wrong.f); msg = ""; } catch (e) { msg = (e as Error).message; }
-  check("exchange: a code GoTrue bound to a newer request (bad_code_verifier) says a newer request took the link over",
-    msg.includes("newer sign-in request took this link over") && !msg.includes("different browser"), msg);
+  check("exchange: a refused verifier (bad_code_verifier) names both causes: another browser, or a newer request",
+    msg.includes("asked for in a different one") && msg.includes("newer sign-in request took it over") && !msg.includes("expired, was already used"), msg);
   const otherBad = fakeFetch(() => ({ status: 400, body: { error_code: "validation_failed" } }));
   try { await exchangeCode(cfg, "CODE123", pair.verifier, otherBad.f); msg = ""; } catch (e) { msg = (e as Error).message; }
   check("exchange: any other refusal keeps the general sentence", msg.includes("expired, was already used"), msg);
@@ -1570,9 +1571,25 @@ await (async () => {
   fakeWindow.location.search = `?code=${olaCode}`;
   let takenOver = "";
   try { await completeSignInFromUrl(); } catch (e) { takenOver = (e as Error).message; }
-  check("sign-in: a link another browser's later request took over, though GoTrue refused it as too soon, says a newer request took it",
-    elsewhere.status === 429 && takenOver.includes("newer sign-in request took this link over") && currentSession() === null,
+  check("sign-in: a link another browser's later request took over, though GoTrue refused it as too soon, says a newer request may have",
+    elsewhere.status === 429 && takenOver.includes("newer sign-in request took it over") && currentSession() === null,
     json({ elsewhere: elsewhere.status, takenOver }));
+
+  // The other cause of the same refusal: a link asked for in ANOTHER browser, opened here while this
+  // browser holds a pending sign-in of its own (for another address). The sentence must not claim only a
+  // takeover; it names this cause first (the re-review of the live run's batch, REG-1).
+  fakeWindow.localStorage = new MemoryStorage();
+  await sendSignInLink("pia@example.com"); // this browser's own pending sign-in
+  const quinElsewhere = await sb.fetch(`${readAccountConfig()!.url}/auth/v1/otp`, {
+    method: "POST", headers: { apikey: "ANON" },
+    body: JSON.stringify({ email: "quin@example.com", create_user: true, code_challenge: s256("quin's own browser"), code_challenge_method: "s256" }),
+  });
+  fakeWindow.location.search = `?code=${sb.lastCode.get("quin@example.com")}`;
+  let foreign = "";
+  try { await completeSignInFromUrl(); } catch (e) { foreign = (e as Error).message; }
+  check("sign-in: a link asked for in another browser, opened where a different sign-in is pending, says it was asked for elsewhere",
+    quinElsewhere.status === 200 && foreign.includes("asked for in a different one") && currentSession() === null,
+    json({ quinElsewhere: quinElsewhere.status, foreign }));
 
   // A mistyped address never touches the pending sign-in.
   fakeWindow.localStorage = new MemoryStorage();

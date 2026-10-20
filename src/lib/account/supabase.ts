@@ -182,16 +182,22 @@ const LINK_ERRORS: Record<string, string> = {
 const LINK_ERROR_FALLBACK = "Sign-in didn't complete. Ask for a new link.";
 
 /**
- * The exchange refusing THIS browser's verifier (GoTrue's `bad_code_verifier`, a 400). GoTrue binds the
- * code a link yields to the person's MOST RECENT sign-in request, from whichever browser, and records
- * that request even when it refuses to email it as too soon: magic_link.go writes the flow state before
- * the rate limit, and verify.go issues the code for the user's latest flow state. So a link opened in
- * the very browser that asked fails here once another browser or device has asked since. The generic
- * "opened in a different browser" sentence blamed the person for it. Shown against the real GoTrue by
- * the live run.
+ * The exchange refusing THIS browser's verifier (GoTrue's `bad_code_verifier`, a 400). GoTrue says only
+ * that the verifier does not match, and there are two reasons it can happen:
+ *  - **The link was asked for in another browser**, and this one holds a pending sign-in of its own.
+ *    With none held, the "different browser" sentence is shown before any exchange.
+ *  - **A newer request took it over.** GoTrue issues a link's code for the person's MOST RECENT request,
+ *    from whichever browser: verify.go -> pkce.go issueAuthCode -> FindFlowStateByUserID(...).Last(),
+ *    ordered by created_at. For someone already signed up, or anyone while "Confirm email" is off (as
+ *    the setup guide sets it), it even records a request it refuses as too soon, because magic_link.go
+ *    writes the flow state before the rate limit. So a link opened in the very browser that asked fails
+ *    once another browser or device has asked since. Shown against the real GoTrue by the live run.
+ *
+ * Nothing in the link tells the two apart, so the sentence names both. The old one named only the first,
+ * which blamed the person for the second.
  */
 const LINK_TAKEN_OVER =
-  "A newer sign-in request took this link over: only the most recent request can be finished, even one from another browser or device, or one refused as too soon. Ask for a new link here, and open it in this browser.";
+  "This link can't be finished in this browser: it was asked for in a different one, or a newer sign-in request took it over (one from another browser or device counts, even one refused as too soon). Ask for a new link here, and open it in this browser.";
 
 /**
  * Read a landing URL. PKCE reports success as `?code=` and failure as `?error=…&error_code=…` (GoTrue

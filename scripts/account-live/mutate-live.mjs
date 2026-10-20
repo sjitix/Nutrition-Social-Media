@@ -10,8 +10,17 @@
  * live.mts (an RLS write check satisfied by a primary-key collision, a renewal check that never sent an
  * expired token, and redirects nobody looked at).
  *
- * Each mutation runs the full live run, about 90 s, so all ten take about 15 minutes. An anchor that
- * no longer matches exactly once is reported as SKIP and fails the run, like mutate-account.mjs. A run
+ * WHAT IT PROVES, EXACTLY: 17 mutations, each requiring a different named check to fail, so 17 of
+ * live.mts's 38 checks are shown able to fail. The other 21 are:
+ *  - platform facts the run records rather than guards it tests: GoTrue's parent rule, the newest link
+ *    signing in, the takeover's other side, /logout's 403 and a re-signup's new id;
+ *  - preconditions and follow-ons of the proven ones: sign-in, first sync, the pulls, edits arriving;
+ *  - six more landings, which the allow-list mutation would break too, but which the run never reaches
+ *    once the first sign-in fails.
+ * Say "17 of 38", never "every check" (the re-review of this file's first version caught that claim).
+ *
+ * Each mutation runs the full live run, about 85 s, so all 17 take about 25 minutes. An anchor that no
+ * longer matches exactly once is reported as SKIP and fails the run, like mutate-account.mjs. A run
  * killed mid-mutation is undone at the next start (the journal), so a broken file never outlives it.
  */
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -19,6 +28,55 @@ import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
 
 const MUTATIONS = [
+  {
+    name: "the select policy shows every row (using (true))",
+    file: "supabase/migrations/0001_user_state.sql",
+    from: "for select to authenticated\n  using (user_id = auth.uid());",
+    to: "for select to authenticated\n  using (true);",
+    fails: ["RLS: Rob asking for Sam's rows by her id gets none"],
+  },
+  {
+    name: "upsert_state writes an older value over a newer one (the forward-only rule gone)",
+    file: "supabase/migrations/0002_conditional_upsert.sql",
+    from: "      where s.updated_at < excluded.updated_at\n",
+    to: "",
+    fails: ["upsert_state: an older write is skipped"],
+  },
+  {
+    name: "GoTrue's per-person email limit is off",
+    file: "scripts/account-live/stack.sh",
+    from: "export GOTRUE_RATE_LIMIT_EMAIL_SENT=1000",
+    to: "export GOTRUE_SMTP_MAX_FREQUENCY=1ns\nexport GOTRUE_RATE_LIMIT_EMAIL_SENT=1000",
+    fails: ["rate limit: a second link for the same person within a minute is refused (429)"],
+  },
+  {
+    name: "the address bar keeps the sign-in code",
+    file: "src/lib/account/client.ts",
+    from: "  history.replaceState(null, \"\", window.location.pathname);\n",
+    to: "",
+    fails: ["sign-in: the code reached the address bar, and was cleared from it"],
+  },
+  {
+    name: "a link GoTrue refuses as used or replaced no longer says only the newest link works",
+    file: "src/lib/account/supabase.ts",
+    from: "or a newer link replaced it (only the newest link we sent works).",
+    to: "or a newer link replaced it.",
+    fails: ["newest link: an unused link that a newer one replaced is refused", "used link: opening it again is refused"],
+  },
+  {
+    name: "sign-out never reaches GoTrue's /logout (the server session stays alive)",
+    file: "src/lib/account/supabase.ts",
+    from: "    const res = await call(f, `${cfg.url}/auth/v1/logout?scope=local`, { method: \"POST\", headers: authed(cfg, s) });",
+    to: "    const res = new Response(null, { status: 204 });",
+    fails: ["sign-out: the real GoTrue refuses the signed-out session's refresh token"],
+  },
+  {
+    name: "a write refused for a deleted account (409, 23503) is not read as deleted",
+    file: "src/lib/account/supabase.ts",
+    from: "  if (res.status === 409 && d?.code === \"23503\") return new AccountError(\"This account no longer exists.\", \"gone\");\n",
+    to: "",
+    fails: ["deleted elsewhere: the laptop says the account was deleted"],
+  },
   {
     name: "the insert policy accepts any row (with check (true))",
     file: "supabase/migrations/0001_user_state.sql",
@@ -99,12 +157,15 @@ const onlyAt = args.indexOf("--only");
 const only = onlyAt >= 0 ? args[onlyAt + 1].split("|") : null;
 const root = process.cwd();
 
-const journal = join(root, "node_modules", ".cache", "mutate-live.journal.json");
-if (existsSync(journal)) {
-  const left = JSON.parse(readFileSync(journal, "utf8"));
-  writeFileSync(left.path, left.original, "utf8");
-  rmSync(journal);
-  console.log(`RESTORED ${left.path}: the run before this one was interrupted while that file was mutated\n`);
+// In the worktree's own .cache/ (gitignored), not node_modules/.cache, which worktrees can share through
+// a junction. A journal left at the old place by a run before the move is still put back.
+const journal = join(root, ".cache", "mutate-live.journal.json");
+for (const left of [journal, join(root, "node_modules", ".cache", "mutate-live.journal.json")]) {
+  if (!existsSync(left)) continue;
+  const j = JSON.parse(readFileSync(left, "utf8"));
+  writeFileSync(j.path, j.original, "utf8");
+  rmSync(left);
+  console.log(`RESTORED ${j.path}: the run before this one was interrupted while that file was mutated\n`);
 }
 mkdirSync(dirname(journal), { recursive: true });
 
