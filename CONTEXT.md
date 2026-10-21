@@ -202,6 +202,9 @@ The do-nothing and hollow-claim fakes score 0 on both evals.
     - a protein cut beside a new diet;
     - a treat or an unasked memory in find-then-place.
   Shipped in `6d1b978`. Details: `docs/worklog/2026-10-21-models.md`.
+- **v1's single-turn eval (`eval:hardcases`) is largely quoted by its own prompt:** 11 of its 45 cases are
+  near-quotes (`probe-quotes.mjs --hard-cases`). Treat it as a regression check, never as a ruler for choosing a
+  model; the loop and conversation evals are the rulers. v1 is told (`7b42059`).
 - **On `da023da` (v1's C-G):** probe-claims 15/15, probe-allergy-labels 28/28 (5 known-open rows), probe-fixes
   4/4. Five controls flipped because D works (an answer op now finishes with its own reply; a question said
   beside a memory-only step reaches the user). They are must-pass controls now, the answer-op one among them.
