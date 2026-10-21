@@ -33,7 +33,8 @@ creates a Supabase project; with no keys configured the app behaves exactly as i
    only by email link, and opening the link already proves the address. With it on (the default), a
    new person's FIRST link expires five minutes after it was *requested*, not after it was opened, so
    anyone slower than that to find the email is told the link expired (the app says to ask for a new
-   one, which then works). If you leave it on, expect that.
+   one, which then works). If you leave it on, expect that. The live run shows both against the real
+   GoTrue, on a second server with "Confirm email" on.
    **Keep CAPTCHA protection off** (Authentication → Attack Protection). This app sends no captcha
    token, so with it on every sign-in fails.
    **Authentication → Configuration → Audit Logs:** turn **off "Write audit logs to the database"**.
@@ -145,7 +146,7 @@ itself once into the OS temp folder; `package.json` does not change.
 node scripts/account-live/run.mjs               # from the repo root, about 80 s once the binaries are cached
 node scripts/account-live/run.mjs --keep        # ...and the stack stays up until Ctrl+C
 node scripts/account-live/run.mjs --down        # stops a stack a crash left behind
-node scripts/account-live/mutate-live.mjs       # breaks 22 guards in turn: each named check must fail (~30 min)
+node scripts/account-live/mutate-live.mjs       # breaks 24 guards in turn: each named check must fail (~32 min)
 ```
 
 This runs the app's own `client.ts` and `storage.ts` against **the real GoTrue (Supabase's auth
@@ -173,10 +174,14 @@ a time: a second one waits briefly, then says another run is using the stack.
 - a custom mail server (the catcher);
 - a hosted project's 10-second refresh-token reuse interval.
 
-**What the run checks**, each against the real servers' own answer (45 checks):
+And a second GoTrue on the same database, with "Confirm email" ON (a hosted project's default), for
+four of the run's browsers: the gateway sends `/confirm/auth/v1/*` to it, and those browsers are
+given `http://localhost:54321/confirm` as the project URL.
+
+**What the run checks**, each against the real servers' own answer (50 checks):
 - **Links:**
   - a PKCE link signs a device in, and every link asked for at an allow-listed address lands back on
-    that address (nine landings);
+    that address (ten landings);
   - a link asked for at an address the allow list refuses (a preview deployment) lands on the Site URL
     instead. (A browser's Referer would be tried first; the run sends none.) That page is another
     origin, so the request is not held there: the sign-in cannot finish, and the sentence names a
@@ -196,6 +201,16 @@ a time: a second one waits briefly, then says another run is using the stack.
     refused (`bad_code_verifier`), with the sentence naming a different browser;
   - an unused link that a newer one replaced is refused, and so is a used one, each with the sentence
     that says only the newest link works.
+- **"Confirm email" on** (the second GoTrue):
+  - a new person's first link is a confirmation link, and opened at once it signs them in;
+  - opened more than five minutes after it was asked for, it is refused (422, `flow_state_expired`), with
+    the sentence for a slow first link. The run moves the request six minutes back in `auth.flow_state`
+    rather than wait: GoTrue counts a first link's five minutes from the request, and takes no less
+    than 300 s;
+  - asking again, as that sentence says, sends a magic link (opening the slow link had confirmed the
+    person), and a magic link's five minutes run from its opening: moved six minutes back, it works;
+  - a new person's second request, refused as too soon, is rolled back with the sign-up, so it takes
+    nothing over: the first link finishes where it was asked for.
 - **Sync:** a second device pulls the week, an edit reaches the other device, and `upsert_state` skips
   a write older than the account's copy.
 - **Renewal:**
@@ -218,23 +233,25 @@ a time: a second one waits briefly, then says another run is using the stack.
   - signing up again with the same address gives a new id.
 - **Privacy:** `auth.audit_log_entries` is still empty at the end.
 
-**`mutate-live.mjs` shows 31 of the 45 checks able to fail.** It breaks 22 guards, one at a time, and
+**`mutate-live.mjs` shows 35 of the 50 checks able to fail.** It breaks 24 guards, one at a time, and
 each must turn its own named checks red:
 - all four RLS policies, and `upsert_state`'s forward-only rule;
-- the allow list (all nine landings must fail: the run hands each code to the device it names,
+- the allow list (all ten landings must fail: the run hands each code to the device it names,
   wherever the link landed, so it carries on past the first), the Site URL being the account page,
-  GoTrue's per-person email limit, and the audit-log setting;
+  GoTrue's per-person email limit, the audit-log setting, and "Confirm email" on the second GoTrue;
 - both renewal paths;
 - the verifier's handling across a refused and a lost request (the phone's link, and the tablet
   finishing Jo's), and the address bar being cleared;
 - the takeover sentence, and its naming a different browser and a different web address; the
-  newest-link sentence; and the sentence for a link that lands where no request is held;
+  newest-link sentence; the sentence for a link that lands where no request is held; and the
+  expired first link (422) told apart from a passing failure;
 - sign-out reaching GoTrue, sign-out ending only its own session, and a deleted account being read as
   deleted.
 
-The other 14 checks are not shown to fail on their own. They are:
-- four platform facts the run records rather than app guards: GoTrue's parent rule, the newest link
-  signing in, `/logout`'s 403, and a re-signup's new id;
+The other 15 checks are not shown to fail on their own. They are:
+- five platform facts the run records rather than app guards: GoTrue's parent rule, the newest link
+  signing in, `/logout`'s 403, a re-signup's new id, and a magic link still working six minutes after
+  its request;
 - ten preconditions and follow-ons of the proven checks: the first sign-in and sync, the phone's pull,
   the mirror, the newer week kept, both edits after a renewal, the plain sign-out, the delete, and the
   link that comes back when asked for again on the Site URL's page. That one is also required to PASS
@@ -242,7 +259,8 @@ The other 14 checks are not shown to fail on their own. They are:
 
 The reviews of the Site URL batch corrected two counts here. The landings were said to be never
 reached once the first sign-in failed; the first sign-in does not fail under the allow-list mutation,
-so the other eight had gone red unrequired, and now all nine are required. And the tablet finishing
+so the other eight had gone red unrequired, and now all of them are required (ten since the
+"Confirm email" checks). And the tablet finishing
 Jo's link was listed as a platform fact, though dropping the verifier on a refused request turns it
 red every time; that mutation now requires it.
 
@@ -263,10 +281,6 @@ age, for as long as that token is the parent of the session's current one. It an
 current token instead of a new one, which is why two tabs renewing at once both succeed. Older spent
 tokens fall under the reuse interval: 10 s on a hosted project; GoTrue's own default is 0. The suites'
 fake refuses the replaced token outright, which only makes those tests stricter.
-
-**Not exercised, though this stack could do it:** a first link with "Confirm email" on (it expires
-five minutes after it is requested; step 3 turns that off). It needs a second GoTrue configured the
-other way, and a five-minute wait.
 
 **Left to the hosted project:** whether the `postgres` role may delete from `auth.users` there (locally
 it is a superuser), Supabase's own gateway and its publishable keys, and real email delivery.

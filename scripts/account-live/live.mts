@@ -22,7 +22,9 @@
  * one more browser, seen at two web addresses, each with storage of its own: a preview deployment the
  * allow list does not admit ("Prev"), where Kai asks, and the Site URL's account page ("Site"), where
  * GoTrue sends that link instead. Lee uses the same two: asks at the Site URL, leaves it, then asks on
- * the preview, so that link lands where Lee's earlier request is still held.
+ * the preview, so that link lands where Lee's earlier request is still held. And four browsers
+ * ("ConfA" to "ConfD") talk to a second GoTrue with "Confirm email" on, a hosted project's default, where
+ * Nia, Oli and Pat are new: a first link's five minutes, and a refused request that takes nothing over.
  */
 import { execFileSync } from "node:child_process";
 import { createHash, createHmac } from "node:crypto";
@@ -224,7 +226,7 @@ async function hide(name: string) {
   docs[name].visibilityState = "visible";
 }
 
-for (const name of ["Lap", "Pho", "Rob", "Late", "Desk", "Tablet"]) makeDevice(name);
+for (const name of ["Lap", "Pho", "Rob", "Late", "Desk", "Tablet", "ConfA", "ConfB", "ConfC", "ConfD"]) makeDevice(name);
 makeDevice("Prev", PREVIEW);
 makeDevice("Site", SITE_URL);
 const Lap = await load("Lap");
@@ -235,6 +237,10 @@ const Desk = await load("Desk");
 const Tablet = await load("Tablet");
 const Prev = await load("Prev");
 const Site = await load("Site");
+const ConfA = await load("ConfA");
+const ConfB = await load("ConfB");
+const ConfC = await load("ConfC");
+const ConfD = await load("ConfD");
 const sam = "sam.live@example.com";
 const rob = "rob.live@example.com";
 const ivy = "ivy.live@example.com";
@@ -242,7 +248,20 @@ const jo = "jo.live@example.com";
 const kai = "kai.live@example.com";
 const lee = "lee.live@example.com";
 const max = "max.live@example.com";
+const nia = "nia.live@example.com";
+const oli = "oli.live@example.com";
+const pat = "pat.live@example.com";
 const sessionOf = (d: Device) => d.storage.loadSessionRaw() as Session | null;
+/**
+ * Move a person's sign-in requests six minutes back, in GoTrue's own table: what waiting out its 300 s
+ * flow-state expiry would do, without adding five minutes to the run.
+ */
+const ageRequests = (email: string, method?: string) =>
+  db(
+    `update auth.flow_state f set created_at = f.created_at - interval '6 minutes' from auth.users u
+     where u.id = f.user_id and u.email = '${email}'${method ? ` and f.authentication_method = '${method}'` : ""}
+     returning f.authentication_method`,
+  ) as { authentication_method: string }[];
 
 // =================================================================================================
 // 1. Sign in on a laptop that already has a week, and the week goes up
@@ -337,6 +356,46 @@ check("redirect: …where the request is not held (another origin), so it cannot
 await Site.client.sendSignInLink(lee);
 await newMail(lee);
 
+// "Confirm email" ON, the hosted default that step 3 turns off: a second GoTrue on the same database,
+// reached through the gateway's /confirm prefix, which the four Conf browsers are pointed at (run.mjs).
+// A new person's first link is then a confirmation link, and opened at once it signs them in.
+await ConfA.client.sendSignInLink(nia);
+const niaLink = await newMail(nia);
+await landOn("ConfA", await open(niaLink), "first link (Confirm email on)");
+const niaSession = await mayThrow(ConfA.client.completeSignInFromUrl());
+check("confirm email on: a new person's first link is a confirmation link, and opened at once it signs them in",
+  new URL(niaLink).searchParams.get("type") === "signup" && !(niaSession instanceof Error) && niaSession?.email === nia,
+  json({ type: new URL(niaLink).searchParams.get("type"), session: errText(niaSession) }));
+// That link's flow state expires 300 s after the REQUEST: GoTrue's FlowStateExpiryDuration, which it will
+// not take lower, counted from the open only for a magic link (flow_state.go IsExpired). /verify still
+// confirms the person and issues a code; the exchange is what refuses it (422 flow_state_expired).
+await ConfB.client.sendSignInLink(oli);
+const oliFirst = await newMail(oli);
+const oliAged = ageRequests(oli);
+const oliTo = await open(oliFirst);
+windows.ConfB.location.search = oliTo.search;
+windows.ConfB.location.hash = oliTo.hash;
+const oliLate = await mayThrow(ConfB.client.completeSignInFromUrl());
+check("confirm email on: a first link opened more than five minutes after it was asked for is refused, with the sentence for a slow first link",
+  oliAged.length === 1 && oliAged[0].authentication_method === "email/signup" && oliLate instanceof Error &&
+    oliLate.message.includes("took too long to open") && ConfB.client.currentSession() === null,
+  json({ aged: oliAged, refusal: errText(oliLate) }));
+// And with "Confirm email" on, a new person's request refused as too soon takes nothing over: GoTrue
+// signs them up inside the request's transaction, and the refusal rolls it back, flow state and all
+// (signup.go). Contrast Ivy's takeover above, where "Confirm email" is off.
+await ConfC.client.sendSignInLink(pat);
+const patLink = await newMail(pat);
+const patFromD = await mayThrow(ConfD.client.sendSignInLink(pat));
+const patRequests = count(`select 1 from auth.flow_state f join auth.users u on u.id = f.user_id where u.email = '${pat}'`);
+const patTo = await open(patLink);
+windows.ConfC.location.search = patTo.search;
+windows.ConfC.location.hash = patTo.hash;
+const patOn = await mayThrow(ConfC.client.completeSignInFromUrl());
+check("confirm email on: a new person's second request, refused as too soon, is rolled back and takes nothing over: the link finishes where it was asked for",
+  patFromD instanceof Error && /too many sign-in emails/i.test(patFromD.message) && patRequests === 1 &&
+    !(patOn instanceof Error) && patOn?.email === pat,
+  json({ second: errText(patFromD), requests: patRequests, session: errText(patOn) }));
+
 console.log("      (waiting out GoTrue's 60-second per-person email limit)");
 await sleep(61_000);
 await askOnceAllowed(Pho, sam);
@@ -390,6 +449,20 @@ const kaiOnSiteAgain = await mayThrow(Site.client.completeSignInFromUrl());
 check("redirect: …and asking again on that page, as it says, brings the link back to it, where it signs Kai in",
   kaiBack.origin + kaiBack.pathname === SITE_URL && kaiSiteLatest && !(kaiOnSiteAgain instanceof Error) && kaiOnSiteAgain?.email === kai,
   json({ landed: kaiBack.origin + kaiBack.pathname, latest: kaiSiteLatest, session: errText(kaiOnSiteAgain) }));
+
+// Oli, more than a minute on, does what the slow link's sentence said and asks again. Opening that link
+// had already confirmed Oli, so this one is a magic link, and a magic link's five minutes run from its
+// opening, not its request (flow_state.go): moved six minutes back like the first, it still works.
+await askOnceAllowed(ConfB, oli);
+const oliAgain = await newMail(oli);
+const oliAgedAgain = ageRequests(oli, "magiclink");
+const oliBack = await open(oliAgain);
+windows.ConfB.location.search = oliBack.search;
+windows.ConfB.location.hash = oliBack.hash;
+const oliOn = await mayThrow(ConfB.client.completeSignInFromUrl());
+check("confirm email on: …asking again, as that sentence says, sends a magic link, which still works six minutes after it was asked for",
+  new URL(oliAgain).searchParams.get("type") === "magiclink" && oliAgedAgain.length === 1 && !(oliOn instanceof Error) && oliOn?.email === oli,
+  json({ type: new URL(oliAgain).searchParams.get("type"), aged: oliAgedAgain.length, session: errText(oliOn) }));
 
 // =================================================================================================
 // 3. An edit on the phone reaches the laptop

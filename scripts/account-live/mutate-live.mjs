@@ -10,12 +10,13 @@
  * live.mts (an RLS write check satisfied by a primary-key collision, a renewal check that never sent an
  * expired token, and redirects nobody looked at).
  *
- * WHAT IT PROVES, EXACTLY: 22 mutations, which between them require 31 distinct named checks to fail
- * (the allow list's takes all nine landings, the newest-link sentence's two checks, the dropped
- * verifier's two, and the reused verifier shares one of them), so 31 of live.mts's 45 checks are shown
- * able to fail. The other 14 are:
- *  - four platform facts the run records rather than guards it tests: GoTrue's parent rule, the newest
- *    link signing in, /logout's 403, and a re-signup's new id;
+ * WHAT IT PROVES, EXACTLY: 24 mutations, which between them require 35 distinct named checks to fail
+ * (the allow list's takes all ten landings, "Confirm email" off takes three checks, the newest-link
+ * sentence's two, the dropped verifier's two, and the reused verifier and the 422 mapping each share one
+ * of those), so 35 of live.mts's 50 checks are shown able to fail. The other 15 are:
+ *  - five platform facts the run records rather than guards it tests: GoTrue's parent rule, the newest
+ *    link signing in, /logout's 403, a re-signup's new id, and a magic link still working six minutes
+ *    after its request (its five minutes run from the open);
  *  - ten preconditions and follow-ons of the proven ones: the laptop's sign-in, the first sync, the
  *    phone's pull, the mirror, the newer week kept, both edits after a renewal, the plain sign-out, the
  *    delete itself, and Kai's second link coming back to the Site URL's page.
@@ -28,11 +29,11 @@
  * mutation (the run hands each code to the device it names, wherever the link landed), so the other
  * eight went red unrequired. And it counted "the takeover's other side" (the tablet finishing Jo's link)
  * as a platform fact, though dropping the verifier on a refused request turns it red every time, so that
- * mutation now requires it. Count from the run's output, never from memory. Say "31 of 45", never
+ * mutation now requires it. Count from the run's output, never from memory. Say "35 of 50", never
  * "every check".
  *
- * Each mutation runs the full live run, about 80 s (21 took 1681 s on 2026-10-21), so all 22 take about
- * 30 minutes. An anchor that no
+ * Each mutation runs the full live run, about 80 s (21 took 1681 s on 2026-10-21), so all 24 take about
+ * 32 minutes. An anchor that no
  * longer matches exactly once is reported as SKIP and fails the run, like mutate-account.mjs. A run
  * killed mid-mutation is undone at the next start (the journal), so a broken file never outlives it.
  */
@@ -130,6 +131,7 @@ const MUTATIONS = [
       "redirect: Desk's link (Jo's second device) lands back",
       "redirect: Late's reopened link lands back",
       "redirect: Pho's re-signup link lands back",
+      "redirect: ConfA's first link (Confirm email on) lands back",
     ],
   },
   {
@@ -218,6 +220,26 @@ const MUTATIONS = [
     from: "it was asked for in a different browser or at a different web address, or a newer sign-in request took it over",
     to: "it was asked for at a different web address, or a newer sign-in request took it over",
     fails: ["takeover: a fresh link asked for in another browser"],
+  },
+  {
+    // The second GoTrue loses the setting it exists for. Then a first link is a magic link (so it neither
+    // reads as a confirmation nor expires from its request), and a refused request takes the link over.
+    name: "\"Confirm email\" is off on the second GoTrue too",
+    file: "scripts/account-live/stack.sh",
+    from: "PORT=54331 GOTRUE_MAILER_AUTOCONFIRM=false",
+    to: "PORT=54331 GOTRUE_MAILER_AUTOCONFIRM=true",
+    fails: [
+      "confirm email on: a new person's first link is a confirmation link",
+      "confirm email on: a first link opened more than five minutes after it was asked for is refused",
+      "confirm email on: a new person's second request, refused as too soon, is rolled back",
+    ],
+  },
+  {
+    name: "a first link refused as expired (422) reads as a passing failure",
+    file: "src/lib/account/supabase.ts",
+    from: "  if (res.status === 422) throw new AccountError(LINK_ERRORS.flow_state_expired, \"auth\");\n",
+    to: "",
+    fails: ["confirm email on: a first link opened more than five minutes after it was asked for is refused"],
   },
 ];
 

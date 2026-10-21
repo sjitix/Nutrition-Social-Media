@@ -119,7 +119,10 @@ try {
   const secret = wsl(["cat", `${wslHome}/.cache/nutriflow-live/jwt-secret`]); // to mint a truly expired token
   const out = (name) => resolve(".cache/account-live", name); // the worktree's own, never a shared node_modules
   const common = { bundle: true, platform: "node", format: "esm", tsconfig: "tsconfig.json", logLevel: "error" };
-  for (const device of ["Lap", "Pho", "Rob", "Late", "Desk", "Tablet", "Prev", "Site"]) {
+  // The Conf browsers talk to the second GoTrue ("Confirm email" on) through the gateway's /confirm
+  // prefix: the app reads the project URL as a literal process.env read, so a define gives one bundle its own.
+  const confirmUrl = { "process.env.NEXT_PUBLIC_SUPABASE_URL": JSON.stringify("http://localhost:54321/confirm") };
+  for (const device of ["Lap", "Pho", "Rob", "Late", "Desk", "Tablet", "Prev", "Site", "ConfA", "ConfB", "ConfC", "ConfD"]) {
     await build({
       ...common,
       entryPoints: ["scripts/account-tab.mts"],
@@ -128,6 +131,7 @@ try {
         window: `globalThis.__TAB_${device}.window`,
         document: `globalThis.__TAB_${device}.document`,
         history: `globalThis.__TAB_${device}.history`,
+        ...(device.startsWith("Conf") ? confirmUrl : {}),
       },
     });
   }

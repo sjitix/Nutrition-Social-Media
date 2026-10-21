@@ -2,7 +2,8 @@
 # The local stack, inside WSL:   stack.sh up | down | reset
 #
 #   up     Postgres (initialised once), the platform's roles, GoTrue's own migrations, THIS repo's
-#          migrations, then GoTrue, PostgREST and the gateway. Prints `READY <stack id>`, then stays in the
+#          migrations, then GoTrue (twice: as step 3 sets it, and with "Confirm email" on), PostgREST
+#          and the gateway. Prints `READY <stack id>`, then stays in the
 #          foreground: the stack lives exactly as long as this script, and its EXIT trap takes it down
 #          (run.mjs ending, Ctrl+C, a closed window).
 #   down   stops a stack something left behind (a crash, `wsl --shutdown` mid-run)
@@ -19,8 +20,9 @@
 # to this user. GoTrue, PostgREST and db.mjs all connect through the socket.
 #
 # run.mjs feeds this file to `bash -s` with LIVE_REPO set (the repo as WSL sees it), so it does not rely
-# on its own path. Ports: 54321 gateway (the app's URL), 54325 mail, 54329 GoTrue, 54330 PostgREST, all on
-# 127.0.0.1; Postgres's socket is .s.PGSQL.54322 in $C/run/pg.
+# on its own path. Ports: 54321 gateway (the app's URL), 54325 mail, 54329 GoTrue, 54330 PostgREST, 54331
+# the second GoTrue ("Confirm email" on), all on 127.0.0.1; Postgres's socket is .s.PGSQL.54322 in
+# $C/run/pg.
 set -euo pipefail
 
 C="$HOME/.cache/nutriflow-live"
@@ -127,6 +129,18 @@ export GOTRUE_LOG_LEVEL=info
 (cd "$C/auth" && exec ./auth serve) >"$C/logs/gotrue.log" 2>&1 9>&- &
 echo $! > "$C/run/gotrue.pid"
 
+# A second GoTrue on the same database, with "Confirm email" ON: a hosted project's default, which step 3
+# turns off. The gateway sends /confirm/auth/v1/* to it, and run.mjs points four browsers there. A new
+# person's first link is then a confirmation link, whose flow state expires 300 s after the REQUEST
+# (FlowStateExpiryDuration; flow_state.go counts from the open only for a magic link). Everything else
+# is the exported setup above. Its links carry the /confirm prefix, so they come back through the gateway.
+(cd "$C/auth" && PORT=54331 GOTRUE_MAILER_AUTOCONFIRM=false \
+  GOTRUE_MAILER_URLPATHS_CONFIRMATION=/confirm/auth/v1/verify GOTRUE_MAILER_URLPATHS_RECOVERY=/confirm/auth/v1/verify \
+  GOTRUE_MAILER_URLPATHS_INVITE=/confirm/auth/v1/verify GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE=/confirm/auth/v1/verify \
+  GOTRUE_MAILER_URLPATHS_MAGIC_LINK=/confirm/auth/v1/verify \
+  exec ./auth serve) >"$C/logs/gotrue-confirm.log" 2>&1 9>&- &
+echo $! > "$C/run/gotrue-confirm.pid"
+
 ( umask 077; cat > "$C/postgrest.conf" <<CONF
 db-uri = "postgres://authenticator@/postgres?host=$SOCK&port=54322"
 db-schemas = "public"
@@ -143,7 +157,8 @@ LIVE_JWT_SECRET="$SECRET" LIVE_STACK_ID="$STACK" "$NODE" "$LIVE/gateway.mjs" >"$
 echo $! > "$C/run/gateway.pid"
 
 for _ in $(seq 1 80); do
-  if curl -fs -o /dev/null http://127.0.0.1:54321/auth/v1/health && curl -fs -o /dev/null http://127.0.0.1:54330/; then
+  if curl -fs -o /dev/null http://127.0.0.1:54321/auth/v1/health && curl -fs -o /dev/null http://127.0.0.1:54321/confirm/auth/v1/health \
+    && curl -fs -o /dev/null http://127.0.0.1:54330/; then
     echo "READY $STACK"
     wait # keep the stack alive for as long as the run that started it
     exit 0
