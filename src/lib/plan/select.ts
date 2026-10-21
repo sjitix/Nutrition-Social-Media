@@ -210,7 +210,8 @@ function newCtx(): WeekCtx {
  */
 export interface SelectionReport {
   droppedSlots: string[];
-  slowestOverLimit: number; // worst cook time placed above the user's limit (0 = none)
+  // (A dish over the cook-time limit is named from the operation's FINAL week, by overLimitNote: the
+  // selector's own count went stale when a rebalance swapped the slow pick for a quicker one.)
   relaxedBudget: boolean;
   // A slot where every remaining dish was one the user asked never to see again. We served one
   // anyway — and, per the disclosure rule, we say so.
@@ -223,7 +224,7 @@ export interface SelectionReport {
 export interface ReplacedImport { day?: string; type: string; name: string; breaks: ImportBreak }
 
 export const newReport = (): SelectionReport => ({
-  droppedSlots: [], slowestOverLimit: 0, relaxedBudget: false, servedBannedDish: false, replacedImports: [],
+  droppedSlots: [], relaxedBudget: false, servedBannedDish: false, replacedImports: [],
 });
 
 /** Which of the person's hard rules an imported dish breaks, judged on its own text. */
@@ -299,10 +300,6 @@ export function reportNotes(rep: SelectionReport, profile: UserProfile): string[
       `I couldn't find a ${uniq.join(" or ")} that fits your ${profile.diet !== "none" ? profile.diet + " " : ""}rules, so ${uniq.length > 1 ? "those meals are" : "that meal is"} missing from some days.`,
     );
   }
-  if (rep.slowestOverLimit > profile.maxCookTime + 5)
-    out.push(
-      `Heads up: you asked for meals under ${profile.maxCookTime} min, but the only options that fit your other rules take up to ${rep.slowestOverLimit} min.`,
-    );
   if (rep.relaxedBudget) out.push(`Some meals came out pricier than your budget setting — there wasn't a cheaper option that fit.`);
   if (rep.servedBannedDish)
     out.push(`I've had to reuse a dish you told me you didn't want — there's nothing else in that slot that fits your other rules. Rate a few more meals and I'll have more to work with.`);
@@ -376,15 +373,21 @@ function pickMealsForDay(
     // ORDER MATTERS. Cook time is relaxed LAST: someone who says "nothing over 15 minutes"
     // usually cannot cook for 25, whereas price is elastic. Relaxing time to save money
     // (the earlier order) handed a 25-min meal to a user with a 15-min limit.
-    const fast = (r: Recipe) => r.timeMinutes <= profile.maxCookTime + 5;
+    //
+    // The limit is the person's number, met exactly while anything meets it. It used to carry a silent
+    // 5-minute grace at every stage, so "15 minutes or less" got a 20-minute dinner with no word said
+    // (models lane, 2026-10-21) while 13 dinners in the library take 15 or less. The grace is now a
+    // stage of its own, after the budget, and any dish over the limit is named (overLimitNote).
+    const within = (r: Recipe) => r.timeMinutes <= profile.maxCookTime;
     let candidates = hard.filter(
-      (r) => fast(r) && r.ingredients.length <= profile.maxIngredients + 1 && r.approxCost <= cap,
+      (r) => within(r) && r.ingredients.length <= profile.maxIngredients + 1 && r.approxCost <= cap,
     );
-    if (!candidates.length) candidates = hard.filter((r) => fast(r) && r.approxCost <= cap); // drop ingredient cap
+    if (!candidates.length) candidates = hard.filter((r) => within(r) && r.approxCost <= cap); // drop ingredient cap
     if (!candidates.length) {
-      candidates = hard.filter(fast); // drop budget, keep the time limit
+      candidates = hard.filter(within); // drop budget, keep the time limit
       if (candidates.length && report) report.relaxedBudget = true;
     }
+    if (!candidates.length) candidates = hard.filter((r) => r.timeMinutes <= profile.maxCookTime + 5);
     if (!candidates.length) candidates = hard.filter((r) => r.timeMinutes <= profile.maxCookTime + 15);
     if (!candidates.length) candidates = hard; // last resort: honour only the hard rules
     if (!hard.length && report) report.droppedSlots.push(type); // no recipe can satisfy the HARD rules
@@ -418,8 +421,6 @@ function pickMealsForDay(
     });
     if (!pick && hard.length && report) report.droppedSlots.push(type);
     if (pick) {
-      if (report && pick.timeMinutes > profile.maxCookTime + 5)
-        report.slowestOverLimit = Math.max(report.slowestOverLimit, pick.timeMinutes);
       ctx.usedIds.add(pick.id);
       ctx.usedNames.add(pick.name.toLowerCase());
       ctx.proteinDays[pick.mainProtein] = (ctx.proteinDays[pick.mainProtein] ?? 0) + 1;

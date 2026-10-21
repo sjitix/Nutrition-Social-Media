@@ -173,6 +173,41 @@ function lockedSlotsFor(p: UserProfile, day: DayPlan["day"]): Set<Meal["type"]> 
 }
 
 /**
+ * Every dish a re-plan left over the person's cook-time limit, named, read off the operation's FINAL
+ * week. The selector meets the limit exactly while anything fits, so a dish over it means nothing
+ * quicker fits the rest of the rules for that slot. Named: the dishes this operation placed, or, when the
+ * operation set the limit itself, every dish in reach. Not named: a pinned dish (the person's own
+ * choice), an imported one (placed on purpose), and one `skip` says another note already explains (a
+ * use-up dish: guaranteeFridge says why it runs long). The selector's own count went stale whenever a
+ * rebalance swapped its slow pick for a quicker one, and it said nothing about a dish up to 5 minutes
+ * over, so "15 minutes or less" got a 20-minute dinner with no word (models lane, 2026-10-21).
+ */
+function overLimitNote(
+  prev: WeekPlan,
+  plan: WeekPlan,
+  p: UserProfile,
+  opts: { limitSet: boolean; days?: ReadonlySet<string>; skip?: (m: Meal) => boolean },
+): string[] {
+  const over: string[] = [];
+  for (const d of plan.days) {
+    if (opts.days && !opts.days.has(d.day)) continue;
+    const pinned = lockedSlotsFor(p, d.day);
+    const before = prev.days.find((x) => x.day === d.day);
+    for (const m of d.meals) {
+      if (m.sourceUrl || pinned.has(m.type) || opts.skip?.(m)) continue;
+      const base = baseRecipeOf(m);
+      if (!base || base.timeMinutes <= p.maxCookTime) continue;
+      if (!opts.limitSet && before?.meals.find((x) => x.type === m.type)?.name === m.name) continue;
+      over.push(`${base.name} (${d.day}'s ${m.type}, ${base.timeMinutes} min)`);
+    }
+  }
+  if (!over.length) return [];
+  if (over.length === 1) return [`Nothing quicker fits your other rules there, so ${over[0]} runs over your ${p.maxCookTime}-min limit.`];
+  const shown = over.length > 4 ? [...over.slice(0, 3), `${over.length - 3} more`] : over;
+  return [`Nothing quicker fits your other rules for these, so ${over.length} dishes run over your ${p.maxCookTime}-min limit: ${listPhrase(shown)}.`];
+}
+
+/**
  * Would this pinned recipe break a hard rule under the CURRENT profile? Diet and allergies are the
  * only things allowed to evict a pin.
  */
@@ -240,7 +275,14 @@ function reimposeLocks(
  * an allergy, and a pinned meal is never displaced to make room. When an ingredient cannot be
  * used, the engine says so instead of quietly ignoring it.
  * ------------------------------------------------------------------------- */
-function guaranteeFridge(p: UserProfile, plan: WeekPlan, wanted: string[], notes: string[]): WeekPlan {
+function guaranteeFridge(
+  p: UserProfile,
+  plan: WeekPlan,
+  wanted: string[],
+  notes: string[],
+  /** Collects the dishes placed over the cook-time limit, which this function's own note explains. */
+  explained?: Set<string>,
+): WeekPlan {
   const want = wanted.map((x) => x.trim().toLowerCase()).filter(Boolean);
   if (!want.length) return plan;
 
@@ -304,6 +346,7 @@ function guaranteeFridge(p: UserProfile, plan: WeekPlan, wanted: string[], notes
       return { ...d, meals: rebalanceDay(meals, p, fixed, namesOnOtherDays(cur, d.day, p)) };
     });
     cur = { ...cur, days };
+    if (relaxed.includes(ing)) explained?.add(pick.name);
   }
 
   if (relaxed.length)
@@ -714,7 +757,9 @@ export function applyOperations(
             passesDiet(r, p.diet) &&
             !blockedByExclusions(r, tokNew) &&
             (op.budget ? r.approxCost <= capNew : true) &&
-            (op.maxCookTime && op.maxCookTime > 0 ? r.timeMinutes <= p.maxCookTime + 5 : true);
+            // Met exactly, like the selector (no silent 5-minute grace): a kept dish over a limit just set
+            // is re-picked, and if nothing quicker fits, overLimitNote names what stays over.
+            (op.maxCookTime && op.maxCookTime > 0 ? r.timeMinutes <= p.maxCookTime : true);
           // A re-THEME request (a cuisine, a fiber/nutrient push, or a fridge clear-out) is the user
           // asking for DIFFERENT dishes — those preferences only take effect during SELECTION, so a
           // "keep everything" pass would silently ignore them. Preserve edits only for FILTER and
@@ -725,12 +770,28 @@ export function applyOperations(
           notes.push(...reportNotes(rep, p));
           replacedImports.push(...rep.replacedImports);
           if (op.boostNutrient) {
-            const g = guaranteeBoost(p, prev, curPlan, op.boostNutrient, was);
+            // The old week as the rest of this request lets it stay (E4, and the review of E): as it was
+            // when nothing else was asked; else re-solved through the keep path, so only its dishes that
+            // break the rules as they are now are re-picked and its portions follow new targets; not at all
+            // for a cuisine, a fiber push or a different number of meals. An import the re-solve takes out
+            // is named from the final week (importNotes).
+            const keep = op.cuisine || fiberOn(op) || was.mealsPerDay !== p.mealsPerDay ? null : {
+              unchanged: sameContent({ ...was, memory: undefined }, { ...p, memory: undefined }),
+              resolve: () => {
+                const repKeep = newReport();
+                const fixed = rebalanceWeek(selectWeekFromDb(p, undefined, false, undefined, undefined, repKeep, { plan: prev, keepIf, before: was }), p);
+                replacedImports.push(...repKeep.replacedImports);
+                return fixed;
+              },
+            };
+            const g = guaranteeBoost(p, prev, curPlan, op.boostNutrient, was, keep);
             curPlan = g.plan;
             if (g.note) notes.push(g.note);
           }
           applyLocks();
-          if (op.useIngredients?.length) curPlan = guaranteeFridge(p, curPlan, op.useIngredients, notes);
+          const explained = new Set<string>();
+          if (op.useIngredients?.length) curPlan = guaranteeFridge(p, curPlan, op.useIngredients, notes, explained);
+          notes.push(...overLimitNote(prev, curPlan, p, { limitSet: !!(op.maxCookTime && op.maxCookTime > 0), skip: (m) => explained.has(m.name) }));
           if (keepMacros(op)) notes.push(achievementNote("Your week now averages", weekAveragesFull(curPlan), p));
           if (op.boostNutrient) notes.push(microNote(curPlan, op.boostNutrient));
         }
@@ -752,12 +813,21 @@ export function applyOperations(
           curPlan = keepMacros(op) ? rebalanceWeek(built, p) : built;
           notes.push(...reportNotes(rep, p));
           if (op.boostNutrient) {
-            const g = guaranteeBoost(p, prev, curPlan, op.boostNutrient);
+            // A cuisine or a fiber push asked with the boost would be dropped if the old week came back (E4).
+            // A week that breaks the rules is re-solved through the keep path, not thrown out whole.
+            const tokNow = exclusionTokens(p);
+            const g = guaranteeBoost(p, prev, curPlan, op.boostNutrient, undefined, op.cuisine || fiberOn(op) ? null : {
+              unchanged: true,
+              resolve: () => rebalanceWeek(selectWeekFromDb(p, undefined, false, undefined, undefined, newReport(),
+                { plan: prev, keepIf: (r) => passesDiet(r, p.diet) && !blockedByExclusions(r, tokNow) }), p),
+            });
             curPlan = g.plan;
             if (g.note) notes.push(g.note);
           }
           applyLocks();
-          if (op.useIngredients?.length) curPlan = guaranteeFridge(p, curPlan, op.useIngredients, notes);
+          const explained = new Set<string>();
+          if (op.useIngredients?.length) curPlan = guaranteeFridge(p, curPlan, op.useIngredients, notes, explained);
+          notes.push(...overLimitNote(prev, curPlan, p, { limitSet: false, skip: (m) => explained.has(m.name) }));
           if (keepMacros(op)) notes.push(achievementNote("Your week now averages", weekAveragesFull(curPlan), p));
           if (op.boostNutrient) notes.push(microNote(curPlan, op.boostNutrient));
         }
@@ -782,6 +852,7 @@ export function applyOperations(
         if (op.maxCookTime && op.maxCookTime > 0) tp.maxCookTime = op.maxCookTime;
         if (op.budget) tp.budget = op.budget;
         const rep = newReport();
+        const prevWeek = curPlan;
         const newDay = selectDay(tp, op.day, curPlan, normalizeCuisine(op.cuisine ?? null), fiberOn(op), op.useIngredients, op.boostNutrient ?? undefined, rep);
         notes.push(...reportNotes(rep, tp));
         const meals = keepMacros(op)
@@ -789,6 +860,7 @@ export function applyOperations(
           : newDay.meals;
         curPlan = { ...curPlan, days: curPlan.days.map((d) => (d.day === op.day ? { ...newDay, meals } : d)) };
         applyLocks(new Set([op.day]), tp);
+        notes.push(...overLimitNote(prevWeek, curPlan, tp, { limitSet: !!(op.maxCookTime && op.maxCookTime > 0), days: new Set([op.day]) }));
         const finalDay = curPlan.days.find((d) => d.day === op.day);
         // Always, not only when macros were kept: a re-plan with preserveMacros false wrote NO note, so
         // the model's prose ("the weekend has been scaled down") was the whole reply and could be false.
@@ -1084,6 +1156,7 @@ export function applyOperations(
         };
         profileChanged = true;
         const rep = newReport();
+        const before = curPlan;
         if (p.planMode === "batch") {
           // Batch mode: rebuild the meal-prep week onto the new targets (deterministic).
           curPlan = buildWeek(p);
@@ -1104,6 +1177,7 @@ export function applyOperations(
         );
         notes.push(...reportNotes(rep, p));
         replacedImports.push(...rep.replacedImports);
+        if (p.planMode !== "batch") notes.push(...overLimitNote(before, curPlan, p, { limitSet: false }));
         notes.push(achievementNote("Your week now averages", weekAveragesFull(curPlan), p));
         break;
       }

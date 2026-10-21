@@ -42,7 +42,7 @@ import {
   findRecipes, inspectRecipe, getPlan, getProfile, getSaved, report, whatIf,
   runReadTool, isReadTool, READ_TOOL_NAMES, MAX_ROWS,
 } from "@/lib/assistant/agentTools";
-import { runAgent, MAX_STEPS, FALSE_CLAIM_NUDGE, FALSE_CLAIM_NUDGE_MEMORY, type AgentTurn, type ModelFn } from "@/lib/assistant/agentLoop";
+import { runAgent, MAX_STEPS, FALSE_CLAIM_NUDGE, FALSE_CLAIM_NUDGE_MEMORY, NO_FURTHER_UNDO, type AgentTurn, type ModelFn } from "@/lib/assistant/agentLoop";
 import { weekMicroAverage } from "@/lib/plan/report";
 import { localExtraBody } from "@/lib/providers/extraBody";
 
@@ -761,12 +761,12 @@ console.log("\n--- HONESTY ABOUT COMPROMISES ---");
   check("an unfillable slot is DISCLOSED, not silently dropped", !dropped || notes.length > 0, `dropped=${dropped} notes=${notes[0] ?? "(none)"}`);
 }
 {
-  // A cook-time relaxation must be disclosed (swap_meal already did; generation did not).
+  // A cook-time relaxation must be disclosed (swap_meal already did; generation did not), naming each dish
+  // over the limit from the FINAL week: the selector's own count went stale when a rebalance swapped its slow
+  // pick for a quicker one, and it said nothing about a dish up to 5 minutes over (2026-10-21).
   const busy: UserProfile = { ...BASE, maxCookTime: 5 };
-  const rep = newReport();
-  selectWeekFromDb(busy, undefined, undefined, undefined, undefined, rep);
-  const notes = reportNotes(rep, busy);
-  check("relaxing the cook-time limit is disclosed", notes.some((n) => /min/.test(n)), notes[0] ?? "(none)");
+  const r = withSeed(1, () => applyOperations(busy, freshWeek(BASE), [op({ tool: "regenerate_week" })]));
+  check("relaxing the cook-time limit is disclosed, naming the dishes", r.notes.some((n) => /run over your 5-min limit/.test(n)), r.notes[0] ?? "(none)");
 }
 {
   // A calorie target the recipes cannot reach must be ADMITTED, not reported as success.
@@ -1954,6 +1954,32 @@ console.log("\n--- ADVERSARIAL / EDGE CASES ---");
   check("impossible cook-time: still 3 meals every day (relax, never drop)", wk.days.every((d) => d.meals.length === 3), `[${wk.days.map((d) => d.meals.length)}]`);
 }
 {
+  // A stated limit is the person's number, met exactly while anything meets it. With a silent 5-minute grace,
+  // "15 minutes or less" left 68 of 252 meals over 15 minutes with nothing said (12 seeded weeks, 2026-10-21).
+  const time = (name: string) => RECIPES.find((r) => r.name === name)?.timeMinutes ?? 0;
+  const silent: string[] = [];
+  for (let seed = 1; seed <= 3; seed++) {
+    const w = withSeed(seed, () => freshWeek(BASE));
+    const r = withSeed(seed, () => applyPrimitives(BASE, w, [{ op: "constrain", maxCookTime: 15 } as unknown as PrimitiveOp]));
+    for (const d of r.plan.days) for (const m of d.meals)
+      if (time(m.name) > 15 && !r.notes.some((n) => n.includes(`${m.name} (${d.day}'s ${m.type}, ${time(m.name)} min)`))) silent.push(`${seed}: ${d.day} ${m.name} ${time(m.name)} min`);
+  }
+  check("cook time: '15 minutes or less' for the week holds, or each dish over it is named (3 weeks)", silent.length === 0, `${silent.length} silent: ${silent.slice(0, 2).join(" | ")}`);
+  // No dinner in the library takes 10 minutes or less: the one placed runs over, and is named with its minutes.
+  const w4 = withSeed(4, () => freshWeek(BASE));
+  const ten = withSeed(4, () => applyPrimitives(BASE, w4, [{ op: "constrain", scope: { days: ["Tuesday"] }, maxCookTime: 10 } as unknown as PrimitiveOp]));
+  const din = ten.plan.days.find((d) => d.day === "Tuesday")!.meals.find((m) => m.type === "dinner")!;
+  check("cook time: a dinner over a limit nothing meets is named with its minutes",
+    time(din.name) > 10 && ten.notes.some((n) => n.includes(`${din.name} (Tuesday's dinner, ${time(din.name)} min)`) && /over your 10-min limit/.test(n)), ten.notes.join(" | ").slice(0, 200));
+  // The default 30 minutes: nothing in the library forces a dish over it, so a regenerated week says nothing.
+  let noisy = 0;
+  for (let seed = 1; seed <= 3; seed++) {
+    const r = withSeed(seed, () => applyOperations(BASE, freshWeek(BASE), [op({ tool: "regenerate_week" })]));
+    if (r.notes.some((n) => /over your d+-min limit/.test(n))) noisy++;
+  }
+  check("cook time: a default 30-minute week says nothing about the limit", noisy === 0, `${noisy} of 3 noisy`);
+}
+{
   // Requesting a dish that exceeds a reachable limit: no-op + an explanation, not silence.
   const busy: UserProfile = { ...BASE, maxCookTime: 10 };
   const wk = freshWeek(busy);
@@ -2264,6 +2290,9 @@ console.log("--- SYMPTOM CHECK (never diagnose, never dose, always the doctor) -
   check("symptom_check refuses to diagnose", /can't diagnose/i.test(tiredNote));
   check("symptom_check sends them to a doctor", /see a doctor/i.test(tiredNote));
   check("symptom_check names the associated nutrients", /iron.*B12.*folate/i.test(tiredNote));
+  // "zero energy" got the no-angle answer, so the fatigue note and its offer never came (models lane, 2026-10-21).
+  const zero = sym("it's that time of the month and i've got zero energy").notes.join(" ");
+  check("symptom_check: 'zero energy' is read as tiredness", /iron.*B12.*folate/i.test(zero), zero.slice(0, 100));
 
   // It must never prescribe. No dose, no supplement recommendation, ever.
   const allNotes = ["i'm always tired", "muscle cramps", "brittle nails", "i keep getting sick", "pins and needles", "low mood", "can't sleep", "bone pain", "i look pale", "slow healing"]
@@ -4542,7 +4571,7 @@ console.log("\n--- THE ASSISTANT'S WORDS BIND THE ENGINE ---");
       const w = withSeed(seed, () => freshWeek(BASE));
       const r = withSeed(seed, () => applyOperations(BASE, w, [{ tool: "update_profile", diet: "vegan", boostNutrient: "b12" }]));
       if (weekMicroAverage(r.plan, "b12").amount < weekMicroAverage(w, "b12").amount) {
-        if (r.notes.some((n) => /has less .* than before: the dishes that had more don.t fit your rules/.test(n))) said++;
+        if (r.notes.some((n) => /has less .* than before: .* no longer fits? your rules, and nothing that fits made up for/.test(n))) said++;
         else silent++;
       }
     }
@@ -4552,6 +4581,41 @@ console.log("\n--- THE ASSISTANT'S WORDS BIND THE ENGINE ---");
     const ex = withSeed(1, () => applyOperations(BASE, start, [{ tool: "update_profile", excludeFoods: fish, boostNutrient: "vitD" }]));
     const left = ex.plan.days.flatMap((d) => d.meals).filter((m) => haystackBlocked(`${m.name} ${m.ingredients.map((i) => i.name).join(" ")}`, fish));
     check("exclusion + boost in one request: no excluded food survives the boost", left.length === 0, left.map((m) => m.name).join(", "));
+
+    // E4 (measured 2026-10-21): a boost that could not raise its nutrient handed back the old week whole, so a
+    // calorie target or a cuisine asked in the same request was dropped (8 of 8 seeded runs each). Each week
+    // starts already boosted for iron, so a further gain is hard: the case that used to come back whole.
+    const avgKcal = (pl: WeekPlan) => pl.days.reduce((a, d) => a + d.meals.reduce((b, m) => b + m.calories, 0), 0) / pl.days.length;
+    const italian = (pl: WeekPlan) => pl.days.flatMap((d) => d.meals).filter((m) => RECIPES.find((x) => x.name === m.name)?.cuisine === "italian").length;
+    let kcalKept = 0, cuisineLost = 0;
+    for (let seed = 1; seed <= 3; seed++) {
+      const boosted = withSeed(seed, () => applyOperations(BASE, freshWeek(BASE), [op({ tool: "regenerate_week", boostNutrient: "iron" })]).plan);
+      const cut = withSeed(50 + seed, () => applyOperations(BASE, boosted, [op({ tool: "update_profile", targetCalories: 1600, boostNutrient: "iron" })]));
+      if (Math.abs(avgKcal(cut.plan) - 1600) > 80) kcalKept++;
+      const it = withSeed(50 + seed, () => applyOperations(BASE, boosted, [op({ tool: "update_profile", cuisine: "italian", boostNutrient: "iron" })]));
+      if (italian(it.plan) <= italian(boosted)) cuisineLost++;
+    }
+    check("E4: a calorie target asked with a boost holds when the nutrient cannot rise (1600 kcal + iron, 3 weeks)", kcalKept === 0, `${kcalKept} kept the old calories`);
+    check("E4: a cuisine asked with a boost holds when the nutrient cannot rise (Italian + iron, 3 weeks)", cuisineLost === 0, `${cuisineLost} lost the cuisine`);
+    const boosted1 = withSeed(1, () => applyOperations(BASE, freshWeek(BASE), [op({ tool: "regenerate_week", boostNutrient: "iron" })]).plan);
+    const again = withSeed(9, () => applyOperations(BASE, boosted1, [op({ tool: "update_profile", boostNutrient: "iron" })]));
+    check("E4 guard: a boost asked alone that cannot gain still leaves the week exactly as it was",
+      JSON.stringify(again.plan) === JSON.stringify(boosted1) && again.notes.some((n) => /so I left it alone/.test(n)), again.notes[0]);
+
+    // The review of E (2026-10-21): one dish breaking a rule threw the old week out whole, so excluding greek
+    // yogurt with a zinc boost took zinc from 28.1 to 26.8 mg a day, under a note blaming the rules, where
+    // removing that one dish leaves 27.5 and the two changes asked apart reach 28.7. Now only that dish is
+    // re-picked, and a drop names it.
+    // A week boosted twice for zinc, so its only greek-yogurt dish is one of many zinc sources.
+    let z0 = withSeed(2, () => freshWeek(BASE));
+    for (let i = 0; i < 2; i++) z0 = withSeed(2 + i, () => applyOperations(BASE, z0, [op({ tool: "update_profile", boostNutrient: "zinc" })])).plan;
+    const zr = withSeed(7, () => applyOperations(BASE, z0, [op({ tool: "update_profile", excludeFoods: ["greek yogurt"], boostNutrient: "zinc" })]));
+    const yogurtLeft = zr.plan.days.flatMap((d) => d.meals).filter((m) => m.ingredients.some((i) => /greek yogurt/i.test(i.name))).length;
+    check("boost + exclusion: the nutrient does not fall when the rules allow more (zinc + no greek yogurt)",
+      weekMicroAverage(zr.plan, "zinc").amount >= weekMicroAverage(z0, "zinc").amount && yogurtLeft === 0,
+      `${weekMicroAverage(z0, "zinc").amount.toFixed(2)} -> ${weekMicroAverage(zr.plan, "zinc").amount.toFixed(2)}, yogurt left ${yogurtLeft}`);
+    const lessNotes = zr.notes.filter((n) => /has less/.test(n));
+    check("boost + exclusion: ...and says nothing about less when there is not less", lessNotes.length === 0, lessNotes.join(" | "));
   }
 
   // F (2026-10-20, the models lane): a constrain scoped to a slot AND days lost its slot in the schema (a
@@ -4649,8 +4713,11 @@ console.log("\n--- THE ASSISTANT'S WORDS BIND THE ENGINE ---");
     JSON.stringify(dayEx.plan.days.find((d) => d.day === "Friday")) === JSON.stringify(friday));
   const dayQuick = applyPrimitives(BASE, aw, [{ op: "constrain", scope: { days: ["Tuesday"] }, maxCookTime: 15 } as PrimitiveOp]);
   const tue = dayQuick.plan.days.find((d) => d.day === "Tuesday")!;
-  check("day-scoped cook time: every Tuesday meal fits 15 min (+ the engine's 5-min tolerance)",
-    tue.meals.every((m) => m.timeMinutes <= 20), tue.meals.map((m) => m.timeMinutes).join(","));
+  // The limit is met exactly while anything meets it (the 5-minute grace that used to ride along silently
+  // put a 20-minute dinner on this day; models lane, 2026-10-21), and a dish over it is named.
+  check("day-scoped cook time: every Tuesday meal fits 15 min, or is named as running over it",
+    tue.meals.every((m) => m.timeMinutes <= 15 || dayQuick.notes.some((n) => n.includes(`${m.name} (Tuesday's ${m.type}, ${m.timeMinutes} min)`))),
+    tue.meals.map((m) => m.timeMinutes).join(","));
 
   // Found by the gate on THIS change: once a lactose intolerance binds, the only pancake left is
   // singular-named ("Chickpea Flour Pancake"), and the swap matcher's plain substring test could not
@@ -5256,6 +5323,77 @@ if (violations.size === 0) {
       const p = scripted([turn("", [{ op: "hydration", weightKg: 70 } as unknown as PrimitiveOp]), turn("About 2.3 litres a day.")]);
       const r = await runAgent({ ...base, profile: weighed, previous: prior, model: p.fn });
       check("loop undo: a hydration question restating the known weight leaves the last change undoable", r.previous === prior, r.previous?.label);
+    }
+    // The review of those fixes (2026-10-21): an undo sharing a step with a change, a second undo, a
+    // change and its undo in one run, the answers an in-run undo must keep, and a line said beside a
+    // fact already stored. The prior is a DIFFERENT week, so "ended at the earlier turn" and "ended at
+    // this run's start" can be told apart.
+    {
+      const priorPlan = withSeed(2, () => freshWeek(BASE));
+      const prior2 = { plan: priorPlan, profile: BASE, label: "rebuilt your week" };
+      const din = (pl: WeekPlan, day: string) => pl.days.find((d) => d.day === day)!.meals.find((m) => m.type === "dinner")!.name;
+      const pickDish = (not: string[]) => ["Chicken Fajitas", "Turkey & Bean Chilli", "Red Lentil & Tofu Curry"].find((d) => !not.includes(d))!;
+      const DISH = pickDish([din(plan, "Monday"), din(priorPlan, "Monday")]);
+      const DISH2 = pickDish([din(plan, "Tuesday"), din(priorPlan, "Tuesday"), DISH]);
+      const swapMon = { op: "swap", dish: DISH, slot: "dinner", days: ["Monday"] } as unknown as PrimitiveOp;
+      const swapTue = { op: "swap", dish: DISH2, slot: "dinner", days: ["Tuesday"] } as unknown as PrimitiveOp;
+      const undo = { op: "undo" } as PrimitiveOp;
+      const undoNext = (r: Awaited<ReturnType<typeof runAgent>>) =>
+        runAgent({ ...base, profile: r.profile, plan: r.plan, previous: r.previous, model: scripted([turn("", [undo]), turn("")]).fn });
+
+      for (const order of [[undo, swapMon], [swapMon, undo]]) {
+        const tag = order[0] === undo ? "[undo, swap]" : "[swap, undo]";
+        const r1 = await runAgent({ ...base, previous: prior2, model: scripted([turn("", order), turn("")]).fn });
+        check(`loop undo: ${tag} in one step keeps the swap and makes it the change an undo reverses`,
+          din(r1.plan, "Monday") === DISH && r1.previous?.label === "swapped Monday's dinner", `${din(r1.plan, "Monday")} / ${r1.previous?.label}`);
+        const r2 = await undoNext(r1);
+        check(`loop undo: ...${tag}: the next undo reverts that swap, back to the week the undo restored`,
+          JSON.stringify(r2.plan) === JSON.stringify(priorPlan), din(r2.plan, "Monday"));
+      }
+      {
+        const r1 = await runAgent({ ...base, previous: prior2, model: scripted([turn("", [swapMon]), turn("", [undo, swapTue]), turn("")]).fn });
+        const r2 = await undoNext(r1);
+        check("loop undo: [swap Mon], then [undo, swap Tue]: the next undo reverts Tuesday only, not the earlier turn too",
+          JSON.stringify(r2.plan) === JSON.stringify(plan), `Tuesday ${din(r2.plan, "Tuesday")}, at the prior week: ${JSON.stringify(r2.plan) === JSON.stringify(priorPlan)}`);
+      }
+      {
+        const r = await runAgent({ ...base, previous: prior2, model: scripted([turn("", [undo]), turn("", [undo]), turn("")]).fn });
+        check("loop undo: a second undo in one run says it goes back one change only, not that nothing changed",
+          r.reply.includes(NO_FURTHER_UNDO) && !/haven't changed anything/.test(r.reply), r.reply.slice(0, 160));
+      }
+      {
+        const r = await runAgent({ ...base, previous: prior2, model: scripted([turn("", [swapMon]), turn("", [undo]), turn("")]).fn });
+        check("loop flags: a change and its undo in one run report no change (the chat would say 'Plan updated.')",
+          !r.planChanged && !r.profileChanged, `plan ${r.planChanged}, profile ${r.profileChanged}`);
+      }
+      {
+        const w80 = { ...BASE, bodyStats: { ...(BASE.bodyStats ?? {}), weightKg: 80 } } as UserProfile;
+        const water = { op: "hydration", weightKg: 80 } as unknown as PrimitiveOp;
+        const r = await runAgent({ ...base, profile: w80, previous: prior2, model: scripted([turn("", [swapMon]), turn("", [water]), turn("", [undo]), turn("")]).fn });
+        check("loop undo: an in-run undo keeps the answer of a step that changed nothing (the water question)",
+          /aim for about/.test(r.reply) && !r.notes.some((n) => /^Monday now has /.test(n)), r.reply.slice(0, 160));
+      }
+      const DECLINE = "Noted. I can't plan for two people yet, but each recipe lists its servings.";
+      const partner = { op: "remember", fact: "cooks for a partner", kind: "context" } as PrimitiveOp;
+      {
+        const known = { ...BASE, memory: [{ fact: "cooks for a partner", kind: "context" }] } as UserProfile;
+        const r = await runAgent({ ...base, profile: known, model: scripted([turn(DECLINE, [partner]), turn("")]).fn });
+        check("loop reply: a line said beside a fact already stored is shown, not 'Happy to help.'", r.reply === DECLINE, r.reply.slice(0, 80));
+      }
+      {
+        const spicy = { op: "remember", fact: "likes spicy food", kind: "preference" } as PrimitiveOp;
+        const r = await runAgent({ ...base, model: scripted([turn(DECLINE, [partner]), turn("", [spicy]), turn("")]).fn });
+        check("loop reply: an empty line beside a later remember does not erase the line kept before it", r.reply === DECLINE, r.reply.slice(0, 80));
+      }
+      {
+        const veg = { ...BASE, memory: [{ fact: "wants vegetarian food", kind: "preference" }] } as UserProfile;
+        const claim = "Done — I've made your whole week vegetarian.";
+        const restate = { op: "remember", fact: "wants vegetarian food", kind: "preference" } as PrimitiveOp;
+        const act = { op: "constrain", diet: "vegetarian" } as unknown as PrimitiveOp;
+        const r = await runAgent({ ...base, profile: veg, model: scripted([turn(claim, [restate]), turn(""), turn("", [act]), turn("")]).fn });
+        check("loop claim: a claim beside a RESTATED fact is retried, and the model then acts",
+          r.falseClaimRetried && r.profile.diet === "vegetarian", `retried ${r.falseClaimRetried}, diet ${r.profile.diet}`);
+      }
     }
   }
 

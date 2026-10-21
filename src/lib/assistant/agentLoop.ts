@@ -58,6 +58,12 @@ const canon = (x: unknown): unknown =>
   : x && typeof x === "object" ? Object.fromEntries(Object.keys(x as object).sort().map((k) => [k, canon((x as Record<string, unknown>)[k])]))
   : x;
 const same = (a: unknown, b: unknown) => JSON.stringify(canon(a)) === JSON.stringify(canon(b));
+/** Two weeks hold the same meals, ignoring the ingredient slugs a re-solve may add (the engine's own
+ *  sameContent rule in execute.ts). */
+const samePlan = (a: WeekPlan, b: WeekPlan) => {
+  const dropSlug = (k: string, v: unknown) => (k === "slug" ? undefined : v);
+  return JSON.stringify(canon(a), dropSlug) === JSON.stringify(canon(b), dropSlug);
+};
 /** Did the profile change in a way a claim could be about — anything but the memory? */
 const editedApartFromMemory = (a: UserProfile, b: UserProfile) => {
   const { memory: _a, ...restA } = a;
@@ -119,6 +125,15 @@ export interface AgentRunResult {
 }
 
 const isRead = (o: PrimitiveOp): boolean => isReadTool(String((o as { op?: string }).op ?? ""));
+const opName = (o: PrimitiveOp) => String((o as { op?: string }).op ?? (o as { tool?: string }).tool ?? "");
+const isUndo = (o: PrimitiveOp) => opName(o) === "undo";
+const isRemember = (o: PrimitiveOp) => opName(o) === "remember";
+/** A step whose words describe the week as it then stood: undone with the change it described. */
+const PLAN_DESCRIBING = new Set(["report", "weekly_report", "explain", "explain_meal", "substitute", "substitute_ingredient"]);
+
+/** A second undo in one run, once the one level there is has been used: said by the loop, because the
+ *  engine's own answer ("I haven't changed anything yet") is false right after "I've put things back". */
+export const NO_FURTHER_UNDO = "That's as far back as I can go: I can undo one change.";
 
 /**
  * What `undo` says it reversed: "…before I noted what you told me and swapped Monday's dinner." A
@@ -164,7 +179,6 @@ export async function runAgent(args: {
   let profile = args.profile;
   let plan = args.plan;
   let planChanged = false;
-  let profileChanged = false;
   let replyOverride: string | undefined;
   let undone = false;
   const notes: string[] = [];
@@ -174,8 +188,10 @@ export async function runAgent(args: {
   // restore the state it was already in and throw away the change before it (models lane audit,
   // 2026-10-20: an explain after a change took the slot).
   let snapshot: PlanSnapshot | undefined;
-  // Every write that changed something, so the snapshot's label names all of what an undo reverses, not
-  // only the first step's. Only the wording grows: what is restored is still the state before the first.
+  // The writes of every step that changed something, so the snapshot's label names all of what an undo
+  // reverses, not only the first step's. Only the wording grows: what is restored is still the state
+  // before the first. A step is judged as a whole, so a refused write that shares a step with a real
+  // change is named too (open, recorded: telling them apart means applying a step's writes one by one).
   const written: PrimitiveOp[] = [];
 
   let steps = 0;
@@ -187,9 +203,11 @@ export async function runAgent(args: {
   let spoken = "";
   // Set when this run undid the PREVIOUS turn's change: there is one level of undo, so it is then spent.
   let undoneArgs = false;
-  // How many notes there were when this run's snapshot was taken, so an undo of the run's own change can
-  // drop the notes of the steps it reverted.
-  let notesAtSnapshot = 0;
+  // The notes, since this run's snapshot, that an undo of the run's own change makes untrue: those of
+  // every step that changed something or described the week as it then stood. A step that changed
+  // nothing and answered something else (hydration, a symptom, a refused swap) keeps its words: an
+  // in-run undo used to drop every note after the snapshot, the water answer with them (review, 2026-10-21).
+  let stale: [number, number][] = [];
   let gaveUp = false;
   let modelFailed = false;
   let falseClaimRetried = false;
@@ -253,38 +271,55 @@ export async function runAgent(args: {
     // 2) Writes, through the engine, exactly as before. It stays the only thing that may claim a
     //    change, and its notes are fed BACK so the model can see what it actually did — including
     //    a refusal or a relaxed constraint it should now respond to.
-    if (writes.length) {
+    // An undo that shares a step with other writes runs as a step of its own, first. applyPrimitives
+    // already runs it first (G), but it returns one merged result marked undone, so the change made on
+    // top of the undo never got a snapshot: [swap, undo] left the swap with nothing to undo it, and
+    // [undo, swap Tuesday] made the next "undo" revert Tuesday AND the earlier turn (review, 2026-10-21).
+    const undos = writes.filter(isUndo);
+    const groups = undos.length && undos.length < writes.length ? [[undos[0]], writes.filter((o) => !isUndo(o))] : [writes];
+    for (const group of groups) {
+      if (!group.length) continue;
+      // The one level of undo is spent: say so, rather than pass a second undo to the engine.
+      if (group.every(isUndo) && undoneArgs && !snapshot) {
+        notes.push(NO_FURTHER_UNDO);
+        transcript.push({ role: "tool", name: "apply", result: { notes: [NO_FURTHER_UNDO], planChanged: false, profileChanged: false } });
+        continue;
+      }
       const before = { plan, profile };
       // An undo inside the run reverts THIS run's changes first (to the state before its first change);
       // it used to restore the previous turn's snapshot, reverting the person's earlier change as well.
-      const res = applyPrimitives(profile, plan, writes, args.today, snapshot ?? (undoneArgs ? undefined : args.previous));
+      const res = applyPrimitives(profile, plan, group, args.today, snapshot ?? (undoneArgs ? undefined : args.previous));
       // Compared, not flagged: a profile write that leaves the profile as it was (a repeated remember, a
       // weight that was already stored) is no change, and must not take the undo slot.
       const stepChanged = res.planChanged || !same(before.profile, res.profile);
       if (res.undone) {
         if (!snapshot) undoneArgs = true;
         // Undoing this run's own change: what its steps said ("Monday now has …") is no longer true.
-        else notes.length = notesAtSnapshot;
+        else for (const [from, to] of [...stale].reverse()) notes.splice(from, to - from);
+        stale = [];
         snapshot = undefined;
         written.length = 0;
       } else if (stepChanged) {
-        written.push(...writes);
-        if (!snapshot) notesAtSnapshot = notes.length;
+        written.push(...group);
         snapshot = { plan: snapshot?.plan ?? before.plan, profile: snapshot?.profile ?? before.profile, label: labelOps(written) };
       }
       // A line written beside writes was written BEFORE the engine ran, so it may describe a change that
-      // never came ("I've made Tuesday vegetarian" over a budget constrain). Only a step that changed
-      // nothing but the memory keeps it (D's case: a decline said beside a remember); any other change
-      // clears it, so the engine's result, not the earlier line, is what an empty finishing turn shows.
-      const memoryOnly = !res.planChanged && !editedApartFromMemory(before.profile, res.profile);
-      if (stepChanged) spoken = memoryOnly && !reads.length ? lastReply : "";
+      // never came ("I've made Tuesday vegetarian" over a budget constrain). Any change beyond the memory
+      // clears it, so the engine's result, not the earlier line, is what an empty finishing turn shows. A
+      // step of remembers alone keeps its line (a decline said beside a remember) whether or not the fact
+      // was new: a restated fact changes nothing, and its line used to be lost, so the person read "Happy
+      // to help." and a claim beside it was never retried (review, 2026-10-21). An empty line never
+      // replaces a kept one.
+      if (res.planChanged || editedApartFromMemory(before.profile, res.profile)) spoken = "";
+      else if (group.every(isRemember) && !reads.length && lastReply.trim()) spoken = lastReply;
       plan = res.plan;
       profile = res.profile;
       planChanged = planChanged || res.planChanged;
-      profileChanged = profileChanged || res.profileChanged;
       undone = undone || Boolean(res.undone);
       if (res.replyOverride) replyOverride = res.replyOverride;
+      const from = notes.length;
       notes.push(...res.notes);
+      if (snapshot && !res.undone && (stepChanged || group.some((o) => PLAN_DESCRIBING.has(opName(o))))) stale.push([from, notes.length]);
       transcript.push({
         role: "tool",
         name: "apply",
@@ -311,14 +346,18 @@ export async function runAgent(args: {
 
   // An empty finishing turn does not erase what the model already said beside a change or an answer.
   const said = lastReply.trim() ? lastReply : spoken;
+  // What the run did, compared with where it started: a change and its undo in the same run cancel out,
+  // and "Plan updated." under a week that did not change would be false (review, 2026-10-21). The
+  // flags OR-ed step by step stay for the decisions inside the run.
+  const planDiffers = !samePlan(args.plan, plan);
   // profileChanged here is "changed in a way a claim could be about": a saved memory is not (above).
-  const reply = composeReply({ modelReply: said, notes, replyOverride, planChanged, profileChanged: profileEdited(), memorySaved: memorySaved() });
+  const reply = composeReply({ modelReply: said, notes, replyOverride, planChanged: planDiffers, profileChanged: profileEdited(), memorySaved: memorySaved() });
   return {
     reply,
     plan,
     profile,
-    planChanged,
-    profileChanged,
+    planChanged: planDiffers,
+    profileChanged: !same(args.profile, profile),
     // One level of undo: after an undo there is nothing further back.
     previous: snapshot ?? (undoneArgs ? undefined : args.previous),
     transcript,

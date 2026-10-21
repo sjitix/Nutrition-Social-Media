@@ -79,34 +79,71 @@ export function guaranteeBoost(
   /** The profile before the change that came with the boost, so an import is judged as the re-solve
    *  judged it (importBreaks). Omitted: only the allergies are judged against imports. */
   before?: UserProfile,
+  /** How the week the person had may stay, as the rest of THIS request lets it. null: not at all (a
+   *  cuisine, a fiber push, a different number of meals). Otherwise `prev` itself when the request asked
+   *  nothing else (`unchanged`) and it fits the rules, and else `resolve()`: `prev` re-solved under the
+   *  request, its rule-breaking dishes re-picked and its portions following new targets (the keep path),
+   *  run only when needed because a re-solve is not byte-identical even when nothing changes. It replaced:
+   *  - handing back `prev` whatever came with the boost, which dropped the other change with no word (E4:
+   *    a 1600 kcal target in 8 of 8 seeded runs, "Italian" in 8 of 8, a low budget in 1 of 8; 2026-10-21);
+   *  - dropping `prev` whole when one dish broke a rule, which lowered the nutrient for no reason under a
+   *    note blaming the rules: excluding greek yogurt with a zinc boost took zinc from 28.1 to 26.8 mg a
+   *    day, where removing that one dish leaves 27.5 and the two changes asked apart reach 28.7 (review). */
+  keep: { unchanged: boolean; resolve: () => WeekPlan } | null = { unchanged: true, resolve: () => prev },
 ): { plan: WeekPlan; note?: string } {
+  const EPS = 1e-6;
   const level = (pl: WeekPlan) => weekMicroAverage(pl, key).amount;
   const start = level(prev);
-  // The week the person had is a candidate only while every dish in it passes the rules as they are
-  // NOW. A diet change or a new exclusion arriving in the same request as the boost used to upgrade the
-  // old week in place: its unreplaced dishes kept the old rules, so "go vegetarian, and more B12"
-  // returned salmon and tuna in a "vegetarian" week, with no word said (models lane audit, iron-veg#2).
+  const label = MICRO_LABEL[key];
+  // A week is a candidate only while every dish in it passes the rules as they are NOW. A diet change or a
+  // new exclusion arriving in the same request as the boost used to upgrade the old week in place: its
+  // unreplaced dishes kept the old rules, so "go vegetarian, and more B12" returned salmon and tuna in a
+  // "vegetarian" week, with no word said (models lane audit, iron-veg#2).
   const prevFits = fitsHardRules(prev, profile, before);
-  const candidates = [upgradeForNutrient(profile, built, key), ...(prevFits ? [upgradeForNutrient(profile, prev, key)] : [])];
+  const kept = !keep ? null : keep.unchanged && prevFits ? prev : keep.resolve();
+  const keptOk = !!kept && fitsHardRules(kept, profile, before);
+  // The kept week itself is a candidate too: portion rebalancing can claw back what an upgrade's swaps
+  // gained, so the win is verified, never assumed.
+  const candidates = [upgradeForNutrient(profile, built, key), ...(keptOk ? [upgradeForNutrient(profile, kept!, key), kept!] : [])];
   const best = candidates.reduce((a, b) => (level(b) > level(a) ? b : a));
-  // Portion rebalancing can claw back what the swaps gained, so the win is verified, not assumed.
-  if (level(best) > start) return { plan: best };
-  if (prevFits) {
+  if (level(best) > start + EPS) return { plan: best };
+  if (keptOk && kept === prev) {
+    return { plan: prev, note: `I couldn't put more ${label} into your week than it already has, so I left it alone.` };
+  }
+  // The week has to change for the rest of the request, and the nutrient could not rise above where it
+  // was. Say what the boost achieved, and give the true reason: "less" only when there is less (it once
+  // fired at 0 -> 0), the old week's rule-breaking dishes by name when they are the reason, and no claim
+  // that what was used is the richest possible (the upgrade is greedy, not a maximum).
+  const less = level(best) < start - EPS;
+  if (!prevFits) {
+    const broke = brokenDishes(prev, profile, before);
+    const why = broke.length === 1 ? `${broke[0]} no longer fits your rules`
+      : broke.length <= 3 ? `${broke.slice(0, -1).join(", ")} and ${broke[broke.length - 1]} no longer fit your rules`
+      : `${broke.length} of its dishes, among them ${broke[0]} and ${broke[1]}, no longer fit your rules`;
     return {
-      plan: prev,
-      note: `I couldn't put more ${MICRO_LABEL[key]} into your week than it already has, so I left it alone.`,
+      plan: best,
+      note: less
+        ? `Your week has less ${label} than before: ${why}, and nothing that fits made up for ${broke.length === 1 ? "it" : "them"}.`
+        : `I couldn't put more ${label} into your week while keeping to your rules.`,
     };
   }
-  // The old week breaks the rules, so it cannot be kept. Say what the boost achieved, and only that: a
-  // drop only when there is one, and no "new rules" when the rules did not change (review, 2026-10-20:
-  // a boost alone over a week that already broke a rule said "now fits your new rules", and the "less
-  // than before" line fired at 0 -> 0).
   return {
     plan: best,
-    note: level(best) < start
-      ? `Your week has less ${MICRO_LABEL[key]} than before: the dishes that had more don't fit your rules. I've used the richest ones that do.`
-      : `I couldn't put more ${MICRO_LABEL[key]} into your week while keeping to your rules.`,
+    note: less
+      ? `Your week has less ${label} than before, with the other changes you asked for.`
+      : `I couldn't put more ${label} into your week while making the other changes you asked for.`,
   };
+}
+
+/** The names of the week's dishes that break the profile's hard rules (fitsHardRules, dish by dish). */
+function brokenDishes(plan: WeekPlan, profile: UserProfile, before?: UserProfile): string[] {
+  const tokens = exclusionTokens(profile);
+  const names = plan.days.flatMap((d) => d.meals).filter((m) => {
+    if (importBreaks(m, profile, before)) return true;
+    const r = baseRecipeOf(m);
+    return !!r && (!passesDiet(r, profile.diet) || blockedByExclusions(r, tokens));
+  }).map((m) => m.name);
+  return [...new Set(names)];
 }
 
 /** Every dish in the week passes the profile's hard rules: a library dish its diet, allergies and
