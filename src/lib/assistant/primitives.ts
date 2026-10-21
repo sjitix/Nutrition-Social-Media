@@ -9,7 +9,7 @@
  * See ASSISTANT-SCHEMA.md for the full design.
  */
 import { z } from "zod";
-import type { Operation, UserProfile, UserFact, WeekPlan, PlanSnapshot } from "../core";
+import type { Meal, Operation, UserProfile, UserFact, WeekPlan, PlanSnapshot } from "../core";
 import { DAYS, MEAL_TYPES } from "../core";
 import { applyOperations } from "../recipeDb";
 import { parseExclusionTokens, EXCLUSION_CATEGORIES, expandExclusion, haystackBlocked } from "../nutrition";
@@ -198,37 +198,60 @@ const ALLERGEN_TERMS = new Set(ALLERGEN_KEYS.flatMap((k) => expandExclusion(k)))
 const namesAllergen = (t: string) =>
   ALLERGEN_TERMS.has(t) || t.split(/\s+/).every((w) => haystackBlocked(w, ALLERGEN_KEYS));
 
-/** What the person reads when every cue in the fact is denied. A denial never takes anything off the
- *  allergies (there is no removal in chat), so it says what is still enforced instead of implying a
- *  removal: "not allergic to eggs any more" while eggs are on the list. */
-function deniedNote(fact: string, have: string[]): string {
+/** The allergies a DENIAL is about that are still on the list ("not allergic to eggs any more" while eggs
+ *  are bound). A denial never takes anything off the allergies: there is no removal in chat. */
+function stillDenied(fact: string, have: string[]): string[] {
   const named = allergensInFact(fact);
   // The allergies this fact is about: those that block a food it names, or, when it names none
   // ("no allergies"), every one on the list.
   const touched = named.length ? have.filter((s) => named.some((t) => haystackBlocked(t, [s]))) : have;
   const seen = new Set<string>();
-  const still = touched.filter((s) => !seen.has(allergyKey(s)) && Boolean(seen.add(allergyKey(s))));
-  return still.length
-    ? `Your allergies still include ${listOf(still)}, so nothing with ${itOrThem(still)} is planned.`
-    : "I've noted that. Your allergies haven't changed.";
+  return touched.filter((s) => !seen.has(allergyKey(s)) && Boolean(seen.add(allergyKey(s))));
+}
+
+/** A dish the week SERVES (from the library or imported), not a record of a meal already eaten or a slot
+ *  held for eating out: those carry "Logged by you." or no ingredients. */
+const served = (m: Meal) => m.ingredients.length > 0 && !/^Logged by you\./.test(m.description ?? "");
+
+/** The served dishes in the week that hold any of these foods, by the library's own matcher. */
+function servedWith(items: string[], plan: WeekPlan): string[] {
+  const tokens = items.flatMap((t) => parseExclusionTokens(t, ""));
+  if (!tokens.length) return [];
+  const hits = plan.days.flatMap((d) => d.meals).filter(served)
+    .filter((m) => haystackBlocked(`${m.name} ${m.ingredients.map((i) => i.name).join(" ")} ${m.steps.join(" ")}`, tokens));
+  return [...new Set(hits.map((m) => m.name))];
+}
+
+/** What a remembered allergy fact did, as data: the sentences are written from the FINAL week and
+ *  profile (allergyNotes), so a promise like "nothing with it is planned" is checked, not assumed. */
+interface AllergyOutcome {
+  add: string[]; //      bound now
+  already: string[]; //  named, and already in the allergies
+  covered: string[]; //  named, and blocked by a broader allergy
+  kept: string[]; //     named, and among the foods the person avoids
+  notAdded: string[]; // named allergen words that were not added
+  unknown: string[]; //  named words the matcher does not know ("celery", "penicillin", "toddler")
+  denied?: string[]; //  every cue denied: the allergies it is about that are still on the list
+  nameless?: boolean; // a cue that names nothing ("I have bad allergies")
 }
 
 /**
- * What a remembered allergy fact adds to profile.allergies, and the notes that say exactly what
- * happened. EVERY fact that reaches here gets a note, because composeReply shows the engine's notes
- * instead of the model's prose: a model that wrote "I'll keep celery out of your meals" over a fact that
- * bound nothing used to be the whole reply, and the person believed a screening that was not happening
- * (review of 49385e5, LC-06, LC-08, LC-11).
+ * What a remembered allergy fact adds to profile.allergies, and what happened to every food it named.
+ * EVERY fact that reaches here gets a note, because composeReply shows the engine's notes instead of the
+ * model's prose: a model that wrote "I'll keep celery out of your meals" over a fact that bound nothing
+ * used to be the whole reply, and the person believed a screening that was not happening (review of
+ * 49385e5, LC-06, LC-08, LC-11).
  *
  * Which tokens bind is unchanged: the unlabelled food filter, then the matcher's own parser, so what is
  * stored is exactly what is enforced. A word the parser drops ("red" from a dye) is neither stored nor
  * announced (LC-09); a token that expands to an allergy already stored is not stored again (LC-16).
  */
-function allergyOutcome(fact: string, labelled: boolean, profile: UserProfile): { add: string[]; notes: string[] } {
+function allergyOutcome(fact: string, labelled: boolean, profile: UserProfile): AllergyOutcome {
+  const none: AllergyOutcome = { add: [], already: [], covered: [], kept: [], notAdded: [], unknown: [] };
   const have = parseExclusionTokens(profile.allergies ?? "", "");
-  if (everyCueDenied(fact)) return { add: [], notes: [deniedNote(fact, have)] };
+  if (everyCueDenied(fact)) return { ...none, denied: stillDenied(fact, have) };
   const named = allergensInFact(fact);
-  if (!named.length) return { add: [], notes: ["I've noted that. It doesn't name a food, so your allergies haven't changed."] };
+  if (!named.length) return { ...none, nameless: true };
 
   const haveKeys = new Set(have.map(allergyKey));
   const factKeys = new Set<string>();
@@ -253,22 +276,53 @@ function allergyOutcome(fact: string, labelled: boolean, profile: UserProfile): 
   const covered: string[] = [];
   const kept: string[] = [];
   const notAdded: string[] = [];
+  const unknown: string[] = [];
   for (const t of unread) {
     if (haveKeys.has(allergyKey(t))) { if (!already.includes(t)) already.push(t); }
     else if (haystackBlocked(t, enforced)) covered.push(t);
+    // Said as an ALLERGY while it is only among the foods avoided: bind it as one (the dislike already
+    // blocks the same library dishes, so this adds no over-block), because an allergy is held to more
+    // than a dislike, an imported dish holding it among them (review, 2026-10-20).
+    else if (avoided.length && haystackBlocked(t, avoided) && parseExclusionTokens(t, "").length) add.push(t);
     else if (avoided.length && haystackBlocked(t, avoided)) kept.push(t);
     else if (namesAllergen(t)) notAdded.push(t);
+    else unknown.push(t);
   }
+  return { add, already, covered, kept, notAdded, unknown };
+}
 
+/**
+ * The sentences for one remembered allergy fact, written from the FINAL week and profile of the turn.
+ * "…so nothing with it is planned" is said only when no dish the week serves still holds it, and "your
+ * meals aren't screened for it" only when nothing in the final allergies or exclusions covers it: the
+ * same turn may exclude the food ("allergic to celery" plus exclude:[celery]), and a dish imported after
+ * the allergy bound used to sit in the week under "nothing with it is planned" (review of B2, 2026-10-20).
+ */
+function allergyNotes(o: AllergyOutcome, plan: WeekPlan, profile: UserProfile): string[] {
+  const promise = (items: string[], verb: string, tense: string) => {
+    const left = servedWith(items, plan);
+    return left.length
+      ? `, but ${listOf(left)} in your plan still ${left.length > 1 ? "have" : "has"} ${itOrThem(items)}.`
+      : `, so nothing ${verb} ${itOrThem(items)} ${tense}.`;
+  };
+  if (o.nameless) return ["I've noted that. It doesn't name a food, so your allergies haven't changed."];
+  if (o.denied) {
+    return [o.denied.length ? `Your allergies still include ${listOf(o.denied)}${promise(o.denied, "with", "is planned")}` : "I've noted that. Your allergies haven't changed."];
+  }
+  const screened = parseExclusionTokens(profile.allergies ?? "", profile.dislikes ?? "");
+  const excludedNow = (w: string) => haystackBlocked(w, screened);
+  const excluded = [...o.notAdded, ...o.unknown].filter(excludedNow);
+  const notScreened = o.notAdded.filter((w) => !excludedNow(w));
   const notes: string[] = [];
-  if (add.length) notes.push(`I've added ${listOf(add)} to your allergies, so nothing containing ${itOrThem(add)} will be planned.`);
-  if (already.length) notes.push(`${capital(listOf(already))} ${isOrAre(already)} already in your allergies, so nothing with ${itOrThem(already)} is planned.`);
-  if (covered.length) notes.push(`${capital(listOf(covered))} ${isOrAre(covered)} already covered by your allergies, so nothing with ${itOrThem(covered)} is planned.`);
-  if (kept.length) notes.push(`${capital(listOf(kept))} ${isOrAre(kept)} already among the foods you avoid, so nothing with ${itOrThem(kept)} is planned.`);
-  if (notAdded.length) notes.push(`I haven't added ${listOf(notAdded)} as an allergy, so your meals aren't screened for ${itOrThem(notAdded)}.`);
+  if (o.add.length) notes.push(`I've added ${listOf(o.add)} to your allergies${promise(o.add, "containing", "will be planned")}`);
+  if (o.already.length) notes.push(`${capital(listOf(o.already))} ${isOrAre(o.already)} already in your allergies${promise(o.already, "with", "is planned")}`);
+  if (o.covered.length) notes.push(`${capital(listOf(o.covered))} ${isOrAre(o.covered)} already covered by your allergies${promise(o.covered, "with", "is planned")}`);
+  if (o.kept.length) notes.push(`${capital(listOf(o.kept))} ${isOrAre(o.kept)} already among the foods you avoid${promise(o.kept, "with", "is planned")}`);
+  if (excluded.length) notes.push(`I haven't added ${listOf(excluded)} as an allergy, but you've excluded ${itOrThem(excluded)}${promise(excluded, "with", "is planned")}`);
+  if (notScreened.length) notes.push(`I haven't added ${listOf(notScreened)} as an allergy, so your meals aren't screened for ${itOrThem(notScreened)}.`);
   // Nothing above: every word named was one the matcher does not know ("celery", "penicillin", "spring").
   if (!notes.length) notes.push("I've noted that, but I haven't added it as an allergy, so your meals aren't screened for it.");
-  return { add, notes };
+  return notes;
 }
 
 export type Day = (typeof DAYS)[number];
@@ -404,10 +458,15 @@ export function slotScopeNote(c: ConstrainOp): string | null {
   return `I can't change just your ${slot} that way yet, so nothing changed. I can swap your ${slot} for a dish that fits (for example a higher-protein one), or make it bigger or smaller — tell me which.`;
 }
 
-/** Apply a `remember` to the profile's memory: dedupe on the fact text, stamp the day if given. */
+/** Apply a `remember` to the profile's memory: dedupe on the fact text, stamp the day if given. A fact
+ *  already stored with the same kind leaves the profile EXACTLY as it was (position and first `since`
+ *  kept): restating it used to move it to the end with a new stamp, which counted as a change and took
+ *  the undo slot from the person's last real change (review, 2026-10-20). */
 export function applyRemember(profile: UserProfile, r: RememberOp, today?: string): UserProfile {
   const text = r.fact.trim();
   if (!text) return profile;
+  const same = (profile.memory ?? []).some((f) => f.fact.toLowerCase() === text.toLowerCase() && (f.kind ?? null) === (r.kind ?? null));
+  if (same) return profile;
   const fact: UserFact = { fact: text, ...(r.kind ? { kind: r.kind } : {}), ...(today ? { since: today } : {}) };
   const rest = (profile.memory ?? []).filter((f) => f.fact.toLowerCase() !== text.toLowerCase());
   return { ...profile, memory: [...rest, fact] };
@@ -499,11 +558,32 @@ export function applyPrimitives(
   ops: PrimitiveOp[],
   today?: string,
   previous?: PlanSnapshot,
-) {
+): ReturnType<typeof applyOperations> {
+  // An UNDO restores the whole state before the last change. In one pass with the turn's other ops it
+  // ran after them, so "I'm allergic to peanuts — and undo that swap" bound peanuts and then restored the
+  // profile from before: no allergy, a peanut dish left in the week, and the note "nothing containing
+  // them will be planned" (models lane audit, undo-flow#2; an I2 hole, in either order). So the undo runs
+  // FIRST, alone, and everything else in the turn applies on top of what it restored.
+  const isUndoOp = (o: PrimitiveOp) => (o as { op?: string }).op === "undo" || (o as { tool?: string }).tool === "undo";
+  const undoOp = ops.find(isUndoOp);
+  if (undoOp && ops.some((o) => !isUndoOp(o))) {
+    const back = applyPrimitives(profile, plan, [undoOp], today, previous);
+    const rest = applyPrimitives(back.profile, back.plan, ops.filter((o) => !isUndoOp(o)), today);
+    return {
+      ...rest,
+      notes: [...back.notes, ...rest.notes],
+      planChanged: back.planChanged || rest.planChanged,
+      profileChanged: back.profileChanged || rest.profileChanged,
+      undone: back.undone || rest.undone,
+      replyOverride: rest.replyOverride ?? back.replyOverride,
+    };
+  }
+
   let p = profile;
   let remembered = false;
   const flat: Operation[] = [];
-  const extraNotes: string[] = [];
+  // A note is text, or a function of the turn's FINAL week and profile (an allergy fact's sentences).
+  const extraNotes: (string | ((final: { plan: WeekPlan; profile: UserProfile }) => string[]))[] = [];
   for (const o of ops) {
     if (isRemember(o)) {
       const next = applyRemember(p, o, today);
@@ -522,15 +602,20 @@ export function applyPrimitives(
       // with no cue the fact is never parsed, because the parser alone reads "a high-protein snack" as
       // a "protein" allergy. And a fact that only DENIES an allergy binds nothing, labelled or not
       // (everyCueDenied): "No allergies; eats dairy and gluten" had banned 59% of the library.
-      // Whatever it binds, the person is told exactly what happened (allergyOutcome).
+      // Whatever it binds, the person is told exactly what happened (allergyOutcome, allergyNotes).
       const labelled = o.kind === "allergy";
       if (labelled || ALLERGY_CUE.test(o.fact)) {
-        const { add, notes } = allergyOutcome(o.fact, labelled, p);
-        if (add.length) {
-          p = { ...p, allergies: [p.allergies, ...add].filter((s) => s && s.trim()).join(", ") };
+        const out = allergyOutcome(o.fact, labelled, p);
+        if (out.add.length) {
+          p = { ...p, allergies: [p.allergies, ...out.add].filter((s) => s && s.trim()).join(", ") };
+          flat.push({ tool: "update_profile" } as Operation);
+        } else if (servedWith([...out.already, ...out.covered, ...(out.denied ?? [])], plan).length && !flat.some((f) => f.tool === "update_profile")) {
+          // Mentioned (restated, or even denied) while a dish the week serves still holds a BOUND allergy
+          // (one imported after it bound): re-solve, so the dish is replaced, rather than answer "nothing
+          // with it is planned" over it. A denial never unbinds; it only gets the week back in line.
           flat.push({ tool: "update_profile" } as Operation);
         }
-        extraNotes.push(...notes);
+        extraNotes.push((final) => allergyNotes(out, final.plan, final.profile));
       }
     } else if (isConstrain(o)) {
       if (noOpConstrain(o)) {
@@ -553,7 +638,8 @@ export function applyPrimitives(
   // remember happened so the caller persists the new memory even on a plan-only-unchanged turn.
   // The notes written here are ENGINE notes like any other, so composeReply shows them as the truth
   // rather than letting the model's prose claim a change that did not happen.
-  return { ...res, notes: [...extraNotes, ...res.notes], profileChanged: res.profileChanged || remembered };
+  const written = extraNotes.flatMap((n) => (typeof n === "string" ? [n] : n({ plan: res.plan, profile: res.profile })));
+  return { ...res, notes: [...written, ...res.notes], profileChanged: res.profileChanged || remembered };
 }
 
 /** Render the memory as a compact context line for the model's system prompt each turn. */
@@ -566,10 +652,14 @@ export function memoryContext(profile: UserProfile): string {
 // --- v2 turn schema (validates the model's output; also constrains local json_schema generation) ---
 const dayEnum = z.enum(DAYS);
 const slotEnum = z.enum(MEAL_TYPES);
+// {slot, days?} comes BEFORE {days}: a union takes its first member that parses, and zod strips the keys
+// a member does not name, so {slot:"lunch", days:["Wednesday"]} used to parse as {days:["Wednesday"]}.
+// The whole day was re-planned, and the "can't change just your lunch" note never fired (models lane,
+// 2026-10-20).
 const scopeSchema = z.union([
   z.literal("week"),
-  z.object({ days: z.array(dayEnum) }),
   z.object({ slot: slotEnum, days: z.array(dayEnum).optional() }),
+  z.object({ days: z.array(dayEnum) }),
 ]);
 const nutrientEnum = z.enum(["iron", "calcium", "magnesium", "potassium", "zinc", "vitD", "vitC", "folate", "b12"]);
 

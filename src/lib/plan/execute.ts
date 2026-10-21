@@ -14,7 +14,7 @@ import { expandExclusion, haystackBlocked, parseExclusionTokens, wordMatches } f
 import { RECIPES, baseRecipeOf, scaleRecipeToTarget, toMeal } from "./library";
 import { bannedForUser, blockedByExclusions, budgetCap, exclusionTokens, fiberOn, keepMacros, localSplit, mergeDislikes, normalizeCuisine, passesDiet } from "./rules";
 import { SCALE_LO, clampScale, dayTargetMacros, macroDistance, rebalanceDay, rebalanceWeek, recipeMacros, scaleRecipeByFactor, scaleToTargets, slotShare, slotTargetMacros, slotsUpTo } from "./rebalance";
-import { newReport, reportNotes, selectDay, selectWeekFromDb, withSeed } from "./select";
+import { importNotes, newReport, reportNotes, selectDay, selectWeekFromDb, withSeed, type ReplacedImport } from "./select";
 import { buildWeek } from "./batch";
 import { PROTEIN_MISS, achievementNote, dayTotals, dayTotalsFull, explainMealNote, listPhrase, microNote, rateMealNote, resolveRatedDish, substituteNote, symptomNote, weekAveragesFull, weeklyReportNote } from "./report";
 import { guaranteeBoost } from "./boost";
@@ -22,6 +22,20 @@ import { guaranteeBoost } from "./boost";
 // Macro-aware swap: among the recipes that match the requested dish name, pick the
 // one whose macro profile best fits the slot — so "pancakes" on a high-protein plan
 // auto-selects the protein-forward pancake (the user never has to say "protein").
+/** The words of a swap request that count toward a match (three letters or more). */
+const askedWords = (query: string) => query.toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 2);
+
+/** How many of the request's words a dish matches: the swap lookup's own score. A substring hit, OR the
+ *  asked word is an inflection of a whole word in the dish: "pancakes" must find "Chickpea Flour Pancake".
+ *  Substring alone missed it, and it surfaced the day a remembered lactose intolerance became binding:
+ *  the only pancake left was singular-named, so "pancakes every day" answered "I don't have anything like
+ *  pancakes". (The wider fuzzy-match rewrite is D6's.) */
+function keywordHits(words: string[], r: Recipe): number {
+  const hay = `${r.name} ${r.description} ${r.ingredients.map((i) => i.name).join(" ")}`.toLowerCase();
+  const hayWords = hay.split(/[^a-z]+/).filter((h) => h.length >= 3);
+  return words.filter((w) => hay.includes(w) || hayWords.some((h) => wordMatches(w, h))).length;
+}
+
 // Dish match wins first; macro fit only breaks ties between equally-matching dishes.
 // `respectSoft` = also honour the user's cook-time / ingredient-count limits. We try
 // with them on first; if nothing fits we retry with them off purely to tell the user
@@ -32,7 +46,7 @@ function findRecipeForSwap(
   profile: UserProfile,
   respectSoft = true,
 ): Recipe | null {
-  const words = query.toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 2);
+  const words = askedWords(query);
   if (words.length === 0) return null;
   const cap = budgetCap(profile.budget);
   const tokens = exclusionTokens(profile);
@@ -54,15 +68,7 @@ function findRecipeForSwap(
   const scored: { r: Recipe; kw: number }[] = [];
   for (const r of RECIPES) {
     if (!eligible(r)) continue;
-    const hay = `${r.name} ${r.description} ${r.ingredients.map((i) => i.name).join(" ")}`.toLowerCase();
-    const hayWords = hay.split(/[^a-z]+/).filter((h) => h.length >= 3);
-    let kw = 0;
-    // A substring hit, OR the asked word is an inflection of a whole word in the dish: "pancakes"
-    // must find "Chickpea Flour Pancake". Substring alone missed it, and it surfaced the day a remembered
-    // lactose intolerance became binding: the only pancake left was singular-named, so "pancakes every
-    // day" answered "I don't have anything like pancakes". This only ADDS matches — every request that
-    // matched before still matches the same way. (The wider fuzzy-match rewrite is D6's.)
-    for (const w of words) if (hay.includes(w) || hayWords.some((h) => wordMatches(w, h))) kw++;
+    const kw = keywordHits(words, r);
     if (kw > 0) scored.push({ r, kw });
   }
   if (scored.length === 0) return null;
@@ -108,9 +114,15 @@ function exclusionReason(r: Recipe, p: UserProfile): string | null {
 }
 
 /**
- * The dish the person most likely meant, if only their allergies or dislikes kept it out: the swap
- * lookup with both cleared. `placed` is what the real lookup chose (null when it found nothing); the
- * result is used for a note and nothing else.
+ * The dish the person asked for, if a rule of theirs kept it out, with the clause that says which rule:
+ * "contains shellfish, which is in your allergies" or "isn't vegetarian". Used for a note and nothing
+ * else: what it finds is NEVER placed. `placed` is what the real lookup chose (null when it found none).
+ *
+ * Named only when it is really the dish asked for (review of B2, 2026-10-20): an EXACT name, or a dish
+ * matching strictly more of the request's words than the one placed. The lookup with the allergies
+ * cleared used to break a word tie differently and blame an allergy for "veggie burger" ("Cheeseburger &
+ * Fries contains dairy") or "a light soup", in 45 of 92 refused-dish notes; and a dish the DIET refused
+ * was explained by another dish's allergy.
  */
 function refusedForExclusions(
   query: string,
@@ -118,11 +130,25 @@ function refusedForExclusions(
   p: UserProfile,
   placed: Recipe | null,
   respectSoft = true,
-): { dish: Recipe; reason: string } | null {
+): { dish: Recipe; why: string } | null {
+  const q = query.trim().toLowerCase();
+  const named = RECIPES.find((r) => r.name.toLowerCase() === q && (!type || r.type === type));
+  if (named) {
+    if (named.name === placed?.name) return null;
+    const reason = exclusionReason(named, p);
+    if (reason) return { dish: named, why: `contains ${reason}` };
+    if (!passesDiet(named, p.diet)) return { dish: named, why: `isn't ${p.diet}` };
+    return null;
+  }
   const free = findRecipeForSwap(query, type, { ...p, allergies: "", dislikes: "" }, respectSoft);
   if (!free || free.name === placed?.name) return null;
+  // It must match EVERY word asked for: "veggie burger" is not a cheeseburger, even when "burger" is the
+  // only word anything in the library matches.
+  const words = askedWords(query);
+  const hits = keywordHits(words, free);
+  if (hits < words.length || hits <= (placed ? keywordHits(words, placed) : 0)) return null;
   const reason = exclusionReason(free, p);
-  return reason ? { dish: free, reason } : null;
+  return reason ? { dish: free, why: `contains ${reason}` } : null;
 }
 
 /* ------------------------------------------------------------------------- *
@@ -639,10 +665,14 @@ export function applyOperations(
   // Factual macro notes the LLM can't produce (it does no math) — the route appends
   // these so the assistant reports honestly what the engine did.
   const notes: string[] = [];
+  const replacedImports: ReplacedImport[] = [];
 
   for (const op of operations) {
     switch (op.tool) {
       case "update_profile": {
+        // The profile before this op changes it: an imported dish that breaks a diet or an exclusion this
+        // op introduces is re-picked, while one that already broke the old rule stays (importBreaks).
+        const was: UserProfile = { ...p };
         if (op.diet) p.diet = op.diet;
         if (op.budget) p.budget = op.budget;
         if (op.mealsPerDay === 3 || op.mealsPerDay === 4) p.mealsPerDay = op.mealsPerDay;
@@ -690,11 +720,12 @@ export function applyOperations(
           // "keep everything" pass would silently ignore them. Preserve edits only for FILTER and
           // TARGET changes; a re-theme reselects the week from scratch, exactly as before.
           const reTheme = !!(op.cuisine || fiberOn(op) || op.boostNutrient || op.useIngredients?.length);
-          const built = selectWeekFromDb(p, normalizeCuisine(op.cuisine ?? null), fiberOn(op), op.useIngredients, op.boostNutrient ?? undefined, rep, (reTheme || modeChanged) ? undefined : { plan: prev, keepIf });
+          const built = selectWeekFromDb(p, normalizeCuisine(op.cuisine ?? null), fiberOn(op), op.useIngredients, op.boostNutrient ?? undefined, rep, (reTheme || modeChanged) ? undefined : { plan: prev, keepIf, before: was });
           curPlan = keepMacros(op) ? rebalanceWeek(built, p) : built;
           notes.push(...reportNotes(rep, p));
+          replacedImports.push(...rep.replacedImports);
           if (op.boostNutrient) {
-            const g = guaranteeBoost(p, prev, curPlan, op.boostNutrient);
+            const g = guaranteeBoost(p, prev, curPlan, op.boostNutrient, was);
             curPlan = g.plan;
             if (g.note) notes.push(g.note);
           }
@@ -775,7 +806,7 @@ export function applyOperations(
             const refused = refusedForExclusions(op.dish, op.mealType ?? undefined, p, null) ??
               refusedForExclusions(op.dish, op.mealType ?? undefined, p, null, false);
             notes.push(refused
-              ? `${refused.dish.name} contains ${refused.reason}, so I left the week as it is.`
+              ? `${refused.dish.name} ${refused.why}, so I left the week as it is.`
               : `I don't have anything like "${op.dish}" that fits your plan, so I left the week as it is.`);
             break;
           }
@@ -818,7 +849,7 @@ export function applyOperations(
           if (asked.length && asked.some((w) => !match.name.toLowerCase().includes(w))) {
             const refused = refusedForExclusions(op.dish, op.mealType ?? undefined, p, match);
             notes.push(refused
-              ? `${refused.dish.name} contains ${refused.reason}, so I used ${match.name} instead.`
+              ? `${refused.dish.name} ${refused.why}, so I used ${match.name} instead.`
               : `I didn't have "${op.dish}" — I used ${match.name}.`);
           }
           notes.push(op.day
@@ -836,7 +867,7 @@ export function applyOperations(
             const refused = refusedForExclusions(op.dish, op.mealType ?? undefined, p, null) ??
               refusedForExclusions(op.dish, op.mealType ?? undefined, p, null, false);
             notes.push(refused
-              ? `${refused.dish.name} contains ${refused.reason}, so I left the week as it is.`
+              ? `${refused.dish.name} ${refused.why}, so I left the week as it is.`
               : `I don't have anything like "${op.dish}" that fits your plan, so I left the week as it is.`);
             break;
           }
@@ -882,7 +913,7 @@ export function applyOperations(
           if (wanted.length && wanted.some((w) => !match.name.toLowerCase().includes(w))) {
             const refused = refusedForExclusions(op.dish, op.mealType ?? undefined, p, match);
             notes.push(refused
-              ? `${refused.dish.name} contains ${refused.reason}, so I used ${match.name} instead.`
+              ? `${refused.dish.name} ${refused.why}, so I used ${match.name} instead.`
               : `I didn't have "${op.dish}" — I used ${match.name}.`);
           }
           // Say what changed, then disclose the week's macros honestly (the same achievementNote the
@@ -929,7 +960,7 @@ export function applyOperations(
           const why = refused ?? refusedSlow;
           notes.push(
             why
-              ? `${why.dish.name} contains ${why.reason}, so I left ${op.day} as it is.`
+              ? `${why.dish.name} ${why.why}, so I left ${op.day} as it is.`
               : loose
                 ? `${loose.name} takes ${loose.timeMinutes} min, over your ${p.maxCookTime}-min limit — I left ${op.day} as it is.`
                 : `I don't have anything like "${op.dish}" that fits your plan.`,
@@ -957,7 +988,7 @@ export function applyOperations(
           // …unless the library HAS the dish and an allergy or a dislike kept it out: then say that.
           const refused = refusedForExclusions(op.dish, op.mealType ?? undefined, p, match);
           notes.push(refused
-            ? `${refused.dish.name} contains ${refused.reason}, so I used ${match.name} instead.`
+            ? `${refused.dish.name} ${refused.why}, so I used ${match.name} instead.`
             : `I didn't have "${op.dish}" — I used ${match.name} instead.`);
         }
 
@@ -1072,6 +1103,7 @@ export function applyOperations(
           }),
         );
         notes.push(...reportNotes(rep, p));
+        replacedImports.push(...rep.replacedImports);
         notes.push(achievementNote("Your week now averages", weekAveragesFull(curPlan), p));
         break;
       }
@@ -1363,6 +1395,9 @@ export function applyOperations(
   // Compared, not inferred. `planWasChanged(operations)` asks which tools were NAMED; this asks
   // what actually moved. A swap for a dish we don't have is a no-op, and used to tell the user
   // "Done — I updated your plan."
+  // Imported dishes a re-solve took out, named from the FINAL plan: a rebalance or a pin may have changed
+  // the slot after selection, and the note must name what is really there.
+  notes.push(...importNotes(replacedImports, curPlan, p));
   const planChanged = !sameContent(curPlan, plan);
   return {
     plan: curPlan,
