@@ -1541,6 +1541,13 @@ Each of these was discovered by doing the work, and each earned its place.
     17 of 38, each named, with the other 21 accounted for, and a sentence that names both causes. **Count
     what the mutations require, never what they suggest.**
 
+    **And twice more, in the Site URL batch (2026-10-21).** The runner printed only CAUGHT, so a
+    mutation's unrequired FAILs were invisible. Under the allow-list mutation eight landings had gone
+    red on every run while the header explained them away as "never reached"; requiring them all
+    turned the explanation into a measurement. And a check that asserted two phrases stopped telling
+    its branch apart the day another sentence gained the same two. **Require every check a mutation
+    turns red, and assert what is unique to the branch a check names, not what it shares with others.**
+
 68. **The tool that commits for every lane needs the same proof as the code it commits, and the git
     flag that sounds safe can be safe in the wrong way.** `ship.mjs` v1 had one test, which was being
     used. An adversarial audit (2026-10-18) reproduced 45 ways it could:
