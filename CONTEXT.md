@@ -209,7 +209,7 @@ in the main folder (`2fd6f02`). Its WORKPLAN lesson was renumbered 38 → 48 bec
 #### PARALLEL LANE — models (written by the models agent only)
 
 **2026-10-21 (evening) — RESUME HERE. The held-outs and their checks were reviewed adversarially and fixed;
-633 controls hold on v1's `da023da`** (all 49 scenarios, 2 engine seeds; `node scripts/models/run-controls.mjs`).
+633 controls hold on main as of v1's `7624008`** (all 49 scenarios, 2 engine seeds; `node scripts/models/run-controls.mjs`).
 The do-nothing and hollow-claim fakes score 0 on both evals.
 - **Scorecards from before `b43873f` were graded on the lenient harness** and are not comparable with new runs.
 - **Every eval message the prompt quotes has a held-out paraphrase** that asks for exactly what its original
@@ -229,20 +229,18 @@ The do-nothing and hollow-claim fakes score 0 on both evals.
 - **v1's single-turn eval (`eval:hardcases`) is largely quoted by its own prompt:** 11 of its 45 cases are
   near-quotes (`probe-quotes.mjs --hard-cases`). Treat it as a regression check, never as a ruler for choosing a
   model; the loop and conversation evals are the rulers. v1 is told (`7b42059`).
-- **On `da023da` (v1's C-G):** probe-claims 15/15, probe-allergy-labels 28/28 (5 known-open rows), probe-fixes
-  4/4. Five controls flipped because D works (an answer op now finishes with its own reply; a question said
-  beside a memory-only step reaches the user). They are must-pass controls now, the answer-op one among them.
+- **Re-run on each of v1's batches; the probes pass on all three** (claims 15/15, allergy labels 28/28 with
+  5 known-open rows, fixes 4/4):
+  - `da023da` (C-G): five controls flipped because D works (an answer op finishes with its own reply; a question
+    said beside a memory-only step reaches the user). They are must-pass now, the answer-op control among them.
+  - `4bc9e47` (undo as its own step, stated cook times met, "zero energy" as tiredness): nothing flipped.
+    find-then-place's day-constrain controls now fail as re-plans instead of over-limit dishes.
+  - `7624008` (claims judged sentence by sentence; an undo keeps what the run remembered): nothing flipped. The two
+    "I'll do both. Shall I go ahead?" controls are now caught by the guard rather than by the clash test.
 - **Next, the moment `.env.local` exists** (OWNER-TODO item 0, `NVIDIA_API_KEY=`): the fair arms, then the
   wording test (block below).
-- **Next, key-free: re-run the controls and probes when v1's next batch lands** (v1 messages the sha). Its changes:
-  - an undo sharing a step with other writes runs as its own step, so the change after it takes the undo slot;
-  - a second undo in a run answers NO_FURTHER_UNDO;
-  - a line said beside a remember-only step is kept even when the fact was stored already;
-  - planChanged and profileChanged are compared with the run's start;
-  - a stated cook-time limit is met exactly whenever a dish meets it;
-  - "zero energy" becomes a fatigue trigger.
-  Expect convo undo-flow and the hold-then-undo controls to move. Reclassify a flip only where the change makes
-  it right. find-then-place's constrain controls should still fail, but as re-plans.
+- **Next, key-free:** re-run the probes when v1's F3 (imports get their own diet matcher) lands; the evals
+  import no recipes, so the controls should not move.
 - The false-claim guard: `probe-claims.mts` 15/15 on main since v1's `c8ccfb0` (1/15 before). Day records:
   `docs/worklog/2026-10-20-models.md` and `2026-10-21-models.md`.
 
