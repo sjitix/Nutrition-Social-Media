@@ -16,6 +16,9 @@ lists the eval messages it quotes: 8 of 55 on main, all held out, so it exits 0.
 - The review also fixed checks that passed wrong answers, among them offering to do both halves of a clash.
   The details are in the day record.
 - On `da023da`: the three probes pass. Five controls flipped because v1's D works, and they are must-pass now.
+- On `4bc9e47` (v1's follow-ups: undo as its own step, stated cook times met, "zero energy" as tiredness): 633/633
+  hold and the probes pass. Nothing flipped. find-then-place's day-constrain controls now fail as re-plans, not
+  as over-limit dishes. Next: v1's claim-guard batch (a "?" had excused every claim).
 - Still no `.env.local`. With the key, the fair arms run first.
 Day records: `docs/worklog/2026-10-20-models.md`, `2026-10-21-models.md`.
 
