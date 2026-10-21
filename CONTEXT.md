@@ -321,20 +321,38 @@ Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Ro
 - **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`,
   `docs/worklog/*-models.md`, this block, the lane file. Does not edit v1's files; asks v1 first.
 
-### >>> V1 LANE — 2026-10-21: C–G landed (`da023da`) and Track A is DONE (`5b6d874`); the review's follow-ups next <<<
+### >>> V1 LANE — 2026-10-21: Track A done; the second review's follow-ups landing in three commits (F1 `4bc9e47`) <<<
+
+**2026-10-21, night: the second review's follow-ups, in three commits.** The review of `da023da` (workflow
+`wf_cf2e22d0-cc3`; four lenses, a skeptic per serious finding; result saved in the session's scratchpad) confirmed 5
+majors, left 6 unverified (the skeptic cap), and listed 20 minors. Each commit is proven against its parent the same way:
+the whole new suite run against the parent's code, every row that tests a change failing there.
+- **F1, landed `4bc9e47` (test:engine 1081/0; 21 of 23 new rows fail on the parent, 2 guards pass on both):**
+  - the loop: an undo sharing a step, a line beside a restated fact, an in-run undo keeping unrelated answers, a second
+    undo, and run flags compared with the start;
+  - cook time met exactly (below);
+  - E4 and the review of E: the boost's old week comes back only in the form the rest of the request allows, never
+    whole for a new target or cuisine, never thrown out whole for one breaking dish;
+  - "zero energy".
+- **F2, in its gate from `../NutriFlow-f2` (13 new rows; 8 fail on F1's code):**
+  - the claim guard's two regressions from `da023da`: a "?" anywhere excused every claim, and bare removed/excluded
+    were narrowed away. Now judged per sentence; over all 1,045 stored replies, only two stored claims change verdict;
+  - an undo never takes back what the same run remembered (an I2 hole across loop steps);
+  - E7: a boost measured with the pins in place;
+  - E2: library dishes judged on the rules the request introduced;
+  - imports judged per food avoided (an onion dislike no longer shields a pork import from "no pork").
+- **F3, next after F2:** an import diet matcher of its own. The
+  library's tag lint flagged plant milks, butter beans and "Cauliflower Steaks", a regression from `da023da`'s C. The new
+  matcher agrees with the library's own tags exactly: none of 133 vegan or 301 vegetarian dishes flagged, none of 362
+  non-vegan or 197 non-vegetarian passed.
+- **Open after F3:** the 20 minors (three fixed in F1). The undo label can still name a refused write.
 
 **2026-10-21, evening: Track A is done.** `5b6d874` deleted the 28 D5a shims once nothing imported them
 (test:engine 1061/0, the same count). `check:boundaries` lost their layer entries with them, so a re-export put back
 at an old path fails rule 0 (self-test 45/0).
-**In a worktree, `../NutriFlow-followups` (branch `followups`), not yet gated:**
-- the second review's loop findings: an undo sharing a step, a line beside a restated fact, the answers an in-run
-  undo must keep, a second undo, and run flags compared;
-- cook time met exactly (below);
-- "zero energy" as a fatigue trigger (the models lane).
-The review's three other lenses (imports, boost, notes) are still running.
-**Cook time, decided by this lane (the models lane left it to v1):** a stated limit is met exactly while any dish
-meets it. The 5-minute grace is a stage of its own after the budget, and every dish over the limit is named, read
-off the final week. Measured on 12 seeded weeks each, main vs the change:
+**Cook time, decided by this lane (the models lane left it to v1), landed in F1:** a stated limit is met exactly while
+any dish meets it. The 5-minute grace is a stage of its own after the budget, and every dish over the limit is named,
+read off the final week. Measured on 12 seeded weeks each, main vs the change:
 - "15 minutes or less" for the week: 68 of 252 meals over 15 min on main, none mentioned; 0 after.
 - Vegan at 20 min: 71 over, silent; 0 after. Vegetarian with a dairy allergy at 15: 85 over, silent; 0 after.
 - The default 30-minute profile: 0 over either way, and no new notes.
@@ -401,20 +419,22 @@ the prompts.
   `scripts/test-ship.mjs` holds 43 scenarios (v1 fails 34), and CI runs it. **Every lane: `docs/parallel/README.md` §3.**
 
 **Worktrees of this lane:**
-- `../NutriFlow-allergy-c`: the C–G batch as shipped. The second review reads it.
-- `../NutriFlow-allergy-review`: the baseline (`c8ccfb0`, detached). The second review reads it too.
-Remove both once that review finishes, taking each node_modules junction out first
-(`cmd //c "rmdir <wt>\\node_modules"`).
+- `../NutriFlow-f2` (branch `f2`, at main plus F2): F2 is shipping from it.
+- `../NutriFlow-followups` (branch `followups`): F1 shipped from it; F3 goes there once F2 lands.
+Remove each when its batch lands, taking the node_modules junction out first. In Git Bash, spell the path out:
+`cmd //c "rmdir C:\\…\\<wt>\\node_modules"`. A `$wt` inside that string is passed literally and removes nothing.
 
 **Next, in order:**
-1. **The follow-up batch** from `../NutriFlow-followups`: the second review's confirmed findings, cook time, "zero
-   energy", and E4 if the boost lens confirms it. Its gate waits for the accounts lane's gate: only one test:engine
-   runs at a time on this machine.
+1. **F2's gate, then F3.** F3 is staged only in this session's scratchpad, which another session cannot see. If it
+   is lost, the design is in the F3 bullet above:
+   - a word-by-word matcher private to `plan/select.ts`;
+   - an exception clears only the hit it qualifies (a plant word before or after it);
+   - title words count;
+   - `importWhy` prints the matched ingredient, or "its name says X";
+   - the shared `dietTagConflicts` lists stay as they are (the library lint and the evals use them).
+   Proof target: the library's own tags, exactly.
 2. **The deferred:**
-   - E4, if not in the batch: a boost that cannot raise its nutrient hands back the old week whole, so another change
-     in the same request is dropped with it. Measured on 8 seeded weeks each, starting from a week already boosted
-     for that nutrient: a 1600 kcal target, 8 of 8 (iron and B12 alike); "Italian", 8 of 8; a low budget, 1 of 8;
-     4 meals a day, 0 of 8. The fix: the old week is a candidate only for a boost asked alone;
+   - the review's 20 minors, three of them fixed in F1;
    - the training generator teaches invented calorie figures for reserves and logs;
    - `data/hard-cases.json`: 11 of its 45 user turns are near-quotes of the prompt's own examples (the models
      lane's `probe-quotes.mjs --hard-cases`), so `eval:hardcases` partly measures recall. A held-out case per

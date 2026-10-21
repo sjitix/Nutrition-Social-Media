@@ -171,7 +171,7 @@
     <div class="stamp">
       <b><i>source</i> docs/worklog/</b>
       <b><i>synced</i> 2026-10-21</b>
-      <b><i>commit</i> 5b6d874+</b>
+      <b><i>commit</i> 4bc9e47+</b>
     </div>
   </header>
 
@@ -228,9 +228,9 @@
                   planned&rdquo; is said only when that is true.</li>
                 <li><b>The architecture work is finished.</b> The 28 old file addresses are gone, and the checks now fail
                   one put back. Your ruling on the module map is fully carried out.</li>
-                <li><b>Cook time will mean what you say.</b> &ldquo;15 minutes or less&rdquo; used to allow 20 without a
-                  word: in 12 test weeks, 68 of 252 meals ran over. Built today, shipping with the next batch: nothing runs
-                  over unless nothing quicker fits, and then the reply names the dish. It costs some protein on strict
+                <li><b>Cook time now means what you say.</b> &ldquo;15 minutes or less&rdquo; used to allow 20 without a
+                  word: in 12 test weeks, 68 of 252 meals ran over. Since tonight nothing runs over unless nothing quicker
+                  fits, and then the reply names the dish and its minutes. It costs some protein on strict
                   diets, so it is decision 13 in <a href="https://claude.ai/code/artifact/a3290f96-fc25-43a6-932d-9982a46bb70f">your
                   decisions doc</a>. Overrule it there if you would rather keep the grace.</li>
               </ul>
@@ -241,13 +241,20 @@
                 <li><b>Asking for a &ldquo;veggie burger&rdquo; could blame dairy on a cheeseburger</b> you never asked
                   for. A refused dish is now named only when it is the one you asked for.</li>
                 <li><b>The check against false claims was replacing some honest replies</b>, such as a question that offered
-                  a change. It now judges a promise only in a reply that asks nothing.</li>
+                  a change. The first fix went too far: any question in a reply let every claim in it through. The
+                  corrected check reads sentence by sentence, and across all 1,045 stored replies it changes only the two
+                  real claims the review found. It ships next.</li>
+                <li><b>A second review of the fixes found more</b>, every item reproduced before it was fixed. Among them:
+                  saying &ldquo;undo&rdquo; right after an allergy could take the allergy off; asking for more iron in the
+                  same message as a lower calorie target dropped the target; and imported plant-based recipes were taken out
+                  of a vegan week as &ldquo;not vegan (it has coconut milk)&rdquo;. The first fixes shipped tonight, and the
+                  rest follow in two more steps.</li>
                 <li><b>The laptop slept while the tests ran</b>, and they were stopped partway when it woke. Nothing was
                   lost: the work was simply run again.</li>
               </ul>
             </div>
           </div>
-          <div class="gate">GATE &middot; engine 1061/0 &middot; 51 new tests, 35 of which fail without the fix</div>
+          <div class="gate">GATE &middot; engine 1081/0 &middot; every new test shown failing on the code before its fix</div>
         </div>
       </article>
 
@@ -860,8 +867,8 @@
     <h2>Open deferrals</h2>
     <p class="lede">Every deferral names a destination and a reason. “Later” is not a destination.</p>
     <div class="defers" style="margin-top:16px">
-      <div class="defer"><div><b>A boost with a new calorie or protein target</b> &mdash; when the nutrient cannot go any higher, the new target is dropped too, and the old week comes back unchanged.</div><span class="to">after the cleanup</span></div>
-      <div class="defer"><div><b>A cooking-time limit can be quietly stretched</b> &mdash; a 15-minute cap can get a 20-minute dish with no word about it. Found by the models agent.</div><span class="to">after the cleanup</span></div>
+      <div class="defer"><div><b>Imported plant-based recipes and a vegan week</b> &mdash; going vegan takes out imported recipes made with coconut or oat milk, saying they are &ldquo;not vegan&rdquo;. A check written for free-text recipes is built and agrees with the library&rsquo;s own labels on every dish.</div><span class="to">next</span></div>
+      <div class="defer"><div><b>Twenty smaller findings from the second review</b> &mdash; mostly wording and edge cases. Three are already fixed, and two wait for meal logging.</div><span class="to">a step of their own</span></div>
       <div class="defer"><div><b>The training examples invent calorie figures</b> for a meal eaten out or logged. Fixing it changes what those examples teach, so it is a training-data change of its own.</div><span class="to">with the next training data</span></div>
       <div class="defer"><div><b>Taking an allergy off</b> &mdash; chat has no way to do it, and an undo can drop one without saying so.</div><span class="to">your decision 12</span></div>
       <div class="defer"><div><b>Allergy words the app does not know</b> &mdash; &ldquo;allergic to hazelnuts&rdquo; stops nothing unless labelled, yet a hazelnut dish exists. Blocking every unknown word would ban words like &ldquo;spring&rdquo; (from &ldquo;hay fever in spring&rdquo;), so it needs its own design.</div><span class="to">own design</span></div>

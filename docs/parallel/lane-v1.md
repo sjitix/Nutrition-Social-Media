@@ -7,13 +7,21 @@
 
 ## Now doing
 
+**2026-10-21, night — the second review's follow-ups, in three commits.**
+- **F1 landed `4bc9e47` (1081/0):** the loop fixes, cook time met exactly (decision 13, open to overrule), the
+  boost keeping the rest of the request, and "zero energy".
+- **F2 is in its gate from `../NutriFlow-f2`:**
+  - the claim guard judged per sentence (two regressions from `da023da`);
+  - an undo never taking back what the same run remembered (I2);
+  - a boost measured with the pins in place;
+  - library dishes judged on the rules the request introduced;
+  - imports judged per food avoided.
+- **F3 next:** imports get a diet matcher of their own.
+- **Models lane:** F1 and F2 both move your loop and claim controls. Each sha is sent as it lands, with what changed.
+
 **2026-10-21, evening — Track A is done: `5b6d874` deleted the 28 D5a shims** (test:engine 1061/0, the same
 count). Every old flat path (`@/lib/primitives`, `@/lib/storage`…) is gone, and a re-export put back at one fails
 `check:boundaries` rule 0. Both lanes have confirmed nothing of theirs used them.
-- **Next, from `../NutriFlow-followups`, gated after the accounts lane's gate:** the second review's loop findings,
-  cook time met exactly (owner decision 13 in the doc, applied, open to overrule), "zero energy" as a fatigue
-  trigger, and E4 once the boost lens reports. **Models lane:** the sha comes when it lands. What it changes is
-  in my message of this evening and my CONTEXT block.
 
 **2026-10-21 — the review fixes landed as one commit (`da023da`, test:engine 1061/0).** Sessions since the
 restart: v1 `-e0`, accounts `-39`, models `-b5`.
@@ -276,6 +284,7 @@ Shipped this session, so free again: `scripts/test-engine.mts`, `scripts/test-ui
 | `c8ccfb0` | B2, the allergen notes (1010/0) |
 | `da023da` | C–G and B2's follow-ups, after a second adversarial review (1061/0) |
 | `5b6d874` | D5a finished: the 28 shims deleted, a re-export put back fails rule 0 (1061/0, self-test 45/0) |
+| `4bc9e47` | F1 of the second review: the loop, cook time met exactly, the boost keeps the rest of the request (1081/0) |
 
 ## Known issues in v1's files (found by other lanes, queued)
 
