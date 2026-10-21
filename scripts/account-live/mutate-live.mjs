@@ -115,7 +115,7 @@ const MUTATIONS = [
   {
     // The first sign-in still completes under this mutation: the run hands each code to the device it
     // names, wherever the link landed, and GoTrue's PKCE grant never looks at the return address. So the
-    // run carries on, and every one of its nine landings must go red, each named on its own (one shared
+    // run carries on, and every one of its ten landings must go red, each named on its own (one shared
     // substring would be satisfied by any single FAIL).
     name: "the redirect allow list no longer admits the account page (one star stops at a slash)",
     file: "scripts/account-live/stack.sh",
@@ -230,8 +230,8 @@ const MUTATIONS = [
     to: "PORT=54331 GOTRUE_MAILER_AUTOCONFIRM=true",
     fails: [
       "confirm email on: a new person's first link is a confirmation link",
-      "confirm email on: a first link opened more than five minutes after it was asked for is refused",
-      "confirm email on: a new person's second request, refused as too soon, is rolled back",
+      "confirm email on: a first link opened six minutes after it was asked for is refused",
+      "confirm email on: a not-yet-confirmed person's second request, refused as too soon",
     ],
   },
   {
@@ -239,7 +239,7 @@ const MUTATIONS = [
     file: "src/lib/account/supabase.ts",
     from: "  if (res.status === 422) throw new AccountError(LINK_ERRORS.flow_state_expired, \"auth\");\n",
     to: "",
-    fails: ["confirm email on: a first link opened more than five minutes after it was asked for is refused"],
+    fails: ["confirm email on: a first link opened six minutes after it was asked for is refused"],
   },
 ];
 

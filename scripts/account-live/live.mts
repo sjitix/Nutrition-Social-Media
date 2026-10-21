@@ -169,7 +169,7 @@ async function refresh(token: string) {
   });
   return { status: r.status, body: (await r.json().catch(() => ({}))) as { refresh_token?: string; error_code?: string } };
 }
-/** Postgres as the project's own SQL editor sees it (superuser), for what no API shows. */
+/** Postgres as the project's own SQL editor sees it (superuser), for what no API shows (and ageRequests). */
 function db(sql: string): unknown[] {
   const out = execFileSync("wsl", ["-d", process.env.LIVE_WSL_DISTRO || "Ubuntu", "--exec",
     `${process.env.LIVE_WSL_HOME}/.cache/nutriflow-live/node/bin/node`,
@@ -253,12 +253,12 @@ const oli = "oli.live@example.com";
 const pat = "pat.live@example.com";
 const sessionOf = (d: Device) => d.storage.loadSessionRaw() as Session | null;
 /**
- * Move a person's sign-in requests six minutes back, in GoTrue's own table: what waiting out its 300 s
- * flow-state expiry would do, without adding five minutes to the run.
+ * Move a person's sign-in requests back in time, in GoTrue's own table: what waiting would do to its 300 s
+ * flow-state expiry, without adding minutes to the run. The live run's one write to GoTrue's tables.
  */
-const ageRequests = (email: string, method?: string) =>
+const ageRequests = (email: string, minutes: number, method?: string) =>
   db(
-    `update auth.flow_state f set created_at = f.created_at - interval '6 minutes' from auth.users u
+    `update auth.flow_state f set created_at = f.created_at - interval '${minutes} minutes' from auth.users u
      where u.id = f.user_id and u.email = '${email}'${method ? ` and f.authentication_method = '${method}'` : ""}
      returning f.authentication_method`,
   ) as { authentication_method: string }[];
@@ -358,31 +358,42 @@ await newMail(lee);
 
 // "Confirm email" ON, the hosted default that step 3 turns off: a second GoTrue on the same database,
 // reached through the gateway's /confirm prefix, which the four Conf browsers are pointed at (run.mjs).
-// A new person's first link is then a confirmation link, and opened at once it signs them in.
+// A new person's first link is then a confirmation link. Opened four minutes after the request it still
+// signs them in; Oli's, below, is refused at six. That brackets the 300 s GoTrue's source gives, with a
+// minute's margin either side against WSL's clock steps (seconds).
 await ConfA.client.sendSignInLink(nia);
 const niaLink = await newMail(nia);
+const niaAged = ageRequests(nia, 4);
 await landOn("ConfA", await open(niaLink), "first link (Confirm email on)");
 const niaSession = await mayThrow(ConfA.client.completeSignInFromUrl());
-check("confirm email on: a new person's first link is a confirmation link, and opened at once it signs them in",
-  new URL(niaLink).searchParams.get("type") === "signup" && !(niaSession instanceof Error) && niaSession?.email === nia,
-  json({ type: new URL(niaLink).searchParams.get("type"), session: errText(niaSession) }));
+check("confirm email on: a new person's first link is a confirmation link, and opened four minutes after the request it still signs them in",
+  new URL(niaLink).searchParams.get("type") === "signup" && niaAged.length === 1 && niaAged[0].authentication_method === "email/signup" &&
+    !(niaSession instanceof Error) && niaSession?.email === nia,
+  json({ type: new URL(niaLink).searchParams.get("type"), aged: niaAged, session: errText(niaSession) }));
 // That link's flow state expires 300 s after the REQUEST: GoTrue's FlowStateExpiryDuration, which it will
 // not take lower, counted from the open only for a magic link (flow_state.go IsExpired). /verify still
-// confirms the person and issues a code; the exchange is what refuses it (422 flow_state_expired).
+// confirms the person and issues a code; the exchange is what refuses it (422 flow_state_expired), and
+// the check reads both off the landing and the gateway's log.
 await ConfB.client.sendSignInLink(oli);
 const oliFirst = await newMail(oli);
-const oliAged = ageRequests(oli);
+const oliAged = ageRequests(oli, 6);
 const oliTo = await open(oliFirst);
 windows.ConfB.location.search = oliTo.search;
 windows.ConfB.location.hash = oliTo.hash;
+const oliMark = await logMark();
 const oliLate = await mayThrow(ConfB.client.completeSignInFromUrl());
-check("confirm email on: a first link opened more than five minutes after it was asked for is refused, with the sentence for a slow first link",
-  oliAged.length === 1 && oliAged[0].authentication_method === "email/signup" && oliLate instanceof Error &&
+const oliExchange = (await logAfter(oliMark)).filter((r) => r.path.startsWith("/confirm/auth/v1/token?grant_type=pkce"));
+check("confirm email on: a first link opened six minutes after it was asked for is refused by the exchange (422), with the sentence for a slow first link",
+  oliAged.length === 1 && oliAged[0].authentication_method === "email/signup" && oliTo.searchParams.has("code") &&
+    oliExchange.length === 1 && oliExchange[0].status === 422 && oliLate instanceof Error &&
     oliLate.message.includes("took too long to open") && ConfB.client.currentSession() === null,
-  json({ aged: oliAged, refusal: errText(oliLate) }));
-// And with "Confirm email" on, a new person's request refused as too soon takes nothing over: GoTrue
-// signs them up inside the request's transaction, and the refusal rolls it back, flow state and all
-// (signup.go). Contrast Ivy's takeover above, where "Confirm email" is off.
+  json({ aged: oliAged, code: oliTo.searchParams.has("code"), exchange: oliExchange, refusal: errText(oliLate) }));
+// And with "Confirm email" on, a request from someone who has never opened a link, refused as too soon,
+// takes nothing over. It goes through GoTrue's sign-up path (magic_link.go: isNewUser is
+// !user.IsConfirmed()), which leaves the existing account as it is, writes the request's flow state inside
+// its transaction, and is refused there by sendConfirmation's 60 s check, so that flow state is rolled
+// back (signup.go). A confirmed person's flow state is written before the transaction and survives,
+// which is Ivy's takeover above: with "Confirm email" off, everyone is confirmed at sign-up.
 await ConfC.client.sendSignInLink(pat);
 const patLink = await newMail(pat);
 const patFromD = await mayThrow(ConfD.client.sendSignInLink(pat));
@@ -391,8 +402,8 @@ const patTo = await open(patLink);
 windows.ConfC.location.search = patTo.search;
 windows.ConfC.location.hash = patTo.hash;
 const patOn = await mayThrow(ConfC.client.completeSignInFromUrl());
-check("confirm email on: a new person's second request, refused as too soon, is rolled back and takes nothing over: the link finishes where it was asked for",
-  patFromD instanceof Error && /too many sign-in emails/i.test(patFromD.message) && patRequests === 1 &&
+check("confirm email on: a not-yet-confirmed person's second request, refused as too soon, rolls back its own flow state and takes nothing over: the link finishes where it was asked for",
+  patFromD instanceof Error && /too many sign-in emails/i.test(patFromD.message) && /For security purposes/.test(patFromD.message) && patRequests === 1 &&
     !(patOn instanceof Error) && patOn?.email === pat,
   json({ second: errText(patFromD), requests: patRequests, session: errText(patOn) }));
 
@@ -455,7 +466,7 @@ check("redirect: …and asking again on that page, as it says, brings the link b
 // opening, not its request (flow_state.go): moved six minutes back like the first, it still works.
 await askOnceAllowed(ConfB, oli);
 const oliAgain = await newMail(oli);
-const oliAgedAgain = ageRequests(oli, "magiclink");
+const oliAgedAgain = ageRequests(oli, 6, "magiclink");
 const oliBack = await open(oliAgain);
 windows.ConfB.location.search = oliBack.search;
 windows.ConfB.location.hash = oliBack.hash;

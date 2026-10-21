@@ -52,7 +52,9 @@ creates a Supabase project; with no keys configured the app behaves exactly as i
    and only a couple of emails an hour. Any transactional email service works (Resend, Postmark,
    Amazon SES, Brevo…): create an account, verify a sender domain or address, and paste its SMTP host,
    port, user and password here. Then **Authentication → Rate limits → "emails sent per hour"**: raise
-   it to something a real launch needs (it starts low).
+   it to something a real launch needs (it starts low). GoTrue v2.197.0 applies this cap only while
+   "Confirm email" is on (`mail.go`; a TODO there says it should apply anyway), so with step 3's setting
+   it may not bind yet. Set it anyway: a later version may enforce it.
    Sources: <https://supabase.com/docs/guides/auth/auth-smtp> ·
    <https://supabase.com/docs/guides/auth/debugging/error-codes>
 5. **Project Settings → API Keys** (or the **Connect** button at the top of the dashboard): copy the
@@ -87,11 +89,12 @@ tell these apart, so each refusal names every cause it can have:
   different browser, a different web address, or a newer request that took the link over (below).
 
 **And ask from one browser at a time.** GoTrue issues a link's code for the person's MOST RECENT
-request, whichever browser made it. For anyone already signed up, and for everyone while "Confirm email"
-is off (as step 3 sets it), it records a request even when it refuses to email it as too soon: the flow
-state is written before the rate limit. (With "Confirm email" on, a new person's refused request is
-rolled back with its email. A request stopped earlier, by the per-IP limit or CAPTCHA, never reaches
-GoTrue's handler at all.) So once a second device has asked, even unsuccessfully, the link completes
+request, whichever browser made it. For anyone who has confirmed their address (opened a link once), and
+for everyone while "Confirm email" is off (as step 3 sets it), it records a request even when it refuses
+to email it as too soon: the flow state is written before the limit is checked. (With "Confirm email"
+on, someone who has never opened a link goes through the sign-up path instead, which writes the flow
+state inside its transaction and is refused there, so it is rolled back. A request stopped earlier, by
+the per-IP limit or CAPTCHA, never reaches GoTrue's handler at all.) So once a second device has asked, even unsuccessfully, the link completes
 only on that device. Opened in the first browser, it is refused with the takeover sentence. The live
 run shows both sides against the real GoTrue.
 
@@ -202,15 +205,17 @@ given `http://localhost:54321/confirm` as the project URL.
   - an unused link that a newer one replaced is refused, and so is a used one, each with the sentence
     that says only the newest link works.
 - **"Confirm email" on** (the second GoTrue):
-  - a new person's first link is a confirmation link, and opened at once it signs them in;
-  - opened more than five minutes after it was asked for, it is refused (422, `flow_state_expired`), with
-    the sentence for a slow first link. The run moves the request six minutes back in `auth.flow_state`
-    rather than wait: GoTrue counts a first link's five minutes from the request, and takes no less
-    than 300 s;
+  - a new person's first link is a confirmation link, and opened four minutes after the request it
+    still signs them in;
+  - opened six minutes after, it is refused by the exchange (422, `flow_state_expired`), with the
+    sentence for a slow first link. The run moves each request back in `auth.flow_state` rather than
+    wait, so it brackets the limit between four and six minutes; GoTrue's source gives 300 s, counted
+    from the request for anything but a magic link, and takes no less;
   - asking again, as that sentence says, sends a magic link (opening the slow link had confirmed the
     person), and a magic link's five minutes run from its opening: moved six minutes back, it works;
-  - a new person's second request, refused as too soon, is rolled back with the sign-up, so it takes
-    nothing over: the first link finishes where it was asked for.
+  - a second request from someone who has not yet opened a link, refused as too soon (GoTrue's 60 s
+    message), rolls back only its own flow state, so it takes nothing over: the first link finishes
+    where it was asked for.
 - **Sync:** a second device pulls the week, an edit reaches the other device, and `upsert_state` skips
   a write older than the account's copy.
 - **Renewal:**
@@ -281,6 +286,12 @@ age, for as long as that token is the parent of the session's current one. It an
 current token instead of a new one, which is why two tabs renewing at once both succeed. Older spent
 tokens fall under the reuse interval: 10 s on a hosted project; GoTrue's own default is 0. The suites'
 fake refuses the replaced token outright, which only makes those tests stricter.
+
+**Not exercised, though this stack could do it:**
+- "Try again" after a transient failure of the exchange. The gateway can drop `/auth/v1/token`, but
+  only the fake suite covers the kept code;
+- GoTrue's hourly email cap, which v2.197.0 applies only while "Confirm email" is on, so only the
+  second server here would show it.
 
 **Left to the hosted project:** whether the `postgres` role may delete from `auth.users` there (locally
 it is a superuser), Supabase's own gateway and its publishable keys, and real email delivery.

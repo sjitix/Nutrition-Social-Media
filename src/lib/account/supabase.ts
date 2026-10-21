@@ -193,11 +193,12 @@ const LINK_ERROR_FALLBACK = "Sign-in didn't complete. Ask for a new link.";
  *    very browser. Shown against the real GoTrue by the live run (Lee).
  *  - **A newer request took it over.** GoTrue issues a link's code for the person's MOST RECENT request,
  *    from whichever browser: verify.go -> pkce.go issueAuthCode -> FindFlowStateByUserID(...).Last(),
- *    ordered by created_at. For someone already signed up, or anyone while "Confirm email" is off (as
- *    the setup guide sets it), it even records a request it refuses as too soon, because magic_link.go
- *    writes the flow state before the rate limit. So a link opened where it was asked for fails once
- *    another browser, device or web address has asked since. Shown against the real GoTrue by the live
- *    run (Ivy and Jo).
+ *    ordered by created_at. For someone who has confirmed (opened a link once), or anyone while "Confirm
+ *    email" is off (as the setup guide sets it), it even records a request it refuses as too soon, as
+ *    magic_link.go writes the flow state before the rate limit. (Someone who has never opened a link,
+ *    with it on, goes through sign-up, whose refusal rolls the flow state back.) So a link opened where
+ *    it was asked for fails once another browser, device or web address has asked since. Shown against
+ *    the real GoTrue by the live run (Ivy and Jo; Pat for the sign-up path).
  *
  * Nothing in the link tells them apart, so the sentence names all three. The first version named only
  * the first, which blamed the person for the third; the second left out the web address.

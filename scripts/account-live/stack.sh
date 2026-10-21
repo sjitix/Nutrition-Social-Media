@@ -120,7 +120,7 @@ export GOTRUE_MAILER_URLPATHS_CONFIRMATION=/auth/v1/verify
 export GOTRUE_MAILER_URLPATHS_RECOVERY=/auth/v1/verify
 export GOTRUE_MAILER_URLPATHS_INVITE=/auth/v1/verify
 export GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE=/auth/v1/verify
-export GOTRUE_RATE_LIMIT_EMAIL_SENT=1000                      # the hourly cap; the 60 s per-person limit stays real
+export GOTRUE_RATE_LIMIT_EMAIL_SENT=1000                      # the hourly cap, which v2.197.0 applies only with "Confirm email" on (mail.go)
 export GOTRUE_LOG_LEVEL=info
 
 (cd "$C/auth" && ./auth migrate) >"$C/logs/gotrue-migrate.log" 2>&1 || { cat "$C/logs/gotrue-migrate.log" >&2; exit 1; }
@@ -134,10 +134,11 @@ echo $! > "$C/run/gotrue.pid"
 # person's first link is then a confirmation link, whose flow state expires 300 s after the REQUEST
 # (FlowStateExpiryDuration; flow_state.go counts from the open only for a magic link). Everything else
 # is the exported setup above. Its links carry the /confirm prefix, so they come back through the gateway.
+# (A magic link's path is the RECOVERY one, templatemailer.go; GoTrue never reads a magic-link path.) It is
+# also the only server here that applies the hourly email cap: v2.197.0 skips it while autoconfirm is on.
 (cd "$C/auth" && PORT=54331 GOTRUE_MAILER_AUTOCONFIRM=false \
   GOTRUE_MAILER_URLPATHS_CONFIRMATION=/confirm/auth/v1/verify GOTRUE_MAILER_URLPATHS_RECOVERY=/confirm/auth/v1/verify \
   GOTRUE_MAILER_URLPATHS_INVITE=/confirm/auth/v1/verify GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE=/confirm/auth/v1/verify \
-  GOTRUE_MAILER_URLPATHS_MAGIC_LINK=/confirm/auth/v1/verify \
   exec ./auth serve) >"$C/logs/gotrue-confirm.log" 2>&1 9>&- &
 echo $! > "$C/run/gotrue-confirm.pid"
 
