@@ -171,7 +171,7 @@
     <div class="stamp">
       <b><i>source</i> docs/worklog/</b>
       <b><i>synced</i> 2026-10-21</b>
-      <b><i>commit</i> da023da+</b>
+      <b><i>commit</i> 5b6d874+</b>
     </div>
   </header>
 
@@ -226,6 +226,13 @@
                   and a peanut dish stayed in the week while the assistant said none would be planned.</li>
                 <li><b>Every allergy sentence is now checked against the finished week.</b> &ldquo;Nothing with it is
                   planned&rdquo; is said only when that is true.</li>
+                <li><b>The architecture work is finished.</b> The 28 old file addresses are gone, and the checks now fail
+                  one put back. Your ruling on the module map is fully carried out.</li>
+                <li><b>Cook time will mean what you say.</b> &ldquo;15 minutes or less&rdquo; used to allow 20 without a
+                  word: in 12 test weeks, 68 of 252 meals ran over. Built today, shipping with the next batch: nothing runs
+                  over unless nothing quicker fits, and then the reply names the dish. It costs some protein on strict
+                  diets, so it is decision 13 in <a href="https://claude.ai/code/artifact/a3290f96-fc25-43a6-932d-9982a46bb70f">your
+                  decisions doc</a>. Overrule it there if you would rather keep the grace.</li>
               </ul>
             </div>
             <div class="blk found">
@@ -858,7 +865,7 @@
       <div class="defer"><div><b>The training examples invent calorie figures</b> for a meal eaten out or logged. Fixing it changes what those examples teach, so it is a training-data change of its own.</div><span class="to">with the next training data</span></div>
       <div class="defer"><div><b>Taking an allergy off</b> &mdash; chat has no way to do it, and an undo can drop one without saying so.</div><span class="to">your decision 12</span></div>
       <div class="defer"><div><b>Allergy words the app does not know</b> &mdash; &ldquo;allergic to hazelnuts&rdquo; stops nothing unless labelled, yet a hazelnut dish exists. Blocking every unknown word would ban words like &ldquo;spring&rdquo; (from &ldquo;hay fever in spring&rdquo;), so it needs its own design.</div><span class="to">own design</span></div>
-      <div class="defer"><div><b>Remove the old file addresses</b> &mdash; the other two agents no longer use them; this lane&rsquo;s own test scripts still do. Then the architecture work is finished.</div><span class="to">after the allergy work</span></div>
+      <div class="defer"><div><b>One test set partly measures memory, not judgement</b> &mdash; 11 of the 45 hard cases repeat examples the assistant&rsquo;s own instructions contain, so every big model passes them. Each needs a reworded twin. Found by the models agent.</div><span class="to">backlog</span></div>
       <div class="defer"><div><b>The fast finish</b> &mdash; a faster assistant reply, held until the models agent can measure it fairly, which needs your key file.</div><span class="to">when the key exists</span></div>
       <div class="defer"><div><b>An allergy said once and never saved</b> &mdash; only a scan of the person&rsquo;s own words could catch it, and that needs its own false-alarm tests first (&ldquo;my son is allergic to eggs&rdquo;).</div><span class="to">backlog</span></div>
       <div class="defer"><div><b>A real-phone pass on the sheet and the drag</b> — sub-500px is still unverified by the headless tool.</div><span class="to">day 12</span></div>

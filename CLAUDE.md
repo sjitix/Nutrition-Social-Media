@@ -82,9 +82,10 @@ disabled) — good for showing the UI without any AI.
 `data/` (seeds, ingredient identity, the USDA table, symptoms, substitutions, conditions), `nutrition/`
 (units, nutrients, targets, exclusions, safety, grocery), `plan/` (the engine), `assistant/` (primitives,
 agentTools, agentLoop, reply, promptV2), `providers/` (ai, import, videoImport) and `presentation/` (feed,
-feedFilter, recipes, batchGrocery, streak). **The old flat paths are one-line re-exports**, so
-`@/lib/exclusions` still works; new code inside `src/lib` imports the real path. Since 2026-10-18
-`storage.ts` lives in `persistence/` and `savedStore.ts` in `account/` (re-exports at both old paths). A path below written flat (`src/lib/x.ts`) means
+feedFilter, recipes, batchGrocery, streak); `storage.ts` lives in `persistence/` and `savedStore.ts` in
+`account/`. **The old flat paths are gone** (since 2026-10-21, `5b6d874`): `@/lib/exclusions` no longer resolves,
+and a re-export put back at one fails `check:boundaries` (rule 0). `@/lib/recipeDb` stays, as a barrel over `plan/`.
+A path below written flat (`src/lib/x.ts`) means
 the module, wherever its folder is; `docs/v1/02-module-map.md` §2 is the exact map. **Import a folder through its
 barrel** — `@/lib/nutrition` (`index.ts`, the whole public surface) or, from a client component,
 `@/lib/nutrition/client` (the browser-safe subset; `core/` and `presentation/` have one too) — never a file inside it:
@@ -341,7 +342,7 @@ npm run check:recipes   # every ingredient priced, every dish plausible, Atwater
 npm run check:ingredients # every recipe ingredient resolves to a curated slug + USDA food (D5)
 npm run check:boundaries # the module map enforced: layers, entry points + old paths, storage keys, client
                          # payload (modules AND zod), cycles, emoji, unresolved imports, import-time effects
-                         # (~1.5 s; ship.mjs runs it on any src/ change; `-- --self-test` proves it fails, 44 cases)
+                         # (~1.5 s; ship.mjs runs it on any src/ change; `-- --self-test` proves it fails, 45 cases)
 npx tsc --noEmit -p tsconfig.scripts.json # types for src/ AND scripts/ (.mts) — ship.mjs runs it on every gated commit
 npm run test:ship       # ship.mjs's 43 scenarios in throwaway repos under the OS temp folder (~45 s); its own gate
 npm run check:data      # gates the training data

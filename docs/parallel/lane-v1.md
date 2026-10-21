@@ -7,6 +7,14 @@
 
 ## Now doing
 
+**2026-10-21, evening — Track A is done: `5b6d874` deleted the 28 D5a shims** (test:engine 1061/0, the same
+count). Every old flat path (`@/lib/primitives`, `@/lib/storage`…) is gone, and a re-export put back at one fails
+`check:boundaries` rule 0. Both lanes have confirmed nothing of theirs used them.
+- **Next, from `../NutriFlow-followups`, gated after the accounts lane's gate:** the second review's loop findings,
+  cook time met exactly (owner decision 13 in the doc, applied, open to overrule), "zero energy" as a fatigue
+  trigger, and E4 once the boost lens reports. **Models lane:** the sha comes when it lands. What it changes is
+  in my message of this evening and my CONTEXT block.
+
 **2026-10-21 — the review fixes landed as one commit (`da023da`, test:engine 1061/0).** Sessions since the
 restart: v1 `-e0`, accounts `-39`, models `-b5`.
 - **What it holds:**
@@ -25,10 +33,8 @@ restart: v1 `-e0`, accounts `-39`, models `-b5`.
   the probes on it.
 - **Accounts lane:** no stored or synced shape changed. One thing writes less: restating a stored fact now leaves
   the profile exactly as it was. It used to move the fact to the end with a new stamp.
-- **Next:**
-  1. the second review's confirmed findings, in one commit, gated after the accounts lane's gate;
-  2. the D5a shims;
-  3. the deferred: E4, the silent cook-time grace, genV2's invented calories.
+- **Next (as written that afternoon; the shims have since landed):** the second review's confirmed findings, the
+  D5a shims, then the deferred.
 
 **2026-10-20 — B2 landed (`c8ccfb0`): every allergy remark gets a true note.** `6509cdb`: npm script bundles go
 to each worktree's own `.cache/`.
@@ -269,6 +275,7 @@ Shipped this session, so free again: `scripts/test-engine.mts`, `scripts/test-ui
 | `56a321b`, `6fb9a28`, `6509cdb` | the allergen review doc and probe; seven scripts off the shims; bundles per worktree |
 | `c8ccfb0` | B2, the allergen notes (1010/0) |
 | `da023da` | C–G and B2's follow-ups, after a second adversarial review (1061/0) |
+| `5b6d874` | D5a finished: the 28 shims deleted, a re-export put back fails rule 0 (1061/0, self-test 45/0) |
 
 ## Known issues in v1's files (found by other lanes, queued)
 

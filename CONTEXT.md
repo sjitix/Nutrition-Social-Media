@@ -305,7 +305,25 @@ Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Ro
 - **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`,
   `docs/worklog/*-models.md`, this block, the lane file. Does not edit v1's files; asks v1 first.
 
-### >>> V1 LANE — 2026-10-21: the review fixes landed (C–G, `da023da`); a second review of them, then the D5a shims <<<
+### >>> V1 LANE — 2026-10-21: C–G landed (`da023da`) and Track A is DONE (`5b6d874`); the review's follow-ups next <<<
+
+**2026-10-21, evening: Track A is done.** `5b6d874` deleted the 28 D5a shims once nothing imported them
+(test:engine 1061/0, the same count). `check:boundaries` lost their layer entries with them, so a re-export put back
+at an old path fails rule 0 (self-test 45/0).
+**In a worktree, `../NutriFlow-followups` (branch `followups`), not yet gated:**
+- the second review's loop findings: an undo sharing a step, a line beside a restated fact, the answers an in-run
+  undo must keep, a second undo, and run flags compared;
+- cook time met exactly (below);
+- "zero energy" as a fatigue trigger (the models lane).
+The review's three other lenses (imports, boost, notes) are still running.
+**Cook time, decided by this lane (the models lane left it to v1):** a stated limit is met exactly while any dish
+meets it. The 5-minute grace is a stage of its own after the budget, and every dish over the limit is named, read
+off the final week. Measured on 12 seeded weeks each, main vs the change:
+- "15 minutes or less" for the week: 68 of 252 meals over 15 min on main, none mentioned; 0 after.
+- Vegan at 20 min: 71 over, silent; 0 after. Vegetarian with a dairy allergy at 15: 85 over, silent; 0 after.
+- The default 30-minute profile: 0 over either way, and no new notes.
+- The cost: restrictive diets reach less protein (vegan at 20: 9.2% short of target on average, now 14.6%). The
+  achievement note already says the shortfall. Recorded in the decisions doc, for the owner to overrule.
 
 **2026-10-21.** Landed **`da023da`**, one commit for one gate (test:engine 1061/0):
 - **C:** an imported dish answers to the hard rules. An allergy always counts. A new diet, or a newly avoided food,
@@ -373,16 +391,19 @@ Remove both once that review finishes, taking each node_modules junction out fir
 (`cmd //c "rmdir <wt>\\node_modules"`).
 
 **Next, in order:**
-1. **The second review's confirmed findings**, as one commit. Its gate waits for the accounts lane's gate: they
-   hold a reviewed batch, and only one test:engine runs at a time on this machine.
-2. **Remove the D5a shims.** Only `scripts/test-engine.mts` is left on them, and the migration is mechanical: each
-   import goes to its shim's own target, since scripts may import deep. Delete the 28 shims, then update
-   check-boundaries' shim lists and the module map with its board. Then Track A is done.
-3. **The deferred:**
-   - E4: a boost that comes with a new calorie or protein target drops the target when the nutrient cannot rise;
-   - the cook-time grace is silent (a 15-minute cap can get a 20-minute dish with no note);
-   - the training generator teaches invented calorie figures for reserves and logs.
-4. V1 Day 6's rest, then D7 meal logging.
+1. **The follow-up batch** from `../NutriFlow-followups`: the second review's confirmed findings, cook time, "zero
+   energy", and E4 if the boost lens confirms it. Its gate waits for the accounts lane's gate: only one test:engine
+   runs at a time on this machine.
+2. **The deferred:**
+   - E4, if not in the batch: a boost that cannot raise its nutrient hands back the old week whole, so another change
+     in the same request is dropped with it. Measured on 8 seeded weeks each, starting from a week already boosted
+     for that nutrient: a 1600 kcal target, 8 of 8 (iron and B12 alike); "Italian", 8 of 8; a low budget, 1 of 8;
+     4 meals a day, 0 of 8. The fix: the old week is a candidate only for a boost asked alone;
+   - the training generator teaches invented calorie figures for reserves and logs;
+   - `data/hard-cases.json`: 11 of its 45 user turns are near-quotes of the prompt's own examples (the models
+     lane's `probe-quotes.mjs --hard-cases`), so `eval:hardcases` partly measures recall. A held-out case per
+     quoted one, the way the loop eval has them; the probe's exit code says when it is done.
+3. V1 Day 6's rest, then D7 meal logging.
 
 **Open, recorded:**
 - **LC-08:** "allergic to hazelnuts" binds nothing unlabelled, while a hazelnut dish exists. Binding every unknown
