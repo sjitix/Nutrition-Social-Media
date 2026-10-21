@@ -621,7 +621,8 @@ kept the two-layer rule — but it was out of order, and it is the last thing th
    and `account/**` are the accounts lane's; `ai.ts`, `promptV2.ts` and `agentLoop.ts` are run daily
    by the models lane. Moving a file another agent is editing is how work gets lost in a rebase, so
    A6 is announced in `lane-v1.md` first, each owner moves (or approves moving) their own files, and
-   the old path keeps a one-line re-export until every lane has rebased past it.
+   the old path keeps a one-line re-export until every lane has rebased past it. (All 28 were removed
+   on 2026-10-21, below.)
 
 ### Phase 1 — seal, without moving anything *(low risk, do first)*
 
@@ -703,15 +704,18 @@ caught — both in the gate's self-test, now 14/0). **Measured, and the reason `
 With it, every `/sage` route is back to its exact pre-barrel size and `/plan` drops 207 → 186 kB. The
 only bare side-effect import in `src/` is `globals.css`, and every listener in `src/lib` is registered
 inside a function; a module that ever needs to run on import must be added to that list.
-**Still open:** removing the shims. The models lane is off them (`be98c57`, 2026-10-18) and so are the
-accounts lane's files (they moved with `persistence/`, below); what is left is this lane's own `scripts/`: 15 script
-files import through the shims, and 11 of `test-engine`'s names are private (`extractVideoText`,
-`UNIT_GRAMS`, `parseIngredient`, `decodeEntities`, and the seven read tools), so they move to deep
-paths, which the `scripts/` exemption allows. `ship.mjs` now type-checks `scripts/` on every gated
-commit, so a shim removed too early fails there rather than at Vercel. **Done 2026-10-18:** `storage.ts` →
-`persistence/storage.ts` and `savedStore.ts` → `account/savedStore.ts` (the cycle, see L5), with shims at both old
-paths, every importer moved, two debts paid. Also open: the last two layer/payload debts (the assistant's find_recipes
-through the feed; `/plan`'s library import).
+**Done 2026-10-18:** `storage.ts` → `persistence/storage.ts` and `savedStore.ts` → `account/savedStore.ts`
+(the cycle, see L5), with shims at both old paths, every importer moved, two debts paid.
+**The shims are gone (2026-10-21, D5a finished).** All 28 old flat paths were deleted once nothing imported them:
+- the models lane moved off them on 2026-10-18 (`be98c57`), and the accounts lane's files moved with `persistence/`;
+- this lane's scripts moved in two steps: seven in `6fb9a28`, then `test-engine.mts` in the commit that deleted them;
+- every import went to its shim's own target, a deep path the `scripts/` exemption allows, because 11 of
+  `test-engine`'s names are private (`extractVideoText`, `UNIT_GRAMS`, `parseIngredient`, `decodeEntities`
+  and the seven read tools).
+The models lane's two side branches (`models-exp`, `models-wording`) each change one file in `assistant/` and add no
+old-path import, so they still rebase cleanly. `check:boundaries` lost the 28 layer entries with the files, so **a
+re-export put back at an old path fails rule 0** (its self-test proves it). Still open: the last two layer/payload
+debts (the assistant's find_recipes through the feed; `/plan`'s library import).
 
 **The value split, and why Phase 3 is done anyway:** Phases 1 and 2 deliver most of the
 *enforcement* — sealed contracts and a file you can hold in your head. This section used to say

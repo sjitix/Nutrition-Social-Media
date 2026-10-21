@@ -175,8 +175,8 @@
       that is not in it. Two sides, each bound to their half, which is why the word fits.</p>
     <div class="stamp">
       <b><i>source</i> docs/v1/02-module-map.md</b>
-      <b><i>synced</i> 2026-10-18</b>
-      <b><i>commit</i> 0fdfba1+</b>
+      <b><i>synced</i> 2026-10-21</b>
+      <b><i>commit</i> b2e77d6+</b>
       <b><i>method</i> measured, not estimated</b>
     </div>
   </header>
@@ -203,7 +203,7 @@
       <table>
         <thead><tr><th>Your comment</th><th>What changed</th></tr></thead>
         <tbody>
-          <tr><td><b>Modularise first</b>, then build on it &mdash; spend real time on it</td><td><b>Done since 2026-10-18</b>, except removing the old addresses (see <a href="#modular-first">below</a>). On 2026-10-03 it was <b>not done</b>: no barrel file anywhere, <span class="mono">recipeDb.ts</span> at 11,061 lines. Architecture is now a <b>gate on all feature work</b>, and the folders went from optional to committed (new day <b>D5a</b>). See <a href="#modular-first">below</a>.</td></tr>
+          <tr><td><b>Modularise first</b>, then build on it &mdash; spend real time on it</td><td><b>Done since 2026-10-21</b>, the old addresses removed too (see <a href="#modular-first">below</a>). On 2026-10-03 it was <b>not done</b>: no barrel file anywhere, <span class="mono">recipeDb.ts</span> at 11,061 lines. Architecture is now a <b>gate on all feature work</b>, and the folders went from optional to committed (new day <b>D5a</b>). See <a href="#modular-first">below</a>.</td></tr>
           <tr><td>Why the word <b>contract</b></td><td>Defined in plain words at the top of this page and the document.</td></tr>
           <tr><td>&ldquo;What is this?&rdquo; on <b>L0</b></td><td>Every layer now says what it is in plain words, and the <span class="mono">22 / 28</span> numbers are explained.</td></tr>
           <tr><td><b>Expand</b> the ingredient and recipe databases by a lot</td><td>L1 shows the target (400 ingredients / 900 recipes) and the order that makes it safe: ingredient ids, then the maths proven, then a curation helper, then the expansion in gated batches.</td></tr>
@@ -446,8 +446,8 @@
       <div class="stat good"><div class="v">10</div><div class="l">lines in recipeDb.ts (was 11,061)</div></div>
       <div class="stat good"><div class="v">3 / 3</div><div class="l">reorganisation phases done</div></div>
     </div>
-    <div class="callout"><b>Done, as of 2026-10-18</b>, with one cleanup left: the old file addresses still forward to the new
-      ones until this lane&rsquo;s own test scripts move (the other two agents already have). The storage file moved into
+    <div class="callout"><b>Done, as of 2026-10-21, with nothing left over.</b> The 28 old file addresses, which forwarded to the
+      new ones while each agent moved, are gone. The gate now fails one put back. The storage file moved into
       <span class="mono">persistence/</span> last, once its owner agreed. <b>What your ruling changed, and still governs:</b><br>
       <b>1 &middot; Architecture is a gate, not a lane.</b> No new feature starts until Track A is finished: the gate
       (today), the <span class="mono">recipeDb</span> split, the browser payload boundary, ingredient ids, every module
@@ -455,7 +455,8 @@
       <b>2 &middot; The folders are committed, not optional.</b> This page used to call them &ldquo;worth doing only because
       cheap&rdquo;. A structure you can only see by reading a document is not one anyone builds on.<br>
       <b>3 &middot; The other agents&rsquo; files move only with their agreement</b>, and each old path keeps a one-line
-      re-export until everyone has caught up &mdash; moving a file someone is editing is how work gets lost.<br><br>
+      re-export until everyone has caught up &mdash; moving a file someone is editing is how work gets lost. (All of
+      them were removed on 2026-10-21, once nothing used them.)<br><br>
       <b>The honest part:</b> Track E (2026-10-02) was built on the old structure before this comment was read. Nothing of
       it needs undoing &mdash; it is in this map and it kept the two-layer rule &mdash; but it was out of order, and it is
       the last thing that will be.</div>
@@ -486,8 +487,8 @@
 
     <div class="stats" style="margin-top:22px">
       <div class="stat good"><div class="v">Built</div><div class="l">2026-10-03 · 4e3be01</div></div>
-      <div class="stat"><div class="v">139</div><div class="l">files checked, every ship</div></div>
-      <div class="stat good"><div class="v">41 / 0</div><div class="l">self-test: seen to fail (was 11)</div></div>
+      <div class="stat"><div class="v">112</div><div class="l">files checked, every ship</div></div>
+      <div class="stat good"><div class="v">45 / 0</div><div class="l">self-test: seen to fail (was 11)</div></div>
       <div class="stat warn"><div class="v">2</div><div class="l">known debts left · may only shrink</div></div>
       <div class="stat warn"><div class="v">4</div><div class="l">found on its first run, unknown until then</div></div>
     </div>

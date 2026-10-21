@@ -75,14 +75,8 @@ const LIB_LAYERS = {
   // The fine-tune data pipeline and the API's demo-mode plan: tooling and an adapter that happen to
   // live in src/lib. Placed at L5 so they may use the assistant layer they generate data for.
   "genV2.ts": 5, "dataValidate.ts": 5, "demo.ts": 5,
-  // The re-exports left at the old paths by D5a, each at its target's layer. They go once every lane
-  // has moved to the new paths.
-  "types.ts": 0, "slots.ts": 0,
-  "nutrientTable.generated.ts": 1, "substitutions.ts": 1, "symptoms.ts": 1, "conditions.ts": 1, "unitGrams.generated.ts": 1,
-  "units.ts": 2, "safety.ts": 2, "nutrients.ts": 2, "targets.ts": 2, "exclusions.ts": 2, "grocery.ts": 2, "streak.ts": 2,
-  "primitives.ts": 4, "agentTools.ts": 4, "agentLoop.ts": 4, "reply.ts": 4, "promptV2.ts": 4,
-  "ai.ts": 5, "import.ts": 5, "videoImport.ts": 5, "storage.ts": 5, "savedStore.ts": 5,
-  "feed.ts": 6, "feedFilter.ts": 6, "recipes.ts": 6, "batchGrocery.ts": 6,
+  // D5a left a re-export at each of the 28 old flat paths until every lane had moved. They were removed
+  // on 2026-10-21, and so were their entries here, so a re-export put back at an old path fails rule 0.
 };
 
 /**
@@ -92,9 +86,6 @@ const LIB_LAYERS = {
  */
 const SERVER_ONLY = new Set([
   "src/lib/recipeDb.ts", "src/lib/genV2.ts", "src/lib/dataValidate.ts", "src/lib/demo.ts",
-  // the old paths (D5a re-exports), so a client import of one is caught at the first step
-  "src/lib/nutrientTable.generated.ts", "src/lib/primitives.ts", "src/lib/agentTools.ts", "src/lib/agentLoop.ts",
-  "src/lib/promptV2.ts", "src/lib/reply.ts", "src/lib/ai.ts", "src/lib/import.ts", "src/lib/videoImport.ts",
 ]);
 // Whole folders that are server-only: the engine (A3 split it out of recipeDb.ts — a client reaching
 // "@/lib/plan" would ship it exactly as "@/lib/recipeDb" does), data/ (the 7.7k-line raw seeds and the
@@ -345,8 +336,10 @@ export function check(sources, { assets = new Set(), packageJson } = {}) {
   // a file that merely happens to be called client.ts (account/client.ts is the sync glue) is not a
   // door. Matched EXACTLY: a client.ts one folder deeper is not the module's entry.
   //
-  // The re-exports D5a left at the old flat paths exist only so other lanes' imports keep working
-  // until they move. A shim is recognised by its parsed shape — leading comments and exactly one
+  // D5a left a re-export at each old flat path so the other lanes' imports kept working while they
+  // moved. All 28 are gone since 2026-10-21, and one put back has no layer (rule 0). The shape is
+  // still recognised, so a future move can use the same bridge. A shim is recognised by its parsed
+  // shape — leading comments and exactly one
   // `export * from "./<folder>/<file>"` — not by name and not by a regex over its text (a lone CR
   // ends a // comment for the parser but not for a regex, which let a look-alike carry code). Each
   // shim re-exports a whole inner file, private names included, so importing one from src/ is
@@ -373,7 +366,7 @@ export function check(sources, { assets = new Set(), packageJson } = {}) {
         const target = shims.get(imp.to);
         const door = moduleDirs.find((d) => target.startsWith(d));
         add(2, `old-path:${f}->${imp.to}`, f,
-          `${f} imports the old flat path ${imp.to}, line ${imp.line} — a D5a re-export of the whole of ${target}, private names included, kept only until the other lanes move. ` +
+          `${f} imports the old flat path ${imp.to}, line ${imp.line} — a re-export of the whole of ${target}, private names included, kept only while the other lanes move. ` +
           `Import from ${door ? door.slice(0, -1) + " (or " + door + "client)" : "the folder's index"} instead.`, imp.names);
         continue;
       }
@@ -542,6 +535,10 @@ export function settle(violations, debt) {
 // ---------------------------------------------------------------------------------------------
 
 function selfTest() {
+  // The fixture keeps two flat L0 files (the real ones live in core/ since D5a): rule 1's "L0 imports L3"
+  // case and the clean tree are written against them.
+  LIB_LAYERS["types.ts"] = 0;
+  LIB_LAYERS["slots.ts"] = 0;
   const SHIM = (to) => `// Moved to ${to}.ts (V1 D5a). This re-export keeps imports working.\n// Add nothing here.\nexport * from "./${to}";\n`;
   const fixture = new Map(Object.entries({
     "src/lib/types.ts": `export type Meal = { name: string };\nexport const DAYS = ["Monday"];`,
@@ -610,6 +607,8 @@ function selfTest() {
     "src/lib/notAShim.ts": `// Moved to account/sync.ts\nexport * from "./account/sync";\nexport const extra = 1;\n`,
     "src/lib/crShim.ts": `// Moved to account/sync.ts (V1 D5a)\rimport { sync } from "./account/sync";\rexport const leak = sync;\n// Add nothing here.\nexport * from "./account/sync";\n`,
     "src/lib/lsShim.ts": `// Moved to account/sync.ts (V1 D5a)\u2028import { sync } from "./account/sync";\u2028export const leak = sync;\n// Add nothing here.\nexport * from "./account/sync";\n`,
+    // rule 0: a re-export put back at an old path, with no layer, now that the 28 are gone
+    "src/lib/putBack.ts": SHIM("account/sync"),
     // rule 6
     "src/app/emoji.tsx": `export const E = () => "Done \u{1F389}";`,
     // rule 7: a path that goes nowhere, and one nobody can read; a stylesheet that exists is fine
@@ -626,6 +625,7 @@ function selfTest() {
   const keys = new Set(violations.map((v) => v.key));
   const expect = [
     ["rule 0 catches an unplaced file", "unclassified:src/lib/mystery.ts", true],
+    ["rule 0 catches a re-export put back at an old path", "unclassified:src/lib/putBack.ts", true],
     ["rule 1 catches L0 importing L3", "layer:src/lib/slots.ts->src/lib/recipeDb.ts", true],
     ["rule 1 catches L0 reaching L3 through a type position, import(\"x\").T", "layer:src/lib/core/vocab.ts->src/lib/recipeDb.ts", true],
     ["rule 2 catches a deep import past a barrel", "barrel:src/app/deep.ts->src/lib/account/sync.ts", true],

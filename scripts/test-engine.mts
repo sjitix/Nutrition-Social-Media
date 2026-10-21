@@ -13,36 +13,36 @@
  * is a bug, and this file is where we find it before a user does.
  */
 import { selectWeekFromDb, rebalanceWeek, applyOperations, RECIPES, recipeMicros, newReport, reportNotes, selectConditionAwareWeek, buildWeek, selectBatchWeek, rebalanceBatchWeek, withSeed, keepDays, freezesWell, previewOperations, swapCandidates } from "@/lib/recipeDb";
-import { conditionBoosts } from "@/lib/conditions";
-import type { UserProfile, Operation, DayPlan, WeekPlan, Meal } from "@/lib/types";
-import { MealSchema, WeekPlanSchema } from "@/lib/types";
-import { FEED_RECIPES, filterFeed, sortFeed, HIGH_PROTEIN_G, type FeedFilter } from "@/lib/feed";
-import { videoPlatform, extractVideoText } from "@/lib/videoImport";
-import { aisleFor, groupByAisle, AISLE_ORDER } from "@/lib/grocery";
-import { currentStreak, prevDay, isoDay, requestDay } from "@/lib/streak";
-import { expandConstrain, applyRemember, applyPrimitives, memoryContext, AssistantTurnV2Schema, allergensInFact, verbToOperations, type PrimitiveOp, type VerbOp } from "@/lib/primitives";
-import { assistantV2SystemPrompt } from "@/lib/promptV2";
-import { redFlag, CRISIS_REPLY } from "@/lib/safety";
+import { conditionBoosts } from "@/lib/data/conditions";
+import type { UserProfile, Operation, DayPlan, WeekPlan, Meal } from "@/lib/core/types";
+import { MealSchema, WeekPlanSchema } from "@/lib/core/types";
+import { FEED_RECIPES, filterFeed, sortFeed, HIGH_PROTEIN_G, type FeedFilter } from "@/lib/presentation/feed";
+import { videoPlatform, extractVideoText } from "@/lib/providers/videoImport";
+import { aisleFor, groupByAisle, AISLE_ORDER } from "@/lib/nutrition/grocery";
+import { currentStreak, prevDay, isoDay, requestDay } from "@/lib/presentation/streak";
+import { expandConstrain, applyRemember, applyPrimitives, memoryContext, AssistantTurnV2Schema, allergensInFact, verbToOperations, type PrimitiveOp, type VerbOp } from "@/lib/assistant/primitives";
+import { assistantV2SystemPrompt } from "@/lib/assistant/promptV2";
+import { redFlag, CRISIS_REPLY } from "@/lib/nutrition/safety";
 import { tableKey, INGREDIENTS, resolveIngredient } from "@/lib/data/ingredients";
 import { validateExample, validateBatch, type TrainingExample } from "@/lib/dataValidate";
 import { generateExamples } from "@/lib/genV2";
-import { microsForIngredients } from "@/lib/nutrients";
-import { bulkGroceriesFromWeek, formatBulkQuantity, batchEfficiency } from "@/lib/batchGrocery";
-import { haystackBlocked, dietTagConflicts, parseExclusionTokens, expandExclusion, EXCLUSION_CATEGORIES } from "@/lib/exclusions";
-import { bmr, computeTargets, hydrationTarget, CALORIE_FLOOR, DEFAULT_CALORIE_FLOOR, BODY_LIMITS, bodyStatMessage, referenceWeightKg } from "@/lib/targets";
-import { composeReply, planWasChanged, describeOperations, READ_ONLY_TOOLS, claimsChange, NOTHING_CHANGED_REPLY, NOTED_NOTHING_CHANGED_REPLY } from "@/lib/reply";
-import { SUBSTITUTES } from "@/lib/substitutions";
-import { NUTRIENT_TABLE } from "@/lib/nutrientTable.generated";
-import { UNIT_GRAMS } from "@/lib/unitGrams.generated";
+import { microsForIngredients } from "@/lib/nutrition/nutrients";
+import { bulkGroceriesFromWeek, formatBulkQuantity, batchEfficiency } from "@/lib/presentation/batchGrocery";
+import { haystackBlocked, dietTagConflicts, parseExclusionTokens, expandExclusion, EXCLUSION_CATEGORIES } from "@/lib/nutrition/exclusions";
+import { bmr, computeTargets, hydrationTarget, CALORIE_FLOOR, DEFAULT_CALORIE_FLOOR, BODY_LIMITS, bodyStatMessage, referenceWeightKg } from "@/lib/nutrition/targets";
+import { composeReply, planWasChanged, describeOperations, READ_ONLY_TOOLS, claimsChange, NOTHING_CHANGED_REPLY, NOTED_NOTHING_CHANGED_REPLY } from "@/lib/assistant/reply";
+import { SUBSTITUTES } from "@/lib/data/substitutions";
+import { NUTRIENT_TABLE } from "@/lib/data/nutrientTable.generated";
+import { UNIT_GRAMS } from "@/lib/nutrition/unitGrams.generated";
 import { readFileSync } from "node:fs";
-import { gramsFor } from "@/lib/nutrients";
-import { MICRO_KEYS, DAILY_REFERENCE, MICRO_LABEL } from "@/lib/nutrients";
-import { parseRecipeHtml, parseIngredient, isSafePublicUrl, importedToMeal, decodeEntities } from "@/lib/import";
+import { gramsFor } from "@/lib/nutrition/nutrients";
+import { MICRO_KEYS, DAILY_REFERENCE, MICRO_LABEL } from "@/lib/nutrition/nutrients";
+import { parseRecipeHtml, parseIngredient, isSafePublicUrl, importedToMeal, decodeEntities } from "@/lib/providers/import";
 import {
   findRecipes, inspectRecipe, getPlan, getProfile, getSaved, report, whatIf,
   runReadTool, isReadTool, READ_TOOL_NAMES, MAX_ROWS,
-} from "@/lib/agentTools";
-import { runAgent, MAX_STEPS, FALSE_CLAIM_NUDGE, FALSE_CLAIM_NUDGE_MEMORY, type AgentTurn, type ModelFn } from "@/lib/agentLoop";
+} from "@/lib/assistant/agentTools";
+import { runAgent, MAX_STEPS, FALSE_CLAIM_NUDGE, FALSE_CLAIM_NUDGE_MEMORY, type AgentTurn, type ModelFn } from "@/lib/assistant/agentLoop";
 import { weekMicroAverage } from "@/lib/plan/report";
 import { localExtraBody } from "@/lib/providers/extraBody";
 
