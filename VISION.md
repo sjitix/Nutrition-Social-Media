@@ -307,15 +307,19 @@ respond. There is no loop, no read surface and no `what_if`.
   and the user never sees it. Both are "does not change the plan" and nothing else about them is
   alike.
 
-### Accounts: decided, and blocked
+### Accounts: decided, built, and waiting only on the owner's project
 
 **Real accounts with a hosted database (Supabase) were chosen** over a browser-local profile, so
-saves and plans follow a person across devices. **Nothing is built.** It waits on a Supabase
-project being created and its Project URL + anon key supplied; the `service_role` key must never
-come near this public repo. `src/lib/savedStore.ts` is already the seam. Two constraints hold:
-the app must keep working with **no keys configured** (the GitHub Pages preview is a static export
-with no server), and RLS policies must be written so a signed-in person can only ever read and
-write their own rows.
+saves and plans follow a person across devices. **They are built**, and checked against the real
+servers: sign-in by email link (PKCE), sync, export and delete, under RLS. The local live run drives
+the app's own client against the real GoTrue, PostgREST and Postgres
+(`node scripts/account-live/run.mjs`). What remains is the owner's Supabase project (owner decision
+#1): its Project URL and publishable key. The `service_role` key must never come near this public
+repo. Setup is `supabase/README.md`. Two constraints hold, and the code keeps both:
+- the app works with **no keys configured**: every account entry point is then a no-op, and the GitHub
+  Pages preview is a static export with no server;
+- RLS lets a signed-in person read and write only their own rows. The policies are executed in real
+  Postgres by `node scripts/test-account-sql.mjs`.
 
 **The shape, decided 2026-10-03: local-first, the account is a mirror.** The browser copy stays the
 working copy every screen reads; when someone is signed in, each stored item is mirrored to their row
