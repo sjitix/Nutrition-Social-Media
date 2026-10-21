@@ -117,6 +117,26 @@ for v1's shim removal.
 **Next:** whatever the owner's decisions doc answers for #1 (the Supabase project) and #4 (the chat
 log). Until then, the three things only a hosted project can show stay listed in `supabase/README.md`.
 
+**Ready to build when the engine slot allows: "Try again" after a lost response.** "Try again" appears
+after a transient failure of the link's exchange (offline, 429, 5xx), with the code kept
+(`exchangeWith`, `retrySignIn`). Two cases differ on the real GoTrue:
+- **The request was lost** (GoTrue never saw it). The code is unused, so the retry finishes. The fake
+  covers this already.
+- **The response was lost** (GoTrue finished the exchange, then the connection dropped: a plausible case
+  on a phone). GoTrue destroyed the flow state on success (token.go), so the retry gets 404
+  `flow_state_not_found`. The app then shows its generic sentence: "expired, was already used, or was
+  opened in a different browser". That is not what happened, and nothing in it says the first try went
+  through.
+
+The plan:
+- a gateway hook that forwards the next request to a path and drops its response;
+- two live checks: after a lost request the retry signs in; after a lost response the retry is refused
+  with a sentence of its own ("the first try reached the server, so this link is used up: ask for a new
+  link"), and a new link then works;
+- the sentence in `exchangeCode`, used only for a retry's 404;
+- a mutation each.
+It touches `src/lib/account`, so its ship needs the engine slot.
+
 **2026-10-03: review 2 is fully fixed, and so is the review of that work (batch 6, `ea71ca6`).**
 Everything ran against fakes that behave like GoTrue and PostgREST, and against real Postgres (PGlite).
 The history of that day is in `docs/worklog/2026-10-03-accounts.md`.
