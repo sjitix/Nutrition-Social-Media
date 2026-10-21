@@ -1574,6 +1574,18 @@ Each of these was discovered by doing the work, and each earned its place.
     allows that because no gate reads a doc. And a docs commit takes seconds, so the window in which
     another lane can collide with it is seconds too.
 
+70. **A killed process's exit code is not the program's: read the end of its log before acting on the
+    number.** On 2026-10-21 a gated `ship` was killed a third of the way through `test:engine`, with
+    every other process of every session, minutes after the laptop woke from a night's sleep. Its task
+    reported exit code 4. In ship's own codes, 4 means "pushed, but the folder could not catch up", the one
+    failure that says the work is on origin. Nothing had been pushed. The log ended mid-test, without the
+    `ship:` line that each of ship's own exits prints. A lane that believed the 4 would have announced a
+    commit that did not exist, or gone looking for a folder to catch up.
+    **Trust an exit code only when the log ends in the program's own last word, and read
+    `git log origin/main` before sending anyone a sha.** The same night showed the other half: a
+    background gate lives only as long as its session, and a sleeping laptop throttles one to nothing
+    (146 seconds of CPU in seven and a half hours).
+
 ---
 
 ## 4. Training track (runs in parallel, never blocked by the above)

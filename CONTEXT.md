@@ -283,28 +283,34 @@ Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Ro
 - **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`,
   `docs/worklog/*-models.md`, this block, the lane file. Does not edit v1's files; asks v1 first.
 
-### >>> V1 LANE — 2026-10-20: allergen notes (B2) landed; imported dishes (C) + the loop's lost answers (D) next <<<
+### >>> V1 LANE — 2026-10-21: the review fixes landed (C–G, `da023da`); a second review of them, then the D5a shims <<<
 
-**2026-10-20.** Landed: `6509cdb` (script bundles in each worktree's own `.cache/`, so two lanes' gates can't run
-each other's code), `9aa3410` (the schedule's stale 20/20), and **`c8ccfb0` — B2**, the allergen notes:
-- every allergy remark gets an engine note that is true of what is enforced;
-- swaps name the allergy or dislike that refused them;
-- the undo says when it took an allergy off;
-- `allergies=` is in the prompts;
-- the false-claim guard catches 38/38 claims with 0/37 honest lines tripped.
-test:engine 1010/0. `docs/v1/allergen-review.md` holds every finding's status. **The owner opened their own
-accounts (`-fd`) and models (`-83`) sessions**, so the background lane agents this session had started were stood
-down: check `ListAgents` before starting a lane.
+**2026-10-21.** Landed **`da023da`**, one commit for one gate (test:engine 1061/0):
+- **C:** an imported dish answers to the hard rules. An allergy always counts. A new diet, or a newly avoided food,
+  counts when that change introduced it. The note names the dish and the rule, never the replacement.
+- **D:** the agent loop:
+  - an `{op:"answer"}` turn keeps its reply;
+  - no line written before a change is shown for it;
+  - only a step that really changed something takes the undo slot, and an in-run undo reverts that run's own change.
+- **E:** a boost keeps the new diet and exclusions, and says "less than before" only when there is less.
+- **F:** a constrain scoped to `{slot, days}` keeps its slot.
+- **G:** an undo in the same turn as a new allergy runs first. It was an I2 hole, from the models lane's audit.
+- **B2's follow-ups:**
+  - allergy notes are written from the final week;
+  - a refused dish is named only when it matches every word asked;
+  - the claim guard no longer replaces honest replies.
+Proof: 51 new rows, 35 of them failing on `c8ccfb0`. Statuses: `docs/v1/allergen-review.md` (LC-17 to LC-20 are new).
+**A second adversarial review of the fixes is running** (workflow `wf_cf2e22d0-cc3`, four lenses plus a skeptic per
+serious finding). Its confirmed findings are the next commit.
+**The first gate died with its session:** the laptop slept with it running, and every session's processes were
+killed at 08:29. The killed ship reported exit code 4, though nothing was pushed: an exit code means what ship.mjs
+says only when its log ends in a `ship:` line. Sessions are now `-e0` (v1), `-39` (accounts) and `-b5` (models).
+Check `ListAgents` before starting a lane.
 
-**Running / queued:** the accounts lane's gate (its 17-file batch), then **C+D in ONE commit** from
-`../NutriFlow-allergy-c`, worktree branch `allergy-c`. One commit because a gate takes over an hour on this loaded
-machine; each was proven on its own parent first.
-- **C:** an imported dish holding a newly bound allergy is re-picked and named. A logged meal stays, and a dislike
-  never removes an import.
-- **D:** an `{op:"answer"}` turn finishes with its own reply; an empty finishing turn falls back to the newest reply
-  said beside a change; only a step that changed something takes the undo slot.
-If this session ends first, the work sits uncommitted in that worktree. Ship it from there with
-`node scripts/ship.mjs --onto main -- src/lib/plan/select.ts src/lib/assistant/agentLoop.ts scripts/test-engine.mts`.
+**2026-10-20.** Landed `6509cdb` (script bundles in each worktree's own `.cache/`), `9aa3410` (the schedule's
+stale 20/20), and **`c8ccfb0` — B2**, the allergen notes (test:engine 1010/0). Every allergy remark gets a true
+engine note, swaps name the allergy that refused them, the undo says when it took one off, and `allergies=` is in
+the prompts.
 
 **Where it stood (2026-10-18, night).** The v1 lane works in the laptop's main folder. Landed that day, in order:
 - `f27bc71` — the owner's standing rules for every lane (`docs/parallel/README.md` §0, `CLAUDE.md`) and the
@@ -339,21 +345,22 @@ If this session ends first, the work sits uncommitted in that worktree. Ship it 
   `scripts/test-ship.mjs` holds 43 scenarios (v1 fails 34), and CI runs it. **Every lane: `docs/parallel/README.md` §3.**
 
 **Worktrees of this lane:**
-- `../NutriFlow-allergy-c`: C+D, to ship.
-- `../NutriFlow-allergy-fix`: D's first copy, redundant once C+D lands.
-- `../NutriFlow-allergy-review`: the baseline, detached.
-Remove all three once C+D lands, taking each node_modules junction out first
+- `../NutriFlow-allergy-c`: the C–G batch as shipped. The second review reads it.
+- `../NutriFlow-allergy-review`: the baseline (`c8ccfb0`, detached). The second review reads it too.
+Remove both once that review finishes, taking each node_modules junction out first
 (`cmd //c "rmdir <wt>\\node_modules"`).
 
 **Next, in order:**
-1. Ship C+D after the accounts lane's gate; send both lanes the sha.
-2. Remove the D5a shims. Only `scripts/test-engine.mts` is left on them; the migration is mechanical (each import
-   goes to its shim's own target; scripts may import deep). Delete the 28 shims, update check-boundaries' shim lists
-   and the module map with its board. Then Track A is done.
-3. **E:** a constrain plus a boost in one turn can bring back dishes of the OLD diet with no warning
-   (`guaranteeBoost` upgrades the previous week; from the models lane's audit, iron-veg#2). That is a hard-rule
-   break, so it comes before feature work.
-4. The rest of the audit's v1 candidates (today's worklog lists them), then V1 Day 6's rest, then D7 meal logging.
+1. **The second review's confirmed findings**, as one commit. Its gate waits for the accounts lane's gate: they
+   hold a reviewed batch, and only one test:engine runs at a time on this machine.
+2. **Remove the D5a shims.** Only `scripts/test-engine.mts` is left on them, and the migration is mechanical: each
+   import goes to its shim's own target, since scripts may import deep. Delete the 28 shims, then update
+   check-boundaries' shim lists and the module map with its board. Then Track A is done.
+3. **The deferred:**
+   - E4: a boost that comes with a new calorie or protein target drops the target when the nutrient cannot rise;
+   - the cook-time grace is silent (a 15-minute cap can get a 20-minute dish with no note);
+   - the training generator teaches invented calorie figures for reserves and logs.
+4. V1 Day 6's rest, then D7 meal logging.
 
 **Open, recorded:**
 - **LC-08:** "allergic to hazelnuts" binds nothing unlabelled, while a hazelnut dish exists. Binding every unknown

@@ -17,7 +17,7 @@ stored allergies block.
 | **A** `09f325f` | A fact that says allergy binds, whatever its label. A fact whose every cue is denied binds nothing. A carrier word ("oil", "powder", "breast") never binds on its own. test:engine 971/0. |
 | **B1** `ba23884` | One closed cue list (plurals, misspellings), every cue in a fact read, plural category words, a linear-time parse. 984/0. |
 | **B2** `c8ccfb0` | What the person is told: an engine note on every allergy remark, swap notes that name the blocking allergy, the undo wording, the bound list in the prompt, dedupe, and a false-claim guard widened with the models lane's audit (38/38 claims caught, 0/37 honest lines tripped). test:engine 1010/0. |
-| **C** *(in its gate)* | An imported dish holding a newly bound allergen is re-picked, and named. A logged meal stays; a dislike never removes an import. |
+| **C–G** `da023da` | An imported dish answers to the hard rules: always to an allergy, and to a new diet or a newly avoided food when that change introduced it. Its note names the dish and the rule, never a replacement a later step can change. A logged meal stays. An undo in the same turn as a new allergy runs first (G). Every allergy sentence is written from the turn's final week. Shipped with the agent-loop (D), boost (E) and scope (F) fixes, after a second adversarial review. test:engine 1061/0. |
 
 ## Status
 
@@ -38,7 +38,7 @@ stored allergies block.
 
 | ID | The fact | Now | Status |
 |---|---|---|---|
-| U1 = LC-01 | an imported dish when its allergen is bound later | the dish stays | **C** (in its gate) |
+| U1 = LC-01 | an imported dish when its allergen is bound later | replaced, and named | fixed, C `da023da`. A pinned import is taken out and the pin goes back in its slot. |
 | U2 | "can't have dairy" (no cue word) | nothing unlabelled | **open by design**: every cue-less fix over-blocks. Labelled, it binds. |
 | U3 | "food intolerances: lactose" | lactose (193) | fixed, B1 |
 | U4 | "allergic to crustaceans" | crustaceans (24) | fixed, B1 |
@@ -70,6 +70,13 @@ stored allergies block.
 | LC-14 | the before-cue scan was quadratic (3.2 s on 40k characters) | fixed, B1 (32 ms) |
 | LC-15 | a logged meal can be re-picked by a bind | with D7 meal logging (a logged meal needs a mark) |
 | LC-16 | the same allergy stored by surface form ("peanuts, peanut") | fixed, B2 `c8ccfb0` |
+| LC-17 | "I'm allergic to peanuts" in the same turn as an undo, in either order, left no allergy and a peanut dish, under "nothing containing them will be planned" (the models lane's undo-flow audit) | fixed, G `da023da`: the undo runs first, alone |
+| LC-18 | "nothing with it is planned" while an import still held the allergen; a restated allergy left that dish in place | fixed `da023da`: notes are written from the final week, and a restated or denied bound allergy that a planned dish holds re-solves the week |
+| LC-19 | a refused swap blamed an allergy on a dish the person never asked for ("veggie burger" read "Cheeseburger & Fries contains dairy" in 45 of 92 such notes) | fixed `da023da`: a dish is named only when it matches every word asked; a dish the diet refuses says so |
+| LC-20 | the claim guard replaced honest replies (a refusal, a decline, a question offering a change) and missed "I've scaled Saturday down" | fixed `da023da`: a promise counts only in a reply that asks nothing; three stored honest replies stand again |
+
+LC-17 to LC-20 came after the 36. LC-17 is from the models lane's audit of its evals; LC-18 to LC-20 are from the
+adversarial review of B2 and of the C–F batch (2026-10-20: four reviewers, a skeptic per serious finding).
 
 ## Rejected fixes, and why (do not repeat these)
 

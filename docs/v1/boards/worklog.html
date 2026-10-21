@@ -170,8 +170,8 @@
       the schedule ahead.</p>
     <div class="stamp">
       <b><i>source</i> docs/worklog/</b>
-      <b><i>synced</i> 2026-10-20</b>
-      <b><i>commit</i> c8ccfb0+</b>
+      <b><i>synced</i> 2026-10-21</b>
+      <b><i>commit</i> da023da+</b>
     </div>
   </header>
 
@@ -189,10 +189,10 @@
 
   <section id="totals">
     <div class="stats">
-      <div class="stat"><div class="v">5</div><div class="l">days logged</div></div>
+      <div class="stat"><div class="v">6</div><div class="l">days logged</div></div>
       <div class="stat"><div class="v">10</div><div class="l">milestones done</div></div>
       <div class="stat"><div class="v">9</div><div class="l">days to V1</div></div>
-      <div class="stat"><div class="v">10</div><div class="l">open deferrals</div></div>
+      <div class="stat"><div class="v">11</div><div class="l">open deferrals</div></div>
     </div>
   </section>
 
@@ -202,6 +202,47 @@
     <p class="lede">Only days that actually happened, each with its date, appended at the end of every work-day.
       Nothing planned appears here — the schedule ahead is in its own collapsed block below.</p>
     <div class="tl" style="margin-top:20px">
+
+      <article class="entry" id="d-2026-10-21">
+        <div class="box">
+          <div class="ehead">
+            <span class="date">2026-10-21</span>
+            <span class="pill done">solved &middot; done</span>
+          </div>
+          <h3>Imported recipes now follow your allergies and your diet, and the assistant keeps its answers</h3>
+          <p class="sub">Four reviewers tried to break the fixes before they shipped, and a second review of the fixes is running.</p>
+          <div class="blocks">
+            <div class="blk">
+              <h4>What moved</h4>
+              <ul>
+                <li><b>An imported recipe that holds a new allergy leaves the week, and the assistant names it.</b> Going
+                  vegetarian, or saying you avoid a food, does the same for an import that conflicts. One you added
+                  knowing the old rule stays, because you put it there on purpose.</li>
+                <li><b>The assistant no longer loses its answer.</b> A reply could be replaced by &ldquo;Happy to help.&rdquo;,
+                  or by a line written before the change it described. Asking a question no longer uses up your undo.</li>
+                <li><b>&ldquo;Go vegetarian, and more B12&rdquo; no longer brings fish back.</b> A boost now keeps to the
+                  diet and the foods you exclude.</li>
+                <li><b>A new allergy said in the same message as &ldquo;undo&rdquo; is kept.</b> Before, the undo wiped it,
+                  and a peanut dish stayed in the week while the assistant said none would be planned.</li>
+                <li><b>Every allergy sentence is now checked against the finished week.</b> &ldquo;Nothing with it is
+                  planned&rdquo; is said only when that is true.</li>
+              </ul>
+            </div>
+            <div class="blk found">
+              <h4>Found along the way</h4>
+              <ul>
+                <li><b>Asking for a &ldquo;veggie burger&rdquo; could blame dairy on a cheeseburger</b> you never asked
+                  for. A refused dish is now named only when it is the one you asked for.</li>
+                <li><b>The check against false claims was replacing some honest replies</b>, such as a question that offered
+                  a change. It now judges a promise only in a reply that asks nothing.</li>
+                <li><b>The laptop slept while the tests ran</b>, and they were stopped partway when it woke. Nothing was
+                  lost: the work was simply run again.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="gate">GATE &middot; engine 1061/0 &middot; 51 new tests, 35 of which fail without the fix</div>
+        </div>
+      </article>
 
       <article class="entry" id="d-2026-10-20">
         <div class="box">
@@ -812,8 +853,9 @@
     <h2>Open deferrals</h2>
     <p class="lede">Every deferral names a destination and a reason. “Later” is not a destination.</p>
     <div class="defers" style="margin-top:16px">
-      <div class="defer"><div><b>Imported recipes and a new allergy</b> &mdash; an imported dish that contains it stays in the week. The fix is built and tested, together with the two assistant bugs the models agent found.</div><span class="to">next</span></div>
-      <div class="defer"><div><b>A boost that ignores a diet change</b> &mdash; asking for more iron in the same message as &ldquo;go vegetarian&rdquo; can bring back meat dishes without a word. Found by the models agent&rsquo;s tests.</div><span class="to">after the cleanup</span></div>
+      <div class="defer"><div><b>A boost with a new calorie or protein target</b> &mdash; when the nutrient cannot go any higher, the new target is dropped too, and the old week comes back unchanged.</div><span class="to">after the cleanup</span></div>
+      <div class="defer"><div><b>A cooking-time limit can be quietly stretched</b> &mdash; a 15-minute cap can get a 20-minute dish with no word about it. Found by the models agent.</div><span class="to">after the cleanup</span></div>
+      <div class="defer"><div><b>The training examples invent calorie figures</b> for a meal eaten out or logged. Fixing it changes what those examples teach, so it is a training-data change of its own.</div><span class="to">with the next training data</span></div>
       <div class="defer"><div><b>Taking an allergy off</b> &mdash; chat has no way to do it, and an undo can drop one without saying so.</div><span class="to">your decision 12</span></div>
       <div class="defer"><div><b>Allergy words the app does not know</b> &mdash; &ldquo;allergic to hazelnuts&rdquo; stops nothing unless labelled, yet a hazelnut dish exists. Blocking every unknown word would ban words like &ldquo;spring&rdquo; (from &ldquo;hay fever in spring&rdquo;), so it needs its own design.</div><span class="to">own design</span></div>
       <div class="defer"><div><b>Remove the old file addresses</b> &mdash; the other two agents no longer use them; this lane&rsquo;s own test scripts still do. Then the architecture work is finished.</div><span class="to">after the allergy work</span></div>

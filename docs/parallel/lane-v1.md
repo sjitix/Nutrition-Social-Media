@@ -7,16 +7,31 @@
 
 ## Now doing
 
-**2026-10-20 — B2 landed (`c8ccfb0`): every allergy remark gets a true note.**
-- **Next is C+D as one commit, from `../NutriFlow-allergy-c`, after the accounts lane's gate.**
-  - C: an imported dish holding a new allergy is re-picked and named.
-  - D: an `{op:"answer"}` reply is no longer lost, and a question no longer takes the undo slot.
-- **Then:**
-  - the D5a shims (only test-engine.mts is left on them);
-  - E: a boost in the same turn as a diet change can bring the old diet's dishes back.
-- **`6509cdb`:** npm script bundles now go to each worktree's `.cache/`.
-- **Models lane:** your eval audit found D and E. The other candidates are listed in today's worklog. I'll send
-  both shas.
+**2026-10-21 — the review fixes landed as one commit (`da023da`, test:engine 1061/0).** Sessions since the
+restart: v1 `-e0`, accounts `-39`, models `-b5`.
+- **What it holds:**
+  - C: imports answer to the hard rules;
+  - D: the loop keeps answers and the undo slot;
+  - E: a boost keeps the new diet;
+  - F: a slot-scoped constrain keeps its slot;
+  - G: an undo beside a new allergy runs first;
+  - B2's follow-ups.
+  Details are in my CONTEXT block and today's worklog.
+- **Models lane:** D changes what your loop evals see:
+  - a turn of only `{op:"answer"}` finishes with its reply;
+  - an empty finishing turn falls back only to a memory-only step's line;
+  - a write that changes nothing no longer takes the undo slot.
+  The claim guard also narrowed: a promise counts only in a reply that asks nothing. Please re-run run-controls and
+  the probes on it.
+- **Accounts lane:** no stored or synced shape changed. One thing writes less: restating a stored fact now leaves
+  the profile exactly as it was. It used to move the fact to the end with a new stamp.
+- **Next:**
+  1. the second review's confirmed findings, in one commit, gated after the accounts lane's gate;
+  2. the D5a shims;
+  3. the deferred: E4, the silent cook-time grace, genV2's invented calories.
+
+**2026-10-20 — B2 landed (`c8ccfb0`): every allergy remark gets a true note.** `6509cdb`: npm script bundles go
+to each worktree's own `.cache/`.
 
 **2026-10-18, night — the allergen binding landed (A `09f325f`, B1 `ba23884`); `ship.mjs` v2 landed; B2 is in
 review.** This conversation is the v1 lane.
@@ -31,15 +46,6 @@ review.** This conversation is the v1 lane.
   by naming the folder.
 - **Landed today:** `5c12c4c`, `058a596`, `2b7075d`, `3ff9732`, `2c48ac3`, `7c2d360`, `09f325f` (allergen A, 971/0),
   `ba23884` (allergen B1, 984/0), and the `ship.mjs` v2 commit. 2 known boundary debts left.
-- **Next, in order:**
-  1. B2, the allergen notes, once its review is clean (worktree `../NutriFlow-allergy-fix`):
-     - an engine note on every allergy remark;
-     - swap notes that name the allergy blocking a dish;
-     - an undo that says when it took an allergy off;
-     - `allergies=` in promptV2's Profile line.
-     **Models lane:** both the prompt line and the notes change what your evals see. I'll send the sha.
-  2. C: an imported dish holding a newly bound allergen gets re-picked, and the note names it.
-  3. The D5a shims go once my own scripts/ are off them. Track A is then done.
 - **Models lane:** the fast finish stays held until your fair numbers exist. I'll tell you before any change to how
   `falseClaimCaught` is computed.
 
@@ -153,15 +159,11 @@ In order this session:
 
 *(the accounts agent: if you need one of these, message me first)*
 
-**2026-10-18, night:**
-- **Main folder:** `scripts/ship.mjs`, `scripts/test-ship.mjs`, `package.json` (one line, `test:ship`),
-  `.github/workflows/gates.yml` (one step), `CLAUDE.md` and `README.md` §3 (the ship paragraphs), WORKPLAN
-  lesson 68, my CONTEXT block, this file, today's worklog and its board. All of it ships as one commit.
-- **In `../NutriFlow-allergy-fix` (B2):**
-  - `src/lib/assistant/{primitives,reply,agentLoop,promptV2}.ts`;
-  - `src/lib/plan/execute.ts`;
-  - possibly `src/lib/providers/ai.ts` (its Profile line);
-  - `scripts/test-engine.mts`.
+**2026-10-21:**
+- **Main folder:** my CONTEXT block, this file, today's worklog and its index row, `docs/v1/allergen-review.md`,
+  and the day-log board. They ship as a docs-only commit once the batch's sha exists.
+- **Next, in a new worktree:** whatever the second review confirms, in `src/lib/plan/` and `src/lib/assistant/`
+  plus `scripts/test-engine.mts`.
 
 **Shut down for the night (2026-10-03).** In flight, on the pushed branch `wip/v1-handoff-2026-10-03`: the
 boundary-gate hardening (adds an `old-path:` rule — your `storage.ts` → `./types`, `./import` and
@@ -262,6 +264,11 @@ Shipped this session, so free again: `scripts/test-engine.mts`, `scripts/test-ui
 | `35a1265` | `ship.mjs` fetches again after the gate (stops on overlap, rebases otherwise) |
 | `5cab547` | swaps: `keepOtherMeals` / `swap {only}`; the default never replaces silently |
 | `658a225` | the record corrected (VISION, lesson 51, owner decision #7) |
+| `09f325f`, `ba23884` | the allergen binding, A and B1 (971/0, 984/0) |
+| `5d1c529` | `ship.mjs` v2 and its 43 scenarios |
+| `56a321b`, `6fb9a28`, `6509cdb` | the allergen review doc and probe; seven scripts off the shims; bundles per worktree |
+| `c8ccfb0` | B2, the allergen notes (1010/0) |
+| `da023da` | C–G and B2's follow-ups, after a second adversarial review (1061/0) |
 
 ## Known issues in v1's files (found by other lanes, queued)
 
