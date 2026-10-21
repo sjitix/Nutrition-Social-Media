@@ -1,7 +1,36 @@
 {
-  "meat-free dinner": [
-    {"thinking": "Look up vegetarian dinners.", "reply": "", "operations": [{"op": "find_recipes", "mealType": "dinner", "diet": "vegetarian", "maxTime": 20, "sort": "protein"}]},
-    {"thinking": "Harissa Halloumi & Chickpea Tray is the most protein. Tuesday dinner.", "reply": "Putting the Harissa Halloumi & Chickpea Tray on Tuesday.", "operations": [{"op": "swap", "dish": "Harissa Halloumi & Chickpea Tray", "slot": "dinner", "days": ["Tuesday"]}]},
-    {"thinking": "Applied.", "reply": "Tuesday dinner is now the Harissa Halloumi & Chickpea Tray.", "operations": []}
+  "no meat or fish": [
+    {
+      "thinking": "Look up vegetarian dinners.",
+      "reply": "",
+      "operations": [
+        {
+          "op": "find_recipes",
+          "mealType": "dinner",
+          "diet": "vegetarian",
+          "maxTime": 20,
+          "sort": "protein"
+        }
+      ]
+    },
+    {
+      "thinking": "Harissa Halloumi & Chickpea Tray is the most protein. Tuesday dinner.",
+      "reply": "Putting the Harissa Halloumi & Chickpea Tray on Tuesday.",
+      "operations": [
+        {
+          "op": "swap",
+          "dish": "Harissa Halloumi & Chickpea Tray",
+          "slot": "dinner",
+          "days": [
+            "Tuesday"
+          ]
+        }
+      ]
+    },
+    {
+      "thinking": "Applied.",
+      "reply": "Tuesday dinner is now the Harissa Halloumi & Chickpea Tray.",
+      "operations": []
+    }
   ]
 }

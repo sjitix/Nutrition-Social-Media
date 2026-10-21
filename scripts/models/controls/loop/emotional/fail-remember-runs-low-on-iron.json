@@ -1,0 +1,29 @@
+{
+  "on my period and feeling really drained": [
+    {
+      "thinking": "Drained on her period means she runs low on iron then. Save that.",
+      "reply": "",
+      "operations": [
+        {
+          "op": "symptom",
+          "text": "i'm on my period and feeling really drained"
+        },
+        {
+          "op": "remember",
+          "fact": "runs low on iron during her period",
+          "kind": "condition"
+        }
+      ]
+    },
+    {
+      "thinking": "Finish.",
+      "reply": "I'm sorry you're feeling so drained. Want me to lean the next few days toward iron-rich meals?",
+      "operations": []
+    },
+    {
+      "thinking": "Asked again; say the same.",
+      "reply": "I'm sorry you're feeling so drained. Want me to lean the next few days toward iron-rich meals?",
+      "operations": []
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "vegan now": [
+    {
+      "reply": "Got it, switching your whole week to vegan.",
+      "operations": [
+        {
+          "op": "remember",
+          "fact": "vegan",
+          "kind": "preference"
+        },
+        {
+          "op": "constrain",
+          "diet": "vegan"
+        }
+      ]
+    }
+  ],
+  "put chicken on friday": [
+    {
+      "thinking": "See what Friday has.",
+      "reply": "",
+      "operations": [
+        {
+          "op": "get_plan",
+          "day": "Friday"
+        }
+      ]
+    },
+    {
+      "thinking": "Offer the chicken lunch.",
+      "reply": "Friday's lunch is a vegan bowl right now. I can swap in the Chicken Shawarma Bowl with Tahini instead. Want me to?",
+      "operations": []
+    },
+    {
+      "thinking": "Asked again; say the same.",
+      "reply": "Friday's lunch is a vegan bowl right now. I can swap in the Chicken Shawarma Bowl with Tahini instead. Want me to?",
+      "operations": []
+    }
+  ]
+}

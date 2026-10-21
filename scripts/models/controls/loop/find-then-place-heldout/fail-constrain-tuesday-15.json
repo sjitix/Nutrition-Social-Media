@@ -1,6 +1,25 @@
 {
-  "meat-free dinner": [
-    {"thinking": "Make Tuesday vegetarian and quick.", "reply": "Making Tuesday meat-free with quick cooking.", "operations": [{"op": "constrain", "scope": {"days": ["Tuesday"]}, "diet": "vegetarian", "maxCookTime": 15}]},
-    {"thinking": "Done.", "reply": "Tuesday is sorted with a quick meat-free dinner.", "operations": []}
+  "no meat or fish": [
+    {
+      "thinking": "Make Tuesday vegetarian and quick.",
+      "reply": "Making Tuesday meat-free with quick cooking.",
+      "operations": [
+        {
+          "op": "constrain",
+          "scope": {
+            "days": [
+              "Tuesday"
+            ]
+          },
+          "diet": "vegetarian",
+          "maxCookTime": 15
+        }
+      ]
+    },
+    {
+      "thinking": "Done.",
+      "reply": "Tuesday is sorted with a quick meat-free dinner.",
+      "operations": []
+    }
   ]
 }

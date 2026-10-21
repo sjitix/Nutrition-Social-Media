@@ -1,6 +1,25 @@
 {
-  "go easy on the portions": [
-    {"thinking": "On the road both days: they'll eat out at dinner. Reserve those dinners.", "reply": "Setting aside your dinners on Thursday and Friday for road food.", "operations": [{"op": "reserve", "day": "Thursday", "slot": "dinner"}, {"op": "reserve", "day": "Friday", "slot": "dinner"}]},
-    {"thinking": "Done.", "reply": "Your Thursday and Friday dinners are set aside for eating on the road.", "operations": []}
+  "cut down how much i eat": [
+    {
+      "thinking": "On the road both days: they'll eat out at dinner. Reserve those dinners.",
+      "reply": "Setting aside your dinners on Thursday and Friday for road food.",
+      "operations": [
+        {
+          "op": "reserve",
+          "day": "Thursday",
+          "slot": "dinner"
+        },
+        {
+          "op": "reserve",
+          "day": "Friday",
+          "slot": "dinner"
+        }
+      ]
+    },
+    {
+      "thinking": "Done.",
+      "reply": "Your Thursday and Friday dinners are set aside for eating on the road.",
+      "operations": []
+    }
   ]
 }

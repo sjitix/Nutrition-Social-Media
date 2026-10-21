@@ -1,6 +1,25 @@
 {
-  "go easy on the portions": [
-    {"thinking": "Lighter days: the weekend.", "reply": "Lightening the portions.", "operations": [{"op": "resize", "direction": "smaller", "day": "Saturday"}, {"op": "resize", "direction": "smaller", "day": "Sunday"}]},
-    {"thinking": "Done.", "reply": "Portions are lighter.", "operations": []}
+  "cut down how much i eat": [
+    {
+      "thinking": "Lighter days: the weekend.",
+      "reply": "Lightening the portions.",
+      "operations": [
+        {
+          "op": "resize",
+          "direction": "smaller",
+          "day": "Saturday"
+        },
+        {
+          "op": "resize",
+          "direction": "smaller",
+          "day": "Sunday"
+        }
+      ]
+    },
+    {
+      "thinking": "Done.",
+      "reply": "Portions are lighter.",
+      "operations": []
+    }
   ]
 }

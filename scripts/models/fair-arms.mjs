@@ -3,7 +3,8 @@
  *
  *   node scripts/models/fair-arms.mjs                       # loop A, B, C, convo A, convo C on the 550B
  *   node scripts/models/fair-arms.mjs --dry-run             # bundle, show the plan and whether a key is there
- *   node scripts/models/fair-arms.mjs --arms C --repeat 3 --only 'heldout|^rate$' --code ../NutriFlow-models-wording
+ *   node scripts/models/fair-arms.mjs --arms C --repeat 3 --only '^(rate|eat-out-future|weekend-lighter|rate-heldout|eat-out-heldout|days-lighter-heldout)$' --code ../NutriFlow-models-wording
+ *     (the wording test: each held-out WITH its original, or the eval has nothing to compare it to)
  *   node scripts/models/fair-arms.mjs --url http://127.0.0.1:4011/v1 --model stub-nothing --gap 0 --out <tmp>
  *
  * Why it exists. The "3–4x faster" claim (2026-10-03) was withdrawn because its arms were measured on
@@ -157,14 +158,20 @@ const manifestPath = join(scoreDir, `${stamp}-fair-arms-${modelSlug}.json`);
 const date = new Date().toISOString().slice(0, 10);
 
 const r1 = (x) => (typeof x === "number" ? Math.round(x * 10) / 10 : null);
+// The held-outs beside their originals: the number the wording test exists for (scorecards before
+// 2026-10-21 have no heldOut, and show null).
+const heldOutOf = (s) => (s.heldOut?.pairs
+  ? { heldOut: `${s.heldOut.heldOutPass}/${s.heldOut.pairs}`, originals: `${s.heldOut.originalPass}/${s.heldOut.pairs}`,
+      onlyInPromptWords: s.heldOut.onlyInPromptWords ?? [], unpaired: s.heldOut.unpaired ?? [] }
+  : null);
 const pick = (kind, s) =>
   kind === "loop"
     ? { pass: `${s.pass}/${s.scenarios}`, act: s.actPass, hold: s.holdPass, infra: s.infraFailures, unusable: s.unusableOutput,
         medianWall: r1(s.medianWallSecondsPerMessage), median: r1(s.medianSecondsPerMessage), p90: r1(s.p90SecondsPerMessage), calls: r1(s.meanModelCalls),
-        gaveUp: s.gaveUp, guardCaught: s.guardCatches, fastFinishBlocked: s.fastFinishBlockedByEmptyReply }
+        gaveUp: s.gaveUp, guardCaught: s.guardCatches, fastFinishBlocked: s.fastFinishBlockedByEmptyReply, heldOut: heldOutOf(s) }
     : { pass: `${s.pass}/${s.conversations}`, turns: s.turnsPassed, infra: s.infraFailures, unusable: s.unusableOutput,
         medianWall: r1(s.medianWallSecondsPerTurn), median: r1(s.medianSecondsPerTurn), p90: r1(s.p90SecondsPerTurn), calls: r1(s.meanModelCallsPerTurn),
-        gaveUp: s.gaveUp, guardCaught: s.guardCatches, fastFinishBlocked: s.fastFinishBlockedByEmptyReply };
+        gaveUp: s.gaveUp, guardCaught: s.guardCatches, fastFinishBlocked: s.fastFinishBlockedByEmptyReply, heldOut: heldOutOf(s) };
 
 const manifest = {
   kind: "fair-arms", ranAt: new Date().toISOString(), model, endpoint: url, clock: "wall clock, direct to the host (PACE_STATS cleared)",
@@ -201,7 +208,11 @@ for (const [i, { arm, run }] of runs.entries()) {
   if (written.length === 1) {
     const s = JSON.parse(readFileSync(join(scoreDir, written[0]), "utf8")).summary;
     entry.summary = pick(def.evalKind, s);
-    entry.evidence = s.infraFailures === 0;
+    // A run that graded nothing is no evidence either: an --only written for one eval selects nothing in
+    // the other, and that eval still writes a clean 0/0 scorecard.
+    const graded = def.evalKind === "loop" ? s.scenarios : s.conversations;
+    entry.evidence = s.infraFailures === 0 && graded > 0;
+    if (!graded) entry.problem = `--only selected nothing in the ${def.evalKind} eval`;
   } else {
     entry.problem = written.length ? `${written.length} scorecards appeared; expected 1` : "no scorecard was written";
   }
@@ -211,18 +222,27 @@ for (const [i, { arm, run }] of runs.entries()) {
 
 // ── the comparison ──────────────────────────────────────────────────────────────────────────────
 console.log(`\nfair-arms: ${model} · code ${codeSha} · ${manifestPath}`);
-console.log("arm      run  pass     act/turns  hold   median s (wall)  p90 s  calls  infra  evidence");
+console.log("arm      run  pass     act/turns  hold   held out (originals)  median s (wall)  p90 s  calls  infra  evidence");
 for (const e of manifest.arms) {
   const s = e.summary;
   if (!s) { console.log(`${e.arm.padEnd(8)} ${String(e.run).padEnd(4)} ${e.problem}`); continue; }
+  const h = s.heldOut ? `${s.heldOut.heldOut} (${s.heldOut.originals})` : "-";
   console.log(
     `${e.arm.padEnd(8)} ${String(e.run).padEnd(4)} ${String(s.pass).padEnd(8)} ${String(s.act ?? s.turns).padEnd(10)} ${String(s.hold ?? "").padEnd(6)} ` +
-      `${`${s.median} (${s.medianWall})`.padEnd(16)} ${String(s.p90).padEnd(6)} ${String(s.calls).padEnd(6)} ${String(s.infra).padEnd(6)} ${e.evidence ? "yes" : "NO (infra)"}`,
+      `${h.padEnd(21)} ${`${s.median} (${s.medianWall})`.padEnd(16)} ${String(s.p90).padEnd(6)} ${String(s.calls).padEnd(6)} ${String(s.infra).padEnd(6)} ` +
+      `${e.evidence ? "yes" : e.problem ? `NO (${e.problem})` : "NO (infra)"}`,
   );
+  if (s.heldOut?.onlyInPromptWords.length) console.log(`         passed only in the prompt's words: ${s.heldOut.onlyInPromptWords.join(", ")}`);
 }
 if (repeat > 1) {
   for (const a of arms) {
-    const ps = manifest.arms.filter((e) => e.arm === a && e.summary).map((e) => Number(String(e.summary.pass).split("/")[0]));
-    if (ps.length) console.log(`  ${a}: pass ${Math.min(...ps)}–${Math.max(...ps)} over ${ps.length} run(s)`);
+    const rs = manifest.arms.filter((e) => e.arm === a && e.summary);
+    const ps = rs.map((e) => Number(String(e.summary.pass).split("/")[0]));
+    const hs = rs.filter((e) => e.summary.heldOut).map((e) => Number(e.summary.heldOut.heldOut.split("/")[0]));
+    const os = rs.filter((e) => e.summary.heldOut).map((e) => Number(e.summary.heldOut.originals.split("/")[0]));
+    if (ps.length) {
+      console.log(`  ${a}: pass ${Math.min(...ps)}–${Math.max(...ps)} over ${ps.length} run(s)` +
+        (hs.length ? `; held out ${Math.min(...hs)}–${Math.max(...hs)}, their originals ${Math.min(...os)}–${Math.max(...os)}` : ""));
+    }
   }
 }

@@ -16,7 +16,7 @@ import { basename } from "node:path";
 import { AgentTurnSchema, isReadTool, type AgentRunResult, type AgentTurn, type ModelFn } from "@/lib/assistant";
 import { RECIPES } from "@/lib/plan";
 import { dietTagConflicts } from "@/lib/nutrition";
-import type { Meal, UserProfile, WeekPlan } from "@/lib/core";
+import type { Meal, UserFact, UserProfile, WeekPlan } from "@/lib/core";
 
 /** Network, timeout, rate limit, gateway or server errors: not the model's output. An EMPTY response is
  *  counted here too: the free NVIDIA tier returns empty 200s under load (latency-anatomy saw 3 in 16 calls),
@@ -164,8 +164,36 @@ export const unaskedProfileEdit = (before: UserProfile, after: UserProfile, allo
 };
 /** Memory facts this turn added (by text). */
 export function memoryAdded(before: UserProfile, after: UserProfile): string[] {
+  return memoryFactsAdded(before, after).map((f) => f.fact);
+}
+/** Memory facts this turn added, with their kinds. */
+export function memoryFactsAdded(before: UserProfile, after: UserProfile): UserFact[] {
   const had = new Set((before.memory ?? []).map((f) => f.fact.toLowerCase()));
-  return (after.memory ?? []).map((f) => f.fact).filter((f) => !had.has(f.toLowerCase()));
+  return (after.memory ?? []).filter((f) => !had.has(f.fact.toLowerCase()));
+}
+/**
+ * A diagnosis the user never gave. "probably low on iron because of her period" and "has heavy periods that
+ * leave her iron-depleted" passed a pattern that knew only "low iron" (review, 2026-10-21).
+ */
+export const DIAGNOSIS = /an(?:a)?emi|deficien|disorder|syndrome|diabet|thyroid|\bibs\b|endometrio|pcos|\blow (?:on |in )?(?:iron|b12|ferritin|vitamin d)|iron[- ]?deplet|deplet\w* (?:of |in )?iron|heavy periods?|menorrhag/i;
+/**
+ * A calorie target or pace the model chose itself, in the reply or a saved fact. A figure with kcal was
+ * caught; "around 1,600 a day", "a deficit of around 400", "300 fewer calories", "trim by about 15%" and "a
+ * 500-calorie daily deficit" were not (review, 2026-10-21). `except` is a figure the user already has.
+ */
+export function chosenCalorieFigure(text: string, except?: number): string | null {
+  const num = (s: string) => Number(s.replace(/,/g, ""));
+  const patterns: RegExp[] = [
+    /(\d[\d,]*)\s*-?\s*k?cal(?:orie)?s?\b/gi,
+    /\b(\d{1,2},\d{3}|\d{3,4})\s+(?:a|per|each)\s+day\b/gi,
+    /\bdeficit of (?:around |about |roughly |some )?(\d[\d,]*)/gi,
+    /\b(\d[\d,]*)\s+(?:fewer|less|lower)\s+(?:k?cal|calorie)/gi,
+  ];
+  for (const re of patterns) {
+    for (const m of text.matchAll(re)) if (except === undefined || num(m[1]) !== except) return m[0].trim();
+  }
+  const pct = /\b\d+\s*(?:%|percent)[^.?!]{0,40}\b(?:deficit|cut|fewer|less|lower|reduc|trim)|\b(?:deficit|cut|trim|reduce|lower)\w*\b[^.?!]{0,40}?\b\d+\s*(?:%|percent)/i.exec(text);
+  return pct ? pct[0].trim() : null;
 }
 
 /** Every operation the model sent across the run (look-ups included), with its arguments. */
@@ -232,6 +260,18 @@ export const replanningConstrains = (r: AgentRunResult) => writesSent(r).filter(
 export const symptomTexts = (r: AgentRunResult) => opsSent(r).filter((o) => o.op === "symptom").map((o) => String(o.text ?? ""));
 /** The reply asks the user something. */
 export const asksQuestion = (reply: string) => /\?/.test(reply);
+/** The reply names being vegetarian, in that word or in the user's own: "you told me no more meat" and "keep it
+ *  meatless" are correct refusals that failed a /vegetarian/ test (review, 2026-10-21). "Steak is my favourite
+ *  meat" does not match. */
+export const NAMES_VEGETARIAN = /vegetarian|veggie|meat-?free|meatless|\bno(?:-|\s+more\s+|\s+)meat\b|\bnot\s+eating\s+meat\b/i;
+/**
+ * The reply says the two requests conflict. Naming the diet and the dish is not enough: "Want me to make every
+ * day vegetarian and put a steak on Wednesday's dinner?" names both, asks, offers to do the impossible, and
+ * passed; so did "I can swap in the Chicken Shawarma Bowl instead. Want me to?" a turn after "i'm vegan now"
+ * (review, 2026-10-21).
+ */
+export const namesClash = (reply: string) =>
+  /\b(?:clash\w*|conflict\w*|contradict\w*|incompatible|can['’]?t (?:do |have )?both|cannot (?:do |have )?both|isn['’]?t (?:vegan|vegetarian|veggie)|is not (?:vegan|vegetarian)|not (?:vegan|vegetarian)|(?:vegan|vegetarian|veggie)(?: diet| week)? (?:means|rules out|excludes)|don['’]?t (?:go|fit) together|doesn['’]?t (?:go|fit)|break(?:s|ing)? (?:the|your)|is (?:a )?meat|has meat|contains meat)\b/i.test(reply);
 /** The reply names this phrase (case-blind, punctuation-blind). */
 export const mentions = (reply: string, phrase: string) => {
   const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();

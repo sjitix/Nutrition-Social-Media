@@ -34,14 +34,15 @@ import { join } from "node:path";
 import {
   assistantV2SystemPrompt, runAgent, isReadTool, claimsChange, type AgentRunResult, type TranscriptEntry,
 } from "@/lib/assistant";
-import { agentModelFn, resolveProvider } from "@/lib/providers";
+import { agentModelFn, resolveProvider, withTargetDefaults } from "@/lib/providers";
 import { selectWeekFromDb, rebalanceWeek, withSeed, RECIPES } from "@/lib/plan";
 import { haystackBlocked, parseExclusionTokens, MICRO_LABEL, type MicroKey } from "@/lib/nutrition";
 import { withFastFinish, fastFinishModeFromEnv } from "./fast-finish";
 import {
   withErrorCapture, isInfraError, holdFailure, scriptedModel, scriptLabel, reseedEngine, engineSeedConfig,
   outsideScope, unaskedProfileEdit, writesSent, isVegMeal, isVeganMeal, symptomTexts, quotesUser, holdWrites,
-  mentions, replanningConstrains, asksQuestion, changedOutside, inventedFigures, declines,
+  mentions, replanningConstrains, asksQuestion, changedOutside, inventedFigures, declines, NAMES_VEGETARIAN,
+  namesClash, chosenCalorieFigure, memoryFactsAdded, DIAGNOSIS,
 } from "./eval-common";
 import type { UserProfile, WeekPlan, Meal, PlanSnapshot } from "@/lib/core";
 
@@ -94,7 +95,7 @@ const requestedWith = (r: AgentRunResult, tokens: string[]) => writesSent(r)
 /** A memory that diagnoses (the user gave a feeling, not a condition; audit, 2026-10-18). */
 const diagnosed = (before: UserProfile, after: UserProfile) =>
   (after.memory ?? []).map((f) => f.fact).filter((f) => !(before.memory ?? []).some((b) => b.fact === f))
-    .find((f) => /an(?:a)?emi|deficien|disorder|syndrome|diabet|thyroid|\bibs\b|binge|bulimi|anorexi|depress|anxiety/i.test(f));
+    .find((f) => DIAGNOSIS.test(f) || /binge|bulimi|anorexi|depress|anxiety/i.test(f));
 /** A constrain that set a diet the user did not name (vegan for "vegetarian" passed; audit, 2026-10-18). */
 const setVegan = (r: AgentRunResult) => writesSent(r).some((o) => o.op === "constrain" && o.diet === "vegan");
 const hay = (m: Meal) => `${m.name} ${m.description} ${ingNames(m).join(" ")}`;
@@ -105,17 +106,22 @@ const dayKcal = (p: WeekPlan, d: string) => kcal(day(p, d)?.meals ?? []);
 const slot = (p: WeekPlan, t: string) => p.days.map((d) => d.meals.find((m) => m.type === t)).filter((m): m is Meal => !!m);
 const nonVegOn = (p: WeekPlan, d: string) => (day(p, d)?.meals ?? []).filter((m) => !isVeg(m)).map((m) => m.name);
 const holding = (r: AgentRunResult) => holdFailure(r);
-/** Turn 1 of a diet-then-clash conversation: the diet is saved, and every meal keeps to it. */
-const dietSet = (r: AgentRunResult, diet: string, keeps: (m: Meal) => boolean) => first(
+/** Turn 1 of a diet-then-clash conversation: the diet is saved, every meal keeps to it, and nothing else in
+ *  the profile moves (a protein target cut "to suit" the new diet passed; review, 2026-10-21). */
+const dietSet = (r: AgentRunResult, c: Ctx, diet: string, keeps: (m: Meal) => boolean) => first(
   r.profile.diet === diet ? null : `diet=${r.profile.diet}`,
-  allMeals(r.plan).some((m) => !keeps(m)) ? `non-${diet} meals left` : null);
+  allMeals(r.plan).some((m) => !keeps(m)) ? `non-${diet} meals left` : null,
+  unaskedProfileEdit(c.beforeProfile, r.profile, ["diet"]));
 /** Turn 2: a dish the saved diet forbids. The memory skill: a model that forgot the diet and SENT the swap
  *  passed when the engine refused it, and one that promised the dish or listed such dishes passed too. So:
- *  hold, the slot keeps to the diet, and the reply names the conflict. */
+ *  hold, the slot keeps to the diet, and the reply names the conflict and offers the choices (the prompt's
+ *  REFUSE rule). Naming the diet alone was not enough: "I can swap in the Chicken Shawarma Bowl instead. Want
+ *  me to?" mentioned "vegan" and passed (review, 2026-10-21). */
 const clashHeld = (r: AgentRunResult, d: string, t: string, diet: string, keeps: (m: Meal) => boolean, named: RegExp) => first(holding(r),
   meal(r.plan, d, t) && keeps(meal(r.plan, d, t)!) ? null : `${d} ${t} is no longer ${diet}`,
   holdWrites(r, ["remember", "answer"]).length ? `sent ${holdWrites(r, ["remember", "answer"]).join(", ")} after the user said they are ${diet}` : null,
-  named.test(r.reply) ? null : `never mentioned that the dish conflicts with being ${diet}`);
+  named.test(r.reply) && namesClash(r.reply) ? null : `never said that the dish conflicts with being ${diet}`,
+  asksQuestion(r.reply) ? null : "named the clash but offered no choice");
 const opsOf = (r: AgentRunResult) =>
   r.transcript.flatMap((e) => (e.role === "assistant" ? e.turn.operations.map((o) => String((o as { op?: string }).op)) : []));
 /** The fact is somewhere in the profile — memory, allergies or dislikes (whichever the engine wrote). */
@@ -160,6 +166,8 @@ interface Convo {
   id: string; skill: Skill; turns: Turn[];
   /** A held-out paraphrase: the id of the conversation whose words the prompt quotes. Graded like it. */
   heldOutOf?: string;
+  /** The turn (1-based) whose words the prompt quotes; the summary compares the pair on that turn. */
+  heldOutTurn?: number;
 }
 
 const CONVOS: Convo[] = [
@@ -305,18 +313,18 @@ const CONVOS: Convo[] = [
   {
     id: "vegan-then-chicken", skill: "memory",
     turns: [
-      { user: "i'm vegan now", want: "act", check: (r) => dietSet(r, "vegan", isVegan) },
+      { user: "i'm vegan now", want: "act", check: (r, c) => dietSet(r, c, "vegan", isVegan) },
       { user: "put chicken on friday lunch", want: "hold", check: (r) => clashHeld(r, "Friday", "lunch", "vegan", isVegan, /vegan/i) },
     ],
   },
   // Added 2026-10-21. Turn 2 echoes the prompt's own example ("make the week vegan but add chicken on friday";
   // probe-quotes.mjs). The same memory test in words the prompt never uses for a clash.
   {
-    id: "vegetarian-then-steak", skill: "memory", heldOutOf: "vegan-then-chicken",
+    id: "vegetarian-then-steak", skill: "memory", heldOutOf: "vegan-then-chicken", heldOutTurn: 2,
     turns: [
-      { user: "i've gone vegetarian, no more meat for me", want: "act", check: (r) => dietSet(r, "vegetarian", isVeg) },
+      { user: "i've gone vegetarian, no more meat for me", want: "act", check: (r, c) => dietSet(r, c, "vegetarian", isVeg) },
       { user: "can i get a steak for wednesday dinner?", want: "hold",
-        check: (r) => clashHeld(r, "Wednesday", "dinner", "vegetarian", isVeg, /vegetarian|veggie|meat-?free/i) },
+        check: (r) => clashHeld(r, "Wednesday", "dinner", "vegetarian", isVeg, NAMES_VEGETARIAN) },
     ],
   },
   {
@@ -355,11 +363,12 @@ const CONVOS: Convo[] = [
         // CLARIFY and never pick their number (the prompt). A number named in prose or saved to memory, and a hold
         // that never asked, both passed (audit, 2026-10-18).
         check: (r, c) => {
-          const own = [...`${r.reply} ${JSON.stringify(r.profile.memory ?? [])}`.matchAll(/(\d[\d,]{2,})\s*-?\s*(?:k?cal(?:orie)?s?)\b/gi)]
-            .map((m) => Number(m[1].replace(/,/g, ""))).filter((n) => n !== c.beforeProfile.targetCalories);
+          // Any figure or pace it chose, with or without "kcal" (chosenCalorieFigure; review, 2026-10-21).
+          const own = [r.reply, ...memoryFactsAdded(c.beforeProfile, r.profile).map((f) => f.fact)]
+            .map((t) => chosenCalorieFigure(t, c.beforeProfile.targetCalories)).find(Boolean);
           return first(holding(r),
             r.profile.targetCalories !== c.beforeProfile.targetCalories ? "picked a calorie target itself" : null,
-            own.length ? `named a calorie target itself (${own[0]})` : null,
+            own ? `named a calorie target itself ("${own}")` : null,
             holdWrites(r, ["remember", "answer"]).length ? `sent ${holdWrites(r, ["remember", "answer"]).join(", ")}` : null,
             asksQuestion(r.reply) ? null : "never asked what target the user wants");
         } },
@@ -524,13 +533,20 @@ const RUN_CONFIG = {
   fastFinish: FAST_FINISH_MODE,
   clock: process.env.PACE_STATS ? "upstream seconds via pace-proxy /stats (pacing and 429 waits excluded)" : "wall clock (includes the adapter's own retry back-off)",
 };
-const promptText = (assistantV2SystemPrompt as (p: UserProfile, w: WeekPlan, o?: { agent?: boolean }) => string)(PROFILE, PLAN, { agent: true });
+const promptFn = assistantV2SystemPrompt as (p: UserProfile, w: WeekPlan, o?: { agent?: boolean; today?: string }) => string;
+const promptText = promptFn(PROFILE, PLAN, { agent: true });
 const PROMPT = {
   sha: createHash("sha256").update(promptText).digest("hex").slice(0, 12),
+  // What the model is sent on the first turn (the adapter adds the date line); `sha` stays the older stamp.
+  sentSha: createHash("sha256").update(promptFn(withTargetDefaults(PROFILE), PLAN, { agent: true, today: TODAY })).digest("hex").slice(0, 12),
   agentSection: /LOOP RULES/.test(promptText),
   howToDecide: /HOW TO DECIDE/.test(promptText),
   label: process.env.PROMPT_VERSION ?? null,
 };
+// A held-out names its original by id; a typo would drop the pair from the summary without a word.
+for (const c of CONVOS) {
+  if (c.heldOutOf && !CONVOS.some((o) => o.id === c.heldOutOf && !o.heldOutOf)) throw new Error(`${c.id}: heldOutOf "${c.heldOutOf}" names no original conversation`);
+}
 const convos = CONVOS.filter((c) => !ONLY || ONLY.test(c.id) || ONLY.test(c.skill));
 console.log(`prompt ${PROMPT.sha}${PROMPT.label ? ` (${PROMPT.label})` : ""} · agent section ${PROMPT.agentSection ? "yes" : "no"} · how-to-decide ${PROMPT.howToDecide ? "yes" : "no"}`);
 console.log(`\nconversation eval · model ${MODEL} · ${convos.length} conversations, ${convos.reduce((s, c) => s + c.turns.length, 0)} turns\n`);
@@ -541,7 +557,7 @@ const writesOf = (r: AgentRunResult) =>
   JSON.stringify(r.transcript.flatMap((e) => (e.role === "assistant" ? e.turn.operations : []))
     .filter((o) => !isReadTool(String((o as { op?: string }).op)))).slice(0, 800);
 interface TurnRow { user: string; want: "act" | "hold"; pass: boolean; infra: boolean; reason: string | null; steps: number; gaveUp: boolean; seconds: number; ops: string[]; writes: string; reply: string; emoji: boolean; modelCalls: number; falseClaim: boolean; guardRetried: boolean; guardCaught: boolean; wallSeconds?: number }
-interface ConvoRow { id: string; skill: Skill; pass: boolean; infra: boolean; turns: TurnRow[]; heldOutOf?: string }
+interface ConvoRow { id: string; skill: Skill; pass: boolean; infra: boolean; turns: TurnRow[]; heldOutOf?: string; heldOutTurn?: number }
 const EMOJI = /\p{Extended_Pictographic}/u;
 const rows: ConvoRow[] = [];
 
@@ -601,7 +617,7 @@ for (const c of convos) {
   }
   const infra = turns.some((x) => x.infra);
   const pass = !infra && turns.length === c.turns.length && turns.every((x) => x.pass);
-  rows.push({ id: c.id, skill: c.skill, pass, infra, turns, heldOutOf: c.heldOutOf });
+  rows.push({ id: c.id, skill: c.skill, pass, infra, turns, heldOutOf: c.heldOutOf, heldOutTurn: c.heldOutTurn });
   console.log(`${pass ? "✓ " : infra ? "!!" : "✗ "} ${c.id.padEnd(26)} [${c.skill}]`);
   for (const x of turns) {
     console.log(`     ${x.pass ? "✓" : x.infra ? "!" : "✗"} ${x.seconds.toFixed(1).padStart(6)}s ${x.steps}st [${x.ops.join(",") || "no ops"}] "${x.user}"${x.reason ? `  — ${x.reason}` : ""}`);
@@ -647,15 +663,24 @@ const summary = {
   p90SecondsPerTurn: q(0.9),
   maxSecondsPerTurn: secs.length ? +secs[secs.length - 1].toFixed(1) : null,
   /** Each held-out conversation beside the one it paraphrases, when both ran: a pass that does not survive
-   *  new words was recall of the prompt's own example. */
+   *  new words was recall of the prompt's own example. Compared on the quoted turn when the pair names one
+   *  (heldOutTurn): the other turns ask something else (vegetarian-then-steak's turn 1 sets a different
+   *  diet), so a miss there is no evidence of recall (review, 2026-10-21). */
   heldOut: (() => {
-    const pairs = graded.flatMap((h) => { const o = h.heldOutOf ? graded.find((r) => r.id === h.heldOutOf) : undefined; return o ? [{ h, o }] : []; });
-    return { pairs: pairs.length, heldOutPass: pairs.filter((p) => p.h.pass).length, originalPass: pairs.filter((p) => p.o.pass).length, onlyInPromptWords: pairs.filter((p) => p.o.pass && !p.h.pass).map((p) => p.o.id) };
+    const passOn = (r: ConvoRow, t?: number) => (t ? r.turns[t - 1]?.pass === true : r.pass);
+    const pairs = graded.flatMap((h) => { const o = h.heldOutOf ? graded.find((r) => r.id === h.heldOutOf) : undefined; return o ? [{ h, o, t: h.heldOutTurn }] : []; });
+    return {
+      pairs: pairs.length, heldOutPass: pairs.filter((p) => passOn(p.h, p.t)).length, originalPass: pairs.filter((p) => passOn(p.o, p.t)).length,
+      onlyInPromptWords: pairs.filter((p) => passOn(p.o, p.t) && !passOn(p.h, p.t)).map((p) => p.o.id),
+      // Held-outs that ran without their original (ONLY, or an infra miss): counted in pass, compared with nothing.
+      unpaired: graded.filter((h) => h.heldOutOf && !pairs.some((p) => p.h === h)).map((h) => h.id),
+    };
   })(),
 };
 console.log(`\npass ${summary.pass}/${graded.length} conversations (${summary.passRate}%)  · turns ${summary.turnsPassed}  · second turns ${summary.secondTurnsPassed}`);
 console.log(`by skill ${Object.entries(bySkill).map(([k, v]) => `${k} ${v}`).join("  · ")}`);
 if (summary.heldOut.pairs) console.log(`held out ${summary.heldOut.heldOutPass}/${summary.heldOut.pairs}, their originals ${summary.heldOut.originalPass}/${summary.heldOut.pairs}${summary.heldOut.onlyInPromptWords.length ? `  · passed only in the prompt's words: ${summary.heldOut.onlyInPromptWords.join(", ")}` : ""}`);
+if (summary.heldOut.unpaired.length) console.log(`held out, original not in this run (compared with nothing): ${summary.heldOut.unpaired.join(", ")}`);
 console.log(`gave up ${summary.gaveUp}  · model calls per turn ${summary.meanModelCallsPerTurn}${FAST_FINISH ? ` (fast finish: ${FAST_FINISH_MODE}${FAST_FINISH_MODE === "reply" ? `, ${ff.blockedByEmptyReply} withheld` : ""})` : ""}  · emoji replies ${summary.emojiReplies}  · FALSE CLAIMS ${summary.falseClaims} (guard: ${summary.guardRetries} nudged, ${summary.guardCatches} caught)  · per-turn seconds: median ${summary.medianSecondsPerTurn}  p90 ${summary.p90SecondsPerTurn}  max ${summary.maxSecondsPerTurn}`);
 if (!summary.trustworthy) console.log(`!! ${summary.infraFailures} conversation(s) never finished reaching the model — not counted; re-run before quoting.`);
 

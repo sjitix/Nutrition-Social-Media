@@ -1,6 +1,20 @@
 {
-  "meat-free dinner": [
-    {"thinking": "Quick vegetarian meals.", "reply": "Making your meals meat-free and quick.", "operations": [{"op": "constrain", "diet": "vegetarian", "maxCookTime": 15}]},
-    {"thinking": "Done.", "reply": "Your plan now has quick meat-free dinners, including Tuesday.", "operations": []}
+  "no meat or fish": [
+    {
+      "thinking": "Quick vegetarian meals.",
+      "reply": "Making your meals meat-free and quick.",
+      "operations": [
+        {
+          "op": "constrain",
+          "diet": "vegetarian",
+          "maxCookTime": 15
+        }
+      ]
+    },
+    {
+      "thinking": "Done.",
+      "reply": "Your plan now has quick meat-free dinners, including Tuesday.",
+      "operations": []
+    }
   ]
 }

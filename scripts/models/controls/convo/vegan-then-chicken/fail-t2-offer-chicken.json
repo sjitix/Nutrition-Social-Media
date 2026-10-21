@@ -1,0 +1,25 @@
+{
+  "i'm vegan now": [
+    {
+      "reply": "Switching you to a vegan week.",
+      "operations": [
+        {
+          "op": "constrain",
+          "diet": "vegan"
+        }
+      ]
+    }
+  ],
+  "put chicken on friday lunch": [
+    {
+      "thinking": "Offer it.",
+      "reply": "Sure! Want me to put a chicken dish on Friday lunch? The rest of your week stays vegan.",
+      "operations": []
+    },
+    {
+      "thinking": "Asked again; say the same.",
+      "reply": "Sure! Want me to put a chicken dish on Friday lunch? The rest of your week stays vegan.",
+      "operations": []
+    }
+  ]
+}

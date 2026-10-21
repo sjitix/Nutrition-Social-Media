@@ -1,0 +1,46 @@
+{
+  "no meat or fish": [
+    {
+      "thinking": "Look up vegetarian dinners of 15 minutes or less.",
+      "reply": "",
+      "operations": [
+        {
+          "op": "find_recipes",
+          "mealType": "dinner",
+          "diet": "vegetarian",
+          "maxTime": 15
+        }
+      ]
+    },
+    {
+      "thinking": "The skillet fits. They want meat-free food, so save that as a preference.",
+      "reply": "Putting the skillet on Tuesday.",
+      "operations": [
+        {
+          "op": "remember",
+          "fact": "vegetarian",
+          "kind": "preference"
+        },
+        {
+          "op": "swap",
+          "dish": "Harissa Chickpea & Spinach Skillet",
+          "slot": "dinner",
+          "days": [
+            "Tuesday"
+          ],
+          "only": true
+        }
+      ]
+    },
+    {
+      "thinking": "Applied.",
+      "reply": "Tuesday dinner is now the skillet.",
+      "operations": []
+    },
+    {
+      "thinking": "Asked again; say the same.",
+      "reply": "Tuesday dinner is now the skillet.",
+      "operations": []
+    }
+  ]
+}

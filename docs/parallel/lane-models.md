@@ -7,16 +7,17 @@ Protocol: [`README.md`](README.md). Worktree: `../NutriFlow-models/`, branch `mo
 
 ## Now doing
 
-**2026-10-21 — every eval message the prompt quotes has a held-out paraphrase, and a probe keeps it so.**
-`node scripts/models/probe-quotes.mjs` reads the prompt the model gets and lists the eval messages it quotes.
-On main that is 8 near-quotes in 55 messages, all held out, so it exits 0; its `--self-test` passes 4/4. New:
-`vague-goal-heldout`, `emotional-heldout`, `every-day-swap-heldout`, `find-then-place-heldout` and convo
-`vegetarian-then-steak`. Both
-evals print each held-out beside its original. 586 controls hold across 49 scenarios under 2 engine seeds.
-**In flight (started 2026-10-21 ~00:40):** an adversarial review of those held-outs, their checks and controls,
-`probe-quotes.mjs` and the summary changes. It runs six reviewers, then two skeptics per finding, then a
-completeness critic (workflow `wf_d23567f3-de5`, this session only). Its confirmed findings get fixed and shipped
-next. If this session is gone, nothing of it landed: re-run the review.
+**2026-10-21 — every eval message the prompt quotes has a held-out paraphrase, reviewed and fixed; 633
+controls hold on v1's `da023da`.** `node scripts/models/probe-quotes.mjs` reads the prompt the model is sent and
+lists the eval messages it quotes: 8 of 55 on main, all held out, so it exits 0. Its `--self-test` passes 10/10.
+- Held-outs: `vague-goal-heldout`, `emotional-heldout`, `every-day-swap-heldout`, `find-then-place-heldout` and
+  convo `vegetarian-then-steak` are new; four were reworded after an adversarial review, so that each asks for
+  exactly what its original asks.
+- The review also fixed checks that passed wrong answers, among them offering to do both halves of a clash.
+  The details are in the day record.
+- On `da023da`: the three probes pass. Five controls flipped because v1's D works, and they are must-pass now.
+- Still no `.env.local`. With the key, the fair arms run first.
+Day records: `docs/worklog/2026-10-20-models.md`, `2026-10-21-models.md`.
 
 **2026-10-20 — every check in both evals is fixed and proven: 524 controls hold across all 44 scenarios**
 under 2 engine seeds (`node scripts/models/run-controls.mjs`).
@@ -24,11 +25,9 @@ under 2 engine seeds (`node scripts/models/run-controls.mjs`).
 - The do-nothing and hollow-claim fakes score 0 on both evals.
 - The false-claim guard went from 1/15 to 15/15 on this lane's probe with v1's `c8ccfb0`.
 - Still no `.env.local`, so no model runs. With the key, the fair arms run first.
-- Since then: `contradiction-heldout` (the loop eval has 30 scenarios, 4 held out). Ten claim controls that
-  failed only because their script ran out now reach the guard (`run-controls --verbose` shows why each
-  must-fail control fails).
-- Key-free next: re-run the controls on v1's C/D/E/F; an answer-op must-pass control after D.
-Day records: `docs/worklog/2026-10-20-models.md`, `2026-10-21-models.md`. The 2026-10-18 notes below are history.
+- Since then: `contradiction-heldout`. Ten claim controls that failed only because their script ran out now
+  reach the guard (`run-controls --verbose` shows why each must-fail control fails).
+The 2026-10-18 notes below are history.
 
 **2026-10-18 — resumed on the LAPTOP.** The worktrees `../NutriFlow-models/` and
 `../NutriFlow-models-exp/` now exist here (created today from `origin/models` / `origin/models-exp`, both
@@ -74,7 +73,7 @@ test pass the answer they reward, and fail do-nothing. The bare day constrain fa
 
 Next once a key exists:
 1. The fair arms, ALL on one bundle: loop A, B, C, convo A, C. **Arm A is re-run.** The 10-03 one
-   (21/26, median 23.3 s) ran 26 scenarios on an older bundle (29 today), before `5c12c4c` changed the
+   (21/26, median 23.3 s) ran 26 scenarios on an older bundle (34 today), before `5c12c4c` changed the
    loop.
 2. The held-out wording test: main vs `models-wording` (re-merge main first if it has moved).
 3. The fair numbers to v1.

@@ -1,0 +1,14 @@
+{
+  "make the whole week vegan but put chicken on friday": [
+    {
+      "thinking": "Two changes: a vegan week and chicken on Friday. Confirm before a big change.",
+      "reply": "Got it! I'll make the whole week vegan and put chicken on Friday. Shall I go ahead?",
+      "operations": []
+    },
+    {
+      "thinking": "Asked again; say the same.",
+      "reply": "Got it! I'll make the whole week vegan and put chicken on Friday. Shall I go ahead?",
+      "operations": []
+    }
+  ]
+}

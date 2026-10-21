@@ -1,0 +1,36 @@
+{
+  "no meat or fish": [
+    {
+      "thinking": "Look up quick vegetarian dinners.",
+      "reply": "",
+      "operations": [
+        {
+          "op": "find_recipes",
+          "mealType": "dinner",
+          "diet": "vegetarian",
+          "maxTime": 15
+        }
+      ]
+    },
+    {
+      "thinking": "Loaded Cheesy Nachos is quick and vegetarian; I know it from the menu.",
+      "reply": "Putting Loaded Cheesy Nachos on Tuesday.",
+      "operations": [
+        {
+          "op": "swap",
+          "dish": "Loaded Cheesy Nachos",
+          "slot": "dinner",
+          "days": [
+            "Tuesday"
+          ],
+          "only": true
+        }
+      ]
+    },
+    {
+      "thinking": "Applied.",
+      "reply": "Tuesday dinner is now Loaded Cheesy Nachos.",
+      "operations": []
+    }
+  ]
+}

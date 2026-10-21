@@ -1,0 +1,21 @@
+{
+  "keep that one coming back": [
+    {
+      "thinking": "Rate it.",
+      "reply": "",
+      "operations": [
+        {
+          "op": "rate",
+          "rating": 5,
+          "day": "Tuesday",
+          "slot": "lunch"
+        }
+      ]
+    },
+    {
+      "thinking": "Done.",
+      "reply": "Noted, you'll see it more often.",
+      "operations": []
+    }
+  ]
+}

@@ -17,10 +17,10 @@ message (8 at worst), so **per-call latency × steps** is the number a user feel
 |---|---|---|
 | single-turn judgement | `npm run eval:hardcases` (45 cases, engine-verified); also regraded strictly by `scripts/models/regrade-hardcases.mjs` (v3) | beat **84%** (gpt-oss-20b, old prompt) — every big model now clears it; the ruler has saturated |
 | honest declines | the `decline` bucket of the same eval | ≥ 5/6 |
-| loop behaviour | `scripts/models/loop-eval.mts` (34 scenarios through the real loop, 8 of them held-out paraphrases) — reads before writes, stops cleanly, no `gaveUp` | read-before-write 2/2, gave up 0 |
+| loop behaviour | `scripts/models/loop-eval.mts` (34 scenarios through the real loop, 8 of them held-out paraphrases) — reads before writes, stops cleanly, no `gaveUp` | read-before-write 3/3, gave up 0 |
 | **conversation** | `scripts/models/convo-eval.mts` (15 two-turn conversations, one a held-out paraphrase, state carried like the client) | **the ruler that separates sizes** — 550B 79%, 20B 43% (2026-10-03, on the lenient harness: re-measure) |
-| **the harness itself** | `node scripts/models/run-controls.mjs` — 586 scripted controls: every check must pass its correct answers and fail its wrong ones, under several engine seeds | all hold (2026-10-21) |
-| **what the prompt quotes** | `node scripts/models/probe-quotes.mjs` — the eval messages the rendered prompt quotes (a near-quote measures recall of its example, not judgement) | every near-quote held out: exit 0 (2026-10-21) |
+| **the harness itself** | `node scripts/models/run-controls.mjs` — 633 scripted controls: every check must pass its correct answers and fail its wrong ones, under several engine seeds | all hold on `da023da` (2026-10-21) |
+| **what the prompt quotes** | `node scripts/models/probe-quotes.mjs` — the eval messages the rendered prompt quotes (a near-quote measures recall of its example, not judgement) | every near-quote held out: exit 0; `--self-test` 10/10 (2026-10-21) |
 | latency | median + p90 seconds **per message** from the loop/convo evals | message-level ≤ ~10 s |
 | cost | $/message at beta volume | free now; priced before launch |
 
@@ -50,7 +50,7 @@ message (8 at worst), so **per-call latency × steps** is the number a user feel
    check nothing can pass is as useless as one a do-nothing model passes.
 8. **A comparison runs every arm from ONE bundle.** An arm measured on an older bundle is history, not
    an arm. The withdrawn speed claim compared arms across code; on 2026-10-18 the old arm A was found to
-   have a different scenario set (26 vs 29 now) and to predate a loop change.
+   have a different scenario set (26 vs 29 then; 34 now) and to predate a loop change.
    `node scripts/models/fair-arms.mjs` is the only way this lane runs one.
 9. **A scenario the prompt quotes needs a held-out paraphrase, graded by the same code.** `probe-quotes.mjs`
    exits non-zero for a quote with no held-out, or a held-out the prompt has come to quote itself. Run it

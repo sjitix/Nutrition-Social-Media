@@ -1,6 +1,21 @@
 {
-  "go easy on the portions": [
-    {"thinking": "Less movement: lower the calorie target.", "reply": "Lowering your calories.", "operations": [{"op": "constrain", "targets": {"calories": 1700}}]},
-    {"thinking": "Done.", "reply": "Thursday and Friday are lighter now.", "operations": []}
+  "cut down how much i eat": [
+    {
+      "thinking": "Less movement: lower the calorie target.",
+      "reply": "Lowering your calories.",
+      "operations": [
+        {
+          "op": "constrain",
+          "targets": {
+            "calories": 1700
+          }
+        }
+      ]
+    },
+    {
+      "thinking": "Done.",
+      "reply": "Thursday and Friday are lighter now.",
+      "operations": []
+    }
   ]
 }

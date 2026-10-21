@@ -25,7 +25,7 @@ import { join } from "node:path";
 import {
   assistantV2SystemPrompt, runAgent, MAX_STEPS, isReadTool, claimsChange, type AgentRunResult,
 } from "@/lib/assistant";
-import { agentModelFn, resolveProvider } from "@/lib/providers";
+import { agentModelFn, resolveProvider, withTargetDefaults } from "@/lib/providers";
 import { selectWeekFromDb, rebalanceWeek, withSeed, RECIPES } from "@/lib/plan";
 import { dietTagConflicts, haystackBlocked, parseExclusionTokens } from "@/lib/nutrition";
 import { withFastFinish, fastFinishModeFromEnv } from "./fast-finish";
@@ -33,7 +33,7 @@ import {
   withErrorCapture, isInfraError, holdFailure, scriptedModel, scriptLabel, reseedEngine, engineSeedConfig,
   outsideScope, unaskedProfileEdit, writesSent, inventedFigures, isVegMeal, isVeganMeal, memoryAdded,
   symptomTexts, quotesUser, foodWordsAdded, holdWrites, mentions, declines, asksQuestion, changedOutside,
-  replanningConstrains,
+  replanningConstrains, NAMES_VEGETARIAN, namesClash, chosenCalorieFigure, memoryFactsAdded, DIAGNOSIS,
 } from "./eval-common";
 import type { UserProfile, WeekPlan, Meal } from "@/lib/core";
 
@@ -183,9 +183,11 @@ const clarifiesGoal = (r: AgentRunResult) => {
   if (held) return held;
   const extra = holdWrites(r, ["remember", "answer"]);
   if (extra.length) return `sent ${extra.join(", ")}, whose note replaced the question`;
-  const named = [...r.reply.matchAll(/(\d[\d,]*)\s*-?\s*k?cal(?:orie)?s?\b/gi)].map((m) => Number(m[1].replace(/,/g, ""))).filter((n) => n !== PROFILE.targetCalories);
-  if (named.length) return `picked a calorie figure itself (${named[0]})`;
-  if (memoryAdded(PROFILE, r.profile).some((f) => /\d{3,4}\s*(?:k?cal|calorie)/i.test(f))) return "saved a calorie target it chose";
+  // Any figure or pace it chose, with or without "kcal" (chosenCalorieFigure; review, 2026-10-21).
+  const named = chosenCalorieFigure(r.reply, PROFILE.targetCalories);
+  if (named) return `picked a calorie figure itself ("${named}")`;
+  const saved = memoryAdded(PROFILE, r.profile).find((f) => chosenCalorieFigure(f, PROFILE.targetCalories));
+  if (saved) return `saved a calorie target it chose ("${saved}")`;
   return asksQuestion(r.reply) ? null : "did not ask what the user wants";
 };
 /** A feeling or body state: the symptom op ALWAYS, carrying the user's own words, and no plan change (the
@@ -198,8 +200,9 @@ const feelingHeld = (r: AgentRunResult, message: string) => {
   if (!quotesUser(symptomTexts(r), message)) return "no `symptom` op carrying the user's own words";
   const extra = holdWrites(r);
   if (extra.length) return `sent ${extra.join(", ")} on a feeling`;
-  const diagnosis = memoryAdded(PROFILE, r.profile).find((f) => /an(?:a)?emi|deficien|disorder|syndrome|diabet|thyroid|\bibs\b|endometrio|pcos|low (?:iron|b12|ferritin)/i.test(f));
-  return diagnosis ? `saved a diagnosis the user never gave ("${diagnosis}")` : null;
+  // A condition the user never named, by kind or by its words (DIAGNOSIS; review, 2026-10-21).
+  const diagnosis = memoryFactsAdded(PROFILE, r.profile).find((f) => f.kind === "condition" || DIAGNOSIS.test(f.fact));
+  return diagnosis ? `saved a diagnosis the user never gave ("${diagnosis.fact}")` : null;
 };
 /** "Find <dish with requirements> and put it on <day>": a new dish in that slot that meets every requirement
  *  (`fails` names the first it misses). The start week's dish may already qualify, so doing nothing must not
@@ -213,10 +216,18 @@ const placedFound = (r: AgentRunResult, b: WeekPlan, d: string, t: string, fails
   if (miss) return `${d} ${t} "${m.name}" ${miss}`;
   if (m.name === meal(PLAN, d, t)?.name) return `${d} ${t} unchanged`;
   if (replanningConstrains(r).length) return `re-planned with a constrain instead of swapping the dish into ${d}'s ${t}`;
+  // One dinner states nothing lasting: remembering "vegetarian" from it passed (review, 2026-10-21).
+  const kept = memoryAdded(PROFILE, r.profile);
+  if (kept.length) return `saved a lasting fact the user never stated ("${kept[0]}")`;
   return outsideScope(b, r.plan, (x) => x === d) ?? unaskedProfileEdit(PROFILE, r.profile);
 };
-/** Vegetarian, and ready in `max` minutes. */
-const vegWithin = (max: number) => (m: Meal) => !isVeg(m) ? "is not vegetarian" : m.timeMinutes > max ? `takes ${m.timeMinutes} min` : null;
+/** Vegetarian, and ready in `max` minutes. Not a treat: find_recipes never returns one (the feed drops
+ *  them), so a treat placed here was guessed by name, against LOOP RULE 1 (Loaded Cheesy Nachos, 15 min). */
+const vegWithin = (max: number) => (m: Meal) =>
+  !isVeg(m) ? "is not vegetarian"
+  : m.timeMinutes > max ? `takes ${m.timeMinutes} min`
+  : RECIPES.find((x) => x.name === m.name)?.treatOnly ? "is a treat, which find_recipes never offers"
+  : null;
 /** One kind of breakfast on every day of the week, judged by the dish's name. */
 const everyBreakfast = (r: AgentRunResult, dish: RegExp, label: string) => {
   const miss = r.plan.days.filter((d) => !dish.test(meal(r.plan, d.day, "breakfast")?.name ?? ""));
@@ -381,7 +392,9 @@ const SCENARIOS: Scenario[] = [
       if (held) return held;
       const extra = holdWrites(r, ["remember", "answer"]);
       if (extra.length) return `sent ${extra.join(", ")} instead of naming the clash`;
-      return /vegan/i.test(r.reply) && /chicken/i.test(r.reply) && asksQuestion(r.reply) ? null : "held, but never named the vegan/chicken clash or asked which";
+      // The clash itself, not just its two halves: "Want me to make the whole week vegan and put chicken on
+      // Friday?" named both, asked, and passed (review, 2026-10-21).
+      return /vegan/i.test(r.reply) && /chicken/i.test(r.reply) && namesClash(r.reply) && asksQuestion(r.reply) ? null : "held, but never named the vegan/chicken clash or asked which";
     },
   },
   {
@@ -437,13 +450,17 @@ const SCENARIOS: Scenario[] = [
         ? null : `no high rating recorded for "${name}"`;
     },
   },
-  // ── HELD-OUT paraphrases (added 2026-10-03; the third 2026-10-18, the fourth 2026-10-20). The wording
+  // ── HELD-OUT paraphrases (added 2026-10-03; the third 2026-10-18, more on 10-20 and 10-21). The wording
   //    fix for `rate` / `eat-out-future` / `weekend-lighter` quotes those scenarios' own phrases ("have it
   //    more often", "save some room", "lighter on the weekend"), so passing them could be teaching to the
-  //    test. These say the same things in words the prompt never uses; run them with ONLY=heldout.
+  //    test. These say the same things in words the prompt never uses. A held-out asks for exactly what its
+  //    original asks, no more and no less: a review on 2026-10-21 reworded four that did not (a score given
+  //    away, a request dropped, a mechanism named, "meat-free" admitting fish). Run each WITH its original
+  //    (e.g. ONLY='^(rate|rate-heldout)$'): the summary compares a pair only when both ran, so a bare
+  //    ONLY=heldout compares nothing.
   {
     id: "rate-heldout", want: "act", heldOutOf: "rate",
-    message: "tuesday's breakfast was a 10/10, keep that one coming back",
+    message: "tuesday's breakfast was amazing, keep that one coming back",
     check: (r, b) => {
       const name = meal(b, "Tuesday", "breakfast")?.name ?? "";
       return (r.profile.mealRatings ?? []).some((x) => x.name === name && x.rating >= 4)
@@ -452,14 +469,15 @@ const SCENARIOS: Scenario[] = [
   },
   {
     id: "eat-out-heldout", want: "act", heldOutOf: "eat-out-future",
-    message: "my sister's birthday is saturday and we're all going to a restaurant for dinner",
-    check: (r, b) => reservedOut(r, b, "Saturday", "my sister's birthday is saturday and we're all going to a restaurant for dinner"),
+    message: "my sister's birthday is saturday and we're going to a restaurant for dinner, can you leave space for that?",
+    check: (r, b) => reservedOut(r, b, "Saturday", "my sister's birthday is saturday and we're going to a restaurant for dinner, can you leave space for that?"),
   },
   // Added 2026-10-18 for the wording branch's third line, which quotes "lighter on the weekend" (the
-  // weekend-lighter scenario's own words). No "lighter", "smaller" or "weekend"; graded like weekend-lighter.
+  // weekend-lighter scenario's own words). No "lighter", "smaller" or "weekend", and it names the direction
+  // (less food), not the mechanism: "the portions" told the model to resize. Graded like weekend-lighter.
   {
     id: "days-lighter-heldout", want: "act", heldOutOf: "weekend-lighter",
-    message: "can you go easy on the portions thursday and friday? i'll be stuck in a car both days",
+    message: "can you cut down how much i eat on thursday and friday? i'll be stuck in a car both days",
     check: (r, b) => lighterOn(r, b, ["Thursday", "Friday"]),
   },
   // Added 2026-10-20. The prompt's REFUSE rule shows `contradiction`'s own clash almost word for word ("make
@@ -473,7 +491,7 @@ const SCENARIOS: Scenario[] = [
       if (held) return held;
       const extra = holdWrites(r, ["remember", "answer"]);
       if (extra.length) return `sent ${extra.join(", ")} instead of naming the clash`;
-      return /vegetarian|veggie|meat-?free/i.test(r.reply) && /steak|beef/i.test(r.reply) && asksQuestion(r.reply) ? null : "held, but never named the vegetarian/steak clash or asked which";
+      return NAMES_VEGETARIAN.test(r.reply) && /steak|beef/i.test(r.reply) && namesClash(r.reply) && asksQuestion(r.reply) ? null : "held, but never named the vegetarian/steak clash or asked which";
     },
   },
   // Added 2026-10-21 from the quote scan (`probe-quotes.mjs`), which lists the eval messages the prompt
@@ -496,9 +514,11 @@ const SCENARIOS: Scenario[] = [
     check: (r) => everyBreakfast(r, /omelet/i, "omelette"),
   },
   {
-    // Two dinners in the library qualify (12 min each); the 18- and 20-minute ones the original allows do not.
+    // Two dinners find_recipes can return qualify (12 min each); the 18- and 20-minute ones the original
+    // allows do not. "No meat or fish", not "meat-free": in common use that admits fish, and the library has
+    // seven seafood dinners of 15 minutes or less.
     id: "find-then-place-heldout", want: "act", heldOutOf: "find-then-place", expectRead: true,
-    message: "look up a meat-free dinner that's ready in 15 minutes or less and stick it on tuesday",
+    message: "look up a dinner with no meat or fish that's ready in 15 minutes or less and stick it on tuesday",
     check: (r, b) => placedFound(r, b, "Tuesday", "dinner", vegWithin(15)),
   },
   {
@@ -629,16 +649,25 @@ const RUN_CONFIG = {
 // Stamp WHICH prompt this run measured — the prompt is the variable under test, and a scorecard that
 // can't say which one it graded is unreadable a week later. Called through a widened type so this
 // file compiles against both main (2-arg prompt) and models-exp (optional opts with `agent`).
-const promptText = (assistantV2SystemPrompt as (p: UserProfile, w: WeekPlan, o?: { agent?: boolean }) => string)(PROFILE, PLAN, { agent: true });
+const promptFn = assistantV2SystemPrompt as (p: UserProfile, w: WeekPlan, o?: { agent?: boolean; today?: string }) => string;
+const promptText = promptFn(PROFILE, PLAN, { agent: true });
+// What the model is actually sent on a message's first call: the adapter (agentModelFn) adds the date line
+// and fills target defaults. `sha` stays the older stamp, so scorecards before 2026-10-21 still compare.
+const sentPromptText = promptFn(withTargetDefaults(PROFILE), PLAN, { agent: true, today: TODAY });
 const PROMPT = {
   sha: createHash("sha256").update(promptText).digest("hex").slice(0, 12),
+  sentSha: createHash("sha256").update(sentPromptText).digest("hex").slice(0, 12),
   agentSection: /LOOP RULES/.test(promptText),
   howToDecide: /HOW TO DECIDE/.test(promptText),
   label: process.env.PROMPT_VERSION ?? null,
 };
-// PRINT_PROMPT=1: print the prompt this bundle sends, between markers, and stop (probe-quotes.mjs reads it).
-if (process.env.PRINT_PROMPT) { console.log(`<<<PROMPT\n${promptText}\nPROMPT>>>`); process.exit(0); }
+// PRINT_PROMPT=1: print the prompt the model is sent, between markers, and stop (probe-quotes.mjs reads it).
+if (process.env.PRINT_PROMPT) { console.log(`<<<PROMPT\n${sentPromptText}\nPROMPT>>>`); process.exit(0); }
 console.log(`prompt ${PROMPT.sha}${PROMPT.label ? ` (${PROMPT.label})` : ""} · agent section ${PROMPT.agentSection ? "yes" : "no"} · how-to-decide ${PROMPT.howToDecide ? "yes" : "no"}`);
+// A held-out names its original by id; a typo would drop the pair from the summary without a word.
+for (const s of SCENARIOS) {
+  if (s.heldOutOf && !SCENARIOS.some((o) => o.id === s.heldOutOf && !o.heldOutOf)) throw new Error(`${s.id}: heldOutOf "${s.heldOutOf}" names no original scenario`);
+}
 const scenarios = SCENARIOS.filter((s) => !ONLY || ONLY.test(s.id));
 console.log(`\nloop eval · model ${MODEL} · ${scenarios.length} scenarios · max ${MAX_STEPS} steps\n`);
 
@@ -769,13 +798,19 @@ const summary = {
    *  survive new words was recall of the prompt's own example. */
   heldOut: (() => {
     const pairs = graded.flatMap((h) => { const o = h.heldOutOf ? graded.find((r) => r.id === h.heldOutOf) : undefined; return o ? [{ h, o }] : []; });
-    return { pairs: pairs.length, heldOutPass: pairs.filter((p) => p.h.pass).length, originalPass: pairs.filter((p) => p.o.pass).length, onlyInPromptWords: pairs.filter((p) => p.o.pass && !p.h.pass).map((p) => p.o.id) };
+    return {
+      pairs: pairs.length, heldOutPass: pairs.filter((p) => p.h.pass).length, originalPass: pairs.filter((p) => p.o.pass).length,
+      onlyInPromptWords: pairs.filter((p) => p.o.pass && !p.h.pass).map((p) => p.o.id),
+      // Held-outs that ran without their original (ONLY, or an infra miss): counted in pass, compared with nothing.
+      unpaired: graded.filter((h) => h.heldOutOf && !pairs.some((p) => p.h === h)).map((h) => h.id),
+    };
   })(),
 };
 
 console.log(`\npass ${summary.pass}/${graded.length} (${summary.passRate}%)  · act ${summary.actPass}  · hold ${summary.holdPass}  · read-before-write ${summary.readBeforeWrite}`);
 console.log(`steps mean ${summary.meanSteps}  · model calls mean ${summary.meanModelCalls}${FAST_FINISH ? ` (fast finish: ${FAST_FINISH_MODE}${FAST_FINISH_MODE === "reply" ? `, ${ff.blockedByEmptyReply} withheld` : ""})` : ""}  · gave up ${summary.gaveUp}  · emoji replies ${summary.emojiReplies}  · FALSE CLAIMS ${summary.falseClaims} (guard: ${summary.guardRetries} nudged, ${summary.guardCatches} caught)  · per-message seconds: median ${summary.medianSecondsPerMessage?.toFixed(1)}  p90 ${summary.p90SecondsPerMessage?.toFixed(1)}  max ${summary.maxSecondsPerMessage?.toFixed(1)}`);
 if (summary.heldOut.pairs) console.log(`held out ${summary.heldOut.heldOutPass}/${summary.heldOut.pairs}, their originals ${summary.heldOut.originalPass}/${summary.heldOut.pairs}${summary.heldOut.onlyInPromptWords.length ? `  · passed only in the prompt's words: ${summary.heldOut.onlyInPromptWords.join(", ")}` : ""}`);
+if (summary.heldOut.unpaired.length) console.log(`held out, original not in this run (compared with nothing): ${summary.heldOut.unpaired.join(", ")}`);
 for (const e of summary.engineIssues) console.log(`ENGINE (not the model): ${e}`);
 if (!summary.trustworthy) console.log(`!! ${summary.infraFailures} scenario(s) never reached the model — not counted as misses; re-run before quoting.`);
 

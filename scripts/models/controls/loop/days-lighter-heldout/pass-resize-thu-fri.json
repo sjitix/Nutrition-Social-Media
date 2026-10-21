@@ -1,6 +1,25 @@
 {
-  "go easy on the portions": [
-    {"thinking": "A direction (smaller portions) on two named days. Resize Thursday and Friday smaller; nothing else.", "reply": "Easing off the portions on Thursday and Friday.", "operations": [{"op": "resize", "direction": "smaller", "day": "Thursday"}, {"op": "resize", "direction": "smaller", "day": "Friday"}]},
-    {"thinking": "Applied.", "reply": "Thursday and Friday have smaller portions now; the rest of the week is unchanged.", "operations": []}
+  "cut down how much i eat": [
+    {
+      "thinking": "A direction (smaller portions) on two named days. Resize Thursday and Friday smaller; nothing else.",
+      "reply": "Easing off the portions on Thursday and Friday.",
+      "operations": [
+        {
+          "op": "resize",
+          "direction": "smaller",
+          "day": "Thursday"
+        },
+        {
+          "op": "resize",
+          "direction": "smaller",
+          "day": "Friday"
+        }
+      ]
+    },
+    {
+      "thinking": "Applied.",
+      "reply": "Thursday and Friday have smaller portions now; the rest of the week is unchanged.",
+      "operations": []
+    }
   ]
 }

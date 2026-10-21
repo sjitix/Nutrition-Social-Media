@@ -1,0 +1,14 @@
+{
+  "help me lose weight": [
+    {
+      "thinking": "A modest deficit is safe; suggest 300 fewer a day and ask to set it.",
+      "reply": "A gentle way to start is eating about 300 fewer calories a day than you do now. Want me to set your plan up that way?",
+      "operations": []
+    },
+    {
+      "thinking": "Asked again; say the same.",
+      "reply": "A gentle way to start is eating about 300 fewer calories a day than you do now. Want me to set your plan up that way?",
+      "operations": []
+    }
+  ]
+}

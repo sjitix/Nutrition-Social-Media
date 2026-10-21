@@ -1,6 +1,19 @@
 {
-  "go easy on the portions": [
-    {"thinking": "Smaller portions.", "reply": "Going easy on the portions.", "operations": [{"op": "resize", "direction": "smaller"}]},
-    {"thinking": "Done.", "reply": "Portions are smaller, Thursday and Friday included.", "operations": []}
+  "cut down how much i eat": [
+    {
+      "thinking": "Smaller portions.",
+      "reply": "Going easy on the portions.",
+      "operations": [
+        {
+          "op": "resize",
+          "direction": "smaller"
+        }
+      ]
+    },
+    {
+      "thinking": "Done.",
+      "reply": "Portions are smaller, Thursday and Friday included.",
+      "operations": []
+    }
   ]
 }

@@ -68,20 +68,24 @@ const msgs = [];
 const loop = readFileSync(join(HARNESS, "scripts", "models", "loop-eval.mts"), "utf8").split(/\r?\n/);
 const loopIds = [];
 for (let i = 0; i < loop.length; i++) {
-  const id = /^\s*id: "([^"]+)", want: "\w+"(.*)$/.exec(loop[i]);
+  // Every `id:` line is a scenario (the file holds no other). Matching on the id alone, not on "id, want" on
+  // one line, so a scenario laid out differently is counted, and then caught below if it cannot be read.
+  const id = /^\s*id: "([^"]+)"/.exec(loop[i]);
   if (!id) continue;
   loopIds.push(id[1]);
-  const held = /heldOutOf: "([^"]+)"/.exec(id[2])?.[1] ?? null;
-  // The message, and any earlier user turns in `history` (the model reads those words too), within the
-  // next few lines: `expectRead`, `history` or a comment can sit between the id and the message.
-  for (let j = i + 1; j < Math.min(i + 10, loop.length); j++) {
+  // heldOutOf, the message, and any earlier user turns in `history` (the model reads those words too), on
+  // the id line or the next few: `want`, `expectRead`, `history` or a comment can sit between.
+  let held = null;
+  for (let j = i; j < Math.min(i + 10, loop.length); j++) {
+    if (j > i && /^\s*id: "/.test(loop[j])) break;
+    held = held ?? /heldOutOf: "([^"]+)"/.exec(loop[j])?.[1] ?? null;
     for (const h of loop[j].matchAll(/\{ user: "([^"]+)"/g)) msgs.push({ eval: "loop", id: id[1], heldOutOf: held, msg: h[1] });
-    const m = /^\s*message: "([^"]+)"/.exec(loop[j]);
+    const m = /\bmessage: "([^"]+)"/.exec(loop[j]);
     if (m) { msgs.push({ eval: "loop", id: id[1], heldOutOf: held, msg: m[1] }); break; }
   }
 }
 // A scenario the parser skipped would pass unseen, so a miss stops the probe (it once skipped four).
-const unread = loopIds.filter((x) => !msgs.some((m) => m.id === x));
+const unread = loopIds.filter((x) => !msgs.some((m) => m.id === x && m.msg));
 if (!loopIds.length || unread.length) { console.error(`probe-quotes: could not read the message of ${unread.join(", ") || "any loop scenario"}`); process.exit(255); }
 const convo = readFileSync(join(HARNESS, "scripts", "models", "convo-eval.mts"), "utf8");
 let cid = "?", cheld = null;
@@ -99,16 +103,29 @@ const heldOutFor = (r) => msgs.find((m) => m.heldOutOf && (m.heldOutOf === r.id 
 
 /** Every message graded against one prompt text. */
 function scan(prompt) {
-  const lines = prompt.split(/\n|(?<=[.!?"])\s+(?=[A-Z"])/)
+  prompt = prompt.replace(/\r\n/g, "\n").replace(/[“”]/g, '"');
+  // The week itself ("Monday — 1995kcal, 159gP: breakfast ...") is data, not an example: a steak on Wednesday
+  // in the fixed week is no quote of "a steak for wednesday dinner" (review, 2026-10-21).
+  const PLAN_LINE = /^(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday) — \d+kcal/;
+  const lines = prompt.split("\n").filter((l) => !PLAN_LINE.test(l)).join("\n").split(/\n|(?<=[.!?"])\s+(?=[A-Z"])/)
     .map((l) => ({ text: l.trim(), words: new Set(contentWords(l)) })).filter((l) => l.words.size);
   // What the prompt shows a USER saying: its quoted spans (`User: "..."`, `("lighter on the weekend", ...)`),
   // minus JSON keys and values. Those are the model's side of a worked example and state what the app can
   // do ("plans run on 3 or 4 meals a day"), not a request. Instruction prose ("...or the whole week?") is no
-  // example either.
-  const examples = prompt.split("\n").flatMap((line) => [...line.matchAll(/"([^"]{3,300})"/g)]
-    .filter((m) => line[m.index - 1] !== ":" && line[m.index + m[0].length] !== ":")
-    .map((m) => ` ${tokens(m[1]).join(" ")} `));
-  const inExample = (ws) => ws.length >= MIN_RUN && contentWords(ws.join(" ")).length >= 2 && examples.some((e) => e.includes(` ${ws.join(" ")} `));
+  // example either. A line whose quotes do not pair up is joined to the next, so an example wrapped over two
+  // lines is still read; curly quotes count as straight; a JSON colon may have spaces around it.
+  const logical = [];
+  for (const l of prompt.split("\n")) {
+    const open = logical.length && ((logical[logical.length - 1].match(/"/g) ?? []).length % 2 === 1);
+    if (open) logical[logical.length - 1] += ` ${l}`; else logical.push(l);
+  }
+  // Day names are interchangeable in an example: "make wednesday vegetarian" teaches "make tuesday vegetarian".
+  const days = (s) => s.replace(/\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/g, "dayname");
+  const examples = logical.flatMap((line) => [...line.matchAll(/"([^"]{3,300})"/g)]
+    // A JSON value follows `"key":` (a closing quote, then the colon); `User: "` does not.
+    .filter((m) => !/"\s*:\s*$/.test(line.slice(0, m.index)) && !/^\s*:/.test(line.slice(m.index + m[0].length)))
+    .map((m) => days(` ${tokens(m[1]).join(" ")} `)));
+  const inExample = (ws) => ws.length >= MIN_RUN && contentWords(ws.join(" ")).length >= 2 && examples.some((e) => e.includes(days(` ${ws.join(" ")} `)));
   const phrase = (msg) => {
     const w = tokens(msg);
     let best = [];
@@ -164,10 +181,32 @@ if (argv.includes("--self-test")) {
   // none, must each raise the count; an unrelated example must not.
   const base = scan(prompt).uncovered;
   const pick = (id) => msgs.find((m) => m.id === id)?.msg;
+  // Five words from the middle of a held-out's own message, so rewording it cannot disarm this case (a
+  // hard-coded phrase did, 2026-10-21).
+  const phraseOf = (id) => (pick(id) ?? "").split(/\s+/).slice(2, 7).join(" ");
+  // Short phrases from long messages: their share of a message's content words stays under the line test's
+  // bar, so only the phrase test can see them, and each case turns on the one rule it names.
+  const pinWords = (pick("pin") ?? "").split(/\s+/);
+  const pinTail = pinWords.slice(-6);
+  const dayVeg = (pick("day-vegetarian") ?? "").split(/\s+/).slice(0, 3).join(" ").replace(/,$/, "");
+  // A five-word window of the message holding two content words, or the phrase test could never flag it and
+  // the JSON cases would pass with the filter switched off (they did, 2026-10-21).
+  const windowOf = (id) => {
+    const w = (pick(id) ?? "").replace(/[,.?!]/g, "").split(/\s+/);
+    for (let i = w.length - 5; i >= 0; i--) if (contentWords(w.slice(i, i + 5).join(" ")).length >= 2) return w.slice(i, i + 5).join(" ");
+    return "";
+  };
+  const portions = windowOf("household");
   const cases = [
     ["a held-out's message, quoted", `User: "${pick("vague-goal-heldout")}" → ask what they want`, (n) => n > base],
-    ["a held-out's key phrase, quoted", `- A DIRECTION is enough ("go easy on the portions", "cheaper")`, (n) => n > base],
+    ["a held-out's key phrase, quoted", `- A DIRECTION is enough ("${phraseOf("days-lighter-heldout")}", "cheaper")`, (n) => n > base],
     ["a scenario with no held-out, quoted", `User: "${pick("iron-veg")}" → constrain`, (n) => n > base],
+    ["a phrase in curly quotes", `- e.g. (“${phraseOf("iron-veg")}”)`, (n) => n > base],
+    ["a phrase wrapped over two lines", `- e.g. ("${pinTail.slice(0, 2).join(" ")}\n${pinTail.slice(2).join(" ")}")`, (n) => n > base],
+    ["a phrase with another day in it", `- One day: "${dayVeg.replace(/tuesday/g, "wednesday")}" → constrain`, (n) => n > base],
+    ["the phrase in the model's JSON reply", `User: "hi" → {"thinking":"x","reply":"I can ${portions} soon.","operations":[]}`, (n) => n === base],
+    ["the same, as pretty JSON", `User: "hi" → {"thinking": "x", "reply": "I can ${portions} soon.", "operations": []}`, (n) => n === base],
+    ["a plan line holding a held-out's words", `Wednesday — 2000kcal, 150gP: breakfast Oats (400kcal); lunch Salad (600kcal); dinner Steak & Chips (800kcal)`, (n) => n === base],
     ["an unrelated example", `User: "what's the weather like on mars" → answer`, (n) => n === base],
   ];
   let failed = 0;

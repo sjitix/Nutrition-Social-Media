@@ -1,0 +1,14 @@
+{
+  "go vegetarian every day this week, and i want a steak for wednesday's dinner": [
+    {
+      "thinking": "Confirm the two changes before applying them.",
+      "reply": "Just to confirm before I change anything: every day vegetarian this week, plus a steak for Wednesday's dinner?",
+      "operations": []
+    },
+    {
+      "thinking": "Asked again; say the same.",
+      "reply": "Just to confirm before I change anything: every day vegetarian this week, plus a steak for Wednesday's dinner?",
+      "operations": []
+    }
+  ]
+}

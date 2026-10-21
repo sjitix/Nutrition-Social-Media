@@ -1,6 +1,25 @@
 {
-  "go easy on the portions": [
-    {"thinking": "Stuck in a car: they need quick, portable meals on Thursday and Friday.", "reply": "Planning quick, easy meals for your car days.", "operations": [{"op": "constrain", "scope": {"days": ["Thursday", "Friday"]}, "maxCookTime": 10}]},
-    {"thinking": "Done.", "reply": "Thursday and Friday have quick, easy meals now.", "operations": []}
+  "cut down how much i eat": [
+    {
+      "thinking": "Stuck in a car: they need quick, portable meals on Thursday and Friday.",
+      "reply": "Planning quick, easy meals for your car days.",
+      "operations": [
+        {
+          "op": "constrain",
+          "scope": {
+            "days": [
+              "Thursday",
+              "Friday"
+            ]
+          },
+          "maxCookTime": 10
+        }
+      ]
+    },
+    {
+      "thinking": "Done.",
+      "reply": "Thursday and Friday have quick, easy meals now.",
+      "operations": []
+    }
   ]
 }

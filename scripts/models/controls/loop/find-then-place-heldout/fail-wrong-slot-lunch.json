@@ -1,7 +1,35 @@
 {
-  "meat-free dinner": [
-    {"thinking": "Look up vegetarian dinners of 15 minutes or less.", "reply": "", "operations": [{"op": "find_recipes", "mealType": "dinner", "diet": "vegetarian", "maxTime": 15}]},
-    {"thinking": "The skillet fits.", "reply": "Putting the skillet on Tuesday.", "operations": [{"op": "swap", "dish": "Harissa Chickpea & Spinach Skillet", "slot": "lunch", "days": ["Tuesday"]}]},
-    {"thinking": "Applied.", "reply": "Tuesday now has the skillet.", "operations": []}
+  "no meat or fish": [
+    {
+      "thinking": "Look up vegetarian dinners of 15 minutes or less.",
+      "reply": "",
+      "operations": [
+        {
+          "op": "find_recipes",
+          "mealType": "dinner",
+          "diet": "vegetarian",
+          "maxTime": 15
+        }
+      ]
+    },
+    {
+      "thinking": "The skillet fits.",
+      "reply": "Putting the skillet on Tuesday.",
+      "operations": [
+        {
+          "op": "swap",
+          "dish": "Harissa Chickpea & Spinach Skillet",
+          "slot": "lunch",
+          "days": [
+            "Tuesday"
+          ]
+        }
+      ]
+    },
+    {
+      "thinking": "Applied.",
+      "reply": "Tuesday now has the skillet.",
+      "operations": []
+    }
   ]
 }

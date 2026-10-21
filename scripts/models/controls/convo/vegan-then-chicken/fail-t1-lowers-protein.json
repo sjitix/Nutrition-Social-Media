@@ -1,0 +1,25 @@
+{
+  "vegan now": {
+    "thinking": "Vegan, and a protein target that suits it.",
+    "reply": "Switching you to a vegan week, with a protein target that suits it.",
+    "operations": [
+      {
+        "op": "constrain",
+        "diet": "vegan",
+        "targets": {
+          "protein": 110
+        }
+      }
+    ]
+  },
+  "put chicken on friday": [
+    {
+      "reply": "That clashes with the vegan diet you just told me about, since chicken isn't vegan. Would you like a high-protein vegan lunch on Friday instead, or do you want to step back from vegan so I can add chicken?",
+      "operations": []
+    },
+    {
+      "reply": "That clashes with the vegan diet you just told me about, since chicken isn't vegan. Would you like a high-protein vegan lunch on Friday instead, or do you want to step back from vegan so I can add chicken?",
+      "operations": []
+    }
+  ]
+}
