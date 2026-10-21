@@ -7,7 +7,7 @@
  * is internal to this folder, and check:boundaries fails anything outside the folder that imports it.
  */
 import { DAYS, type DayPlan, type Meal, type UserProfile, type WeekPlan } from "../core";
-import { microDensity, DAILY_REFERENCE, dietTagConflicts, haystackBlocked, parseExclusionTokens, type MicroKey } from "../nutrition";
+import { microDensity, DAILY_REFERENCE, haystackBlocked, parseExclusionTokens, type MicroKey } from "../nutrition";
 import { type Cuisine, type Recipe } from "../data";
 import { RECIPES, baseRecipeOf, recipeMicros, scaleRecipeToTarget, toMeal } from "./library";
 import { type SlotSplit, bannedForUser, blockedByExclusions, budgetCap, exclusionKey, exclusionTokens, localSplit, passesDiet, ratingMap } from "./rules";
@@ -227,8 +227,86 @@ export const newReport = (): SelectionReport => ({
   droppedSlots: [], relaxedBudget: false, servedBannedDish: false, replacedImports: [],
 });
 
+/* ------------------------------------------------------------------------- *
+ * Is an IMPORTED dish vegetarian or vegan? Its text is free (a recipe site's own words), so the library's
+ * tag lint (dietTagConflicts: raw substrings, whole-string exceptions written for the curated library) is
+ * the wrong tool for it. On imports it flagged plant milks and creams, butter beans, beefsteak tomatoes,
+ * veggie sausages and a "Cauliflower Steaks" title, removed all six imports of a vegetarian going vegan or a
+ * new vegetarian, and said each "isn't vegan (it has coconut milk)" (review, 2026-10-21); its one "veggie"
+ * veto let "Chicken & Veggie Stir Fry" stay on a vegan week. Here a hit is a word, and an exception clears
+ * only the hit it qualifies: a plant word before it ("coconut milk", "veggie sausage", "cauliflower steak",
+ * "chickpea tuna") or a plant word after it ("butter beans", "oyster mushrooms", "cream of tartar"). The
+ * title counts too: "Lamb Kofta Wraps" lists only "lean mince". Vegan hits are the vegetarian hits plus the
+ * animal products, so nothing passes vegan that fails vegetarian. Measured on the library: of 133 vegan and
+ * 301 vegetarian dishes, none is flagged; of 197 non-vegetarian dishes, none passes vegetarian.
+ * ------------------------------------------------------------------------- */
+const MEAT_WORDS = [
+  "chicken", "beef", "pork", "turkey", "salmon", "tuna", "cod", "shrimp", "prawn", "mackerel", "trout", "sausage", "steak",
+  "bacon", "anchovy", "gelatin", "gelatine", "chorizo", "pepperoni", "prosciutto", "salami", "pancetta", "venison", "lobster",
+  "calamari", "octopus", "mussel", "scallop", "fish", "sardine", "haddock", "pollock", "tilapia", "halibut", "herring",
+  "snapper", "seabass", "worcestershire", "ham", "lamb", "lard", "veal", "duck", "crab", "clam", "squid", "oyster", "brisket",
+  "mince", "meatball", "meat", "kofta", "belly", "thigh", "drumstick", "wing", "fillet", "liver", "jerky", "suet", "gravy",
+];
+const ANIMAL_WORDS = [
+  "milk", "cheese", "yogurt", "yoghurt", "butter", "cream", "feta", "mozzarella", "cheddar", "parmesan", "ricotta", "halloumi",
+  "honey", "egg", "ghee", "whey", "pesto", "mayonnaise", "mayo", "buttermilk", "paneer", "kefir", "skyr", "labneh", "custard",
+  "meringue", "aioli", "brie", "gouda", "mascarpone", "casein",
+];
+/** Foods of two or three words: bone broth and caesar dressing are not vegetarian; "protein powder" is whey unless a
+ *  plant word comes first, and a tikka masala SAUCE carries cream. */
+const MEAT_PHRASES = [["bone", "broth"], ["caesar", "dressing"]];
+const ANIMAL_PHRASES = [["protein", "powder"], ["tikka", "masala", "sauce"]];
+const PLANT_BEFORE = new Set([
+  "coconut", "oat", "almond", "soy", "soya", "rice", "cashew", "hemp", "pea", "nut", "seed", "plant", "plant-based", "vegan",
+  "dairy-free", "non-dairy", "veggie", "vegetarian", "meat-free", "meatless", "quorn", "mushroom", "tofu", "tempeh", "seitan",
+  "jackfruit", "chickpea", "lentil", "bean", "cauliflower", "celeriac", "portobello", "aubergine", "eggplant", "peanut", "cocoa",
+  "apple", "shea", "flax", "chia", "beyond", "impossible", "mock", "faux",
+]);
+const PLANT_AFTER: Record<string, string[]> = {
+  butter: ["bean", "lettuce", "squash"], oyster: ["mushroom", "sauce"], egg: ["replacer", "substitute"], cream: ["of"],
+  chicken: ["of"], duck: ["sauce"],
+};
+const dietWords = (s: string) => s.toLowerCase().replace(/[’']/g, "'").split(/[^a-z'-]+/).filter(Boolean);
+/** The forms a word may be listed under: "sausages" is "sausage", "anchovies" "anchovy", "dishes" "dish". */
+const dietForms = (w: string) => [w, w.replace(/'s$/, ""), w.replace(/s$/, ""), w.replace(/es$/, ""), w.replace(/ies$/, "y")];
+function dietHitsIn(phrase: string, vegan: boolean): string[] {
+  const ws = dietWords(phrase);
+  const plant = (w?: string) => !!w && dietForms(w).some((x) => PLANT_BEFORE.has(x));
+  const out: string[] = [];
+  ws.forEach((w, i) => {
+    const forms = dietForms(w);
+    const hit = [...MEAT_WORDS, ...(vegan ? ANIMAL_WORDS : [])].find((x) => forms.includes(x));
+    if (!hit || plant(ws[i - 1]) || dietForms(ws[i + 1] ?? "").some((x) => (PLANT_AFTER[hit] ?? []).includes(x))) return;
+    out.push(hit);
+  });
+  for (const ph of [...MEAT_PHRASES, ...(vegan ? ANIMAL_PHRASES : [])]) {
+    ws.forEach((_, i) => {
+      if (ph.every((p, k) => dietForms(ws[i + k] ?? "").includes(p)) && !plant(ws[i - 1])) out.push(ph.join(" "));
+    });
+  }
+  return out;
+}
+/** The words that make an imported dish not `diet`: the ingredient names that hold one, else the title's. */
+function importDietConflicts(diet: string, name: string, ingredientNames: string[]): { ingredients: string[]; title: string[] } {
+  if (diet !== "vegan" && diet !== "vegetarian") return { ingredients: [], title: [] };
+  const vegan = diet === "vegan";
+  return {
+    ingredients: ingredientNames.filter((n) => dietHitsIn(n, vegan).length > 0),
+    title: [...new Set(dietHitsIn(name, vegan))],
+  };
+}
+
 /** Which of the person's hard rules an imported dish breaks, judged on its own text. */
-export interface ImportBreak { allergies: string[]; avoided: string[]; diet: string[] }
+export interface ImportBreak {
+  allergies: string[];
+  avoided: string[];
+  /** The ingredient names that break the new diet; `dietName` holds the title's words when none does. */
+  diet: string[];
+  dietName?: string[];
+  /** The diet it breaks, captured when judged: after an undo in the same call the profile's own diet is the
+   *  restored one, and the note read "isn't none" (review, 2026-10-21). */
+  brokenDiet?: string;
+}
 
 /**
  * Which hard rule an IMPORTED dish (it carries its source URL) breaks, judged on its OWN text, even when
@@ -257,10 +335,14 @@ export function importBreaks(m: Meal, profile: UserProfile, before?: UserProfile
   const avoided = had
     ? parseExclusionTokens("", profile.dislikes ?? "").filter((t) => !oldKeys.has(exclusionKey(t)) && !haystackBlocked(t, had) && !allergies.includes(t) && haystackBlocked(hay, [t]))
     : [];
-  const words = [m.name, ...m.ingredients.map((i) => i.name)];
-  const judged = (diet: string) => (diet === "vegan" || diet === "vegetarian" ? dietTagConflicts(diet, words) : []);
-  const diet = before && before.diet !== profile.diet && !judged(before.diet).length ? judged(profile.diet) : [];
-  return allergies.length || avoided.length || diet.length ? { allergies, avoided, diet } : null;
+  const judged = (diet: string) => importDietConflicts(diet, m.name, m.ingredients.map((i) => i.name));
+  const old = before && before.diet !== profile.diet ? judged(before.diet) : null;
+  const now = old && !old.ingredients.length && !old.title.length ? judged(profile.diet) : null;
+  const diet = now?.ingredients ?? [];
+  const dietName = now && !now.ingredients.length ? now.title : [];
+  return allergies.length || avoided.length || diet.length || dietName.length
+    ? { allergies, avoided, diet, dietName, brokenDiet: profile.diet }
+    : null;
 }
 
 const listWords = (items: string[]) => (items.length > 1 ? `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}` : items[0] ?? "");
@@ -272,7 +354,10 @@ function importWhy(b: ImportBreak, profile: UserProfile): string {
   const parts: string[] = [];
   if (b.allergies.length) parts.push(`contains ${listWords(b.allergies)}, which ${manyOf(b.allergies) ? "are" : "is"} in your allergies`);
   if (b.avoided.length) parts.push(`${parts.length ? "and" : "contains"} ${listWords(b.avoided)}, which you avoid`);
-  if (b.diet.length) parts.push(`${parts.length ? "and " : ""}isn't ${profile.diet} (it has ${listWords(b.diet)})`);
+  if (b.diet.length || b.dietName?.length) {
+    const what = b.diet.length ? `it has ${listWords(b.diet)}` : `its name says ${listWords(b.dietName ?? [])}`;
+    parts.push(`${parts.length ? "and " : ""}isn't ${b.brokenDiet ?? profile.diet} (${what})`);
+  }
   return parts.join(", ");
 }
 

@@ -4534,6 +4534,51 @@ console.log("\n--- THE ASSISTANT'S WORDS BIND THE ENGINE ---");
       const restated = applyPrimitives(onion, withPork, [{ op: "constrain", exclude: ["onions"] } as unknown as PrimitiveOp]);
       check("imported dish + a restated dislike (onion, then onions): the import placed over it stays", on(restated.plan, pork.name) === "Thursday", on(restated.plan, pork.name));
     }
+    // F3 (review, 2026-10-21): imports were judged with the LIBRARY's tag lint, which reads raw substrings. Going
+    // vegan took out a coconut-milk curry, oat-milk oats and a butter-bean stew, each "isn't vegan (it has coconut
+    // milk)"; a new vegetarian lost a beefsteak-tomato caprese, a veggie-sausage traybake and "Cauliflower Steaks";
+    // and its one "veggie" veto kept "Chicken & Veggie Stir Fry" on a vegan week. Imports now have a matcher of
+    // their own: word by word, an exception clears only the hit it qualifies, and the title counts.
+    {
+      const imp = (name: string, type: Meal["type"], ings: string[]) => importedToMeal({ name, sourceUrl: `https://example.com/${encodeURIComponent(name)}`, servings: 2,
+        ingredients: ings.map((n) => ({ name: n, quantity: "100 g" })), steps: ["Cook it."], calories: 600, proteinGrams: 30, carbsGrams: 60, fatGrams: 20, macrosSource: "site" }, type);
+      const VEG = { ...BASE, diet: "vegetarian" } as UserProfile;
+      const curry = imp("Thai Coconut Chickpea Curry", "dinner", ["chickpeas", "coconut milk", "red curry paste", "rice"]);
+      const oats = imp("Overnight Oats with Berries", "breakfast", ["rolled oats", "oat milk", "chia seeds", "berries"]);
+      const stew = imp("Smoky Butter Bean Stew", "lunch", ["butter beans", "chopped tomatoes", "smoked paprika", "spinach"]);
+      const toVegan = applyOperations(VEG, put(put(put(aw, "Wednesday", curry), "Thursday", oats), "Friday", stew), [{ tool: "update_profile", diet: "vegan" }]);
+      check("import diet: going vegan keeps a coconut-milk curry, oat-milk oats and a butter-bean stew",
+        on(toVegan.plan, curry.name) === "Wednesday" && on(toVegan.plan, oats.name) === "Thursday" && on(toVegan.plan, stew.name) === "Friday",
+        toVegan.notes.filter((n) => /imported/.test(n)).join(" | "));
+      const caprese = imp("Beefsteak Tomato Caprese", "lunch", ["beefsteak tomatoes", "mozzarella", "basil", "olive oil"]);
+      const bake = imp("Veggie Sausage Traybake", "dinner", ["veggie sausages", "potatoes", "red peppers", "red onion"]);
+      const cauli = imp("Cauliflower Steaks with Chimichurri", "dinner", ["cauliflower", "parsley", "garlic", "olive oil"]);
+      const veg = applyOperations(BASE, put(put(put(aw, "Monday", caprese), "Tuesday", bake), "Saturday", cauli), [{ tool: "update_profile", diet: "vegetarian" }]);
+      check("import diet: going vegetarian keeps a beefsteak-tomato caprese, a veggie-sausage traybake and cauliflower steaks",
+        on(veg.plan, caprese.name) === "Monday" && on(veg.plan, bake.name) === "Tuesday" && on(veg.plan, cauli.name) === "Saturday",
+        veg.notes.filter((n) => /imported/.test(n)).join(" | "));
+      const relax = applyOperations({ ...BASE, diet: "vegan" } as UserProfile, put(aw, "Tuesday", bake), [{ tool: "update_profile", diet: "vegetarian" }]);
+      check("import diet: relaxing vegan to vegetarian never takes an import out", on(relax.plan, bake.name) === "Tuesday", relax.notes.filter((n) => /imported/.test(n)).join(" | "));
+      const stirFry = imp("Chicken & Veggie Stir Fry", "dinner", ["boneless skinless thighs", "mixed veggies", "soy sauce", "rice"]);
+      const vg = applyOperations(BASE, put(aw, "Wednesday", stirFry), [{ tool: "update_profile", diet: "vegan" }]);
+      check("import diet: 'Chicken & Veggie Stir Fry' leaves a vegan week, named for what it has",
+        on(vg.plan, stirFry.name) === "" && vg.notes.some((n) => /^Chicken & Veggie Stir Fry, the recipe you imported for Wednesday's dinner, isn't vegan \(it has boneless skinless thighs\), so I replaced it\.$/.test(n)),
+        vg.notes.join(" | "));
+      const tikka = imp("Chicken Tikka Bowl", "dinner", ["boneless pieces", "spiced marinade", "rice"]);
+      const tv = applyOperations(BASE, put(aw, "Thursday", tikka), [{ tool: "update_profile", diet: "vegetarian" }]);
+      check("import diet: a dish whose meat is named only in its title leaves, and the note says so",
+        on(tv.plan, tikka.name) === "" && tv.notes.some((n) => /^Chicken Tikka Bowl, the recipe you imported for Thursday's dinner, isn't vegetarian \(its name says chicken\), so I replaced it\.$/.test(n)),
+        tv.notes.join(" | "));
+      // I2 stays independent of the diet: a new tree-nut allergy removes the almond-milk oats whatever the diet does.
+      const almond = imp("Almond Milk Overnight Oats", "breakfast", ["rolled oats", "almond milk", "maple syrup"]);
+      const nut = applyPrimitives(VEG, put(aw, "Thursday", almond), [{ op: "remember", fact: "allergic to tree nuts", kind: "allergy" } as PrimitiveOp, { op: "constrain", diet: "vegan" } as unknown as PrimitiveOp]);
+      check("import diet: a new tree-nut allergy still takes the almond-milk oats out alongside going vegan (I2)", on(nut.plan, almond.name) === "", nut.notes.join(" | ").slice(0, 200));
+      // The broken diet is the one judged: with a re-solve and an undo in one call, the profile's diet is the
+      // restored one, and the note used to read "isn't none".
+      const prevNoImport = { plan: aw, profile: BASE, label: "rebuilt your week" };
+      const both = applyOperations(BASE, put(aw, "Thursday", tikka), [{ tool: "update_profile", diet: "vegetarian" }, { tool: "undo" }], prevNoImport);
+      check("import diet: an import note never says \"isn't none\"", !both.notes.some((n) => /isn't none/.test(n)), both.notes.join(" | ").slice(0, 200));
+    }
     // A pinned slot: the note says the pin is back, rather than naming the selector's pick.
     {
       const pinned = { ...BASE, lockedMeals: [{ day: "Wednesday", mealType: "dinner", name: "Turkey & Bean Chilli" }] } as UserProfile;
