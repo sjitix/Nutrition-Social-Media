@@ -469,10 +469,11 @@ Remove a worktree when its batch lands, taking the node_modules junction out fir
 2. **The deferred:**
    - the review's minors left after F4 (above);
    - the training generator teaches invented calorie figures for reserves and logs;
-   - `data/hard-cases.json`: 11 of its 45 user turns are near-quotes of the prompt's own examples (the models
-     lane's `probe-quotes.mjs --hard-cases`), so `eval:hardcases` partly measures recall. A held-out case per
-     quoted one, the way the loop eval has them; the probe's exit code says when it is done.
-3. V1 Day 6's rest, then D7 meal logging.
+   - `data/hard-cases.json` **has its held-outs (2026-10-21):** the probe found 9 of its cases quoted by the
+     prompt that day, and each now has a paraphrase beside it (`heldOutOf`, same bucket and expected behaviour,
+     54 cases). None of the 9 is itself a near-quote. The probe still exits 9 until it reads `heldOutOf` from
+     this file, a one-line change to the models lane's `probe-quotes.mjs` that lane was asked for.
+3. V1 Day 6's rest, then D7 meal logging (which now includes keeping records through every re-plan).
 
 **Open, recorded:**
 - **LC-08** is fixed in F4 (above), not yet landed.
@@ -485,7 +486,10 @@ Remove a worktree when its batch lands, taking the node_modules junction out fir
   logged library dish carries the library's description today (review #18), so only D7's logged mark can tell a
   record from a plan. Then every re-plan puts records back in their slots, the way pins are re-imposed. Probe:
   `boostkeep.mts` in the session scratchpad.
-- **LC-02/03/10** (removing an allergy; undo dropping one) wait on owner decision 12.
+- **LC-02/03/10** (removing an allergy; undo dropping one) wait on owner decision 12. **Whichever control removes an
+  allergy must check the foods the person named under it:** since F4, "allergic to walnuts" while "nuts" is stored
+  is named as covered and not stored again (the memory keeps the sentence). Removing "nuts" would otherwise drop
+  the walnut protection with it.
 - An allergy stated only in an earlier message and never stored is missed by the 550B in 4 of 6 runs. Only a
   raw-words pre-scan (like `redFlag`) could catch it, and that needs its own false-positive probe set first.
 - Lanes' gates used to share `node_modules/.cache` through the junctions. Fixed for npm scripts in `6509cdb`; the

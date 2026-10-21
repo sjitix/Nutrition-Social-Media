@@ -169,7 +169,7 @@
     <div class="stamp">
       <b><i>source</i> docs/v1/01-dimensions-and-milestones.md</b>
       <b><i>synced</i> 2026-10-21</b>
-      <b><i>commit</i> 5b6d874</b>
+      <b><i>commit</i> 4876051+</b>
     </div>
   </header>
 
@@ -473,8 +473,12 @@
         <h3>Meal logging, end to end</h3>
         <p class="desc">A UI write path for <span class="mono">log_meal</span>. Today stops inferring “eaten” from the
           clock and reads the log instead; <span class="mono">SLOT_HOUR</span> becomes the fallback, not the truth.</p>
+        <p class="desc"><b>Added 2026-10-21: what you logged survives every re-plan.</b> Asking for more iron removed a
+          logged meal, a restaurant reservation and an imported recipe, with nothing said, in 9 of 9 test runs.
+          A logged meal gets a mark of its own, and every re-plan puts logged meals and reservations back, the
+          way pinned meals already come back.</p>
         <div class="meta">
-          <div><span class="k">Usable when</span>Today shows what you actually logged, and says so honestly when you have logged nothing.</div>
+          <div><span class="k">Usable when</span>Today shows what you actually logged, and says so honestly when you have logged nothing. No re-plan removes a logged meal or a reservation.</div>
           <div><span class="k">Depends on</span>D3 — the executor is its own module first</div>
           <div><span class="k">Gate</span><span class="mono">test:engine</span> + <span class="mono">test:api</span></div>
         </div>
