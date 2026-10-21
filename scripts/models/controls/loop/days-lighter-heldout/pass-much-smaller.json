@@ -1,0 +1,25 @@
+{
+  "cut down how much i eat": [
+    {
+      "thinking": "Sitting in a car all day: noticeably smaller on Thursday and Friday.",
+      "reply": "Making Thursday and Friday noticeably lighter.",
+      "operations": [
+        {
+          "op": "resize",
+          "direction": "much_smaller",
+          "day": "Thursday"
+        },
+        {
+          "op": "resize",
+          "direction": "much_smaller",
+          "day": "Friday"
+        }
+      ]
+    },
+    {
+      "thinking": "Applied.",
+      "reply": "Thursday and Friday are lighter; other days untouched.",
+      "operations": []
+    }
+  ]
+}

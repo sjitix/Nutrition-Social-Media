@@ -1,0 +1,18 @@
+{
+  "my doctor said my iron is low": [
+    {
+      "thinking": "Check the profile first, then apply diet + iron boost in one constrain.",
+      "reply": "",
+      "operations": [ {"op": "get_profile"} ]
+    },
+    {
+      "thinking": "Profile diet is none; the user says they are vegetarian. Persist it and boost iron.",
+      "reply": "Thanks for letting me know. I'll keep you vegetarian and push iron up across the week.",
+      "operations": [
+        {"op": "remember", "fact": "doctor says iron is low; vegetarian", "kind": "condition"},
+        {"op": "constrain", "diet": "vegetarian", "boostNutrient": "iron"}
+      ]
+    },
+    { "thinking": "Applied. Finish.", "reply": "Your week is vegetarian and built around iron-rich dishes now.", "operations": [] }
+  ]
+}

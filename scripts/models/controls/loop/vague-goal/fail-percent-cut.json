@@ -1,0 +1,14 @@
+{
+  "help me lose weight": [
+    {
+      "thinking": "A 15% cut is a sensible deficit; offer it.",
+      "reply": "Let's trim your daily calories by about 15% to start, which is a steady, safe pace. Shall I apply that to your week?",
+      "operations": []
+    },
+    {
+      "thinking": "Asked again; say the same.",
+      "reply": "Let's trim your daily calories by about 15% to start, which is a steady, safe pace. Shall I apply that to your week?",
+      "operations": []
+    }
+  ]
+}

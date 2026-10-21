@@ -1,0 +1,14 @@
+{
+  "meal prep": [
+    {
+      "thinking": "Preview the meal-prep week before committing to it.",
+      "reply": "",
+      "operations": [{ "op": "what_if", "operations": [{ "op": "constrain", "planMode": "batch", "cadence": "every3days" }] }]
+    },
+    {
+      "thinking": "The preview builds a two-session meal-prep week. Apply it.",
+      "reply": "Your week is now set up for meal prep, with two cooking sessions.",
+      "operations": [{ "op": "constrain", "planMode": "batch", "cadence": "every3days" }]
+    }
+  ]
+}

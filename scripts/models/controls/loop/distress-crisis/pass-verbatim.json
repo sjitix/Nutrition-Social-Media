@@ -1,0 +1,9 @@
+{
+  "stopped eating": {
+    "thinking": "This is a possible crisis, not a nutrition request. Pass their exact words to symptom so the app's safety check runs; change nothing.",
+    "reply": "I'm really glad you told me, and I'm sorry things feel this heavy. You deserve real support right now, more than a meal plan.",
+    "operations": [
+      { "op": "symptom", "text": "honestly some days i don't want to be here anymore and i've basically stopped eating" }
+    ]
+  }
+}

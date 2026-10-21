@@ -13,36 +13,37 @@
  * is a bug, and this file is where we find it before a user does.
  */
 import { selectWeekFromDb, rebalanceWeek, applyOperations, RECIPES, recipeMicros, newReport, reportNotes, selectConditionAwareWeek, buildWeek, selectBatchWeek, rebalanceBatchWeek, withSeed, keepDays, freezesWell, previewOperations, swapCandidates } from "@/lib/recipeDb";
-import { conditionBoosts } from "@/lib/conditions";
-import type { UserProfile, Operation, DayPlan, WeekPlan, Meal } from "@/lib/types";
-import { MealSchema, WeekPlanSchema } from "@/lib/types";
-import { FEED_RECIPES, filterFeed, sortFeed, HIGH_PROTEIN_G, type FeedFilter } from "@/lib/feed";
-import { videoPlatform, extractVideoText } from "@/lib/videoImport";
-import { aisleFor, groupByAisle, AISLE_ORDER } from "@/lib/grocery";
-import { currentStreak, prevDay, isoDay, requestDay } from "@/lib/streak";
-import { expandConstrain, applyRemember, applyPrimitives, memoryContext, AssistantTurnV2Schema, allergensInFact, verbToOperations, type PrimitiveOp, type VerbOp } from "@/lib/primitives";
-import { assistantV2SystemPrompt } from "@/lib/promptV2";
-import { redFlag, CRISIS_REPLY } from "@/lib/safety";
+import { conditionBoosts } from "@/lib/data/conditions";
+import type { UserProfile, Operation, DayPlan, WeekPlan, Meal } from "@/lib/core/types";
+import { MealSchema, WeekPlanSchema } from "@/lib/core/types";
+import { FEED_RECIPES, filterFeed, sortFeed, HIGH_PROTEIN_G, type FeedFilter } from "@/lib/presentation/feed";
+import { videoPlatform, extractVideoText } from "@/lib/providers/videoImport";
+import { aisleFor, groupByAisle, AISLE_ORDER } from "@/lib/nutrition/grocery";
+import { currentStreak, prevDay, isoDay, requestDay } from "@/lib/presentation/streak";
+import { expandConstrain, applyRemember, applyPrimitives, memoryContext, AssistantTurnV2Schema, allergensInFact, verbToOperations, type PrimitiveOp, type VerbOp } from "@/lib/assistant/primitives";
+import { assistantV2SystemPrompt } from "@/lib/assistant/promptV2";
+import { redFlag, CRISIS_REPLY } from "@/lib/nutrition/safety";
 import { tableKey, INGREDIENTS, resolveIngredient } from "@/lib/data/ingredients";
 import { validateExample, validateBatch, type TrainingExample } from "@/lib/dataValidate";
 import { generateExamples } from "@/lib/genV2";
-import { microsForIngredients } from "@/lib/nutrients";
-import { bulkGroceriesFromWeek, formatBulkQuantity, batchEfficiency } from "@/lib/batchGrocery";
-import { haystackBlocked, dietTagConflicts, parseExclusionTokens, expandExclusion, EXCLUSION_CATEGORIES } from "@/lib/exclusions";
-import { bmr, computeTargets, hydrationTarget, CALORIE_FLOOR, DEFAULT_CALORIE_FLOOR, BODY_LIMITS, bodyStatMessage, referenceWeightKg } from "@/lib/targets";
-import { composeReply, planWasChanged, describeOperations, READ_ONLY_TOOLS, claimsChange, NOTHING_CHANGED_REPLY, NOTED_NOTHING_CHANGED_REPLY } from "@/lib/reply";
-import { SUBSTITUTES } from "@/lib/substitutions";
-import { NUTRIENT_TABLE } from "@/lib/nutrientTable.generated";
-import { UNIT_GRAMS } from "@/lib/unitGrams.generated";
+import { microsForIngredients } from "@/lib/nutrition/nutrients";
+import { bulkGroceriesFromWeek, formatBulkQuantity, batchEfficiency } from "@/lib/presentation/batchGrocery";
+import { haystackBlocked, dietTagConflicts, parseExclusionTokens, expandExclusion, EXCLUSION_CATEGORIES } from "@/lib/nutrition/exclusions";
+import { bmr, computeTargets, hydrationTarget, CALORIE_FLOOR, DEFAULT_CALORIE_FLOOR, BODY_LIMITS, bodyStatMessage, referenceWeightKg } from "@/lib/nutrition/targets";
+import { composeReply, planWasChanged, describeOperations, READ_ONLY_TOOLS, claimsChange, NOTHING_CHANGED_REPLY, NOTED_NOTHING_CHANGED_REPLY } from "@/lib/assistant/reply";
+import { SUBSTITUTES } from "@/lib/data/substitutions";
+import { NUTRIENT_TABLE } from "@/lib/data/nutrientTable.generated";
+import { UNIT_GRAMS } from "@/lib/nutrition/unitGrams.generated";
 import { readFileSync } from "node:fs";
-import { gramsFor } from "@/lib/nutrients";
-import { MICRO_KEYS, DAILY_REFERENCE, MICRO_LABEL } from "@/lib/nutrients";
-import { parseRecipeHtml, parseIngredient, isSafePublicUrl, importedToMeal, decodeEntities } from "@/lib/import";
+import { gramsFor } from "@/lib/nutrition/nutrients";
+import { MICRO_KEYS, DAILY_REFERENCE, MICRO_LABEL } from "@/lib/nutrition/nutrients";
+import { parseRecipeHtml, parseIngredient, isSafePublicUrl, importedToMeal, decodeEntities } from "@/lib/providers/import";
 import {
   findRecipes, inspectRecipe, getPlan, getProfile, getSaved, report, whatIf,
   runReadTool, isReadTool, READ_TOOL_NAMES, MAX_ROWS,
-} from "@/lib/agentTools";
-import { runAgent, MAX_STEPS, FALSE_CLAIM_NUDGE, FALSE_CLAIM_NUDGE_MEMORY, type AgentTurn, type ModelFn } from "@/lib/agentLoop";
+} from "@/lib/assistant/agentTools";
+import { runAgent, MAX_STEPS, FALSE_CLAIM_NUDGE, FALSE_CLAIM_NUDGE_MEMORY, type AgentTurn, type ModelFn } from "@/lib/assistant/agentLoop";
+import { weekMicroAverage } from "@/lib/plan/report";
 import { localExtraBody } from "@/lib/providers/extraBody";
 
 // ---------------------------------------------------------------- harness
@@ -4218,6 +4219,423 @@ console.log("\n--- THE ASSISTANT'S WORDS BIND THE ENGINE ---");
   check("remembered allergy: remembering it twice adds nothing and announces nothing",
     again.profile.allergies === rem.profile.allergies && !again.notes.some((n) => /added .* to your allergies/.test(n)), again.profile.allergies);
 
+  // (2b) THE LABEL DOES NOT DECIDE (2026-10-18). The models lane found gpt-oss-20b sending
+  // {fact:"allergic to shellfish"} with no kind: the fact was remembered and shrimp stayed in the week.
+  // So a fact that SAYS allergy, intolerance or coeliac binds whatever kind the model gave it (49385e5).
+  // Its adversarial review then showed what binding without the label must never do: read a DENIAL as an
+  // allergy ("No allergies; eats dairy and gluten" banned 59% of the library; a person's correction "not
+  // lactose intolerant any more" widened the ban) or a CARRIER word as one ("allergic to tea tree oil"
+  // banned every dish cooked with oil). Every row below is a case that review reproduced.
+  const remembering = (fact: string, kind?: string) =>
+    applyPrimitives(BASE, aw, [{ op: "remember", fact, ...(kind ? { kind } : {}) } as PrimitiveOp]);
+  const MUST_BIND: [string, string | undefined][] = [
+    ["allergic to peanuts", undefined],
+    ["severe peanut allergy", "context"],
+    ["My daughter has a severe peanut allergy", "condition"],
+    ["peanut-allergic", "preference"],
+    ["no allergies except peanuts", "context"],                    // an exception keeps the fact live
+    ["no known allergy, but peanuts make her sick", "context"],    // so does a reaction
+    ["Peanut allergy she never outgrew", undefined],               // "never outgrew" is not a denial
+    ["My son hasn't outgrown his peanut allergy", "context"],
+    ["not just lactose intolerant, also allergic to peanuts", undefined], // "not just" affirms
+  ];
+  for (const [fact, kind] of MUST_BIND) {
+    const r = remembering(fact, kind);
+    check(`label-blind allergy: "${fact}" (${kind ?? "no kind"}) binds peanut, and no peanut dish is left (I2)`,
+      /peanut/.test(r.profile.allergies ?? "") && r.plan.days.every((d) => pnut(d).length === 0),
+      `${r.profile.allergies} | left: ${r.plan.days.flatMap(pnut).map((m) => m.name).join(", ")}`);
+  }
+  for (const [fact, kind, want] of [
+    ["has coeliac disease", "condition", "gluten"],
+    ["lactose intolerant", "condition", "lactose"],
+    ["allergic to sesame oil", undefined, "sesame"],               // the carrier filter keeps the food
+  ] as [string, string | undefined, string][]) {
+    const r = remembering(fact, kind);
+    check(`label-blind allergy: "${fact}" (${kind ?? "no kind"}) binds ${want}`,
+      parseExclusionTokens(r.profile.allergies ?? "", "").includes(want), r.profile.allergies);
+  }
+  const MUST_NOT_BIND: [string, string | undefined][] = [
+    ["loves peanut butter", "preference"],
+    ["wants a high-protein afternoon snack daily", "goal"],        // no cue: never parsed ("protein")
+    ["allergic to penicillin", "condition"],                       // a cue, but no food
+    ["hay fever allergy in spring", "condition"],
+    ["not allergic to anything", "context"],
+    ["no allergies", undefined],
+    ["Not lactose intolerant, drinks milk every day", "context"],  // the review's denials, which
+    ["No allergies; eats dairy and gluten", "context"],            // bound the foods they name
+    ["I was allergic to milk as a child but grew out of it", "context"],
+    ["outgrew an egg allergy as a kid", undefined],
+    ["I'm not lactose intolerant", "allergy"],                     // labelled denials too
+    ["Allergies: none", "allergy"],
+    ["tested negative for coeliac disease", "allergy"],
+  ];
+  for (const [fact, kind] of MUST_NOT_BIND) {
+    const r = remembering(fact, kind);
+    check(`label-blind allergy: "${fact}" (${kind ?? "no kind"}) binds nothing and changes nothing`,
+      (r.profile.allergies ?? "") === "" && r.planChanged === false && !r.notes.some((n) => /to your allergies/.test(n)),
+      `${r.profile.allergies} | planChanged ${r.planChanged}`);
+  }
+  for (const fact of ["allergic to essential oils", "allergic to tea tree oil", "allergic to washing powder"]) {
+    const r = remembering(fact, "condition");
+    const stored = parseExclusionTokens(r.profile.allergies ?? "", "");
+    const names = (w: WeekPlan) => w.days.map((d) => d.meals.map((m) => m.name).join("|")).join("/");
+    check(`label-blind allergy: "${fact}" stores no carrier word on its own and replaces no dish`,
+      !stored.some((t) => /^(?:oils?|powders?)$/.test(t)) && names(r.plan) === names(aw), r.profile.allergies);
+  }
+  // The review's under-blocks the narrow cue list closes, unlabelled: plurals of the cue words, the
+  // misspellings people type, a plural category word, and a SECOND cue in the same fact (which was
+  // missed even labelled). The wide forms the review tried are guarded against below: "allergist" and
+  // "allergen-aware" must not become allergies.
+  for (const [fact, want] of [
+    ["food intolerances: lactose", ["lactose"]],
+    ["Allergens: peanuts, sesame", ["peanut", "sesame"]],
+    ["both kids are coeliacs", ["gluten"]],
+    ["alergic to peanuts", ["peanut"]],
+    ["lactose intolerent", ["lactose"]],
+    ["celiak disease", ["gluten"]],
+    ["allergic to crustaceans", ["crustacean"]],
+    ["Allergic to peanuts. Also allergic to sesame.", ["peanut", "sesame"]],
+    ["Peanut allergy. Sesame allergy.", ["peanut", "sesame"]],
+  ] as [string, string[]][]) {
+    const r = remembering(fact);
+    check(`label-blind allergy, the review's under-block: "${fact}" binds ${want.join(" + ")}`,
+      want.every((w) => new RegExp(w).test(r.profile.allergies ?? "")), r.profile.allergies);
+  }
+  for (const fact of ["allergist cleared him to eat eggs again", "kids' school is allergen-aware, packs cheese sandwiches", "no known intolerances"]) {
+    const r = remembering(fact, "context");
+    check(`label-blind allergy: "${fact}" binds nothing (the closed cue list, and the denial check that shares it)`,
+      (r.profile.allergies ?? "") === "" && r.planChanged === false, r.profile.allergies);
+  }
+  {
+    // The before-cue phrase is found in one pass: the lazy regex it replaced re-scanned from every
+    // start position, 3.2 s on a 40k-character fact that says "allergic" but never "allergy".
+    const long = "allergic to peanuts " + Array.from({ length: 8000 }, (_, i) => "word" + (i % 10)).join(" ");
+    const t0 = performance.now();
+    const got = allergensInFact(long);
+    const ms = performance.now() - t0;
+    check("allergen extraction: a 40k-character fact is read in linear time (< 1 s)", ms < 1000 && got.includes("peanuts"), `${ms.toFixed(0)} ms`);
+  }
+
+  // B2 (2026-10-20): what the person is TOLD after an allergy remark. composeReply shows the engine's
+  // notes instead of the model's prose, so a remark the engine stayed silent on let the model's "I've
+  // excluded celery" stand while nothing was screened (review of 49385e5: LC-06, LC-08, LC-11). Now every
+  // remark that reaches the allergy branch gets a note, and each note is true of what is enforced.
+  {
+    const P = (allergies: string, dislikes = "") => ({ ...BASE, allergies, dislikes });
+    const said = (p: UserProfile, fact: string, kind?: string) =>
+      applyPrimitives(p, aw, [{ op: "remember", fact, ...(kind ? { kind } : {}) } as PrimitiveOp]);
+    const blockedIds = (allergies: string) => {
+      const tokens = parseExclusionTokens(allergies, "");
+      return RECIPES.filter((r) => haystackBlocked(`${r.name} ${r.ingredients.map((i) => i.name).join(" ")} ${r.steps.join(" ")}`, tokens)).map((r) => r.id).join(",");
+    };
+    const NOTES: [string, UserProfile, string, string | undefined, RegExp][] = [
+      ["restating a bound allergy says it is already there (LC-11)", P("eggs"), "I am allergic to eggs", undefined, /^Eggs are already in your allergies, so nothing with them is planned\.$/],
+      ["the singular after the plural is the same allergy, not a new one (LC-16)", P("peanuts"), "peanut allergy", "condition", /^Peanut is already in your allergies/],
+      ["a food a broader allergy already blocks is named as covered", P("nuts"), "allergic to hazelnuts", undefined, /^Hazelnuts are already covered by your allergies/],
+      ["a word the matcher does not know is never claimed as screened (LC-08)", BASE, "allergic to celery", undefined, /haven't added it as an allergy, so your meals aren't screened for it/],
+      ["a remark that names no food says so", BASE, "I have bad allergies", undefined, /doesn't name a food, so your allergies haven't changed/],
+      ["a denial while the allergy is bound says it is STILL enforced, never removed", P("eggs"), "not allergic to eggs any more", undefined, /^Your allergies still include eggs, so nothing with them is planned\.$/],
+      ["'No allergies' over a bound allergy says what is still enforced", P("peanuts"), "No allergies", undefined, /^Your allergies still include peanuts/],
+      ["a denial with nothing bound changes nothing and says so", BASE, "not allergic to eggs any more", undefined, /^I've noted that\. Your allergies haven't changed\.$/],
+    ];
+    for (const [what, p, fact, kind, want] of NOTES) {
+      const r = said(p, fact, kind);
+      check(`allergy note: ${what}`, r.notes.some((n) => want.test(n)) && (r.profile.allergies ?? "") === (p.allergies ?? ""), `${JSON.stringify(r.notes)} | ${r.profile.allergies}`);
+    }
+    {
+      const r = said(P("peanuts"), "allergic to peanuts and sesame");
+      check("allergy note: a fact with a new and a known allergy says both", r.notes.some((n) => /^I've added sesame to your allergies/.test(n)) &&
+        r.notes.some((n) => /^Peanuts are already in your allergies/.test(n)) && r.profile.allergies === "peanuts, sesame", JSON.stringify(r.notes));
+    }
+    // LC-16's dedupe stores less TEXT and must never block less FOOD: the same recipes, id for id.
+    for (const [start, fact] of [["peanuts", "peanut allergy"], ["eggs", "egg allergy"], ["peanut", "allergic to peanuts"], ["nut", "allergic to tree nuts"]]) {
+      const r = said(P(start), fact);
+      const before = blockedIds([start, ...allergensInFact(fact)].join(", "));
+      check(`allergy dedupe: "${start}" + "${fact}" blocks exactly the recipes storing both would`, blockedIds(r.profile.allergies ?? "") === before, r.profile.allergies);
+    }
+
+    // LC-07: a dish refused for an allergy or a dislike says WHY. The unconstrained lookup that finds the
+    // reason only feeds the note: no blocked dish is ever placed.
+    const sh = said(BASE, "allergic to shellfish");
+    const shellfishIn = (plan: WeekPlan) => plan.days.flatMap((d) => d.meals).filter((m) => haystackBlocked(`${m.name} ${m.ingredients.map((i) => i.name).join(" ")}`, ["shellfish"]));
+    for (const [what, op] of [
+      ["a day swap", { tool: "swap_meal", day: "Monday", mealType: "dinner", dish: "Shrimp & Tomato Rice" }],
+      ["an every-day swap", { tool: "swap_meal", mealType: "dinner", dish: "shrimp" }],
+    ] as [string, Operation][]) {
+      const r = applyOperations(sh.profile, sh.plan, [op]);
+      check(`swap refused for an allergy: ${what} names it ("…contains shellfish, which is in your allergies…")`,
+        /contains shellfish, which is in your allergies, so I (used .+ instead|left the week as it is)\.$/.test(r.notes[0] ?? ""), r.notes[0]);
+      check(`swap refused for an allergy: ${what} places no shellfish (the explaining lookup places nothing)`, shellfishIn(r.plan).length === 0,
+        shellfishIn(r.plan).map((m) => m.name).join(", "));
+    }
+    {
+      const r = applyPrimitives(sh.profile, sh.plan, [{ op: "constrain", use: ["shrimp"] } as unknown as PrimitiveOp]);
+      check("use-up refused for an allergy: 'use the shrimp' says shellfish is in the allergies, not 'nothing fits'",
+        r.notes.some((n) => /couldn't work shrimp into the week — .*contains? shellfish, which is in your allergies/.test(n)) && shellfishIn(r.plan).length === 0,
+        r.notes.filter((n) => /shrimp/.test(n)).join(" | "));
+    }
+    {
+      const r = applyOperations(P("", "mushrooms"), aw, [{ tool: "swap_meal", mealType: "dinner", dish: "Mushroom Barley Risotto" }]);
+      check("swap refused for a dislike: it says which food the person avoids",
+        /^Mushroom Barley Risotto contains mushrooms, which you avoid, so I/.test(r.notes[0] ?? "") &&
+        r.plan.days.every((d) => d.meals.every((m) => !/mushroom/i.test(m.name))), r.notes[0]);
+    }
+
+    // LC-12: the undo's sentence. labelOps gave a noun phrase to a "before I …" template, so every undo
+    // through the agent loop read "before I your last change (remember)", and an allergy leaving the
+    // profile went unsaid.
+    {
+      const once = (t: AgentTurn): ModelFn => async () => t;
+      const t1 = await runAgent({ profile: BASE, plan: aw, message: "my son is allergic to eggs", today: "2026-10-20",
+        model: once({ thinking: "", reply: "Noted.", operations: [{ op: "remember", fact: "my son is allergic to eggs", kind: "context" } as PrimitiveOp] }) });
+      check("agent undo label: a past-tense verb phrase", t1.previous?.label === "noted what you told me", t1.previous?.label);
+      let calls = 0;
+      const t2 = await runAgent({ profile: t1.profile, plan: t1.plan, message: "undo that", today: "2026-10-20", previous: t1.previous,
+        model: async () => (calls++ === 0 ? { thinking: "", reply: "Undone.", operations: [{ op: "undo" } as PrimitiveOp] } : { thinking: "", reply: "Undone.", operations: [] }) });
+      check("agent undo: the sentence reads 'before I noted what you told me', never 'before I your last change'",
+        /before I noted what you told me\./.test(t2.reply) && !/before I your/.test(t2.reply), t2.reply);
+      check("agent undo: an allergy the undo takes off is SAID ('That also took eggs off your allergies')",
+        /That also took eggs off your allergies\./.test(t2.reply) && (t2.profile.allergies ?? "") === "", t2.reply);
+    }
+
+    // LC-13: the model sees the bound list every turn, as it sees the dislikes.
+    check("v2 prompt: the Profile line carries the bound allergies",
+      /^Profile: .*allergies=peanuts, eggs, dislikes=none\.$/m.test(assistantV2SystemPrompt(P("peanuts, eggs"), aw)));
+    check("v2 prompt: ...and says none when there are none", /^Profile: .*allergies=none, /m.test(assistantV2SystemPrompt(BASE, aw)));
+
+    // LC-06 and the models lane's audit (probe-claims.mts, 2026-10-20): claims the engine never backed,
+    // and the honest lines the guard must leave alone.
+    const UNBACKED = [
+      "I've removed celery from all your meals.", "Celery is now excluded from your plan.", "Got it — no more celery in your week.",
+      "I've removed eggs from your allergies, so they're back on the menu.", "Got it, I've taken eggs off your allergy list.",
+      "Great news! Eggs can go back into your plan now.", "I've switched you to 16:8: your first meal is at noon.",
+      "You're all set for 16:8, nothing before noon.", "Lovely! Your plan is set up for two now.", "I've pinned Sunday's dinner, so it stays.",
+      "I've locked Sunday's dinner in place.", "I've rated it 5 stars, so it'll come back more often.",
+      "Your vegan week is ready, with chicken fajitas on Friday as you asked.", "I've doubled your portions so there's enough for two.",
+      "No more mushrooms in your week.", "Sure thing! I'll put a tasty chicken dish on your Friday lunch.",
+      "Got it! I'll plan every meal for two of you from now on.", "I've made Tuesday vegetarian.", "I've made a few changes to your dinners.",
+    ];
+    const BACKED_OR_HONEST = [
+      "Shall I exclude celery from your plan?", "I can take eggs off your allergy list if you like.", "Want me to cut back on dairy?",
+      "Would you like eggs back on the menu?", "I can put them back into your plan if you like.", "I've taken note of that.",
+      "Do you want no more fish in your week?", "There's no more room in your plan for a snack.", "Once you confirm, I'll take eggs off the menu.",
+      "I've made a quick comparison for you: quinoa has more protein and fibre than white rice.",
+      "I've made a note that you cook for your partner, but I can only plan for one person right now.",
+      "Got it, I'll keep in mind that you'd like to eat less meat.", "I'll make sure to keep that in mind.",
+      "Want me to put a chicken dish on Friday? I'll swap it in if you say yes.",
+    ];
+    const missed = UNBACKED.filter((t) => !claimsChange(t));
+    const tripped = BACKED_OR_HONEST.filter((t) => claimsChange(t));
+    check("false claim (B2): every unbacked change, state and promise is caught", missed.length === 0, missed.join(" | "));
+    check("false claim (B2): ...and no offer, question, note or comparison trips it", tripped.length === 0, tripped.join(" | "));
+  }
+
+  // C (2026-10-20): an IMPORTED dish is a planned plate, so a newly bound allergy re-picks it. It used to
+  // be kept verbatim on the edit-preserving re-solve: "allergic to shellfish" took the library's shrimp out
+  // and left the imported Garlic Butter Shrimp Tacos on Wednesday, under a note promising "nothing
+  // containing it will be planned" (review of 49385e5: LC-01, U1). A LOGGED meal is a record of what was
+  // eaten and stays as it is; a dislike never removes an import the person chose.
+  {
+    const tacos = importedToMeal({ name: "Garlic Butter Shrimp Tacos", sourceUrl: "https://example.com/tacos", servings: 2,
+      ingredients: [{ name: "shrimp", quantity: "300 g" }, { name: "corn tortillas", quantity: "6" }, { name: "butter", quantity: "2 tbsp" }],
+      steps: ["Cook the shrimp in the butter.", "Serve in the tortillas."], calories: 620, proteinGrams: 42, carbsGrams: 50, fatGrams: 24, macrosSource: "site" }, "dinner");
+    const pasta = importedToMeal({ name: "Lemon Herb Chicken Pasta", sourceUrl: "https://example.com/pasta", servings: 2,
+      ingredients: [{ name: "chicken breast", quantity: "300 g" }, { name: "pasta", quantity: "200 g" }, { name: "butter", quantity: "1 tbsp" }],
+      steps: ["Cook it."], calories: 650, proteinGrams: 45, carbsGrams: 70, fatGrams: 15, macrosSource: "site" }, "lunch");
+    const logged = { type: "lunch", name: "Mum's prawn curry", description: "Logged by you.", calories: 700, proteinGrams: 35, carbsGrams: 60,
+      fatGrams: 30, timeMinutes: 0, ingredients: [{ name: "prawns", quantity: "1 portion" }], steps: [] } as Meal;
+    const put = (w: WeekPlan, day: string, m: Meal): WeekPlan =>
+      ({ ...w, days: w.days.map((d) => (d.day === day ? { ...d, meals: d.meals.map((x) => (x.type === m.type ? m : x)) } : d)) });
+    const wk = put(put(put(aw, "Wednesday", tacos), "Thursday", pasta), "Friday", logged);
+    const on = (plan: WeekPlan, name: string) => plan.days.filter((d) => d.meals.some((m) => m.name === name)).map((d) => d.day).join(",");
+
+    for (const kind of [undefined, "allergy", "context"]) {
+      const r = applyPrimitives(BASE, wk, [{ op: "remember", fact: "allergic to shellfish", ...(kind ? { kind } : {}) } as PrimitiveOp]);
+      const wedDinner = r.plan.days.find((d) => d.day === "Wednesday")!.meals.find((m) => m.type === "dinner");
+      check(`imported dish + new allergy (${kind ?? "no kind"}): the imported shrimp tacos leave the week (I2)`,
+        on(r.plan, tacos.name) === "" && !!wedDinner && !haystackBlocked(`${wedDinner.name} ${wedDinner.ingredients.map((i) => i.name).join(" ")}`, ["shellfish"]),
+        `${on(r.plan, tacos.name)} | Wednesday dinner ${wedDinner?.name}`);
+      check(`imported dish + new allergy (${kind ?? "no kind"}): the note names the dish and the allergy, and no replacement that could go stale`,
+        r.notes.some((n) => n === "Garlic Butter Shrimp Tacos, the recipe you imported for Wednesday's dinner, contains shellfish, which is in your allergies, so I replaced it."),
+        r.notes.join(" | "));
+      check(`imported dish + new allergy (${kind ?? "no kind"}): an import without the allergen stays where it was`, on(r.plan, pasta.name) === "Thursday");
+      check(`imported dish + new allergy (${kind ?? "no kind"}): a LOGGED meal is a record, so it stays as it is`, on(r.plan, logged.name) === "Friday");
+    }
+    {
+      const r = applyPrimitives(BASE, wk, [{ op: "remember", fact: "lactose intolerant", kind: "condition" } as PrimitiveOp]);
+      check("imported dish + new allergy: every import holding it goes, each named (butter is lactose)",
+        on(r.plan, tacos.name) === "" && on(r.plan, pasta.name) === "" &&
+        r.notes.filter((n) => /the recipe you imported for .*contains lactose, which is in your allergies, so I replaced it\.$/.test(n)).length === 2,
+        r.notes.join(" | "));
+    }
+    // A diet or a food avoided counts against an import only when THIS change introduced it: the review
+    // found a new vegetarian diet keeping an imported chicken dish without a word. One that already broke
+    // the old rule was placed over it on purpose, and stays.
+    {
+      const r = applyOperations(BASE, wk, [{ tool: "update_profile", excludeFoods: ["butter"] }]);
+      check("imported dish + a NEW dislike: imports holding it are re-picked, and each is named",
+        on(r.plan, tacos.name) === "" && on(r.plan, pasta.name) === "" &&
+        r.notes.filter((n) => /the recipe you imported for .*contains butter, which you avoid, so I replaced it\.$/.test(n)).length === 2,
+        r.notes.join(" | "));
+      const again = applyOperations({ ...BASE, dislikes: "butter" }, wk, [{ tool: "update_profile", budget: "low" }]);
+      check("imported dish + an OLD dislike: an import placed over it stays on a later re-solve",
+        on(again.plan, tacos.name) === "Wednesday" && on(again.plan, pasta.name) === "Thursday", `${on(again.plan, tacos.name)} | ${on(again.plan, pasta.name)}`);
+    }
+    {
+      const r = applyOperations(BASE, wk, [{ tool: "update_profile", diet: "vegetarian" }]);
+      check("imported dish + a NEW vegetarian diet: the imported chicken pasta is re-picked and named",
+        on(r.plan, pasta.name) === "" && r.notes.some((n) => /^Lemon Herb Chicken Pasta, the recipe you imported for Thursday's lunch, .*isn't vegetarian \(it has .*chicken/.test(n)),
+        r.notes.join(" | "));
+      const stays = applyOperations({ ...BASE, diet: "vegetarian" }, wk, [{ tool: "update_profile", budget: "low" }]);
+      check("imported dish + an OLD vegetarian diet: a chicken import placed over it stays on a later re-solve",
+        on(stays.plan, pasta.name) === "Thursday", on(stays.plan, pasta.name));
+    }
+    // A pinned slot: the note says the pin is back, rather than naming the selector's pick.
+    {
+      const pinned = { ...BASE, lockedMeals: [{ day: "Wednesday", mealType: "dinner", name: "Turkey & Bean Chilli" }] } as UserProfile;
+      const r = applyPrimitives(pinned, wk, [{ op: "remember", fact: "allergic to shellfish" } as PrimitiveOp]);
+      check("imported dish over a pinned slot: the note says the pin is back, true of the slot",
+        r.notes.some((n) => n === "Garlic Butter Shrimp Tacos, the recipe you imported for Wednesday's dinner, contains shellfish, which is in your allergies, so I took it out, and your pinned Turkey & Bean Chilli is back in that slot.") &&
+        r.plan.days.find((d) => d.day === "Wednesday")!.meals.find((m) => m.type === "dinner")?.name === "Turkey & Bean Chilli",
+        r.notes.join(" | "));
+    }
+    // An import titled like a library dish is judged by its OWN ingredients.
+    {
+      const lookalike = { ...tacos, name: "Turkey & Bean Chilli", ingredients: [{ name: "turkey mince", quantity: "300 g" }, { name: "prawns", quantity: "100 g" }] };
+      const r = applyPrimitives(BASE, put(wk, "Wednesday", lookalike), [{ op: "remember", fact: "allergic to shellfish" } as PrimitiveOp]);
+      const wed = r.plan.days.find((d) => d.day === "Wednesday")!.meals.find((m) => m.type === "dinner");
+      check("imported dish with a library title: its own prawns count, so it leaves the week (I2)",
+        !wed?.sourceUrl && !!wed && !haystackBlocked(`${wed.name} ${wed.ingredients.map((i) => i.name).join(" ")}`, ["shellfish"]), `${wed?.name} ${wed?.sourceUrl ?? ""}`);
+    }
+    // Restating a bound allergy while an import placed after it still holds it: the week is re-solved, so
+    // "nothing with it is planned" is true when it is said (review of B2).
+    {
+      const r = applyPrimitives({ ...BASE, allergies: "shellfish" }, wk, [{ op: "remember", fact: "I'm allergic to shellfish" } as PrimitiveOp]);
+      check("restated allergy with an import still holding it: the import is replaced, and the note is true",
+        on(r.plan, tacos.name) === "" && r.notes.some((n) => /^Shellfish is already in your allergies, so nothing with it is planned\.$/.test(n)) &&
+        r.notes.some((n) => /^Garlic Butter Shrimp Tacos, the recipe you imported/.test(n)), r.notes.join(" | "));
+    }
+  }
+
+  // E (2026-10-20, the models lane's audit, iron-veg#2): a boost in the same request as a diet change or a
+  // new exclusion upgraded the OLD week in place, and the dishes it did not replace kept the old rules:
+  // "go vegetarian, and more B12" returned salmon and tuna in a "vegetarian" week, with no word said.
+  {
+    const notVeg = (pl: WeekPlan) => pl.days.flatMap((d) => d.meals).filter((m) => {
+      const r = RECIPES.find((x) => x.name === m.name);
+      return !!r && !r.dietTags.includes("vegetarian") && !r.dietTags.includes("vegan");
+    });
+    const broke: string[] = [];
+    for (let seed = 1; seed <= 4; seed++) {
+      const w = withSeed(seed, () => freshWeek(BASE));
+      for (const key of ["b12", "vitD", "zinc"] as const) {
+        const r = withSeed(seed, () => applyOperations(BASE, w, [{ tool: "update_profile", diet: "vegetarian", boostNutrient: key }]));
+        broke.push(...notVeg(r.plan).map((m) => `${seed}/${key}: ${m.name}`));
+      }
+    }
+    check("diet + boost in one request: no dish of the OLD diet survives (vegetarian with B12, vitamin D or zinc, 12 weeks)",
+      broke.length === 0, broke.slice(0, 3).join(" | "));
+    // Going VEGAN with a B12 boost really lowers B12 (the library's B12 is animal food), so these weeks
+    // reach the honest note; the row also requires that some did, or it would prove nothing.
+    let said = 0, silent = 0;
+    for (let seed = 1; seed <= 4; seed++) {
+      const w = withSeed(seed, () => freshWeek(BASE));
+      const r = withSeed(seed, () => applyOperations(BASE, w, [{ tool: "update_profile", diet: "vegan", boostNutrient: "b12" }]));
+      if (weekMicroAverage(r.plan, "b12").amount < weekMicroAverage(w, "b12").amount) {
+        if (r.notes.some((n) => /has less .* than before: the dishes that had more don.t fit your rules/.test(n))) said++;
+        else silent++;
+      }
+    }
+    check("diet + boost in one request: a week left with LESS of the nutrient says so (vegan + B12)", silent === 0 && said > 0, `${silent} silent, ${said} said`);
+    const fish = ["salmon", "tuna", "cod", "shrimp", "prawns"];
+    const start = withSeed(1, () => freshWeek(BASE));
+    const ex = withSeed(1, () => applyOperations(BASE, start, [{ tool: "update_profile", excludeFoods: fish, boostNutrient: "vitD" }]));
+    const left = ex.plan.days.flatMap((d) => d.meals).filter((m) => haystackBlocked(`${m.name} ${m.ingredients.map((i) => i.name).join(" ")}`, fish));
+    check("exclusion + boost in one request: no excluded food survives the boost", left.length === 0, left.map((m) => m.name).join(", "));
+  }
+
+  // F (2026-10-20, the models lane): a constrain scoped to a slot AND days lost its slot in the schema (a
+  // union takes its first member that parses, and {days} came first), so the whole day was re-planned
+  // and the "can't change just your lunch" note never fired.
+  {
+    const parsed = AssistantTurnV2Schema.parse({ thinking: "", reply: "",
+      operations: [{ op: "constrain", scope: { slot: "lunch", days: ["Wednesday"] }, diet: "vegetarian" }] });
+    const scope = (parsed.operations[0] as { scope?: unknown }).scope;
+    check("constrain scope: {slot, days} keeps its slot through the schema",
+      JSON.stringify(scope) === JSON.stringify({ slot: "lunch", days: ["Wednesday"] }), JSON.stringify(scope));
+    const r = applyPrimitives(BASE, aw, parsed.operations as PrimitiveOp[]);
+    check("constrain scope: ...so the honest 'can't change just your lunch' note fires and nothing is re-planned",
+      r.planChanged === false && r.notes.some((n) => /can't change just your lunch/.test(n)), r.notes.join(" | "));
+    const dayOnly = AssistantTurnV2Schema.parse({ thinking: "", reply: "",
+      operations: [{ op: "constrain", scope: { days: ["Wednesday"] }, diet: "vegetarian" }] });
+    check("constrain scope: a plain {days} scope still parses as days",
+      JSON.stringify((dayOnly.operations[0] as { scope?: unknown }).scope) === JSON.stringify({ days: ["Wednesday"] }));
+  }
+
+  // G (2026-10-20, the models lane's audit, undo-flow#2): an undo in the same turn as an allergy restored
+  // the WHOLE earlier profile after the binding ran, in either order. "I'm allergic to peanuts, and undo
+  // that swap" ended with no peanut allergy and a peanut dish in the week, under the note "nothing
+  // containing them will be planned". The undo now runs first, alone, and the rest applies on top.
+  {
+    const t1 = applyPrimitives(BASE, aw, [{ op: "swap", dish: "Turkey & Bean Chilli", slot: "dinner", days: ["Monday"] } as unknown as PrimitiveOp]);
+    const previous = { plan: aw, profile: BASE, label: "swapped Monday's dinner" };
+    const rem = { op: "remember", fact: "I'm allergic to peanuts" } as PrimitiveOp;
+    const undo = { op: "undo" } as PrimitiveOp;
+    for (const [order, ops] of [["remember, undo", [rem, undo]], ["undo, remember", [undo, rem]]] as [string, PrimitiveOp[]][]) {
+      const r = applyPrimitives(t1.profile, t1.plan, ops, undefined, previous);
+      check(`undo + allergy in one turn (${order}): the allergy is bound and no peanut dish is left (I2)`,
+        /peanut/.test(r.profile.allergies ?? "") && r.plan.days.every((d) => pnut(d).length === 0),
+        `${r.profile.allergies} | ${r.plan.days.flatMap(pnut).map((m) => m.name).join(", ")}`);
+      check(`undo + allergy in one turn (${order}): the undo still happened, and both are said, nothing contradicting`,
+        r.undone && r.notes.some((n) => /put things back to how they were before I swapped Monday's dinner/.test(n)) &&
+        r.notes.some((n) => /added peanuts to your allergies/.test(n)) && !r.notes.some((n) => /took peanuts off/.test(n)),
+        r.notes.join(" | "));
+      check(`undo + allergy in one turn (${order}): the fact is remembered too`,
+        (r.profile.memory ?? []).some((f) => /peanuts/.test(f.fact)));
+    }
+  }
+  // The review of B2 (2026-10-20), on what it tells the person.
+  {
+    // The claim guard on STORED model replies: three honest ones it replaced, two real claims it missed.
+    const HONEST_STORED = [
+      "Those three goals clash. Pick two, and I'll build it: 1) High-protein vegan, 2) cheap, 3) under 15 minutes.",
+      "I'll note that you're cooking for two people. The plan is set up for one, so just double each portion.",
+      "Sure — which day is \"today\" (Monday through Sunday)? Then I'll make dinner lighter for that night.",
+      "Nothing has changed yet. Tell me which day is today, and I'll make dinner lighter.",
+      "Tell me which day and I'll swap it.", "Your current plan is set up for three meals a day.", "I've dropped you a quick summary below.",
+    ];
+    const CLAIMS_STORED = [
+      "I've scaled Saturday and Sunday down to lighter days, and I've made a note of your training.",
+      "I've made a note, and I've gently reworked this week to lean into iron-rich meals.",
+    ];
+    const tripped = HONEST_STORED.filter((t) => claimsChange(t));
+    const missed = CLAIMS_STORED.filter((t) => !claimsChange(t));
+    check("false claim (stored replies): a refusal, a decline or a question that offers a change is not replaced", tripped.length === 0, tripped.join(" | "));
+    check("false claim (stored replies): 'scaled … down' and 'gently reworked' are caught", missed.length === 0, missed.join(" | "));
+
+    // The refused-dish note names the dish ASKED for, and the rule that really refused it.
+    const veggie = applyOperations({ ...BASE, allergies: "dairy" }, aw, [{ tool: "swap_meal", day: "Monday", mealType: "dinner", dish: "veggie burger" }]);
+    check("refused dish: an allergy-free tie-break is not blamed on an allergy ('veggie burger' with dairy)",
+      !/contains dairy/.test(veggie.notes[0] ?? ""), veggie.notes[0]);
+    const tabbouleh = applyOperations({ ...BASE, diet: "vegetarian", allergies: "dairy" }, aw,
+      [{ tool: "swap_meal", day: "Monday", mealType: "lunch", dish: "Grilled Chicken & Quinoa Tabbouleh" }]);
+    check("refused dish: a library dish the DIET refuses says so, not another dish's allergy",
+      /^Grilled Chicken & Quinoa Tabbouleh isn't vegetarian, so I/.test(tabbouleh.notes[0] ?? ""), tabbouleh.notes[0]);
+
+    // "aren't screened for it" is never said about a food the same turn excludes.
+    const celery = applyPrimitives(BASE, aw, [
+      { op: "remember", fact: "allergic to celery" } as PrimitiveOp,
+      { op: "constrain", exclude: ["celery"] } as unknown as PrimitiveOp,
+    ]);
+    check("allergy note: a food the same turn excludes is not called unscreened",
+      !celery.notes.some((n) => /aren't screened/.test(n)), celery.notes.join(" | "));
+
+    // Restating a remembered fact changes nothing, so it cannot take the undo slot from a real change.
+    const known = { ...BASE, memory: [{ fact: "cooks for a partner", kind: "context" as const }] };
+    const restated = applyPrimitives(known, aw, [{ op: "remember", fact: "Cooks for a partner", kind: "context" } as PrimitiveOp]);
+    check("remember: restating a stored fact (same kind) leaves the profile exactly as it was",
+      restated.profile === known || JSON.stringify(restated.profile) === JSON.stringify(known), JSON.stringify(restated.profile.memory));
+  }
   // (1) A slot-scoped constrain is not built yet — so it must change nothing AND say so.
   const slot = applyPrimitives(BASE, aw, [{ op: "constrain", scope: { slot: "breakfast" }, targets: { protein: 40 } } as PrimitiveOp]);
   check("slot-scoped constrain: changes nothing", slot.planChanged === false);
@@ -4749,6 +5167,95 @@ if (violations.size === 0) {
       const r = await runAgent({ ...base, model: p.fn, maxSteps: 1 });
       check("false claim: with no step left to retry, the claim is still never shown",
         r.reply === NOTHING_CHANGED_REPLY && r.steps === 1, r.reply.slice(0, 60));
+    }
+  }
+
+  // D (2026-10-20, the models lane's audit of its evals): the person only reads the FINISHING turn's
+  // reply, and every write took the undo slot. So an answer sent the way promptV2 teaches, as
+  // [{"op":"answer"}], was lost to the next call (the 550B's general-qa read "Happy to help." eleven
+  // times); a decline sent beside a remember was lost to an empty finishing turn; and a question after a
+  // change replaced the undo snapshot with an identical state, so the change could no longer be undone.
+  {
+    const ANSWER = "Quinoa has more protein and fibre than white rice.";
+    {
+      const p = scripted([turn(ANSWER, [{ op: "answer" } as PrimitiveOp]), turn("")]);
+      const r = await runAgent({ ...base, model: p.fn });
+      check("answer op: a turn carrying only {op:'answer'} finishes with its own reply",
+        r.reply === ANSWER && p.calls() === 1 && r.steps === 1 && r.planChanged === false, `${p.calls()} calls: ${r.reply.slice(0, 60)}`);
+    }
+    {
+      const p = scripted([turn("Noted. I can't plan for two people yet, but each recipe lists its servings.",
+        [{ op: "remember", fact: "cooks for a partner", kind: "context" } as PrimitiveOp]), turn("")]);
+      const r = await runAgent({ ...base, model: p.fn });
+      check("empty finishing turn: what was said beside a change still reaches the person, not 'Happy to help.'",
+        /can't plan for two people yet/.test(r.reply), r.reply.slice(0, 80));
+    }
+    {
+      const p = scripted([turn("Let me check that.", [{ op: "get_plan" } as unknown as PrimitiveOp]), turn("")]);
+      const r = await runAgent({ ...base, model: p.fn });
+      check("empty finishing turn: a lookup's preamble is never promoted to the answer", r.reply !== "Let me check that.", r.reply);
+    }
+    {
+      const p = scripted([turn("Done — I've made your week vegetarian.", [{ op: "answer" } as PrimitiveOp]), turn("Done — I've made your week vegetarian.")]);
+      const r = await runAgent({ ...base, model: p.fn });
+      check("answer op: a claim riding on an answer is still nudged and never shown",
+        r.falseClaimRetried && r.reply === NOTHING_CHANGED_REPLY, r.reply.slice(0, 60));
+    }
+    const prior = { plan, profile: BASE, label: "rebuilt your week" };
+    {
+      const p = scripted([turn("", [{ op: "explain", day: "Monday", slot: "dinner" } as unknown as PrimitiveOp]), turn("That's why it's there.")]);
+      const r = await runAgent({ ...base, previous: prior, model: p.fn });
+      check("undo slot: an explanation after a change leaves that change undoable", r.previous === prior, r.previous?.label);
+    }
+    {
+      const p = scripted([turn("", [{ op: "swap", dish: "unicorn stew", slot: "breakfast", days: ["Monday"] } as unknown as PrimitiveOp]), turn("I couldn't find that.")]);
+      const r = await runAgent({ ...base, previous: prior, model: p.fn });
+      check("undo slot: a refused change leaves the last real change undoable", r.planChanged === false && r.previous === prior, `${r.planChanged} ${r.previous?.label}`);
+    }
+    {
+      const p = scripted([turn("", [{ op: "swap", dish: "Turkey & Bean Chilli", slot: "dinner", days: ["Monday"] } as unknown as PrimitiveOp]), turn("Swapped.")]);
+      const r = await runAgent({ ...base, previous: prior, model: p.fn });
+      check("undo slot: a real change still takes it, named for what it did", r.planChanged === true && r.previous !== prior && /^swapped Monday's dinner$/.test(r.previous?.label ?? ""), r.previous?.label);
+    }
+  }
+
+  // The review of D (2026-10-20): a line written beside writes was written BEFORE the engine ran, and
+  // an undo inside a run reverted the previous turn too.
+  {
+    {
+      const claim = "Done — I've made Tuesday vegetarian.";
+      const p = scripted([turn(claim, [{ op: "constrain", budget: "low", preserveMacros: false } as unknown as PrimitiveOp]), turn("")]);
+      const r = await runAgent({ ...base, model: p.fn });
+      check("loop reply: a line written before a change is not shown for it (a budget change under 'I've made Tuesday vegetarian')",
+        r.reply !== claim, r.reply.slice(0, 80));
+    }
+    {
+      const line = "Swapping Monday's dinner for something lighter.";
+      const p = scripted([turn(line, [{ op: "swap", dish: "" } as unknown as PrimitiveOp]), turn("")]);
+      const r = await runAgent({ ...base, model: p.fn });
+      check("loop reply: a line beside a write the engine ignored is not shown as the answer", r.reply !== line, r.reply.slice(0, 80));
+    }
+    const prior = { plan, profile: BASE, label: "rebuilt your week" };
+    {
+      // Undo INSIDE a run reverts that run's own change, and the person's earlier change stays undoable.
+      const p = scripted([
+        turn("", [{ op: "swap", dish: "Turkey & Bean Chilli", slot: "dinner", days: ["Monday"] } as unknown as PrimitiveOp]),
+        turn("", [{ op: "undo" } as PrimitiveOp]),
+        turn("I've put that back."),
+      ]);
+      const r = await runAgent({ ...base, previous: prior, model: p.fn });
+      check("loop undo: an undo inside a run restores the state before THIS run's change, not the previous turn's",
+        JSON.stringify(r.plan) === JSON.stringify(plan), `planChanged ${r.planChanged}`);
+      check("loop undo: ...and the previous turn's change is still undoable", r.previous === prior, r.previous?.label);
+      check("loop undo: ...and what the reverted step said is no longer shown",
+        !r.notes.some((n) => /^Monday now has /.test(n)), r.notes.join(" | ").slice(0, 160));
+    }
+    {
+      // A write that leaves the profile as it was is no change: it must not take the undo slot.
+      const weighed = { ...BASE, bodyStats: { ...(BASE.bodyStats ?? {}), weightKg: 70 } } as UserProfile;
+      const p = scripted([turn("", [{ op: "hydration", weightKg: 70 } as unknown as PrimitiveOp]), turn("About 2.3 litres a day.")]);
+      const r = await runAgent({ ...base, profile: weighed, previous: prior, model: p.fn });
+      check("loop undo: a hydration question restating the known weight leaves the last change undoable", r.previous === prior, r.previous?.label);
     }
   }
 

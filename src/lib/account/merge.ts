@@ -42,7 +42,7 @@
  * decide only true conflicts, where two devices edited before either saw the other's write, and there
  * rule 5's backup is the net.
  */
-import type { StoreName } from "../storage";
+import type { StoreName } from "../persistence";
 
 export interface Versioned {
   /** The store's content; `null` means it was cleared. */

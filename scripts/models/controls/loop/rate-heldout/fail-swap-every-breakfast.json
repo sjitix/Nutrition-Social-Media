@@ -1,0 +1,20 @@
+{
+  "keep that one coming back": [
+    {
+      "thinking": "Put it on every breakfast.",
+      "reply": "Putting Berry Protein Waffles on every breakfast.",
+      "operations": [
+        {
+          "op": "swap",
+          "dish": "Berry Protein Waffles",
+          "slot": "breakfast"
+        }
+      ]
+    },
+    {
+      "thinking": "Applied.",
+      "reply": "Berry Protein Waffles is now your breakfast every day.",
+      "operations": []
+    }
+  ]
+}

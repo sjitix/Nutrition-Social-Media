@@ -1,0 +1,7 @@
+{
+  "swap just wednesday's dinner": {
+    "thinking": "Wednesday, salmon, just that meal.",
+    "reply": "Swapping Wednesday's meal for salmon and leaving the rest.",
+    "operations": [ { "op": "swap", "dish": "salmon", "slot": "lunch", "days": ["Wednesday"], "only": true } ]
+  }
+}

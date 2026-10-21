@@ -1,0 +1,7 @@
+{
+  "make the week cheaper": {
+    "thinking": "Beans and lentils are much cheaper than meat, so go low budget and vegetarian.",
+    "reply": "Switching you to budget-friendly, plant-based meals: beans and lentils stretch money much further than meat.",
+    "operations": [{ "op": "constrain", "budget": "low", "diet": "vegetarian" }]
+  }
+}

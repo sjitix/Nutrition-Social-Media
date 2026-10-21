@@ -1,0 +1,4 @@
+{
+  "keep sunday's dinner exactly": [ { "thinking": "Pin Sunday dinner.", "reply": "Pinning Sunday dinner.", "operations": [ { "op": "pin", "day": "Sunday", "slot": "dinner" } ] }, { "thinking": "done", "reply": "Sunday dinner is pinned.", "operations": [] } ],
+  "shake up the rest of the week": [ { "thinking": "Today is Monday; re-plan the rest of the week from tomorrow. The pin keeps Sunday dinner.", "reply": "Re-planning Tuesday to Sunday with new dishes.", "operations": [ { "op": "constrain", "scope": { "days": ["Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"] } } ] }, { "thinking": "done", "reply": "Here is your refreshed week.", "operations": [] } ]
+}

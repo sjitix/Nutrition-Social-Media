@@ -1,0 +1,41 @@
+{
+  "gone vegetarian": [
+    {
+      "thinking": "Lasting diet change.",
+      "reply": "Got it, switching your whole week to vegetarian.",
+      "operations": [
+        {
+          "op": "remember",
+          "fact": "vegetarian",
+          "kind": "preference"
+        },
+        {
+          "op": "constrain",
+          "diet": "vegetarian"
+        }
+      ]
+    }
+  ],
+  "steak for wednesday dinner": [
+    {
+      "thinking": "See what Wednesday has.",
+      "reply": "",
+      "operations": [
+        {
+          "op": "get_plan",
+          "day": "Wednesday"
+        }
+      ]
+    },
+    {
+      "thinking": "Offer the steak dinner.",
+      "reply": "Wednesday's dinner is a vegetarian Red Lentil & Tofu Curry right now. I can swap in Steak with Sweet Potato Fries & Broccoli instead. Want me to?",
+      "operations": []
+    },
+    {
+      "thinking": "Asked again; say the same.",
+      "reply": "Wednesday's dinner is a vegetarian Red Lentil & Tofu Curry right now. I can swap in Steak with Sweet Potato Fries & Broccoli instead. Want me to?",
+      "operations": []
+    }
+  ]
+}

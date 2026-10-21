@@ -1,0 +1,1 @@
+{"keep me at 1800 calories": {"thinking": "Clear numbers from the user: a week-scope constrain with both targets, which persists to the profile.", "reply": "Setting your daily targets to 1800 kcal and 160 g of protein and fitting the week to them.", "operations": [{"op": "constrain", "targets": {"calories": 1800, "protein": 160}}]}}

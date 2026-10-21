@@ -1,0 +1,8 @@
+{
+  "can't stand avocado": { "reply": "Noted, I'll keep avocado off your plate. There's none in this week's plan.",
+    "operations": [ { "op": "remember", "fact": "can't stand avocado", "kind": "preference" } ] },
+  "something mexican for saturday dinner": [
+    { "reply": "", "operations": [ { "op": "find_recipes", "mealType": "dinner", "query": "enchilada" } ] },
+    { "reply": "", "operations": [ { "op": "swap", "dish": "Turkey Enchilada Bake", "slot": "dinner", "days": ["Saturday"] } ] },
+    { "reply": "Saturday dinner is a Turkey Enchilada Bake, no avocado.", "operations": [] } ]
+}

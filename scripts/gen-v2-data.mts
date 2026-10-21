@@ -6,15 +6,15 @@
  * is the JSON {thinking, reply, operations}. A few distinct plans are cycled through the system
  * prompt so the model doesn't overfit one week's context.
  *
- *   npx esbuild scripts/gen-v2-data.mts --bundle --platform=node --format=esm --tsconfig=tsconfig.json --outfile=node_modules/.cache/gen-v2.mjs && node node_modules/.cache/gen-v2.mjs
+ *   npx esbuild scripts/gen-v2-data.mts --bundle --platform=node --format=esm --tsconfig=tsconfig.json --outfile=.cache/gen-v2.mjs && node .cache/gen-v2.mjs
  */
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { selectWeekFromDb, rebalanceWeek } from "@/lib/recipeDb";
 import { validateExample } from "@/lib/dataValidate";
 import { generateExamples } from "@/lib/genV2";
-import { assistantV2SystemPrompt } from "@/lib/promptV2";
-import type { UserProfile } from "@/lib/types";
+import { assistantV2SystemPrompt } from "@/lib/assistant";
+import type { UserProfile } from "@/lib/core";
 
 const BASE: UserProfile = {
   goal: "maintain", diet: "none", allergies: "", dislikes: "", budget: "medium",

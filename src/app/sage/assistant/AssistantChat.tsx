@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { summariseWeek } from "../weekStats";
 import { loadMyWeek } from "../myPlan";
-import { savePlan, saveProfile } from "@/lib/storage";
+import { savePlan, saveProfile } from "@/lib/persistence";
 import { isoDay } from "@/lib/presentation/client";
 import type { ChatMessage, PlanSnapshot, UserProfile, WeekPlan } from "@/lib/core";
 

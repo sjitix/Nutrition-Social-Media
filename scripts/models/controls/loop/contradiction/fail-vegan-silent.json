@@ -1,0 +1,14 @@
+{
+  "make the whole week vegan but put chicken on friday": [
+    {
+      "thinking": "Make the week vegan.",
+      "reply": "Making your whole week vegan.",
+      "operations": [{"op": "constrain", "diet": "vegan"}]
+    },
+    {
+      "thinking": "Applied. Report.",
+      "reply": "Your whole week is vegan now.",
+      "operations": []
+    }
+  ]
+}

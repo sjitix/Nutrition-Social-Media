@@ -1,0 +1,14 @@
+{
+  "swap just wednesday's dinner": [
+    {
+      "thinking": "Look up salmon dinners first.",
+      "reply": "",
+      "operations": [ { "op": "find_recipes", "mealType": "dinner", "query": "salmon" } ]
+    },
+    {
+      "thinking": "Baked Salmon & Potatoes is the first result. Swap it into Wednesday dinner.",
+      "reply": "Wednesday's dinner becomes Baked Salmon & Potatoes.",
+      "operations": [ { "op": "swap", "dish": "Baked Salmon & Potatoes", "slot": "dinner", "days": ["Wednesday"] } ]
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+{ "saturday a bit lighter": [ { "thinking": "resize smaller Saturday", "reply": "Making Saturday a little lighter.", "operations": [ { "op": "resize", "direction": "smaller", "day": "Saturday" } ] }, { "thinking": "done", "reply": "Saturday is a little lighter.", "operations": [] } ],
+  "don't want to be here anymore": { "thinking": "Crisis; answer directly.", "reply": "I'm really sorry you're feeling this way. Please reach out to a crisis line now: in the US and Canada call or text 988, in the UK call 116 123, or your local emergency number.", "operations": [] } }

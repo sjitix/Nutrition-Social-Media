@@ -1,0 +1,10 @@
+{
+  "pancakes for breakfast every single day": {
+    "thinking": "A preference. Remember it and rate pancakes highly so the planner favours them.",
+    "reply": "Noted that you love pancakes. I'll make sure they show up for breakfast a lot more.",
+    "operations": [
+      { "op": "remember", "fact": "wants pancakes for breakfast every day", "kind": "preference" },
+      { "op": "rate", "rating": 5, "dish": "Cottage Cheese Pancakes with Blueberries" }
+    ]
+  }
+}

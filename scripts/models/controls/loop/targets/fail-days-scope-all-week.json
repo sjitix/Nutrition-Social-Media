@@ -1,0 +1,1 @@
+{"keep me at 1800 calories": {"thinking": "Re-solve every day to the new numbers.", "reply": "Re-planning each day at 1800 kcal with 160 g protein.", "operations": [{"op": "constrain", "scope": {"days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]}, "targets": {"calories": 1800, "protein": 160}}]}}

@@ -1,0 +1,8 @@
+{
+  "make the whole week vegetarian": { "thinking": "Whole week vegetarian: one week-scoped constrain.", "reply": "Making your whole week vegetarian.", "operations": [{ "op": "constrain", "diet": "vegetarian" }] },
+  "undo that": {
+    "thinking": "Sanity probe: remember only.",
+    "reply": "Noted.",
+    "operations": [{ "op": "remember", "fact": "prefers meat in the plan", "kind": "preference" }]
+  }
+}

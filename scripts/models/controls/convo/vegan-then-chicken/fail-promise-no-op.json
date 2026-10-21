@@ -1,0 +1,28 @@
+{
+  "vegan now": {
+    "reply": "Got it, switching your whole week to vegan.",
+    "operations": [
+      {
+        "op": "remember",
+        "fact": "vegan",
+        "kind": "preference"
+      },
+      {
+        "op": "constrain",
+        "diet": "vegan"
+      }
+    ]
+  },
+  "put chicken on friday": [
+    {
+      "thinking": "Easy request.",
+      "reply": "Sure thing! I'll put a tasty chicken dish on your Friday lunch.",
+      "operations": []
+    },
+    {
+      "thinking": "Told my claim has nothing behind it; say it again.",
+      "reply": "Sure thing! I'll put a tasty chicken dish on your Friday lunch.",
+      "operations": []
+    }
+  ]
+}

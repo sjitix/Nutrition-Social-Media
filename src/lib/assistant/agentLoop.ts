@@ -26,9 +26,9 @@
  * remains the only thing allowed to claim that something changed.
  */
 import { runReadTool, isReadTool, type AgentContext } from "./agentTools";
-import { applyPrimitives, type PrimitiveOp } from "./primitives";
-import { claimsChange, composeReply } from "./reply";
-import type { PlanSnapshot, UserProfile, WeekPlan } from "../core";
+import { applyPrimitives, expandConstrain, noOpConstrain, verbToOperations, type ConstrainOp, type PrimitiveOp, type VerbOp } from "./primitives";
+import { claimsChange, composeReply, joinPhrases, operationPhrases } from "./reply";
+import type { Operation, PlanSnapshot, UserProfile, WeekPlan } from "../core";
 
 /** A cap, not a target. Reaching it is a bug to investigate, not a normal outcome. */
 export const MAX_STEPS = 8;
@@ -120,9 +120,21 @@ export interface AgentRunResult {
 
 const isRead = (o: PrimitiveOp): boolean => isReadTool(String((o as { op?: string }).op ?? ""));
 
+/**
+ * What `undo` says it reversed: "…before I noted what you told me and swapped Monday's dinner." A
+ * past-tense verb phrase, built from the same phrases as the routes' labels (describeOperations). It
+ * was a noun phrase, so every undo through the loop read "before I your last change (remember)" (review
+ * of 49385e5, LC-12).
+ */
 function labelOps(ops: PrimitiveOp[]): string {
-  const names = ops.map((o) => (o as { op?: string }).op).filter(Boolean);
-  return names.length ? `your last change (${names.join(", ")})` : "your last change";
+  const phrases = ops.flatMap((o): string[] => {
+    const op = (o as { op?: string }).op;
+    if (op === "remember") return ["noted what you told me"];
+    if (op === "constrain") return noOpConstrain(o as ConstrainOp) ? [] : operationPhrases(expandConstrain(o as ConstrainOp));
+    if (op) return operationPhrases(verbToOperations(o as VerbOp));
+    return operationPhrases([o as Operation]); // a raw engine Operation, passed straight through
+  });
+  return joinPhrases([...new Set(phrases)]) || "made that change";
 }
 
 /**
@@ -157,12 +169,27 @@ export async function runAgent(args: {
   let undone = false;
   const notes: string[] = [];
 
-  // Taken before the first WRITE, not here — a run that only looks things up must not consume the
-  // undo slot, or "undo" after a question would throw away the change before it.
+  // Taken by the first step that CHANGES something, not before: a run that only looks things up, answers,
+  // explains, or has a change refused must not consume the undo slot, or "undo" after a question would
+  // restore the state it was already in and throw away the change before it (models lane audit,
+  // 2026-10-20: an explain after a change took the slot).
   let snapshot: PlanSnapshot | undefined;
+  // Every write that changed something, so the snapshot's label names all of what an undo reverses, not
+  // only the first step's. Only the wording grows: what is restored is still the state before the first.
+  const written: PrimitiveOp[] = [];
 
   let steps = 0;
   let lastReply = "";
+  // The newest non-empty reply written beside a CHANGE or an answer (not beside a lookup, where it is
+  // a preamble like "Let me check"). The user reads only the finishing turn's reply, so an answer or a
+  // decline sent with {op:"answer"} or a remember, followed by an empty finishing turn, was lost: the
+  // 550B's general-qa runs read "Happy to help." eleven times (models lane audit, 2026-10-20).
+  let spoken = "";
+  // Set when this run undid the PREVIOUS turn's change: there is one level of undo, so it is then spent.
+  let undoneArgs = false;
+  // How many notes there were when this run's snapshot was taken, so an undo of the run's own change can
+  // drop the notes of the steps it reverted.
+  let notesAtSnapshot = 0;
   let gaveUp = false;
   let modelFailed = false;
   let falseClaimRetried = false;
@@ -188,12 +215,19 @@ export async function runAgent(args: {
     const ops = Array.isArray(turn?.operations) ? turn.operations : [];
     transcript.push({ role: "assistant", turn: { ...turn, operations: ops } });
     lastReply = typeof turn?.reply === "string" ? turn.reply : "";
+    // {op:"answer"} changes nothing and asks for nothing: the reply beside it IS the answer, so a turn
+    // carrying only answers is a finishing turn. promptV2 teaches [{"op":"answer"}] for a question while
+    // LOOP RULE 2 teaches [], and the loop used to run "answer" as a write and call the model again.
+    const acting = ops.filter((o) => (o as { op?: string }).op !== "answer");
 
-    if (ops.length === 0) {
+    if (acting.length === 0) {
+      if (lastReply.trim()) spoken = lastReply;
       // The model says it is done. If its reply is the only thing the user will read (the engine is
       // silent) and it claims a change that nothing made, give it one step to make it real or retract.
       const unbacked = !planChanged && !profileEdited() && notes.length === 0 && replyOverride === undefined;
-      if (!falseClaimRetried && unbacked && claimsChange(lastReply) && steps < maxSteps) {
+      // Judged on the text the person will actually read, which may be a line said beside a remember.
+      const willShow = lastReply.trim() ? lastReply : spoken;
+      if (!falseClaimRetried && unbacked && claimsChange(willShow) && steps < maxSteps) {
         falseClaimRetried = true;
         transcript.push({ role: "tool", name: "apply",
           result: { notes: [memorySaved() ? FALSE_CLAIM_NUDGE_MEMORY : FALSE_CLAIM_NUDGE], planChanged: false, profileChanged: false } });
@@ -202,8 +236,8 @@ export async function runAgent(args: {
       break;
     }
 
-    const reads = ops.filter(isRead);
-    const writes = ops.filter((o) => !isRead(o));
+    const reads = acting.filter(isRead);
+    const writes = acting.filter((o) => !isRead(o));
 
     // 1) Lookups. Their results go back to the MODEL and are never shown to the person.
     for (const r of reads) {
@@ -220,8 +254,30 @@ export async function runAgent(args: {
     //    change, and its notes are fed BACK so the model can see what it actually did — including
     //    a refusal or a relaxed constraint it should now respond to.
     if (writes.length) {
-      if (!snapshot) snapshot = { plan, profile, label: labelOps(writes) };
-      const res = applyPrimitives(profile, plan, writes, args.today, args.previous);
+      const before = { plan, profile };
+      // An undo inside the run reverts THIS run's changes first (to the state before its first change);
+      // it used to restore the previous turn's snapshot, reverting the person's earlier change as well.
+      const res = applyPrimitives(profile, plan, writes, args.today, snapshot ?? (undoneArgs ? undefined : args.previous));
+      // Compared, not flagged: a profile write that leaves the profile as it was (a repeated remember, a
+      // weight that was already stored) is no change, and must not take the undo slot.
+      const stepChanged = res.planChanged || !same(before.profile, res.profile);
+      if (res.undone) {
+        if (!snapshot) undoneArgs = true;
+        // Undoing this run's own change: what its steps said ("Monday now has …") is no longer true.
+        else notes.length = notesAtSnapshot;
+        snapshot = undefined;
+        written.length = 0;
+      } else if (stepChanged) {
+        written.push(...writes);
+        if (!snapshot) notesAtSnapshot = notes.length;
+        snapshot = { plan: snapshot?.plan ?? before.plan, profile: snapshot?.profile ?? before.profile, label: labelOps(written) };
+      }
+      // A line written beside writes was written BEFORE the engine ran, so it may describe a change that
+      // never came ("I've made Tuesday vegetarian" over a budget constrain). Only a step that changed
+      // nothing but the memory keeps it (D's case: a decline said beside a remember); any other change
+      // clears it, so the engine's result, not the earlier line, is what an empty finishing turn shows.
+      const memoryOnly = !res.planChanged && !editedApartFromMemory(before.profile, res.profile);
+      if (stepChanged) spoken = memoryOnly && !reads.length ? lastReply : "";
       plan = res.plan;
       profile = res.profile;
       planChanged = planChanged || res.planChanged;
@@ -253,8 +309,10 @@ export async function runAgent(args: {
     );
   }
 
+  // An empty finishing turn does not erase what the model already said beside a change or an answer.
+  const said = lastReply.trim() ? lastReply : spoken;
   // profileChanged here is "changed in a way a claim could be about": a saved memory is not (above).
-  const reply = composeReply({ modelReply: lastReply, notes, replyOverride, planChanged, profileChanged: profileEdited(), memorySaved: memorySaved() });
+  const reply = composeReply({ modelReply: said, notes, replyOverride, planChanged, profileChanged: profileEdited(), memorySaved: memorySaved() });
   return {
     reply,
     plan,
@@ -262,13 +320,13 @@ export async function runAgent(args: {
     planChanged,
     profileChanged,
     // One level of undo: after an undo there is nothing further back.
-    previous: undone ? undefined : (snapshot ?? args.previous),
+    previous: snapshot ?? (undoneArgs ? undefined : args.previous),
     transcript,
     steps,
     gaveUp,
     modelFailed,
     notes,
     falseClaimRetried,
-    falseClaimCaught: reply !== lastReply.trim() && notes.length === 0 && replyOverride === undefined && claimsChange(lastReply),
+    falseClaimCaught: reply !== said.trim() && notes.length === 0 && replyOverride === undefined && claimsChange(said),
   };
 }

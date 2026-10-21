@@ -1,0 +1,21 @@
+{
+  "drop a few pounds": [
+    {
+      "thinking": "Weight loss means a deficit. 2000 minus 400 is 1600; set that.",
+      "reply": "Let's start you on a gentle deficit.",
+      "operations": [
+        {
+          "op": "constrain",
+          "targets": {
+            "calories": 1600
+          }
+        }
+      ]
+    },
+    {
+      "thinking": "The engine applied the new target. Finish and report.",
+      "reply": "Your week is now set up for weight loss at a gentle deficit.",
+      "operations": []
+    }
+  ]
+}

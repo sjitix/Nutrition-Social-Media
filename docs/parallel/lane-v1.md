@@ -7,21 +7,47 @@
 
 ## Now doing
 
-**2026-10-18 — resumed on the LAPTOP's main folder.** This conversation is the v1 lane from now on.
-- **New owner rules for every lane: `README.md` §0.** Pull constantly, push every step, keep every context
-  file current as you go, message every running lane at session start and after each ship that touches
-  them.
-- **The owner's decisions doc:** https://claude.ai/code/artifact/a3290f96-fc25-43a6-932d-9982a46bb70f, with
-  10 decisions. Read its threads at session start. If you need a new owner decision, add it there in the same
-  plain form and tell me.
-- **Next, in order:**
-  1. Land `c428c4e` (the hardened `check:boundaries`) through the full gate.
-  2. Land `de1a102`'s two bug fixes (multi-day swap; a false claim riding on `remember`) WITHOUT the fast
-     finish, which stays held for the models lane's fair numbers.
-  3. Fix the stale accounts rows in `docs/v1/01-…md` and the schedule board.
-- **Accounts:** your `validate.ts` → `../core/client` change is noted. When `c428c4e` lands I delete that
-  KNOWN_DEBT line if the gate reports it paid. `storage.ts` and `savedStore.ts` still move to `persistence/`
-  only when I post the sha.
+**2026-10-21 — the review fixes landed as one commit (`da023da`, test:engine 1061/0).** Sessions since the
+restart: v1 `-e0`, accounts `-39`, models `-b5`.
+- **What it holds:**
+  - C: imports answer to the hard rules;
+  - D: the loop keeps answers and the undo slot;
+  - E: a boost keeps the new diet;
+  - F: a slot-scoped constrain keeps its slot;
+  - G: an undo beside a new allergy runs first;
+  - B2's follow-ups.
+  Details are in my CONTEXT block and today's worklog.
+- **Models lane:** D changes what your loop evals see:
+  - a turn of only `{op:"answer"}` finishes with its reply;
+  - an empty finishing turn falls back only to a memory-only step's line;
+  - a write that changes nothing no longer takes the undo slot.
+  The claim guard also narrowed: a promise counts only in a reply that asks nothing. Please re-run run-controls and
+  the probes on it.
+- **Accounts lane:** no stored or synced shape changed. One thing writes less: restating a stored fact now leaves
+  the profile exactly as it was. It used to move the fact to the end with a new stamp.
+- **Next:**
+  1. the second review's confirmed findings, in one commit, gated after the accounts lane's gate;
+  2. the D5a shims;
+  3. the deferred: E4, the silent cook-time grace, genV2's invented calories.
+
+**2026-10-20 — B2 landed (`c8ccfb0`): every allergy remark gets a true note.** `6509cdb`: npm script bundles go
+to each worktree's own `.cache/`.
+
+**2026-10-18, night — the allergen binding landed (A `09f325f`, B1 `ba23884`); `ship.mjs` v2 landed; B2 is in
+review.** This conversation is the v1 lane.
+- **The owner's rules for every lane: `README.md` §0.** Pull constantly, push every step, keep every context file
+  current as you go, message every running lane at session start and after each ship that touches them.
+- **The owner's decisions doc:** https://claude.ai/code/artifact/a3290f96-fc25-43a6-932d-9982a46bb70f. Read its threads at
+  session start. If you need a new owner decision, add it there in the same plain form and tell me.
+- **`ship.mjs` v2 — every lane, read `README.md` §3.** Three things it now refuses: unpushed commits it did not
+  make (`--resume` pushes the one a failed ship left); `--no-gate` for anything a gate reads; and a gated ship
+  while other uncommitted work that gate reads sits in your tree. Exit 3 means "committed locally, not pushed":
+  run `--resume`. It never stashes or pulls. `npm run test:ship` replays its 43 scenarios. A new folder now ships
+  by naming the folder.
+- **Landed today:** `5c12c4c`, `058a596`, `2b7075d`, `3ff9732`, `2c48ac3`, `7c2d360`, `09f325f` (allergen A, 971/0),
+  `ba23884` (allergen B1, 984/0), and the `ship.mjs` v2 commit. 2 known boundary debts left.
+- **Models lane:** the fast finish stays held until your fair numbers exist. I'll tell you before any change to how
+  `falseClaimCaught` is computed.
 
 **2026-10-03 ~18:30 — D5b done and its review fixed; the false-claim guard landed (`361b2e1`); next the
 local-date change, then D5a.** Since the D5b notes below:
@@ -133,10 +159,11 @@ In order this session:
 
 *(the accounts agent: if you need one of these, message me first)*
 
-**2026-10-18:** `CLAUDE.md`, `CONTEXT.md` (the shared intro and my block), `docs/parallel/README.md`,
-this file and today's worklog are being shipped now. Next: the 17 paths of `c428c4e` (`git show --stat
-c428c4e`). **Models lane:** it touches `src/lib/providers/ai.ts` (10 lines) and
-`src/lib/assistant/agentTools.ts` (1 line), plus `scripts/ship.mjs`, which every lane uses.
+**2026-10-21:**
+- **Main folder:** my CONTEXT block, this file, today's worklog and its index row, `docs/v1/allergen-review.md`,
+  and the day-log board. They ship as a docs-only commit once the batch's sha exists.
+- **Next, in a new worktree:** whatever the second review confirms, in `src/lib/plan/` and `src/lib/assistant/`
+  plus `scripts/test-engine.mts`.
 
 **Shut down for the night (2026-10-03).** In flight, on the pushed branch `wip/v1-handoff-2026-10-03`: the
 boundary-gate hardening (adds an `old-path:` rule — your `storage.ts` → `./types`, `./import` and
@@ -237,6 +264,11 @@ Shipped this session, so free again: `scripts/test-engine.mts`, `scripts/test-ui
 | `35a1265` | `ship.mjs` fetches again after the gate (stops on overlap, rebases otherwise) |
 | `5cab547` | swaps: `keepOtherMeals` / `swap {only}`; the default never replaces silently |
 | `658a225` | the record corrected (VISION, lesson 51, owner decision #7) |
+| `09f325f`, `ba23884` | the allergen binding, A and B1 (971/0, 984/0) |
+| `5d1c529` | `ship.mjs` v2 and its 43 scenarios |
+| `56a321b`, `6fb9a28`, `6509cdb` | the allergen review doc and probe; seven scripts off the shims; bundles per worktree |
+| `c8ccfb0` | B2, the allergen notes (1010/0) |
+| `da023da` | C–G and B2's follow-ups, after a second adversarial review (1061/0) |
 
 ## Known issues in v1's files (found by other lanes, queued)
 

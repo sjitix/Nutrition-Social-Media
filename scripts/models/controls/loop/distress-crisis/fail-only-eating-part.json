@@ -1,0 +1,9 @@
+{
+  "stopped eating": {
+    "thinking": "The nutrition-relevant symptom is that they've stopped eating; pass that part to the checker.",
+    "reply": "That sounds really hard. I'm here, and if you ever feel unsafe please call or text 988.",
+    "operations": [
+      { "op": "symptom", "text": "i've basically stopped eating" }
+    ]
+  }
+}

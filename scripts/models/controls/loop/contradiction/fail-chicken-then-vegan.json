@@ -1,0 +1,17 @@
+{
+  "make the whole week vegan but put chicken on friday": [
+    {
+      "thinking": "Do both: put chicken on Friday, then make the week vegan.",
+      "reply": "Doing both.",
+      "operations": [
+        {"op": "swap", "dish": "Chicken Fajitas", "slot": "dinner", "days": ["Friday"], "only": true},
+        {"op": "constrain", "diet": "vegan"}
+      ]
+    },
+    {
+      "thinking": "Applied. Report.",
+      "reply": "Your week is vegan and Friday has chicken fajitas.",
+      "operations": []
+    }
+  ]
+}

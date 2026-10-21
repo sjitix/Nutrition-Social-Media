@@ -16,7 +16,9 @@ import { build } from "esbuild";
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 
-const cache = (name) => resolve("node_modules/.cache", name);
+// The worktree's own .cache/ (gitignored), not node_modules/.cache, which worktrees can share through a
+// junction: two lanes bundling at once would then overwrite each other's suite.
+const cache = (name) => resolve(".cache/test-account", name);
 const common = { bundle: true, platform: "node", format: "esm", tsconfig: "tsconfig.json", logLevel: "error" };
 
 await build({ ...common, entryPoints: ["scripts/test-account.mts"], outfile: cache("test-account.mjs") });

@@ -1,0 +1,7 @@
+{
+  "going to a restaurant for dinner": {
+    "thinking": "They mention a group ('we're all going'). The app can't plan for several people, so decline honestly.",
+    "reply": "That sounds lovely! I can't plan meals for a whole group yet, since plans are built for one person. I can keep the rest of your week on track for you though.",
+    "operations": []
+  }
+}

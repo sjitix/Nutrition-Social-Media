@@ -1,0 +1,25 @@
+{
+  "make tuesday vegetarian": [
+    {
+      "thinking": "Tuesday has beef at lunch and tuna at dinner. Look up vegetarian options for both.",
+      "reply": "",
+      "operations": [
+        { "op": "find_recipes", "mealType": "lunch", "diet": "vegetarian", "sort": "protein", "maxTime": 30, "limit": 5 },
+        { "op": "find_recipes", "mealType": "dinner", "diet": "vegetarian", "sort": "protein", "maxTime": 30, "limit": 5 }
+      ]
+    },
+    {
+      "thinking": "Swap both Tuesday meat slots; breakfast is already vegetarian.",
+      "reply": "Tuesday's lunch and dinner are swapped for vegetarian dishes.",
+      "operations": [
+        { "op": "swap", "dish": "Tempeh & Edamame Power Salad", "slot": "lunch", "days": ["Tuesday"], "only": true },
+        { "op": "swap", "dish": "Tempeh & Broccoli Soba Bowl", "slot": "dinner", "days": ["Tuesday"], "only": true }
+      ]
+    }
+  ],
+  "wednesday too": {
+    "thinking": "Same change for Wednesday: day-scoped constrain.",
+    "reply": "Making Wednesday vegetarian too.",
+    "operations": [{ "op": "constrain", "scope": { "days": ["Wednesday"] }, "diet": "vegetarian" }]
+  }
+}

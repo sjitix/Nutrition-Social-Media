@@ -1,0 +1,17 @@
+{
+  "make the whole week vegan but put chicken on friday": [
+    {
+      "thinking": "Vegan on every day except Friday, and a chicken dinner on Friday.",
+      "reply": "Vegan all week, with a chicken dinner on Friday.",
+      "operations": [
+        {"op": "constrain", "scope": {"days": ["Monday","Tuesday","Wednesday","Thursday","Saturday","Sunday"]}, "diet": "vegan"},
+        {"op": "swap", "dish": "Chicken Fajitas", "slot": "dinner", "days": ["Friday"], "only": true}
+      ]
+    },
+    {
+      "thinking": "Applied. Report.",
+      "reply": "Every day but Friday is vegan, and Friday has chicken fajitas.",
+      "operations": []
+    }
+  ]
+}

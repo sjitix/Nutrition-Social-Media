@@ -1,0 +1,6 @@
+{
+  "vegan now": { "reply": "Got it, switching your whole week to vegan.", "operations": [ { "op": "remember", "fact": "vegan", "kind": "preference" }, { "op": "constrain", "diet": "vegan" } ] },
+  "put chicken on friday": [
+    { "reply": "Done! I've added grilled chicken to your Friday lunch.", "operations": [] },
+    { "reply": "Done! I've added grilled chicken to your Friday lunch.", "operations": [] } ]
+}

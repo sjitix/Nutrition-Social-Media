@@ -1,0 +1,2 @@
+{ "stress eating": { "reply": "That sounds like a draining week, and evening stress eating is really common. Be gentle with yourself.", "operations": [ { "op": "symptom", "text": "stressed and drained, overeating at night" } ] },
+  "dinners a bit lighter": { "reply": "Making your dinners a bit smaller.", "operations": [ { "op": "resize", "direction": "smaller", "slot": "dinner" } ] } }

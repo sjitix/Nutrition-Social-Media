@@ -1,0 +1,8 @@
+{
+  "make tuesday vegetarian": {
+    "thinking": "Vegetarian diet.",
+    "reply": "Making Tuesday vegetarian.",
+    "operations": [{ "op": "constrain", "diet": "vegetarian" }]
+  },
+  "wednesday too": { "thinking": "Wednesday vegetarian as well.", "reply": "Making Wednesday vegetarian too.", "operations": [{ "op": "constrain", "scope": { "days": ["Wednesday"] }, "diet": "vegetarian" }] }
+}

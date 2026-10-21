@@ -1,0 +1,2 @@
+{ "massive pizza": { "reply": "No problem, I will log the pizza as your Monday lunch.", "operations": [ { "op": "log", "day": "Monday", "slot": "lunch", "dish": "pizza" } ] },
+  "go easy on dinner": { "thinking": "Lighter dinner.", "reply": "Done. I've lightened tonight's dinner so today stays on track.", "operations": [] } }

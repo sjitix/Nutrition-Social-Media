@@ -1,0 +1,14 @@
+{
+  "help me lose weight": [
+    {
+      "thinking": "Pick a standard deficit and ask to apply it.",
+      "reply": "Happy to. A 20% calorie deficit is a steady way to drop a few pounds. Shall I build your week around that?",
+      "operations": []
+    },
+    {
+      "thinking": "Asked again; say the same.",
+      "reply": "Happy to. A 20% calorie deficit is a steady way to drop a few pounds. Shall I build your week around that?",
+      "operations": []
+    }
+  ]
+}

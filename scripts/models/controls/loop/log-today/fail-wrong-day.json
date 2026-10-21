@@ -1,0 +1,7 @@
+{
+  "smashed a big burger and fries": {
+    "thinking": "Already eaten at lunch today. 2026-10-05 is a Sunday, so log Sunday lunch.",
+    "reply": "No stress. Your burger and fries are logged as today's lunch and the rest of the day is rebalanced.",
+    "operations": [{"op": "log", "day": "Sunday", "slot": "lunch", "dish": "big burger and fries"}]
+  }
+}

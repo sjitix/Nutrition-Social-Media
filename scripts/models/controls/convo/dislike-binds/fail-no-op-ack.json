@@ -1,0 +1,4 @@
+{
+  "can't stand avocado": { "thinking": "Just acknowledge it.", "reply": "Noted! I'll keep avocado out of your meals from now on.", "operations": [] },
+  "something mexican for saturday dinner": [ { "reply": "", "operations": [ { "op": "find_recipes", "mealType": "dinner", "query": "taco" } ] }, { "reply": "", "operations": [ { "op": "swap", "dish": "Turkey Taco Skillet with Beans", "slot": "dinner", "days": ["Saturday"] } ] } ]
+}

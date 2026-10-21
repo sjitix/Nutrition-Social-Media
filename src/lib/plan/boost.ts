@@ -9,10 +9,10 @@
 import { type UserProfile, type WeekPlan } from "../core";
 import { conditionBoosts } from "../data";
 import { MICRO_LABEL, type MicroKey } from "../nutrition";
-import { RECIPES, recipeMicros, scaleRecipeToTarget, toMeal } from "./library";
+import { RECIPES, baseRecipeOf, recipeMicros, scaleRecipeToTarget, toMeal } from "./library";
 import { bannedForUser, blockedByExclusions, exclusionTokens, localSplit, passesDiet } from "./rules";
 import { rebalanceWeek } from "./rebalance";
-import { selectWeekFromDb } from "./select";
+import { importBreaks, selectWeekFromDb } from "./select";
 import { conditionDisclosure, microNote, nutrientReachable, weekMicroAverage } from "./report";
 
 /**
@@ -76,17 +76,51 @@ export function guaranteeBoost(
   prev: WeekPlan,
   built: WeekPlan,
   key: MicroKey,
+  /** The profile before the change that came with the boost, so an import is judged as the re-solve
+   *  judged it (importBreaks). Omitted: only the allergies are judged against imports. */
+  before?: UserProfile,
 ): { plan: WeekPlan; note?: string } {
   const level = (pl: WeekPlan) => weekMicroAverage(pl, key).amount;
-  const before = level(prev);
-  const candidates = [upgradeForNutrient(profile, built, key), upgradeForNutrient(profile, prev, key)];
+  const start = level(prev);
+  // The week the person had is a candidate only while every dish in it passes the rules as they are
+  // NOW. A diet change or a new exclusion arriving in the same request as the boost used to upgrade the
+  // old week in place: its unreplaced dishes kept the old rules, so "go vegetarian, and more B12"
+  // returned salmon and tuna in a "vegetarian" week, with no word said (models lane audit, iron-veg#2).
+  const prevFits = fitsHardRules(prev, profile, before);
+  const candidates = [upgradeForNutrient(profile, built, key), ...(prevFits ? [upgradeForNutrient(profile, prev, key)] : [])];
   const best = candidates.reduce((a, b) => (level(b) > level(a) ? b : a));
   // Portion rebalancing can claw back what the swaps gained, so the win is verified, not assumed.
-  if (level(best) > before) return { plan: best };
+  if (level(best) > start) return { plan: best };
+  if (prevFits) {
+    return {
+      plan: prev,
+      note: `I couldn't put more ${MICRO_LABEL[key]} into your week than it already has, so I left it alone.`,
+    };
+  }
+  // The old week breaks the rules, so it cannot be kept. Say what the boost achieved, and only that: a
+  // drop only when there is one, and no "new rules" when the rules did not change (review, 2026-10-20:
+  // a boost alone over a week that already broke a rule said "now fits your new rules", and the "less
+  // than before" line fired at 0 -> 0).
   return {
-    plan: prev,
-    note: `I couldn't put more ${MICRO_LABEL[key]} into your week than it already has, so I left it alone.`,
+    plan: best,
+    note: level(best) < start
+      ? `Your week has less ${MICRO_LABEL[key]} than before: the dishes that had more don't fit your rules. I've used the richest ones that do.`
+      : `I couldn't put more ${MICRO_LABEL[key]} into your week while keeping to your rules.`,
   };
+}
+
+/** Every dish in the week passes the profile's hard rules: a library dish its diet, allergies and
+ *  exclusions (looked up the way rebalanceWeek looks it up); an imported dish what importBreaks judges,
+ *  on its own text first. A logged or eating-out entry passes: it records what was eaten. */
+function fitsHardRules(plan: WeekPlan, profile: UserProfile, before?: UserProfile): boolean {
+  const tokens = exclusionTokens(profile);
+  return plan.days.every((d) =>
+    d.meals.every((m) => {
+      if (importBreaks(m, profile, before)) return false;
+      const r = baseRecipeOf(m);
+      return !r || (passesDiet(r, profile.diet) && !blockedByExclusions(r, tokens));
+    }),
+  );
 }
 
 /**

@@ -1,0 +1,10 @@
+{
+  "my doctor said my iron is low": [
+    {
+      "thinking": "Plant iron is absorbed better with vitamin C, so boost vitamin C and keep vegetarian.",
+      "reply": "I'll keep you vegetarian and add more vitamin C, which helps your body absorb iron from plants.",
+      "operations": [ {"op": "constrain", "diet": "vegetarian", "boostNutrient": "vitC"} ]
+    },
+    { "thinking": "Applied. Finish.", "reply": "Vegetarian all week, with more vitamin C to help absorb iron.", "operations": [] }
+  ]
+}

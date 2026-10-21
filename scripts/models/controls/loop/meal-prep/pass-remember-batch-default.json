@@ -1,0 +1,10 @@
+{
+  "meal prep": {
+    "thinking": "A lasting preference: meal prep, two bulk cooks a week. Remember it and switch the plan mode to batch; the default cadence already cooks twice a week.",
+    "reply": "Got it, you'd rather batch cook. Setting your week up as meal prep with two cooking days.",
+    "operations": [
+      { "op": "remember", "fact": "prefers meal prep: cooking in bulk twice a week and eating leftovers", "kind": "preference" },
+      { "op": "constrain", "planMode": "batch" }
+    ]
+  }
+}

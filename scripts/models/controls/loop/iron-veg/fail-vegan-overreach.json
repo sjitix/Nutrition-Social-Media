@@ -1,0 +1,10 @@
+{
+  "my doctor said my iron is low": [
+    {
+      "thinking": "Plant-based and iron-rich: go fully vegan, which is still vegetarian, and boost iron.",
+      "reply": "I'll keep it fully plant-based and lean the week toward iron-rich dishes.",
+      "operations": [ {"op": "constrain", "diet": "vegan", "boostNutrient": "iron"} ]
+    },
+    { "thinking": "Applied. Finish.", "reply": "Your week is plant-based and iron-focused now.", "operations": [] }
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "vegan now": { "thinking": "Make every day vegan.", "reply": "Making every day of your week vegan.",
+    "operations": [ { "op": "constrain", "scope": { "days": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"] }, "diet": "vegan" } ] },
+  "put chicken on friday": { "reply": "That clashes with the vegan diet you just told me about, since chicken is not vegan. Want a high-protein vegan lunch on Friday instead, or should I take you off vegan so chicken can go in?", "operations": [] }
+}

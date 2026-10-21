@@ -1,0 +1,6 @@
+{
+  "lighter meals on the weekend": [
+    {"thinking": "Lighter meals: resize smaller.", "reply": "Making your meals lighter.", "operations": [{"op": "resize", "direction": "smaller"}]},
+    {"thinking": "Done.", "reply": "Your meals are lighter, including the weekend.", "operations": []}
+  ]
+}

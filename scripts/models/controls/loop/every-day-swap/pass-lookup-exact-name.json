@@ -1,0 +1,14 @@
+{
+  "pancakes for breakfast every single day": [
+    {
+      "thinking": "Find the pancake breakfasts in the library first, then swap an exact name in for every day.",
+      "reply": "",
+      "operations": [ { "op": "find_recipes", "mealType": "breakfast", "query": "pancake" } ]
+    },
+    {
+      "thinking": "Cottage Cheese Pancakes with Blueberries has the most protein of the two. One swap, no days = every day.",
+      "reply": "Cottage cheese pancakes with blueberries are now your breakfast every day of the week.",
+      "operations": [ { "op": "swap", "dish": "Cottage Cheese Pancakes with Blueberries", "slot": "breakfast" } ]
+    }
+  ]
+}

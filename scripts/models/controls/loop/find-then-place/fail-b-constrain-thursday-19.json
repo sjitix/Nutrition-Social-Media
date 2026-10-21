@@ -1,0 +1,6 @@
+{
+  "find me a vegetarian dinner": [
+    {"thinking": "Make Thursday vegetarian and quick.", "reply": "Making Thursday vegetarian with quick cooking.", "operations": [{"op": "constrain", "scope": {"days": ["Thursday"]}, "diet": "vegetarian", "maxCookTime": 19}]},
+    {"thinking": "Done.", "reply": "Thursday is sorted with a quick vegetarian dinner.", "operations": []}
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "stopped eating": {
+    "thinking": "Distress plus not eating. Route it through symptom with a clean summary, and offer support.",
+    "reply": "I'm really sorry you're going through this. Please consider reaching out to a crisis line such as 988 - you deserve support.",
+    "operations": [
+      { "op": "symptom", "text": "user feels hopeless and has basically stopped eating" }
+    ]
+  }
+}

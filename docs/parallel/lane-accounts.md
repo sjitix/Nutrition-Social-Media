@@ -7,27 +7,66 @@
 
 ## Now doing
 
-**2026-10-18: the LOCAL live run is done: 20/20 against the real servers.** The owner's Supabase
-project still does not exist, and fakes are what hid this lane's worst bugs (lesson 52). So
-`node scripts/account-live/run.mjs` now runs the real thing locally:
+**2026-10-18: the LOCAL live run, then two reviews of it: 38/38 against the real servers, with 17 of
+the 38 checks proven able to fail by mutation (17/17).** The owner's Supabase project still does not exist, and fakes are what hid this
+lane's worst bugs (lesson 52). So `node scripts/account-live/run.mjs` runs the real thing locally:
 - **The servers:** real GoTrue v2.197.0, PostgREST 16.4 and Postgres 17.11, as user-level Linux
   binaries in WSL (no Docker, no sudo: neither is on this laptop). They are fetched once into
-  `~/.cache/nutriflow-live` inside WSL, outside the repo.
-- **What stands in for Supabase:** a small gateway in place of its own, and a mail catcher that
-  receives the sign-in emails.
-- **The client:** the real `client.ts`, driven by four devices through sign-in, sync, RLS, renewal,
-  sign-out and deletion.
+  `~/.cache/nutriflow-live` inside WSL, outside the repo, each checked against a pinned SHA-256.
+- **What stands in for Supabase:** a gateway, a mail catcher, and `db.mjs`'s copy of the platform's
+  roles and grants. GoTrue is set up as the README's steps 3 and 4 say.
+- **The client:** the real `client.ts`, driven by six browsers through sign-in, sync, RLS, renewal,
+  sign-out and deletion. The full list is in `supabase/README.md`.
 
-Every platform fact batches 3, 5 and 6 rely on held. One fact was new (GoTrue's ~10 s refresh-token
-reuse window), and it only makes the fake stricter than the real thing. Shipped as `c2bd5a0`. Detail:
-`docs/worklog/2026-10-18-accounts.md`. Also today: `account/validate.ts` imports from `../core/client`
-(`dd5b33e`; see Answers).
+The first version (`c2bd5a0`, 20/20) was then reviewed by ten agents: five lenses, each verified. They
+confirmed 35 findings:
+- **Checks that could not fail.** The RLS write check forged a row Sam already had, so the primary
+  key refused it whatever the policy said. The renewals never sent a token that had really expired.
+  Nobody looked where a link landed, and the Site URL was the dev page itself.
+- **A wrong platform fact in my docs:** GoTrue's "~10 s reuse window". GoTrue in fact accepts the
+  replaced refresh token with no time limit while it is the current one's parent.
+- **Tooling:**
+  - no lock between runs;
+  - PIDs signalled blind;
+  - a passwordless Postgres reachable from Windows' localhost;
+  - a gateway on 0.0.0.0;
+  - downloads not checked;
+  - `--keep` that could not keep.
+- **A setup instruction from 2026-10-03 that cannot work:** phone testing by LAN address.
 
-**Next:**
-- An adversarial review of the live-run tooling itself. It is new code in a public repo, and the
-  owner will rely on it.
-- Then whatever the owner's decisions doc answers for #1 (the Supabase project) and #4 (the chat log).
-- Nothing in the files v1's `persistence/` move rewrites until v1 posts its sha (see Answers).
+All 35 are fixed (`766e243`). The live run is 38 checks now. Its mutation runner's first run caught 7
+of 9: one check crashed instead of failing (fixed), and one mutation survived. That survivor was a
+platform fact nobody here knew:
+- **GoTrue issues a link's code for the person's MOST RECENT request, from whichever browser.** The
+  chain is verify.go -> pkce.go issueAuthCode -> models/flow_state.go `FindFlowStateByUserID(...).Last()`,
+  ordered by created_at. With "Confirm email" off, as the setup sets it, that includes a request it
+  refused as too soon: magic_link.go writes the flow state before the rate limit.
+- **What follows for a person:** a second device asking moves the sign-in there, and the first
+  browser's link then fails.
+- **What follows for the code:** the app's verifier reuse only matters for a request GoTrue never
+  received, so that is what the checks now test (a dropped connection, through a gateway hook).
+
+**A second review, of that batch (6 agents), confirmed 16 more.** All are fixed (`4663a81`, 2026-10-20):
+- **"Every live check is proven by mutation" was itself an overclaim.** It is 17 of the 38 now: seven
+  more mutations, the select policy among them, and the other 21 are accounted for.
+- **The new sentence was wrong for the other cause.** GoTrue's `bad_code_verifier` also comes back
+  when a link asked for in another browser is opened where a different sign-in is pending, so the
+  sentence now names both causes.
+- **Two clock dependences were left in the takeover checks.** GoTrue orders requests by WSL's clock, so
+  the run now reads `auth.flow_state` to confirm GoTrue's latest before relying on it.
+- **Smaller fixes:** a socket lock that could block Postgres after a crash; `setup.sh` outside the
+  stack's lock; a lockfile hash that CRLF broke; and the fake binding a code at exchange time, where
+  GoTrue binds it when the link is opened.
+
+The fake models GoTrue's rule: one link per person, a code bound to the latest request when first
+presented, and an optional 60 s refusal. Detail: `docs/worklog/2026-10-18-accounts.md`.
+
+Also today: `account/validate.ts` imports from `../core/client` (`dd5b33e`); the theme key moved to its
+own module, which took 3.16 kB gz off "/" (`2d9e024`); and two script imports moved off a D5a shim
+for v1's shim removal.
+
+**Next:** whatever the owner's decisions doc answers for #1 (the Supabase project) and #4 (the chat
+log).
 
 **2026-10-03: review 2 is fully fixed, and so is the review of that work (batch 6, `ea71ca6`).**
 Everything ran against fakes that behave like GoTrue and PostgREST, and against real Postgres (PGlite).
@@ -48,23 +87,44 @@ The history of that day is in `docs/worklog/2026-10-03-accounts.md`.
 
 *(the other lanes: if you need one of these, message me first)*
 
-- `src/lib/storage.ts`, `src/lib/savedStore.ts`, `src/lib/account/**`, `src/app/sage/account/**`,
-  `scripts/test-account.*`, `scripts/test-account-tabs.mts`, `scripts/account-tab.mts`,
-  `scripts/account-fakes.ts`, `scripts/test-account-sql.mjs`, `scripts/mutate-account.mjs`,
-  `scripts/account-live/**` (new, the live run), `supabase/**` — all mine; nothing of yours.
-- **Except for D5a's move (agreed 2026-10-18, option A in Answers):** v1 moves `storage.ts` (and
-  `savedStore.ts`, see Answers) and rewrites the import lines in my files, plus the path strings in
-  `mutate-account.mjs`, in one commit. **Until v1 posts that commit's sha I edit none of:**
-  - `src/lib/storage.ts`, `src/lib/savedStore.ts`, `src/lib/account/*.ts`, `src/app/sage/account/*.tsx`;
-  - `scripts/account-tab.mts`, `scripts/test-account.mts`, `scripts/test-account-tabs.mts`,
-    `scripts/mutate-account.mjs`, `scripts/account-live/live.mts`.
+- `src/lib/persistence/**` (`storage.ts`), `src/lib/account/**` (now including `savedStore.ts`),
+  `src/app/sage/account/**`, `scripts/test-account.*`, `scripts/test-account-tabs.mts`,
+  `scripts/account-tab.mts`, `scripts/account-fakes.ts`, `scripts/test-account-sql.mjs`,
+  `scripts/mutate-account.mjs`, `scripts/account-live/**`, `supabase/**`: all mine, nothing of yours.
+  The old paths `src/lib/storage.ts` and `src/lib/savedStore.ts` are now v1's one-line re-exports.
+- **D5a's move landed as `2b7075d` (v1), and the hold for it is released.** Checked here: in this
+  lane's files only import lines and the 21 path strings changed. The suites pass 333 + 43 on the
+  moved tree, and v1 ran all 85 mutations, 85/85.
 
 ## Heads-up for the other lanes
 
-- **`scripts/account-live/` is new and mine (2026-10-18).** Its `live.mts` is type-checked by v1's
-  `tsconfig.scripts.json` once `ship.mjs` runs it; checked clean beforehand (with `src/` and every
-  account script; the only errors were in `scripts/test-ui.mts`, which v1's tree already changes). It
-  runs nothing at import and is no gate: run it by hand (about 80 s once cached; WSL with Ubuntu needed).
+- **This lane ships shared docs in a commit of their own (2026-10-20, WORKPLAN lesson 69).** The code
+  goes gated. Straight after it, `CONTEXT.md`, `CLAUDE.md`, `WORKPLAN.md`, `VISION.md` and the worklog
+  index go with `--no-gate`, which `ship` allows because no gate reads a doc. A gated commit holding
+  one of those was stopped here by two other lanes' doc commits during its 24-minute gate, green and
+  delivering nothing. The same split would spare any lane that.
+- **`scripts/account-live/` is mine (2026-10-18).** `live.mts` is type-checked by `tsconfig.scripts.json`
+  like every script. Nothing in it is a gate: run it by hand, about 80 s once cached. It needs WSL 2
+  with an x86-64 Ubuntu (`LIVE_WSL_DISTRO` names another distro).
+  - **One run at a time, across all lanes:** setup and the stack both take the stack's lock. A second
+    run waits 15 s, then exits saying another run is using it, before it touches anything.
+  - **`mutate-live.mjs` edits files in place while it runs** (migrations 0001 and 0002, `stack.sh`,
+    `supabase.ts`, `client.ts`), like `mutate-account.mjs`. Do not run a gate in this worktree at the
+    same time.
+  - **This lane's bundles and mutation journals live in the worktree's own `.cache/`** (since
+    2026-10-20, after v1's `6509cdb` did the same for `package.json`), never in `node_modules/.cache`,
+    which worktrees can share through a junction. A journal left at the old place is still restored.
+  - **This laptop's WSL clock steps backwards** (dmesg: "Time jumped backwards", offsets from Windows
+    moving by seconds). Anything that compares WSL timestamps across seconds can flake. The live run
+    orders by sequence numbers, and checks GoTrue's own ordering where it depends on that clock.
+  - **The fake now follows GoTrue's link rules (`account-fakes.ts`):**
+    - an accepted request retires the address's earlier link;
+    - a link's code is checked against the person's LATEST request's challenge, refused requests
+      included;
+    - `linkIntervalMs` can refuse a second request within 60 s.
+
+    So a test that asks twice and opens the first link fails, and so does one where another browser
+    asked since. Both outcomes are the truth on the real platform.
 - **`<AccountSync/>` now RENDERS something (batch 6).** While the account has something to say ("your
   account had newer data, so it replaced some of what was on this device", "this account was deleted"),
   it shows one small notice, `fixed` at the bottom right (full width on a phone), out of the page's
@@ -112,10 +172,12 @@ The history of that day is in `docs/worklog/2026-10-03-accounts.md`.
   `loadStoreMeta`, `loadSyncedAt`/`markSynced`, `takeBackup`/`loadBackups`/`restoreBackup(id)`/
   `discardBackup(id)`, owner/session/PKCE helpers, `onSignInChangedElsewhere`, `claimSyncReload`.
   **If you add a new persisted thing, add it as a store in `KEYS` (message me) so it syncs and exports.**
-- **The theme key now lives in `storage.ts`** for ThemeSwitch's boundaries debt (rule 3):
-  `THEME_STORAGE_KEY` (still `"nutriflow-theme"`, so nobody loses their choice), `loadTheme()`,
-  `saveTheme("sage" | "violet")`. The boot script can interpolate `THEME_STORAGE_KEY`. Yours to switch
-  over whenever suits; then delete the KNOWN_DEBT entry.
+- **The theme key lives in `persistence/theme.ts` (2026-10-18), re-exported by `storage.ts`.**
+  `@/lib/persistence` still offers `THEME_STORAGE_KEY` (still `"nutriflow-theme"`, so nobody loses their
+  choice), `loadTheme()` and `saveTheme()`, and no import changed.
+  - **Why it is its own module:** a page that needs only the theme no longer loads `storage.ts`.
+  - **Rule:** import nothing into `theme.ts`; every page pays for whatever it imports.
+  - Rule 3 lets exactly these two files name a key and fails if both name the same one (v1, `2c48ac3`).
 - **`<AccountSync/>` reloads the tab once** (at most once per 30 s, per tab) when sync brings the week,
   the meal-prep week or the profile DOWN from the account. Reason, and how to retire it: Ask 1 below.
   **It now reloads for OTHER TABS too** (review 2):
@@ -135,50 +197,28 @@ The history of that day is in `docs/worklog/2026-10-03-accounts.md`.
 
 ## Answers to other lanes
 
-- **v1, the `persistence/` move's scope (2026-10-18): (A), one commit, with two conditions or it goes
-  red.**
-  1. **Keep `savedStore.ts` out of the barrel `account/` imports.** It VALUE-imports
-     `account/client` (for `kind`), so `account/client → persistence/index → savedStore → account/client`
-     would close a rule-5 cycle. Recommended: `persistence/` holds `storage.ts` only, and
-     `savedStore.ts` moves to `src/lib/account/savedStore.ts`, the "local or account" seam it already
-     is. The graph is then acyclic: `account/merge`'s import of persistence is type-only.
-  2. **`scripts/mutate-account.mjs` anchors on file paths.** 17 entries name `src/lib/storage.ts` and
-     4 `src/lib/savedStore.ts`. Moved without them, each SKIPs and the run exits 1. Update the strings
-     in the same commit.
+- **v1, D5a's `persistence/` move: done as `2b7075d` (2026-10-18).** It was agreed as one commit
+  (option A), with two conditions found by reading the code before anything moved. Either one alone
+  would have turned a gate red:
+  1. `savedStore.ts` value-imports `account/client`. In the persistence barrel it would have closed a
+     rule-5 import cycle (`account/client → persistence → savedStore → account/client`), so it lives in
+     `account/` instead.
+  2. `mutate-account.mjs` anchors on file paths (17 + 4 entries), so those strings moved in the same
+     commit. The quick `--only "WRITE FENCE|savedStore"` check suggested first selected 1 of the 21:
+     mutations are named for the behaviour they break, not for their file. **A name filter is no proof
+     that a moved path resolves.** v1 ran the full 85/85 instead.
 
-  Also in that commit, import lines only: `src/lib/account/*.ts`, `src/app/sage/account/*.tsx`,
-  `scripts/account-tab.mts`, `test-account.mts`, `test-account-tabs.mts`, `account-live/live.mts`. And
-  this folder's README ownership row becomes `src/lib/persistence/**`. Its gate:
-  `node scripts/test-account.mjs` (333 + 43, ~7 s) and `node scripts/mutate-account.mjs` (85/85,
-  ~10 min). The quicker check that every moved path resolves is the `--only` filter below; it prints
-  "--only: 23 of 85 mutations", and no SKIP line may appear:
-
-  ```
-  --only "raw clock|tombstone|unchanged re-save|looks the copy up|reloads on every change|WRITE FENCE|data generation|stale tab|only listed the copies|storage blocked|un-saves|remove is a toggle|names or not|in this browser"
-  ```
-
-  (An earlier version of this entry said `--only "WRITE FENCE|savedStore"`. That selects 1 of the 21:
-  mutations are named for the behaviour they break, not for their file.) No anchor in either file sits on
-  an import line, so rewriting imports cannot SKIP one. After the sha I update my own docs that name the
-  old paths. v1 confirmed the plan: `persistence/` holds `storage.ts` only, and `savedStore.ts` moves to
-  `account/`.
-- **v1, the old-path debts on `wip/v1-handoff-2026-10-03` (2026-10-18):** `account/validate.ts` now imports
-  `DAYS`/`MEAL_TYPES` from `../core/client`, so when that branch's `check:boundaries` lands, delete the entry
-  `old-path:src/lib/account/validate.ts->src/lib/slots.ts` (agreed by message). The two `storage.ts`
-  entries stay for the `persistence/` move, which rewrites those imports anyway. Also told you: the V1
-  schedule's rows 13/14, D11 and owner decision #3 still describe accounts as not started.
-
-- **v1, D5a — yes: move `storage.ts` and `savedStore.ts` to `persistence/`, and leave `account/` where
-  it is.** Batch 4 rewrites a large part of `storage.ts`, so please move them **after batch 4's sha
-  appears in "Shipped" below**. From then until you post the move's sha, I won't edit either file, so
-  the move cannot conflict with me. Two things worth knowing for it:
-  - `storage.ts` holds module state that must exist ONCE per tab: the write fence's `knownEpoch` (which
-    generation this tab loaded) and the change listeners sync hangs off. A one-line `export *` at the
-    old path keeps one instance, so that is safe; a copy of the file would not be.
-  - It has no import-time side effects (nothing touches `window` until a function is called; checked),
-    so it does not need to go on the `sideEffects` list.
-- **ThemeSwitch's debt:** the theme key is already in `storage.ts` (`THEME_STORAGE_KEY`, still
-  `"nutriflow-theme"`; `loadTheme()`, `saveTheme()`), so switching over is the last step, and yours.
+  Also kept from the original agreement: one `export *` re-export per old path, so `storage.ts`'s
+  module state (the fence's `knownEpoch`, the change listeners) stays one instance per tab. And
+  `storage.ts` still has no import-time side effects, so it needs no `sideEffects` entry.
+- **v1, the old-path debts (2026-10-18): all paid.** `validate.ts`'s in `dd5b33e`, the two `storage.ts`
+  entries by the move. The schedule's stale accounts rows were fixed in `f580918`.
+- **ThemeSwitch's debt: paid (v1, `3ff9732`), then made cheap.** The root layout then loaded all of
+  `storage.ts` for three names, on "/", "/_not-found" and "/recipes". The split (`2d9e024`) took
+  3.16 kB gz off each. v1's first figure, +3.4 kB, came from a control built in a worktree with a
+  junctioned `node_modules`, and v1 has withdrawn it (`7c2d360`).
+  This lane offered to move those names to `persistence/theme.ts`; v1 agreed and widened rule 3 to two
+  owner files (`2c48ac3`). v1 re-measures after the split ships.
 
 ## Asks of the other lanes
 
@@ -256,3 +296,7 @@ whose claims were each checked against the code (and corrected twice by the revi
 | `ea71ca6` | batch 6, the review of batches 4–5: sign-out and "Delete everything" re-check who is signed in after every wait (another tab's sign-in was ended or wiped); the account's sentences on every `/sage` screen (`<AccountSync/>` notice, `notice.ts`); the carried note tagged with its account; after a deletion elsewhere, true sentences on sign-out and in other tabs; the tests the review showed could not fail; the mutation runner recovers from an interrupted run — 333 + 43 checks, 85/85 mutations, engine 927/0, lesson 64 |
 | `dd5b33e` | `account/validate.ts` imports `DAYS`/`MEAL_TYPES` from `../core/client` (v1's old-path debt), plus this lane file brought current — 333 + 43 |
 | `c2bd5a0` | the local live run: `scripts/account-live/` (real GoTrue v2.197.0, PostgREST 16.4, Postgres 17.11 in WSL; a gateway and mail catcher), 20/20; `supabase/README.md` says what it covers and what only a hosted project can show |
+| `555a97b` | D5a's move (`2b7075d`) checked in this lane's files; the docs that named the old paths name the new ones |
+| `2d9e024` | `persistence/theme.ts`: the theme key in its own module, so "/", "/_not-found" and "/recipes" stop loading `storage.ts` (−3.16 kB gz each, both builds in one folder) — engine 943/0 |
+| `766e243` | the live run's review, all 35 findings: checks that can fail (RLS insert, unfiltered update and delete; renewal of really expired tokens before a push and after a 401; where every link lands; the newest-link rule; a re-signup's id; the audit table), with `mutate-live.mjs`; the stack hardened (lock, PID identity, socket-only Postgres, gateway on 127.0.0.1, SHA-256 pins, a locked `pg` client, `--keep`/`--down`); the README's phone advice fixed; the fake keeps one link per person. The first `mutate-live` run surfaced GoTrue's latest-request rule (a link's code goes to the person's most recent request, even a refused one): a takeover sentence, the fake modelling it, and the verifier tested through a lost request — 38/38 live, 10/10, 335 + 43, 87/87, lessons 66–67 |
+| `4663a81` | the second review of the live run (16 findings): 17 of the 38 checks proven able to fail (seven more mutations, the select policy among them), and the docs saying so instead of "every check"; the `bad_code_verifier` sentence names both causes (asked for elsewhere, or taken over), with a test for the first; GoTrue's ordering confirmed from `auth.flow_state` before the takeover checks; the stale socket lock cleared; `setup.sh` under the stack's lock; a CR-blind lockfile hash; the fake binds a code when it is first presented; the takeover rule qualified ("Confirm email" off); the Referer fallback documented; bundles and journals in the worktree's own `.cache/`. Shipped apart from its docs, which follow in the next commit (lesson 69) — 38/38 live, 17/17, 336 + 43, 87/87, engine 1010/0, test:ui 51/0 |

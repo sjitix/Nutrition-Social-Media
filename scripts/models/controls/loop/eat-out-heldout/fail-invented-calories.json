@@ -1,0 +1,7 @@
+{
+  "going to a restaurant for dinner": {
+    "thinking": "A birthday restaurant dinner with cake is usually around 1300 kcal. Reserve Saturday dinner with that.",
+    "reply": "Happy birthday to your sister! I'm keeping about 1300 kcal free for Saturday's dinner and cake.",
+    "operations": [{"op": "reserve", "day": "Saturday", "slot": "dinner", "calories": 1300}]
+  }
+}

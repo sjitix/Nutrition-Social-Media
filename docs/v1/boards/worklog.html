@@ -170,8 +170,8 @@
       the schedule ahead.</p>
     <div class="stamp">
       <b><i>source</i> docs/worklog/</b>
-      <b><i>synced</i> 2026-10-03, 19:30</b>
-      <b><i>commit</i> 1dff171+</b>
+      <b><i>synced</i> 2026-10-21</b>
+      <b><i>commit</i> da023da+</b>
     </div>
   </header>
 
@@ -189,10 +189,10 @@
 
   <section id="totals">
     <div class="stats">
-      <div class="stat"><div class="v">3</div><div class="l">days logged</div></div>
+      <div class="stat"><div class="v">6</div><div class="l">days logged</div></div>
       <div class="stat"><div class="v">10</div><div class="l">milestones done</div></div>
       <div class="stat"><div class="v">9</div><div class="l">days to V1</div></div>
-      <div class="stat"><div class="v">9</div><div class="l">open deferrals</div></div>
+      <div class="stat"><div class="v">11</div><div class="l">open deferrals</div></div>
     </div>
   </section>
 
@@ -202,6 +202,142 @@
     <p class="lede">Only days that actually happened, each with its date, appended at the end of every work-day.
       Nothing planned appears here — the schedule ahead is in its own collapsed block below.</p>
     <div class="tl" style="margin-top:20px">
+
+      <article class="entry" id="d-2026-10-21">
+        <div class="box">
+          <div class="ehead">
+            <span class="date">2026-10-21</span>
+            <span class="pill done">solved &middot; done</span>
+          </div>
+          <h3>Imported recipes now follow your allergies and your diet, and the assistant keeps its answers</h3>
+          <p class="sub">Four reviewers tried to break the fixes before they shipped, and a second review of the fixes is running.</p>
+          <div class="blocks">
+            <div class="blk">
+              <h4>What moved</h4>
+              <ul>
+                <li><b>An imported recipe that holds a new allergy leaves the week, and the assistant names it.</b> Going
+                  vegetarian, or saying you avoid a food, does the same for an import that conflicts. One you added
+                  knowing the old rule stays, because you put it there on purpose.</li>
+                <li><b>The assistant no longer loses its answer.</b> A reply could be replaced by &ldquo;Happy to help.&rdquo;,
+                  or by a line written before the change it described. Asking a question no longer uses up your undo.</li>
+                <li><b>&ldquo;Go vegetarian, and more B12&rdquo; no longer brings fish back.</b> A boost now keeps to the
+                  diet and the foods you exclude.</li>
+                <li><b>A new allergy said in the same message as &ldquo;undo&rdquo; is kept.</b> Before, the undo wiped it,
+                  and a peanut dish stayed in the week while the assistant said none would be planned.</li>
+                <li><b>Every allergy sentence is now checked against the finished week.</b> &ldquo;Nothing with it is
+                  planned&rdquo; is said only when that is true.</li>
+              </ul>
+            </div>
+            <div class="blk found">
+              <h4>Found along the way</h4>
+              <ul>
+                <li><b>Asking for a &ldquo;veggie burger&rdquo; could blame dairy on a cheeseburger</b> you never asked
+                  for. A refused dish is now named only when it is the one you asked for.</li>
+                <li><b>The check against false claims was replacing some honest replies</b>, such as a question that offered
+                  a change. It now judges a promise only in a reply that asks nothing.</li>
+                <li><b>The laptop slept while the tests ran</b>, and they were stopped partway when it woke. Nothing was
+                  lost: the work was simply run again.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="gate">GATE &middot; engine 1061/0 &middot; 51 new tests, 35 of which fail without the fix</div>
+        </div>
+      </article>
+
+      <article class="entry" id="d-2026-10-20">
+        <div class="box">
+          <div class="ehead">
+            <span class="date">2026-10-20</span>
+            <span class="pill part">solved &middot; partial</span>
+          </div>
+          <h3>What the assistant says about an allergy is now always true</h3>
+          <p class="sub">Picked up after the usage limit stopped the last session, with all three agents running again.</p>
+          <div class="blocks">
+            <div class="blk">
+              <h4>What moved</h4>
+              <ul>
+                <li><b>Every allergy you mention gets an honest answer.</b> &ldquo;I&rsquo;ve added shellfish&rdquo;,
+                  &ldquo;eggs are already in your allergies&rdquo;, or &ldquo;I haven&rsquo;t added celery, so meals aren&rsquo;t
+                  checked for it&rdquo;. Before, the assistant could say &ldquo;I&rsquo;ve excluded celery&rdquo; while nothing
+                  was excluded.</li>
+                <li><b>When a dish is refused because of an allergy, it says so:</b> &ldquo;Shrimp &amp; Tomato Rice contains
+                  shellfish, which is in your allergies&rdquo;, where before it said &ldquo;I didn&rsquo;t have it&rdquo;.</li>
+                <li><b>An undo now says when it took an allergy off.</b> It used to read &ldquo;before I your last change&rdquo;.</li>
+                <li><b>The check that stops the assistant claiming a change it never made</b> now catches every false claim in
+                  the models agent&rsquo;s test set, and no longer blocks honest replies like &ldquo;I&rsquo;ve made a note of
+                  that&rdquo;.</li>
+              </ul>
+            </div>
+            <div class="blk found">
+              <h4>Found along the way</h4>
+              <ul>
+                <li><b>A recipe you imported stayed in the week</b> after you added an allergy it contains. The fix is built
+                  and tested, and ships next.</li>
+                <li><b>The models agent&rsquo;s tests found two assistant bugs:</b>
+                  <ul>
+                    <li>an answer to a question could be replaced by &ldquo;Happy to help.&rdquo;;</li>
+                    <li>asking a question after a change made that change impossible to undo.</li>
+                  </ul>
+                  Both are fixed and ship with the import fix.</li>
+                <li>Each agent was accidentally started twice, once by you and once by this session. Mine were stopped before
+                  either touched anything.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="gate">GATE &middot; engine 1010/0 &middot; every new test fails without its fix and passes with it</div>
+        </div>
+      </article>
+
+      <article class="entry" id="d-2026-10-18">
+        <div class="box">
+          <div class="ehead">
+            <span class="date">2026-10-18</span>
+            <span class="pill part">solved &middot; partial</span>
+          </div>
+          <h3>Back after two weeks: the allergy gap is closed, the commit tool is rebuilt, and your decisions are in one place</h3>
+          <p class="sub">Three agents worked at once, all on this laptop. This one is the app-and-engine lane.</p>
+          <div class="blocks">
+            <div class="blk">
+              <h4>What moved</h4>
+              <ul>
+                <li><b>Every decision waiting on you is in <a href="https://claude.ai/code/artifact/a3290f96-fc25-43a6-932d-9982a46bb70f">one doc</a></b>, twelve of them, each with the options
+                  and a recommendation. Comment on any line and it gets answered there.</li>
+                <li><b>An allergy now always keeps the dish out.</b> Before, an allergy the assistant saved without the label
+                  &ldquo;allergy&rdquo; did not: &ldquo;allergic to shellfish&rdquo; left shrimp in the week. Six reviewers tried
+                  to break the fix, and it landed in two steps:
+                  <ul>
+                    <li>plurals, misspellings (&ldquo;alergic&rdquo;, &ldquo;celiak&rdquo;) and a second allergy in the same
+                      message now count too;</li>
+                    <li>&ldquo;no allergies&rdquo; never bans anything.</li>
+                  </ul></li>
+                <li><b>The commit tool every agent uses was rebuilt.</b> A review found 45 ways it could send the wrong
+                  thing or lose work. It now has 43 tests of its own, and the old version fails 34 of them.</li>
+                <li><b>Two assistant bugs fixed:</b> a swap meant for Wednesday to Sunday changed every day, and a claim of a
+                  change could slip through when the assistant had only saved a note.</li>
+                <li><b>The last file moved into its folder,</b> with the other agent&rsquo;s agreement. They caught a loop that
+                  would have broken the build before it happened.</li>
+                <li><b>The rules for all three agents</b> are written down: keep every note current, pull and push
+                  constantly, and tell the others what changed.</li>
+              </ul>
+            </div>
+            <div class="blk found">
+              <h4>Found along the way</h4>
+              <ul>
+                <li><b>The models agent found the allergy gap,</b> by testing what a real model actually sends.</li>
+                <li><b>The new commit tool had a bug on its first day,</b> and its own tests caught it before anyone used
+                  it: it would have quietly dropped a half-finished change in a file nobody named.</li>
+                <li><b>What the assistant SAYS after an allergy can still be wrong.</b> For example, &ldquo;I&rsquo;ve excluded
+                  celery&rdquo; when nothing was excluded. That fix is being built and reviewed now.</li>
+                <li><b>A recipe you imported keeps its place in the week</b> even when it contains an allergy you add
+                  later. That is next.</li>
+                <li>This laptop has no key file, so the models agent cannot measure anything here until you add one
+                  (decision 2, first line).</li>
+              </ul>
+            </div>
+          </div>
+          <div class="gate">GATE &middot; engine 943/0, then 971/0 and 984/0 with the allergy fix &middot; commit tool 43/43 &middot; account suite 333/0 + 43/0 &middot; 85/85 mutations caught &middot; production build</div>
+        </div>
+      </article>
 
       <article class="entry" id="d-2026-10-03-d5a">
         <div class="box">
@@ -717,10 +853,16 @@
     <h2>Open deferrals</h2>
     <p class="lede">Every deferral names a destination and a reason. “Later” is not a destination.</p>
     <div class="defers" style="margin-top:16px">
-      <div class="defer"><div><b>Land the models lane's read-tool fix</b> — the agent loop's read tools are unreachable in production (neither the turn schema nor the prompt names them). A fix, so the Track A gate allows it; it lands between Track A days, never in the same commit as a move.</div><span class="to">when it arrives</span></div>
-      <div class="defer"><div><b>Tell the model today's date</b> — "I ate a burger for lunch today" makes even a 550B model ask which day it is. Found by the models lane.</div><span class="to">after the read-tool fix</span></div>
+      <div class="defer"><div><b>A boost with a new calorie or protein target</b> &mdash; when the nutrient cannot go any higher, the new target is dropped too, and the old week comes back unchanged.</div><span class="to">after the cleanup</span></div>
+      <div class="defer"><div><b>A cooking-time limit can be quietly stretched</b> &mdash; a 15-minute cap can get a 20-minute dish with no word about it. Found by the models agent.</div><span class="to">after the cleanup</span></div>
+      <div class="defer"><div><b>The training examples invent calorie figures</b> for a meal eaten out or logged. Fixing it changes what those examples teach, so it is a training-data change of its own.</div><span class="to">with the next training data</span></div>
+      <div class="defer"><div><b>Taking an allergy off</b> &mdash; chat has no way to do it, and an undo can drop one without saying so.</div><span class="to">your decision 12</span></div>
+      <div class="defer"><div><b>Allergy words the app does not know</b> &mdash; &ldquo;allergic to hazelnuts&rdquo; stops nothing unless labelled, yet a hazelnut dish exists. Blocking every unknown word would ban words like &ldquo;spring&rdquo; (from &ldquo;hay fever in spring&rdquo;), so it needs its own design.</div><span class="to">own design</span></div>
+      <div class="defer"><div><b>Remove the old file addresses</b> &mdash; the other two agents no longer use them; this lane&rsquo;s own test scripts still do. Then the architecture work is finished.</div><span class="to">after the allergy work</span></div>
+      <div class="defer"><div><b>The fast finish</b> &mdash; a faster assistant reply, held until the models agent can measure it fairly, which needs your key file.</div><span class="to">when the key exists</span></div>
+      <div class="defer"><div><b>An allergy said once and never saved</b> &mdash; only a scan of the person&rsquo;s own words could catch it, and that needs its own false-alarm tests first (&ldquo;my son is allergic to eggs&rdquo;).</div><span class="to">backlog</span></div>
       <div class="defer"><div><b>A real-phone pass on the sheet and the drag</b> — sub-500px is still unverified by the headless tool.</div><span class="to">day 12</span></div>
-      <div class="defer"><div><b>The Track E free list</b> (shopping-list diff, skip a meal, &ldquo;20 minutes tonight&rdquo;, weekly review&hellip;) and <b><span class="mono">RecipeModal</span> onto the shared sheet</b> &mdash; features, so they wait for Track A.</div><span class="to">after day 5b</span></div>
+      <div class="defer"><div><b>The Track E free list</b> (shopping-list diff, skip a meal, &ldquo;20 minutes tonight&rdquo;, weekly review&hellip;) and <b><span class="mono">RecipeModal</span> onto the shared sheet</b> &mdash; features, so they wait for Track A.</div><span class="to">after the old addresses go</span></div>
       <div class="defer"><div><b><span class="mono">npm run log:day</span> scaffolder</b> — deliberately waiting. A scaffolder that pre-fills the wrong fields is worse than none, so the format should survive a week of real use.</div><span class="to">backlog</span></div>
     </div>
   </section>

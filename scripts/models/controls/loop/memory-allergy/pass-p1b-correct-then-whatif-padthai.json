@@ -1,0 +1,4 @@
+{"high-protein snack": [
+  {"thinking": "Peanut allergy binds: add the snack, exclude peanuts, remember the allergy.", "reply": "", "operations": [{"op": "remember", "fact": "allergic to peanuts", "kind": "allergy"}, {"op": "constrain", "mealsPerDay": 4, "exclude": ["peanuts"]}]},
+  {"thinking": "(audit probe, read only) would the engine now accept a whole-peanut dish?", "reply": "", "operations": [{"op": "what_if", "operations": [{"op": "swap", "dish": "Tofu Pad Thai", "slot": "dinner", "days": ["Friday"]}]}]}
+]}

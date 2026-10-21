@@ -1,0 +1,14 @@
+{
+  "smashed a big burger and fries": [
+    {
+      "thinking": "See whether the library has a burger dish before logging.",
+      "reply": "",
+      "operations": [{"op": "find_recipes", "query": "burger"}]
+    },
+    {
+      "thinking": "No rows. Log it in the user's own words for Monday (today) lunch; the engine matches or asks. No calorie guess.",
+      "reply": "Got it, that's in as your Monday lunch, and I've let the engine rework the rest of today around it.",
+      "operations": [{"op": "log", "day": "Monday", "slot": "lunch", "dish": "burger and fries"}]
+    }
+  ]
+}

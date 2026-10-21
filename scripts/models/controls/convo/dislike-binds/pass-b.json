@@ -1,0 +1,11 @@
+{
+  "can't stand avocado": {
+    "thinking": "A dislike: exclude it so the engine never picks it.",
+    "reply": "Got it, no avocado from now on.",
+    "operations": [ { "op": "constrain", "exclude": ["avocado"] } ] },
+  "something mexican for saturday dinner": [
+    { "reply": "", "operations": [ { "op": "find_recipes", "mealType": "dinner", "query": "fajita" } ] },
+    { "reply": "", "operations": [ { "op": "swap", "dish": "Chicken Fajitas", "slot": "dinner", "days": ["Saturday"] } ] },
+    { "reply": "Saturday dinner is Chicken Fajitas now, avocado-free.", "operations": [] }
+  ]
+}

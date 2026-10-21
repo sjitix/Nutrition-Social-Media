@@ -1,0 +1,14 @@
+{
+  "what exactly is in monday's dinner": [
+    {
+      "thinking": "Look it up.",
+      "reply": "",
+      "operations": [ { "op": "inspect_recipe", "name": "Chicken & Vegetable Stir-Fry with Rice" } ]
+    },
+    {
+      "thinking": "160 g chicken breast is about 31 g protein, rice adds a little, so roughly 35 g.",
+      "reply": "Monday's dinner is the Chicken & Vegetable Stir-Fry with Rice: 160 g chicken breast, 70 g brown rice, 160 g mixed stir-fry veg, soy-ginger sauce and sesame oil. That works out to roughly 35 g of protein.",
+      "operations": []
+    }
+  ]
+}

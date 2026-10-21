@@ -1,0 +1,7 @@
+{
+  "dinner reservation on friday night": {
+    "thinking": "Save some room = make Friday lighter. resize smaller on Friday.",
+    "reply": "Got it. I'm trimming Friday's meals so you have room for the reservation.",
+    "operations": [{"op": "resize", "direction": "smaller", "day": "Friday"}]
+  }
+}

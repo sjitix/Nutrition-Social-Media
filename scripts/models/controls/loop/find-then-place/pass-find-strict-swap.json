@@ -1,0 +1,19 @@
+{
+  "find me a vegetarian dinner": [
+    {
+      "thinking": "They want a vegetarian dinner under 20 minutes on Thursday. Look it up first, strictly under 20 minutes.",
+      "reply": "",
+      "operations": [{"op": "find_recipes", "mealType": "dinner", "diet": "vegetarian", "maxTime": 19}]
+    },
+    {
+      "thinking": "Results include Harissa Chickpea & Spinach Skillet (12 min). Thursday already has Egg Fried Rice; pick a different one and place it on Thursday dinner only.",
+      "reply": "Putting the Harissa Chickpea & Spinach Skillet on Thursday night, a 12-minute vegetarian dinner.",
+      "operations": [{"op": "swap", "dish": "Harissa Chickpea & Spinach Skillet", "slot": "dinner", "days": ["Thursday"]}]
+    },
+    {
+      "thinking": "The engine applied it. Finish and report.",
+      "reply": "Thursday's dinner is now the Harissa Chickpea & Spinach Skillet, a 12-minute vegetarian dish.",
+      "operations": []
+    }
+  ]
+}

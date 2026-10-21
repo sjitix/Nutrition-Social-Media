@@ -1,0 +1,4 @@
+{"keep me at 1800 calories": [
+  {"thinking": "Check the current targets first.", "reply": "", "operations": [{"op": "get_profile"}]},
+  {"thinking": "Currently 2000/150. Persist the new targets and remember the goal.", "reply": "Updating your targets to 1800 kcal and 160 g of protein a day.", "operations": [{"op": "remember", "fact": "wants to stay at 1800 kcal with 160 g protein a day", "kind": "goal"}, {"op": "constrain", "scope": "week", "targets": {"calories": 1800, "protein": 160}}]}
+]}

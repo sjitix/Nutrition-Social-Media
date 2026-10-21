@@ -1,0 +1,4 @@
+{"keep me at 1800 calories": [
+  {"thinking": "Simulate first.", "reply": "", "operations": [{"op": "what_if", "operations": [{"op": "constrain", "targets": {"calories": 1800, "protein": 160}}]}]},
+  {"thinking": "Looks fine, apply it.", "reply": "Applying 1800 kcal and 160 g protein as your daily targets.", "operations": [{"op": "constrain", "targets": {"calories": 1800, "protein": 160}}]}
+]}

@@ -1,0 +1,1 @@
+{"high-protein snack": {"thinking": "Every afternoon, every day, peanut-free.", "reply": "Adding a peanut-free afternoon snack to each day.", "operations": [{"op": "constrain", "scope": {"days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]}, "mealsPerDay": 4, "exclude": ["peanuts"]}]}}

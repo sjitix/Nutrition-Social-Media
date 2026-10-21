@@ -1,0 +1,20 @@
+{
+  "drop a few pounds": [
+    {
+      "thinking": "The user revealed a lasting goal: remember it. The calorie target is a number with health stakes, so I ask instead of picking one.",
+      "reply": "Glad you asked. Before I change anything: do you have a calorie target from your doctor, or should I work one out from your age, height, weight and activity level?",
+      "operations": [
+        {
+          "op": "remember",
+          "fact": "wants to lose weight",
+          "kind": "goal"
+        }
+      ]
+    },
+    {
+      "thinking": "The memory saved; the plan is untouched, as intended. Finish with the one clarifying question.",
+      "reply": "I've noted that your goal is to lose weight. Before I change anything: do you have a calorie target from your doctor, or should I work one out from your age, height, weight and activity level?",
+      "operations": []
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "help me lose weight": [
+    {
+      "thinking": "Store a weight-loss calorie target and ask if they want the week rebuilt.",
+      "reply": "Saving your goal.",
+      "operations": [{"op": "remember", "fact": "weight-loss target 1500 kcal a day", "kind": "goal"}]
+    },
+    {
+      "thinking": "Saved. Offer the rebuild.",
+      "reply": "I've noted your weight-loss goal. Want me to rebuild the week around it?",
+      "operations": []
+    }
+  ]
+}

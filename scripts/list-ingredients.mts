@@ -3,7 +3,7 @@
  * Feeds the USDA mapping step (scripts/build-nutrients.mjs).
  *
  *   npx esbuild scripts/list-ingredients.mts --bundle --platform=node --format=esm \
- *     --tsconfig=tsconfig.json --outfile=node_modules/.cache/li.mjs && node node_modules/.cache/li.mjs
+ *     --tsconfig=tsconfig.json --outfile=.cache/li.mjs && node .cache/li.mjs
  */
 import { RECIPES } from "@/lib/recipeDb";
 

@@ -1,0 +1,4 @@
+{
+  "really run down and tired": { "reply": "I am sorry you have been feeling so run down. I cannot diagnose it, and a doctor is worth seeing if it continues. Want me to check your week and lean it toward whatever looks low?", "operations": [ { "op": "symptom", "text": "i've been feeling really run down and tired lately" } ] },
+  "yes please, go ahead": { "reply": "I'm giving you bigger portions across the week for more energy.", "operations": [ { "op": "resize", "direction": "bigger" } ] }
+}

@@ -1,0 +1,8 @@
+{
+  "make the whole week vegetarian": {
+    "thinking": "Swap dinners to a vegetarian dish every day.",
+    "reply": "Your dinners are now vegetarian all week.",
+    "operations": [{ "op": "swap", "dish": "Red Lentil & Tofu Curry", "slot": "dinner" }]
+  },
+  "undo that": { "thinking": "Undo the last change.", "reply": "Putting your original week back.", "operations": [{ "op": "undo" }] }
+}

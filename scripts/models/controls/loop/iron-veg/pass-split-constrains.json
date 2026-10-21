@@ -1,0 +1,13 @@
+{
+  "my doctor said my iron is low": [
+    {
+      "thinking": "Persist vegetarian first, then boost iron on the vegetarian week.",
+      "reply": "I'll keep you vegetarian and push iron up.",
+      "operations": [
+        {"op": "constrain", "diet": "vegetarian"},
+        {"op": "constrain", "boostNutrient": "iron"}
+      ]
+    },
+    { "thinking": "Applied. Finish.", "reply": "Vegetarian all week, built around iron-rich dishes.", "operations": [] }
+  ]
+}

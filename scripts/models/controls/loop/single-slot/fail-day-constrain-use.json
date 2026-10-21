@@ -1,0 +1,7 @@
+{
+  "swap just wednesday's dinner": {
+    "thinking": "Use salmon on Wednesday: a day-scoped constrain with use.",
+    "reply": "Working salmon into Wednesday's dinner.",
+    "operations": [ { "op": "constrain", "scope": { "days": ["Wednesday"] }, "use": ["salmon"] } ]
+  }
+}

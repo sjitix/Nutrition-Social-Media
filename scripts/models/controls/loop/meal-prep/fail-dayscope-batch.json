@@ -1,0 +1,7 @@
+{
+  "meal prep": {
+    "thinking": "Batch mode on the two cooking sessions' days.",
+    "reply": "Setting your week up for two bulk cooks.",
+    "operations": [{ "op": "constrain", "scope": { "days": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"] }, "planMode": "batch", "cadence": "every3days" }]
+  }
+}

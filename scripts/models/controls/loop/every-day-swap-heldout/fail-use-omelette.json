@@ -1,0 +1,14 @@
+{
+  "an omelette every morning": {
+    "thinking": "Build the week around omelette.",
+    "reply": "Rebuilding the week around omelettes.",
+    "operations": [
+      {
+        "op": "constrain",
+        "use": [
+          "omelette"
+        ]
+      }
+    ]
+  }
+}

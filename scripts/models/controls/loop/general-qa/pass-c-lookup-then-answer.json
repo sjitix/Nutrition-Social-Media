@@ -1,0 +1,14 @@
+{
+  "quinoa actually better": [
+    {
+      "thinking": "Answer the question; check which quinoa dinners exist so any offer names a real dish.",
+      "reply": "",
+      "operations": [ { "op": "find_recipes", "mealType": "dinner", "query": "quinoa", "limit": 3 } ]
+    },
+    {
+      "thinking": "Answer qualitatively (no numbers of my own) and offer one specific swap as a question.",
+      "reply": "A little, for most people. Quinoa has more protein, fibre and minerals than white rice and a gentler effect on blood sugar, which helps it keep you full. White rice is still a fine, easy-to-digest base, and the brown rice in most of your week already closes much of the gap. If you'd like to try quinoa, I could put the Garlic Shrimp & Quinoa with Spinach in for one of your rice dinners. Want that?",
+      "operations": []
+    }
+  ]
+}

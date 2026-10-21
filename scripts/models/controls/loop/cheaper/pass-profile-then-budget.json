@@ -1,0 +1,14 @@
+{
+  "make the week cheaper": [
+    {
+      "thinking": "Check the current budget setting first.",
+      "reply": "",
+      "operations": [{ "op": "get_profile" }]
+    },
+    {
+      "thinking": "Budget is medium. Drop it to low for the whole week; week scope persists it for the month.",
+      "reply": "Switching your week to cheaper meals.",
+      "operations": [{ "op": "constrain", "budget": "low" }]
+    }
+  ]
+}

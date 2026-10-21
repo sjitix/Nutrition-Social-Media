@@ -1,0 +1,7 @@
+{
+  "how much water should i drink": {
+    "thinking": "Body-related; pass their words to symptom and don't change the plan.",
+    "reply": "",
+    "operations": [ {"op": "symptom", "text": "how much water should i drink a day? i'm about 80kg and pretty active"} ]
+  }
+}

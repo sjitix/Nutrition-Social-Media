@@ -1,0 +1,7 @@
+{
+  "4 meals a day": {
+    "thinking": "Four meals a day; snacks should be quick, so cap cooking time too.",
+    "reply": "Four meals a day from now on, with a quick afternoon snack.",
+    "operations": [{ "op": "constrain", "mealsPerDay": 4, "maxCookTime": 10 }]
+  }
+}

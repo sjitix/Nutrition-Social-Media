@@ -67,3 +67,6 @@ dev-server.log
 prod-server.log
 out/
 eval-*.log
+
+# esbuild bundles of scripts/*.mts, per worktree: node_modules is a junction shared by every lane
+/.cache

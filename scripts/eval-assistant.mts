@@ -17,9 +17,9 @@
  */
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { assistantTurnSystemPrompt } from "@/lib/ai";
+import { assistantTurnSystemPrompt } from "@/lib/providers";
 import { selectWeekFromDb, rebalanceWeek } from "@/lib/recipeDb";
-import type { UserProfile } from "@/lib/types";
+import type { UserProfile } from "@/lib/core";
 
 const ROOT = process.cwd();
 

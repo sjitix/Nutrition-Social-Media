@@ -1,0 +1,9 @@
+{
+  "help me lose weight": [
+    {
+      "thinking": "Remember the goal and ask the one clarifying question in this same turn.",
+      "reply": "Happy to help. Do you have a calorie target from your doctor, or should I work one out from your age, height, weight and activity?",
+      "operations": [{"op": "remember", "fact": "wants to lose weight", "kind": "goal"}]
+    }
+  ]
+}

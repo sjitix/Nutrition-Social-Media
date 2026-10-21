@@ -1,0 +1,23 @@
+{
+  "what exactly is in monday's dinner": [
+    {
+      "thinking": "Find out what Monday's dinner is from the live plan first.",
+      "reply": "",
+      "operations": [
+        { "op": "get_plan", "day": "Monday" }
+      ]
+    },
+    {
+      "thinking": "Dinner is Chicken & Vegetable Stir-Fry with Rice, 47 g protein as planned. Now its ingredients.",
+      "reply": "",
+      "operations": [
+        { "op": "inspect_recipe", "name": "Chicken & Vegetable Stir-Fry with Rice" }
+      ]
+    },
+    {
+      "thinking": "Both looked up. Answer with operations [].",
+      "reply": "It's the Chicken & Vegetable Stir-Fry with Rice: chicken breast, brown rice, mixed stir-fry vegetables, soy-ginger sauce and sesame oil. The portion planned for Monday has 47 g of protein.",
+      "operations": []
+    }
+  ]
+}

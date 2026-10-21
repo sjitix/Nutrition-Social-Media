@@ -1,0 +1,14 @@
+{
+  "on my period and feeling really drained": [
+    {
+      "thinking": "Give her more iron at dinner.",
+      "reply": "",
+      "operations": [ { "op": "constrain", "scope": { "slot": "dinner" }, "boostNutrient": "iron" } ]
+    },
+    {
+      "thinking": "The engine said it could not. Finish.",
+      "reply": "Sorry you're feeling drained.",
+      "operations": []
+    }
+  ]
+}

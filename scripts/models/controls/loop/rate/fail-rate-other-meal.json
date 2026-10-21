@@ -1,0 +1,21 @@
+{
+  "breakfast was so good": [
+    {
+      "thinking": "Rate it.",
+      "reply": "",
+      "operations": [
+        {
+          "op": "rate",
+          "rating": 5,
+          "day": "Monday",
+          "slot": "lunch"
+        }
+      ]
+    },
+    {
+      "thinking": "Done.",
+      "reply": "Noted, you'll see it more often.",
+      "operations": []
+    }
+  ]
+}

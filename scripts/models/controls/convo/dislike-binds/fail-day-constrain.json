@@ -1,0 +1,5 @@
+{
+  "can't stand avocado": { "reply": "Noted, I will keep avocado out of your plan.", "operations": [ { "op": "remember", "fact": "can't stand avocado", "kind": "preference" }, { "op": "constrain", "exclude": ["avocado"] } ] },
+  "something mexican for saturday dinner": { "thinking": "Mexican cuisine on Saturday.", "reply": "Giving Saturday a Mexican twist.",
+    "operations": [ { "op": "constrain", "scope": { "days": ["Saturday"] }, "cuisine": "mexican" } ] }
+}

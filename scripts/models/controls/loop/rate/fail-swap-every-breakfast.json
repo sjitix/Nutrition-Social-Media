@@ -1,0 +1,20 @@
+{
+  "breakfast was so good": [
+    {
+      "thinking": "Put it on every breakfast.",
+      "reply": "Putting Peanut Butter Banana Shake Bowl on every breakfast.",
+      "operations": [
+        {
+          "op": "swap",
+          "dish": "Peanut Butter Banana Shake Bowl",
+          "slot": "breakfast"
+        }
+      ]
+    },
+    {
+      "thinking": "Applied.",
+      "reply": "Peanut Butter Banana Shake Bowl is now your breakfast every day.",
+      "operations": []
+    }
+  ]
+}

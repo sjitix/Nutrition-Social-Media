@@ -1,0 +1,7 @@
+{
+  "swap just wednesday's dinner": {
+    "thinking": "Scoped swap of one dinner to salmon.",
+    "reply": "Thursday's dinner becomes a salmon dish; everything else stays.",
+    "operations": [ { "op": "swap", "dish": "salmon", "slot": "dinner", "days": ["Thursday"], "only": true } ]
+  }
+}

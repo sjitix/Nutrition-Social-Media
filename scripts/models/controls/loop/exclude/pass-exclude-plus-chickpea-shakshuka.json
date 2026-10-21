@@ -1,0 +1,4 @@
+{"can't stand eggs": [
+  {"thinking": "Exclude eggs for good. Thursday's breakfast was an egg-and-lentil skillet; an egg-free shakshuka is the closest swap. Look it up first.", "reply": "", "operations": [{"op": "find_recipes", "mealType": "breakfast", "query": "shakshuka"}]},
+  {"thinking": "Chickpea Shakshuka: chickpeas, tomatoes, pepper, cumin, olive oil, tagged vegan, so no egg. Remember the dislike, exclude eggs for the week, and put it on Thursday's breakfast in place of the egg skillet.", "reply": "Taking eggs out of your week, with a chickpea shakshuka on Thursday morning.", "operations": [{"op": "remember", "fact": "can't stand eggs", "kind": "preference"}, {"op": "constrain", "exclude": ["eggs"]}, {"op": "swap", "dish": "Chickpea Shakshuka", "slot": "breakfast", "days": ["Thursday"], "only": true}]}
+]}

@@ -1,0 +1,6 @@
+{
+  "can't stand avocado": { "reply": "Noted, I will keep avocado out of your plan.", "operations": [ { "op": "remember", "fact": "can't stand avocado", "kind": "preference" }, { "op": "constrain", "exclude": ["avocado"] } ] },
+  "something mexican for saturday dinner": [
+    { "reply": "", "operations": [ { "op": "find_recipes", "mealType": "dinner", "query": "taco" } ] },
+    { "reply": "", "operations": [ { "op": "swap", "dish": "Turkey Taco Skillet with Beans", "slot": "dinner", "days": ["Sunday"] } ] } ]
+}

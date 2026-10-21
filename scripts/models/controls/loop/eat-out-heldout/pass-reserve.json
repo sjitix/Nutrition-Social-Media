@@ -1,0 +1,12 @@
+{
+  "my sister's birthday is saturday": {
+    "reply": "Saved room for Saturday dinner.",
+    "operations": [
+      {
+        "op": "reserve",
+        "day": "Saturday",
+        "slot": "dinner"
+      }
+    ]
+  }
+}

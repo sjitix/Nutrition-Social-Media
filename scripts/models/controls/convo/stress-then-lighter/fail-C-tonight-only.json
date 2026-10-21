@@ -1,0 +1,2 @@
+{ "stress eating": { "reply": "That sounds like a really tough week, and stress eating at night is something a lot of people go through, so please go easy on yourself. Want me to look at your dinners?", "operations": [ { "op": "symptom", "text": "rough week. i've been stress eating every night" } ] },
+  "dinners a bit lighter": { "reply": "Making tonight's dinner a bit smaller.", "operations": [ { "op": "resize", "direction": "smaller", "day": "Monday", "slot": "dinner" } ] } }

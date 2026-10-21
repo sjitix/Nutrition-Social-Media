@@ -1,0 +1,37 @@
+{
+  "no meat or fish": [
+    {
+      "thinking": "Look up vegetarian dinners, fastest first.",
+      "reply": "",
+      "operations": [
+        {
+          "op": "find_recipes",
+          "mealType": "dinner",
+          "diet": "vegetarian",
+          "maxTime": 15,
+          "sort": "time"
+        }
+      ]
+    },
+    {
+      "thinking": "Egg Fried Rice with Peas & Edamame is 12 minutes and vegetarian. Place it on Tuesday dinner; keep the rest of Tuesday.",
+      "reply": "Putting Egg Fried Rice with Peas & Edamame on Tuesday night.",
+      "operations": [
+        {
+          "op": "swap",
+          "dish": "Egg Fried Rice with Peas & Edamame",
+          "slot": "dinner",
+          "days": [
+            "Tuesday"
+          ],
+          "only": true
+        }
+      ]
+    },
+    {
+      "thinking": "Applied. Finish.",
+      "reply": "Tuesday dinner is now Egg Fried Rice with Peas & Edamame, a 12-minute meat-free dish.",
+      "operations": []
+    }
+  ]
+}

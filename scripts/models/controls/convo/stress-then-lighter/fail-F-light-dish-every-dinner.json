@@ -1,0 +1,3 @@
+{ "stress eating": { "reply": "That sounds like a really tough week, and stress eating at night is something a lot of people go through, so please go easy on yourself. Want me to look at your dinners?", "operations": [ { "op": "symptom", "text": "rough week. i've been stress eating every night" } ] },
+  "dinners a bit lighter": [ { "reply": "", "operations": [ { "op": "find_recipes", "mealType": "dinner", "sort": "calories-low", "limit": 5 } ] },
+    { "reply": "Switching your dinners to the Grilled Chicken Souvlaki with Greek Salad, a lighter dish.", "operations": [ { "op": "swap", "dish": "Grilled Chicken Souvlaki with Greek Salad", "slot": "dinner" } ] } ] }

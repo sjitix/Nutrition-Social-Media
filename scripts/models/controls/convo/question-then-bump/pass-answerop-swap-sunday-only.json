@@ -1,0 +1,11 @@
+{
+  "how much protein am i getting at breakfast": [
+    { "thinking": "Question about the plan: answer, change nothing. The plan in my prompt has the numbers.", "reply": "Your breakfasts range from 29 g to 65 g of protein this week: Monday 65 g, Tuesday 48 g, Wednesday 41 g, Thursday 45 g, Friday 37 g, Saturday 32 g, Sunday 29 g. Sunday is the lowest.", "operations": [{ "op": "answer" }] },
+    { "thinking": "Nothing changed. Finish with the answer.", "reply": "Your breakfasts range from 29 g to 65 g of protein this week: Monday 65 g, Tuesday 48 g, Wednesday 41 g, Thursday 45 g, Friday 37 g, Saturday 32 g, Sunday 29 g. Sunday is the lowest.", "operations": [] }
+  ],
+  "bump that up a bit": [
+    { "thinking": "Breakfast protein, a bit: lift the lowest day. Look up high-protein breakfasts.", "reply": "", "operations": [{ "op": "find_recipes", "mealType": "breakfast", "sort": "protein", "maxTime": 30 }] },
+    { "thinking": "Swap Sunday (29 g) for the Tuna & Egg Breakfast Plate from the results; keep the rest of Sunday.", "reply": "", "operations": [{ "op": "swap", "dish": "Tuna & Egg Breakfast Plate", "slot": "breakfast", "days": ["Sunday"], "only": true }] },
+    { "thinking": "Done; report.", "reply": "Sunday's breakfast is now the Tuna & Egg Breakfast Plate.", "operations": [] }
+  ]
+}

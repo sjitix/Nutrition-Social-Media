@@ -1,0 +1,7 @@
+{
+  "4 meals a day": {
+    "thinking": "A snack adds food, so bump the daily calories to make room for it, and go to 4 meals.",
+    "reply": "Adding an afternoon snack every day, and I've raised your daily calories a little to make room for it.",
+    "operations": [{ "op": "constrain", "mealsPerDay": 4, "targets": { "calories": 2300 } }]
+  }
+}

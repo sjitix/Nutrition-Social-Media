@@ -1,0 +1,23 @@
+{
+  "time of the month and i've got zero energy": [
+    {
+      "thinking": "Periods lose iron; boost iron across the week.",
+      "reply": "",
+      "operations": [
+        {
+          "op": "symptom",
+          "text": "it's that time of the month and i've got zero energy"
+        },
+        {
+          "op": "constrain",
+          "boostNutrient": "iron"
+        }
+      ]
+    },
+    {
+      "thinking": "Applied.",
+      "reply": "Sorry you're feeling drained. I've leaned your week toward iron-rich meals.",
+      "operations": []
+    }
+  ]
+}

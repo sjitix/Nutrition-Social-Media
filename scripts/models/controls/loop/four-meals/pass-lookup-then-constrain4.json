@@ -1,0 +1,14 @@
+{
+  "4 meals a day": [
+    {
+      "thinking": "They want a daily afternoon snack. Let me see what snacks the library has before changing anything.",
+      "reply": "",
+      "operations": [{ "op": "find_recipes", "mealType": "snack", "sort": "protein", "limit": 5 }]
+    },
+    {
+      "thinking": "Plenty of snacks exist. The change itself is mealsPerDay: 4 at week scope; the engine picks and sizes the snacks inside my current targets.",
+      "reply": "Adding an afternoon snack to every day so you're on four meals a day from now on.",
+      "operations": [{ "op": "constrain", "mealsPerDay": 4 }]
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "my doctor said my iron is low": [
+    {
+      "thinking": "A lasting fact (vegetarian) plus a real change: lean the week toward iron while staying vegetarian. The prompt's own example: constrain(boostNutrient:iron, diet:vegetarian). Remember both facts.",
+      "reply": "Thanks for telling me. I'll keep your week vegetarian and lean it toward iron-rich meals.",
+      "operations": [
+        {"op": "remember", "fact": "vegetarian", "kind": "preference"},
+        {"op": "remember", "fact": "doctor said iron is low", "kind": "condition"},
+        {"op": "constrain", "diet": "vegetarian", "boostNutrient": "iron"}
+      ]
+    },
+    {
+      "thinking": "The engine applied it. Finish and report what the engine says.",
+      "reply": "Your week is vegetarian now and leans toward iron-rich dishes; the engine's notes above say how much iron it reaches.",
+      "operations": []
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+{ "keep sunday's dinner exactly as it is": { "thinking": "Store this as a preference.", "reply": "Got it, I'll keep Sunday's dinner exactly as it is whatever else we change.",
+  "operations": [{ "op": "remember", "fact": "wants Sunday dinner (Shrimp & Tomato Rice) kept exactly as it is", "kind": "preference" }] } }

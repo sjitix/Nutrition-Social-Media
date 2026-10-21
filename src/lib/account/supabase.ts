@@ -13,7 +13,7 @@
  * With no URL/key configured, `readAccountConfig()` returns null and nothing in this file is ever
  * called — the app is exactly what it was before accounts (VISION: "$0 is a floor").
  */
-import type { StoreName } from "../storage";
+import type { StoreName } from "../persistence";
 import type { PushResult, Remote, RemoteRow } from "./sync";
 
 export interface AccountConfig {
@@ -182,6 +182,24 @@ const LINK_ERRORS: Record<string, string> = {
 const LINK_ERROR_FALLBACK = "Sign-in didn't complete. Ask for a new link.";
 
 /**
+ * The exchange refusing THIS browser's verifier (GoTrue's `bad_code_verifier`, a 400). GoTrue says only
+ * that the verifier does not match, and there are two reasons it can happen:
+ *  - **The link was asked for in another browser**, and this one holds a pending sign-in of its own.
+ *    With none held, the "different browser" sentence is shown before any exchange.
+ *  - **A newer request took it over.** GoTrue issues a link's code for the person's MOST RECENT request,
+ *    from whichever browser: verify.go -> pkce.go issueAuthCode -> FindFlowStateByUserID(...).Last(),
+ *    ordered by created_at. For someone already signed up, or anyone while "Confirm email" is off (as
+ *    the setup guide sets it), it even records a request it refuses as too soon, because magic_link.go
+ *    writes the flow state before the rate limit. So a link opened in the very browser that asked fails
+ *    once another browser or device has asked since. Shown against the real GoTrue by the live run.
+ *
+ * Nothing in the link tells the two apart, so the sentence names both. The old one named only the first,
+ * which blamed the person for the second.
+ */
+const LINK_TAKEN_OVER =
+  "This link can't be finished in this browser: it was asked for in a different one, or a newer sign-in request took it over (one from another browser or device counts, even one refused as too soon). Ask for a new link here, and open it in this browser.";
+
+/**
  * Read a landing URL. PKCE reports success as `?code=` and failure as `?error=…&error_code=…` (GoTrue
  * also mirrors errors into the fragment); both places are read for errors. A fragment carrying
  * `access_token` is deliberately NOT a sign-in — see the section header.
@@ -220,6 +238,9 @@ export async function exchangeCode(
   // six minutes later lands here (review 2). The emailed link was used up when it was opened, so the
   // only way forward is a new one, and saying "try the link again" would send them in a circle.
   if (res.status === 422) throw new AccountError(LINK_ERRORS.flow_state_expired, "auth");
+  if (res.status === 400 && ((await res.clone().json().catch(() => ({}))) as { error_code?: string }).error_code === "bad_code_verifier") {
+    throw new AccountError(LINK_TAKEN_OVER, "auth");
+  }
   if (res.status === 400 || res.status === 401 || res.status === 403 || res.status === 404) {
     throw new AccountError("That sign-in link has expired, was already used, or was opened in a different browser from the one that asked for it. Ask for a new one here.", "auth");
   }

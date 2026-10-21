@@ -1,0 +1,6 @@
+{
+  "cooking for me and my girlfriend": [
+    { "thinking": "Double the targets so the week feeds two.", "reply": "I'll double the week so it feeds two.", "operations": [ {"op": "constrain", "targets": {"calories": 4000, "protein": 300}} ] },
+    { "thinking": "Applied. Finish.", "reply": "Your week now covers two people.", "operations": [] }
+  ]
+}

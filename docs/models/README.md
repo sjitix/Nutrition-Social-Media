@@ -15,10 +15,12 @@ message (8 at worst), so **per-call latency × steps** is the number a user feel
 
 | axis | how it's measured | bar |
 |---|---|---|
-| single-turn judgement | `npm run eval:hardcases` (45 cases, engine-verified); also regraded strictly by `scripts/models/regrade-hardcases.mjs` (v3) | beat **84%** (gpt-oss-20b, old prompt) — every big model now clears it; the ruler has saturated |
+| single-turn judgement | `npm run eval:hardcases` (45 cases, engine-verified); also regraded strictly by `scripts/models/regrade-hardcases.mjs` (v3) | beat **84%** (gpt-oss-20b, old prompt) — every big model now clears it; the ruler has saturated, and partly on recall: 11 of its 45 cases are near-quotes of the prompt it sends, six of them holding every content word (`probe-quotes.mjs --hard-cases`, 2026-10-21). A regression check, not a ruler for choosing a model |
 | honest declines | the `decline` bucket of the same eval | ≥ 5/6 |
-| loop behaviour | `scripts/models/loop-eval.mts` (28 scenarios through the real loop, 2 of them held-out paraphrases) — reads before writes, stops cleanly, no `gaveUp` | read-before-write 2/2, gave up 0 |
-| **conversation** | `scripts/models/convo-eval.mts` (14 two-turn conversations, state carried like the client) | **the ruler that separates sizes** — 550B 79%, 20B 43% (2026-10-03) |
+| loop behaviour | `scripts/models/loop-eval.mts` (34 scenarios through the real loop, 8 of them held-out paraphrases) — reads before writes, stops cleanly, no `gaveUp` | read-before-write 3/3, gave up 0 |
+| **conversation** | `scripts/models/convo-eval.mts` (15 two-turn conversations, one a held-out paraphrase, state carried like the client) | **the ruler that separates sizes** — 550B 79%, 20B 43% (2026-10-03, on the lenient harness: re-measure) |
+| **the harness itself** | `node scripts/models/run-controls.mjs` — 633 scripted controls: every check must pass its correct answers and fail its wrong ones, under several engine seeds | all hold on `da023da` (2026-10-21) |
+| **what the prompt quotes** | `node scripts/models/probe-quotes.mjs` — the eval messages the rendered prompt quotes (a near-quote measures recall of its example, not judgement) | every near-quote held out: exit 0; `--self-test` 10/10 (2026-10-21) |
 | latency | median + p90 seconds **per message** from the loop/convo evals | message-level ≤ ~10 s |
 | cost | $/message at beta volume | free now; priced before launch |
 
@@ -35,12 +37,26 @@ message (8 at worst), so **per-call latency × steps** is the number a user feel
 5. **Repeat before you claim.** Identical runs swing up to 9 points on the hard cases; quote ranges.
 6. **Grade what the engine did, not what the model sent.** Counting emitted operations hid three
    engine bugs on 2026-10-03 (a slot-scoped constrain that did nothing while the reply said it had).
-7. **Every new check scores 0 against a fake model.** `node scripts/models/stub-model.mjs --mode
-   nothing|hollow|garbage`, then the eval with `LOCAL_AI_URL=http://127.0.0.1:4011/v1`. On 2026-10-18 the
-   `hollow` mode (claims a change, makes none) passed 8/10 holds until that was fixed.
+7. **Every new check scores 0 against a fake model, and passes the answer it rewards.** Put both in
+   `scripts/models/controls/<eval>/<id>/` (`pass-*.json`, `fail-*.json`) and run `run-controls.mjs`. A check
+   change ships only with its controls holding. **A must-fail control has to fail for its own reason**:
+   `--verbose` prints why each one failed. Ten claim controls once failed only as "said nothing": the loop
+   calls the model again after a claim it retries, their scripts had run out, and the claim never reached
+   the guard (2026-10-20). Over HTTP:
+   `node scripts/models/stub-model.mjs --mode nothing|hollow|garbage`, then the eval with
+   `LOCAL_AI_URL=http://127.0.0.1:4011/v1`: every mode must score 0. On 2026-10-18 the `hollow` mode
+   (claims a change, makes none) passed 8/10 holds until that was fixed. Then `--mode script --script
+   <file.json>` sends the correct operations for a phrase of the message, and the check must pass them. A
+   check nothing can pass is as useless as one a do-nothing model passes.
 8. **A comparison runs every arm from ONE bundle.** An arm measured on an older bundle is history, not
    an arm. The withdrawn speed claim compared arms across code; on 2026-10-18 the old arm A was found to
-   have a different scenario set (26 vs 28) and to predate a loop change.
+   have a different scenario set (26 vs 29 then; 34 now) and to predate a loop change.
+   `node scripts/models/fair-arms.mjs` is the only way this lane runs one.
+9. **A scenario the prompt quotes needs a held-out paraphrase, graded by the same code.** `probe-quotes.mjs`
+   exits non-zero for a quote with no held-out, or a held-out the prompt has come to quote itself. Run it
+   on every prompt change (`--code <branch>`, `--prompt-file <draft>`) and read each held-out beside its
+   original: the evals print `held out x/y, their originals x/y` and name any scenario that passed only
+   in the prompt's words.
 
 ## Decisions on record
 

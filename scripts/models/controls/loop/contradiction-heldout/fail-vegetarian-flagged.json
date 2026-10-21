@@ -1,0 +1,14 @@
+{
+  "go vegetarian every day this week, and i want a steak for wednesday's dinner": [
+    {
+      "thinking": "Vegetarian and steak clash. Resolve toward the bigger instruction: make the week vegetarian, and tell them the steak can't go in.",
+      "reply": "Steak isn't vegetarian, so I can't put it on Wednesday. I've made the whole week vegetarian instead; want steak on Wednesday and the rest vegetarian?",
+      "operations": [{"op": "constrain", "diet": "vegetarian"}]
+    },
+    {
+      "thinking": "Applied. Repeat the flag.",
+      "reply": "Steak isn't vegetarian, so I left it out: your whole week is vegetarian. Would you rather have steak on Wednesday?",
+      "operations": []
+    }
+  ]
+}

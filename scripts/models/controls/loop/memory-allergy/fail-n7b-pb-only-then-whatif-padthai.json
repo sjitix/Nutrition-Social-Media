@@ -1,0 +1,4 @@
+{"high-protein snack": [
+  {"thinking": "Peanut allergy: keep peanut butter out, add the snack.", "reply": "", "operations": [{"op": "constrain", "mealsPerDay": 4, "exclude": ["peanut butter"]}]},
+  {"thinking": "(audit probe, read only) would the engine now accept a whole-peanut dish?", "reply": "", "operations": [{"op": "what_if", "operations": [{"op": "swap", "dish": "Tofu Pad Thai", "slot": "dinner", "days": ["Friday"]}]}]}
+]}

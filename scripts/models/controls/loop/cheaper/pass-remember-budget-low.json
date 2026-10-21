@@ -1,0 +1,10 @@
+{
+  "make the week cheaper": {
+    "thinking": "Lasting context (money is tight this month) plus a direction. Remember the context and set budget low at week scope.",
+    "reply": "No problem. I'll keep things budget-friendly this month.",
+    "operations": [
+      { "op": "remember", "fact": "money is tight this month, keep meals budget-friendly", "kind": "context" },
+      { "op": "constrain", "scope": "week", "budget": "low" }
+    ]
+  }
+}

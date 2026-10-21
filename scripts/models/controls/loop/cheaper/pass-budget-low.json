@@ -1,0 +1,7 @@
+{
+  "make the week cheaper": {
+    "thinking": "A direction ('cheaper') for the whole week, and 'this month' means it should last: budget low at week scope, which persists. One constrain.",
+    "reply": "Totally understand. I'm switching your plan to budget-friendly meals for now; just tell me when you want to go back.",
+    "operations": [{ "op": "constrain", "budget": "low" }]
+  }
+}

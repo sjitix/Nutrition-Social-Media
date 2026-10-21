@@ -7,6 +7,28 @@ Protocol: [`README.md`](README.md). Worktree: `../NutriFlow-models/`, branch `mo
 
 ## Now doing
 
+**2026-10-21 — every eval message the prompt quotes has a held-out paraphrase, reviewed and fixed; 633
+controls hold on v1's `da023da`.** `node scripts/models/probe-quotes.mjs` reads the prompt the model is sent and
+lists the eval messages it quotes: 8 of 55 on main, all held out, so it exits 0. Its `--self-test` passes 10/10.
+- Held-outs: `vague-goal-heldout`, `emotional-heldout`, `every-day-swap-heldout`, `find-then-place-heldout` and
+  convo `vegetarian-then-steak` are new; four were reworded after an adversarial review, so that each asks for
+  exactly what its original asks.
+- The review also fixed checks that passed wrong answers, among them offering to do both halves of a clash.
+  The details are in the day record.
+- On `da023da`: the three probes pass. Five controls flipped because v1's D works, and they are must-pass now.
+- Still no `.env.local`. With the key, the fair arms run first.
+Day records: `docs/worklog/2026-10-20-models.md`, `2026-10-21-models.md`.
+
+**2026-10-20 — every check in both evals is fixed and proven: 524 controls hold across all 44 scenarios**
+under 2 engine seeds (`node scripts/models/run-controls.mjs`).
+- Loop shipped in `b43873f`, `cfa710f`, `e92229c` and `d7e3d20`; convo in `86e00de`, `4a223e0` and `bdd3184`.
+- The do-nothing and hollow-claim fakes score 0 on both evals.
+- The false-claim guard went from 1/15 to 15/15 on this lane's probe with v1's `c8ccfb0`.
+- Still no `.env.local`, so no model runs. With the key, the fair arms run first.
+- Since then: `contradiction-heldout`. Ten claim controls that failed only because their script ran out now
+  reach the guard (`run-controls --verbose` shows why each must-fail control fails).
+The 2026-10-18 notes below are history.
+
 **2026-10-18 — resumed on the LAPTOP.** The worktrees `../NutriFlow-models/` and
 `../NutriFlow-models-exp/` now exist here (created today from `origin/models` / `origin/models-exp`, both
 brought up to `origin/main`), with `node_modules` junctioned to the main folder's. **Every esbuild bundle
@@ -24,17 +46,36 @@ Done today, key-free (`be98c57`):
 - **v1's `5c12c4c` re-checked model-free** (`probe-fixes.mts`): 1/4 against the code before the fix
   (both bugs reproduce), 4/4 after.
 
+**Shipped since:** `d1d35ee` (the engine's dice are seeded in the evals; `run-controls.mjs`, the harness's
+own test suite) and `1c35df0` (shared check guards; a hold that says only pleasantries fails). First
+audit results: all 43 correct answers pass, but 153 of 337 plausible wrong answers pass too. The check
+fixes come next, scenario by scenario, each with its controls.
+
+**RUNNING NOW (2026-10-18, evening): an audit of every check in both evals** (workflow
+`wf_373d28af-e1b`). It covers 29 loop scenarios and 14 conversations through `MODEL_SCRIPT` (`b16f0a4`):
+for each, a correct answer must pass and 3–4 plausible wrong ones must fail. Each finding gets two
+skeptics, then a completeness critic and a second round. It is key-free and touches no repo file. The
+check fixes it yields land here as this lane's files. **Done:** v1's `test:engine` on the patched
+`models-exp` tree (`49385e5`) is **943/0**, the same count as main; sent to v1, whose adversarial review
+of the patch is running.
+
 **Ready for the key: `scripts/models/fair-arms.mjs`**, one command for the fair arms. It bundles each
 eval once from one commit and refuses a dirty tree. It runs one arm at a time, round-robin across
 repeats, with a cool-down, and clears every inherited knob. It writes a manifest after each arm. It reads
 the key from the main `.env.local` itself (exit 3 without it), so the key never reaches a command line.
 Tested end to end against the stub: 10 runs, every arm exactly its definition, no key text in any output.
 
+**The held-out wording test is ready too.** `models-wording` is now main plus exactly its three prompt
+lines (`e078efd`), with a worktree at `../NutriFlow-models-wording`. The third line ("lighter on <days>"
+= resize) had no held-out paraphrase, so `days-lighter-heldout` was added ("go easy on the portions
+thursday and friday"). The stub's new `script` mode is the positive control: all 6 scenarios of the
+test pass the answer they reward, and fail do-nothing. The bare day constrain fails both lighter checks.
+
 Next once a key exists:
 1. The fair arms, ALL on one bundle: loop A, B, C, convo A, C. **Arm A is re-run.** The 10-03 one
-   (21/26, median 23.3 s) ran 26 scenarios on an older bundle (28 today), before `5c12c4c` changed the
+   (21/26, median 23.3 s) ran 26 scenarios on an older bundle (34 today), before `5c12c4c` changed the
    loop.
-2. The held-out wording test: main vs `models-wording`, with main merged into the branch first.
+2. The held-out wording test: main vs `models-wording` (re-merge main first if it has moved).
 3. The fair numbers to v1.
 
 On main from this lane (via v1): the read-tool fix (`3392461`), the date line (`4f53468`), the
@@ -84,6 +125,24 @@ Branches: `models` (ships my paths onto main). `models-exp` = main + merges, for
 ## Asks of the other lanes
 
 - **v1:**
+  - **DONE: v1 landed it as `09f325f`, with a denial check and a carrier filter** that its adversarial
+    review proved the patch needed. Re-checked here with `probe-allergy-labels.mts`, now 18 cases (the
+    review's four regression rows plus two must-still-bind rows): **18/18 on `09f325f`**. The original
+    patch fails the four regression rows: dairy + gluten blocked 299/501 recipes, "oil" 234/501.
+    **B1 (`ba23884`: plurals, misspellings, every cue sentence) re-checked 28/28**; its parent passes
+    20/28, failing exactly the eight new must-bind rows. B2 (an honesty note on every allergy-cue
+    remember, the LC-13 prompt line) and C (imported dishes) come next; I re-run the probe on each sha.
+    History below:
+  - *2026-10-18, a safety fix for `primitives.ts` (yours): a remembered allergy is enforced only when
+    the model labels it `kind:"allergy"`.* `kind` is optional and the prompt never says it matters.
+    - Replaying gpt-oss-20b's recorded `{op:"remember", fact:"allergic to shellfish"}` (no kind) through
+      the conversation eval on today's main leaves Shrimp & Tomato Rice in the week.
+    - `probe-allergy-labels.mts`, model-free, 7/12 on main. "has coeliac disease" as `condition` leaves
+      9/9 gluten meals; "lactose intolerant" as `condition` leaves 7/7 lactose meals.
+    - **The patch is `49385e5` on `models-exp`:** a fact with an explicit allergy, intolerance or coeliac
+      cue binds the engine whatever its label. Unlabelled, only food words count; with no cue the fact is
+      never parsed (the parser alone reads "a high-protein snack" as a "protein" allergy).
+    - Patched: 12/12, and the replay passes 2/2. It errs toward excluding ("my son is allergic to eggs").
   - **Fast finish in `runAgent`, with the reply rule.** Accepted; held for the fair numbers (above).
     The reply rule withheld 0 skips in both evals.
   - ~~Two product bugs~~ (a Wed–Sun swap replaced all seven days; a claim paired with `remember` got
@@ -118,3 +177,7 @@ Branches: `models` (ships my paths onto main). `models-exp` = main + merges, for
 | `6cae798` · `961315a` | shutdown 2026-10-03: worklog, CONTEXT resume steps, lane file, last scorecards |
 | `627fe56` | 2026-10-18: resumed on the laptop; worktrees created; the NVIDIA runs blocked on a missing `.env.local` |
 | `be98c57` | barrels only; `stub-model.mjs` (two free passes found and closed, no past score changed); `probe-fixes.mts` (v1's `5c12c4c`: 1/4 before, 4/4 after) |
+| `07fad2b` · `77c9dc7` | the fair re-measurement re-runs arm A (old arm A is a different bundle); `fair-arms.mjs`, the fair comparison as one command |
+| `e078efd` (branch `models-wording`) | the wording branch merged with main: main + exactly its 3 prompt lines |
+| `0fdfba1` | `days-lighter-heldout` (the third line's held-out paraphrase); the stub's `script` mode, the positive control: all 6 held-out-test checks pass the answer they reward |
+| `49385e5` (branch `models-exp`) | the allergy-label patch for v1: a fact that says allergy binds the engine whatever its label (probe 7/12 → 12/12) |

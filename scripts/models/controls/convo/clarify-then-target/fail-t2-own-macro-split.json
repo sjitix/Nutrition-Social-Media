@@ -1,0 +1,4 @@
+{
+  "help me lose weight": { "thinking": "Never pick their target: ask.", "reply": "Happy to help. What daily calorie target would you like to aim for? If your doctor or a dietitian gave you a number, tell me and I will build your week around it.", "operations": [] },
+  "1700 calories": { "thinking": "1700 kcal: I'll split it 30/40/30, so about 128 g protein, 170 g carbs, 57 g fat.", "reply": "Setting you to 1700 kcal a day with about 128 g protein, 170 g carbs and 57 g fat.", "operations": [{ "op": "constrain", "targets": { "calories": 1700, "protein": 128, "carbs": 170, "fat": 57 } }] }
+}

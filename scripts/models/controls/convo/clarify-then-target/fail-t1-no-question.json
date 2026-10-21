@@ -1,0 +1,4 @@
+{
+  "help me lose weight": { "thinking": "Encourage them.", "reply": "That's a great goal, and you're already eating a balanced week. Small, steady changes add up, so stick with it and stay consistent.", "operations": [] },
+  "1700 calories": { "thinking": "Week-scope constrain to the number they chose.", "reply": "Setting your target to 1700 kcal a day.", "operations": [{ "op": "constrain", "targets": { "calories": 1700 } }] }
+}

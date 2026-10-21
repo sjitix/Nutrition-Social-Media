@@ -1,0 +1,1 @@
+{"high-protein snack": {"thinking": "Adding a snack means mealsPerDay 4.", "reply": "Adding a high-protein afternoon snack to every day.", "operations": [{"op": "constrain", "mealsPerDay": 4}]}}

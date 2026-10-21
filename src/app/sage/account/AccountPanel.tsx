@@ -198,7 +198,8 @@ export function AccountPanel({ onChange }: { onChange: () => void }) {
             <p ref={sentNote} tabIndex={-1} role="status" className="mt-4 rounded-[10px] bg-white/10 px-4 py-3 text-[12.5px] leading-relaxed outline-none">
               Check <b className="font-semibold">{sent}</b> for a sign-in link, and open it{" "}
               <b className="font-semibold">in this browser</b> — for your safety, a link opened anywhere else
-              won&apos;t sign you in.
+              won&apos;t sign you in. Asking again from another device before you open it moves the sign-in
+              there.
             </p>
           ) : (
             <form

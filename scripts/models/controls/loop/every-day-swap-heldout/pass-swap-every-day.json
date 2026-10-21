@@ -1,0 +1,13 @@
+{
+  "an omelette every morning": {
+    "thinking": "A clear instruction for one slot across the whole week: one swap with no days means every day.",
+    "reply": "An omelette for breakfast, every day of the week.",
+    "operations": [
+      {
+        "op": "swap",
+        "dish": "omelette",
+        "slot": "breakfast"
+      }
+    ]
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "gone vegetarian": [
+    {
+      "thinking": "Vegetarian diets run lower in protein; lower the target to something reachable.",
+      "reply": "Switching you to a vegetarian week, with a protein target that suits it.",
+      "operations": [
+        {
+          "op": "constrain",
+          "diet": "vegetarian",
+          "targets": {
+            "protein": 110
+          }
+        }
+      ]
+    }
+  ],
+  "steak for wednesday dinner": [
+    {
+      "thinking": "Clash with vegetarian: refuse, offer choices.",
+      "reply": "That clashes with the vegetarian diet you just told me about, since steak isn't vegetarian. Would you like a high-protein vegetarian dinner on Wednesday instead, or do you want to step back from vegetarian so I can add steak?",
+      "operations": []
+    },
+    {
+      "thinking": "Asked again; say the same.",
+      "reply": "That clashes with the vegetarian diet you just told me about, since steak isn't vegetarian. Would you like a high-protein vegetarian dinner on Wednesday instead, or do you want to step back from vegetarian so I can add steak?",
+      "operations": []
+    }
+  ]
+}

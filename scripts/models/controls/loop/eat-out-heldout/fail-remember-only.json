@@ -1,0 +1,7 @@
+{
+  "going to a restaurant for dinner": {
+    "thinking": "A lasting bit of context: remember the birthday dinner.",
+    "reply": "Noted, Saturday is your sister's birthday dinner out. Enjoy it, and tell me afterwards what you had.",
+    "operations": [{"op": "remember", "fact": "sister's birthday dinner at a restaurant on Saturday", "kind": "context"}]
+  }
+}

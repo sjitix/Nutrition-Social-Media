@@ -1,0 +1,2 @@
+{ "portions for two people": { "reply": "I cannot plan for two people yet: plans are sized for one, around your own targets. I can make your own meals bigger instead. Want that?", "operations": [] },
+  "make all my meals bigger": { "thinking": "Bigger meals today.", "reply": "Sure, bigger meals.", "operations": [ { "op": "resize", "direction": "bigger", "day": "Monday" } ] } }

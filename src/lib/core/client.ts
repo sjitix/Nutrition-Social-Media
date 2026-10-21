@@ -4,3 +4,4 @@
 export * from "./slots";
 export * from "./micros";
 export * from "./imported";
+export * from "./defaults";

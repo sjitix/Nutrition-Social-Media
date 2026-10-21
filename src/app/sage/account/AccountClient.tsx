@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   STORE_NAMES, discardBackup, loadBackups, putBackCopy, readStore, takeBackup, writeStore,
   type LocalBackup, type StoreName,
-} from "@/lib/storage";
+} from "@/lib/persistence";
 import {
   applyImport, buildExport, describeData, exportFilename, parseExport, type ParseResult,
 } from "@/lib/account/portable";

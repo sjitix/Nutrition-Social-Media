@@ -1,0 +1,14 @@
+{
+  "help me lose weight": [
+    {
+      "thinking": "Smaller portions across the week will create a deficit without picking a number.",
+      "reply": "I'll trim your portions a little across the week.",
+      "operations": [{"op": "resize", "direction": "smaller"}]
+    },
+    {
+      "thinking": "Applied. Finish.",
+      "reply": "Your portions are a bit smaller across the week now, which should help you lose weight steadily.",
+      "operations": []
+    }
+  ]
+}

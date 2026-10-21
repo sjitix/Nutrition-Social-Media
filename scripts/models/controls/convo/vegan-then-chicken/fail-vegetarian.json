@@ -1,0 +1,5 @@
+{
+  "vegan now": { "thinking": "Vegan means no meat, so vegetarian.", "reply": "Got it, making your week plant-based.",
+    "operations": [ { "op": "remember", "fact": "vegan", "kind": "preference" }, { "op": "constrain", "diet": "vegetarian" } ] },
+  "put chicken on friday": { "reply": "That clashes with the vegan diet you just told me about, since chicken is not vegan. Want a high-protein vegan lunch on Friday instead, or should I take you off vegan so chicken can go in?", "operations": [] }
+}

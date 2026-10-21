@@ -15,13 +15,13 @@ import { dirname, join } from "node:path";
 const MUTATIONS = [
   {
     name: "restore writes null for stores the copy lacks (the old tombstone bug)",
-    file: "src/lib/storage.ts",
+    file: "src/lib/persistence/storage.ts",
     from: "    } else {\n      forgetStore(n);\n    }",
     to: "    } else {\n      write(n, null);\n    }",
   },
   {
     name: "an unchanged re-save counts as an edit again",
-    file: "src/lib/storage.ts",
+    file: "src/lib/persistence/storage.ts",
     from: "        if (canonical(JSON.parse(current)) === canonical(value)) return;",
     to: "        if (false) return;",
   },
@@ -70,7 +70,7 @@ const MUTATIONS = [
   // The clock rule (lesson 57): every stamp another device compares is later than what it replaces.
   {
     name: "a local write is stamped by the raw clock again (earlier than the value it replaces)",
-    file: "src/lib/storage.ts",
+    file: "src/lib/persistence/storage.ts",
     from: "  const at = opts.at ?? nextStamp(Date.now(), loadStoreMeta()[name]);",
     to: "  const at = opts.at ?? Date.now();",
   },
@@ -88,20 +88,20 @@ const MUTATIONS = [
   },
   {
     name: "an import is stamped by the raw clock again",
-    file: "src/lib/storage.ts",
+    file: "src/lib/persistence/storage.ts",
     from: "importedAt: nextStamp(Date.now(), newest) }",
     to: "importedAt: Date.now() }",
   },
   {
     name: "\"Put it back\" is stamped by the raw clock again",
-    file: "src/lib/storage.ts",
+    file: "src/lib/persistence/storage.ts",
     from: "      const at = nextStamp(Date.now(), loadStoreMeta()[n]);",
     to: "      const at = Date.now();",
   },
   // Review 2, batch 1.
   {
     name: "\"Put it back\" looks the copy up again AFTER the safety copy pushed it out",
-    file: "src/lib/storage.ts",
+    file: "src/lib/persistence/storage.ts",
     from: "    return restoreBackup(target);",
     to: "    return restoreBackup(id);",
   },
@@ -156,7 +156,7 @@ const MUTATIONS = [
   // Review 2, batch 2: other tabs (scripts/test-account-tabs.mts).
   {
     name: "a tab reloads on every change elsewhere, even a refreshed token or a sign-out",
-    file: "src/lib/storage.ts",
+    file: "src/lib/persistence/storage.ts",
     from: "    if (e.key === INTERNAL.epoch || e.key === null) fn();",
     to: "    fn();",
   },
@@ -208,6 +208,18 @@ const MUTATIONS = [
     file: "src/lib/account/client.ts",
     from: "  const reuse = !!pending && pending.email === address && Date.now() - pending.at < REUSE_VERIFIER_MS;",
     to: "  const reuse = false;",
+  },
+  {
+    name: "a request GoTrue refuses (429) drops the pending verifier, so the link already sent fails",
+    file: "src/lib/account/client.ts",
+    from: "  await requestMagicLink(cfg, address, `${window.location.origin}${window.location.pathname}`, await challengeFor(verifier));",
+    to: "  await requestMagicLink(cfg, address, `${window.location.origin}${window.location.pathname}`, await challengeFor(verifier)).catch((e) => { savePendingSignIn(null); throw e; });",
+  },
+  {
+    name: "a link a newer request took over (bad_code_verifier) is blamed on a different browser",
+    file: "src/lib/account/supabase.ts",
+    from: "  if (res.status === 400 && ((await res.clone().json().catch(() => ({}))) as { error_code?: string }).error_code === \"bad_code_verifier\") {\n    throw new AccountError(LINK_TAKEN_OVER, \"auth\");\n  }\n",
+    to: "",
   },
   {
     name: "a mistyped address is stored as the pending sign-in before it is checked",
@@ -266,19 +278,19 @@ const MUTATIONS = [
   },
   {
     name: "THE WRITE FENCE is gone: a stale tab's save lands in the new account's storage",
-    file: "src/lib/storage.ts",
+    file: "src/lib/persistence/storage.ts",
     from: "  if (!fenceHolds()) return; // THE WRITE FENCE: the browser changed hands in another tab",
     to: "",
   },
   {
     name: "an account switch starts no new data generation",
-    file: "src/lib/storage.ts",
+    file: "src/lib/persistence/storage.ts",
     from: "  window.localStorage.removeItem(INTERNAL.synced);\n  newEpoch();\n}",
     to: "  window.localStorage.removeItem(INTERNAL.synced);\n}",
   },
   {
     name: "\"Delete everything\" starts no new data generation",
-    file: "src/lib/storage.ts",
+    file: "src/lib/persistence/storage.ts",
     from: "  Object.values(INTERNAL).forEach((k) => window.localStorage.removeItem(k));\n  newEpoch();",
     to: "  Object.values(INTERNAL).forEach((k) => window.localStorage.removeItem(k));",
   },
@@ -314,61 +326,61 @@ const MUTATIONS = [
   },
   {
     name: "a stale tab's sync can still mark stores synced in the new generation",
-    file: "src/lib/storage.ts",
+    file: "src/lib/persistence/storage.ts",
     from: "  if (!fenceHolds()) return; // a stale tab's sync must not write into the new generation's bookkeeping",
     to: "",
   },
   {
     name: "a stale tab can still put a copy back into the new generation",
-    file: "src/lib/storage.ts",
+    file: "src/lib/persistence/storage.ts",
     from: "  if (!b || !fenceHolds()) return false;",
     to: "  if (!b) return false;",
   },
   {
     name: "a stale tab can still take a copy, which can push the set-aside data out of the three kept",
-    file: "src/lib/storage.ts",
+    file: "src/lib/persistence/storage.ts",
     from: "  if (!fenceHolds()) throw new Error(CHANGED_HANDS);",
     to: "",
   },
   {
     name: "a stale tab's late sync can still make the previous account this browser's owner",
-    file: "src/lib/storage.ts",
+    file: "src/lib/persistence/storage.ts",
     from: "  if (!fenceHolds()) return; // a stale tab's late sync must not make the previous account the owner",
     to: "",
   },
   {
     name: "a tab that has only listed the copies adopts the new generation at its first write",
-    file: "src/lib/storage.ts",
+    file: "src/lib/persistence/storage.ts",
     from: "    knowEpoch(); // what a tab has read is what it may write back: THE WRITE FENCE\n",
     to: "",
   },
   {
     name: "a browser with storage blocked crashes on load (the read pin outside readKey's try)",
-    file: "src/lib/storage.ts",
+    file: "src/lib/persistence/storage.ts",
     from: "  try {\n    // Inside the try:",
     to: "  knowEpoch();\n  try {\n    // Inside the try:",
   },
   {
     name: "saving a recipe that is already saved un-saves it (add is a toggle)",
-    file: "src/lib/savedStore.ts",
+    file: "src/lib/account/savedStore.ts",
     from: "    if ((await this.list()).includes(name)) return;\n",
     to: "",
   },
   {
     name: "removing a recipe that isn't saved saves it (remove is a toggle)",
-    file: "src/lib/savedStore.ts",
+    file: "src/lib/account/savedStore.ts",
     from: "    if (!(await this.list()).includes(name)) return;\n",
     to: "",
   },
   {
     name: "anything in the saved list is shown as a saved recipe, names or not",
-    file: "src/lib/savedStore.ts",
+    file: "src/lib/account/savedStore.ts",
     from: 'raw.filter((x): x is string => typeof x === "string")',
     to: "(raw as string[])",
   },
   {
     name: "saves say 'in this browser' even when signed in",
-    file: "src/lib/savedStore.ts",
+    file: "src/lib/account/savedStore.ts",
     from: '  return signedIn ? { ...localSavedStore, kind: "account" } : localSavedStore;',
     to: "  return localSavedStore;",
   },
@@ -418,7 +430,7 @@ const MUTATIONS = [
   },
   {
     name: "'Delete everything' goes through the fenced write, so a stale tab's clear leaves data behind",
-    file: "src/lib/storage.ts",
+    file: "src/lib/persistence/storage.ts",
     from: "  for (const n of STORE_NAMES) window.localStorage.removeItem(KEYS[n]);\n  Object.values(INTERNAL)",
     to: "  for (const n of STORE_NAMES) write(n, null, { silent: true });\n  Object.values(INTERNAL)",
   },
@@ -543,12 +555,16 @@ const root = args[0] ?? process.cwd();
 // source, silently: the next test run then tested broken code, and the next commit could have shipped
 // it. It happened once (rule 6's backup check, left broken in merge.ts). So each file's original is
 // journalled before it is mutated, and a journal left behind is put back first thing on the next run.
-const journal = join(root, "node_modules", ".cache", "mutate-account.journal.json");
-if (existsSync(journal)) {
-  const left = JSON.parse(readFileSync(journal, "utf8"));
-  writeFileSync(left.path, left.original, "utf8");
-  rmSync(journal);
-  console.log(`RESTORED ${left.path}: the run before this one was interrupted while that file was mutated\n`);
+// It lives in the worktree's own .cache/ (gitignored), never node_modules/.cache, which worktrees can
+// share through a junction: another lane's run would then find this journal and "restore" this tree.
+// A journal at the old place, left by a run before the move, is still put back.
+const journal = join(root, ".cache", "mutate-account.journal.json");
+for (const left of [journal, join(root, "node_modules", ".cache", "mutate-account.journal.json")]) {
+  if (!existsSync(left)) continue;
+  const j = JSON.parse(readFileSync(left, "utf8"));
+  writeFileSync(j.path, j.original, "utf8");
+  rmSync(left);
+  console.log(`RESTORED ${j.path}: the run before this one was interrupted while that file was mutated\n`);
 }
 mkdirSync(dirname(journal), { recursive: true });
 

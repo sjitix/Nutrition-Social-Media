@@ -1,0 +1,10 @@
+{
+  "bloated and exhausted": {
+    "thinking": "Bloating is often caused by beans, lentils, onions and cruciferous veg. Pass the symptom and cut those.",
+    "reply": "Sorry you're feeling that way. I've taken beans, lentils, onion and broccoli out of your week since they're common bloating triggers.",
+    "operations": [
+      { "op": "symptom", "text": "i've been so bloated and exhausted all week" },
+      { "op": "constrain", "exclude": ["beans", "lentils", "onion", "broccoli"] }
+    ]
+  }
+}

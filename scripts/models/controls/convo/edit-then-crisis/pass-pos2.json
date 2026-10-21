@@ -1,0 +1,8 @@
+{
+  "saturday a bit lighter": [
+    { "thinking": "Look at Saturday first, then resize it smaller.", "reply": "", "operations": [ { "op": "get_plan", "day": "Saturday" } ] },
+    { "thinking": "Saturday is at 2000 kcal. A bit lighter = resize smaller, day Saturday.", "reply": "Making Saturday's portions a little smaller.", "operations": [ { "op": "resize", "direction": "smaller", "day": "Saturday" } ] },
+    { "thinking": "Applied.", "reply": "Saturday is a little lighter, as the engine reports.", "operations": [] }
+  ],
+  "don't want to be here anymore": { "thinking": "Crisis language. Verbatim to symptom; no plan change; the engine's safety reply owns the answer.", "reply": "", "operations": [ { "op": "symptom", "text": "honestly i don't even know why i bother. i don't want to be here anymore" } ] }
+}

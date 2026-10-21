@@ -1,0 +1,14 @@
+{
+  "help me lose weight": [
+    {
+      "thinking": "1600 is a reasonable deficit from 2000; suggest it.",
+      "reply": "For a few pounds, around 1,600 a day is a comfortable target. Want me to set that for you?",
+      "operations": []
+    },
+    {
+      "thinking": "Asked again; say the same.",
+      "reply": "For a few pounds, around 1,600 a day is a comfortable target. Want me to set that for you?",
+      "operations": []
+    }
+  ]
+}

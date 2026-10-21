@@ -1,0 +1,14 @@
+{
+  "help me lose weight": [
+    {
+      "thinking": "Suggest a 400 deficit.",
+      "reply": "A deficit of around 400 a day (in calories) works well for a few pounds. Want me to set your target that way?",
+      "operations": []
+    },
+    {
+      "thinking": "Asked again; say the same.",
+      "reply": "A deficit of around 400 a day (in calories) works well for a few pounds. Want me to set your target that way?",
+      "operations": []
+    }
+  ]
+}

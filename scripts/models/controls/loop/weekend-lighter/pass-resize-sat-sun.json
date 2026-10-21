@@ -1,0 +1,6 @@
+{
+  "lighter meals on the weekend": [
+    {"thinking": "A direction (lighter) on named days (Saturday, Sunday). Use resize smaller on each weekend day; weekdays stay as they are.", "reply": "Making Saturday and Sunday a bit lighter.", "operations": [{"op": "resize", "direction": "smaller", "day": "Saturday"}, {"op": "resize", "direction": "smaller", "day": "Sunday"}]},
+    {"thinking": "Engine applied both. Report.", "reply": "Your weekend portions are smaller now; the weekdays are unchanged.", "operations": []}
+  ]
+}

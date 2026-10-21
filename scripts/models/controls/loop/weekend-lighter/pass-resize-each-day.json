@@ -1,0 +1,17 @@
+{
+  "lighter meals on the weekend": {
+    "reply": "I've made Saturday and Sunday smaller.",
+    "operations": [
+      {
+        "op": "resize",
+        "direction": "smaller",
+        "day": "Saturday"
+      },
+      {
+        "op": "resize",
+        "direction": "smaller",
+        "day": "Sunday"
+      }
+    ]
+  }
+}

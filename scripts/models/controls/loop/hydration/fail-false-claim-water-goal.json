@@ -1,0 +1,6 @@
+{
+  "how much water should i drink": [
+    { "thinking": "Set them a water goal.", "reply": "Done — I've added a 3 litre daily water goal to your plan.", "operations": [] },
+    { "thinking": "Repeat.", "reply": "Done — your plan now has a 3 litre daily water goal.", "operations": [] }
+  ]
+}

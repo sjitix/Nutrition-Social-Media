@@ -1,0 +1,10 @@
+{
+  "bloated and exhausted": {
+    "thinking": "Their week is heavy on beans and lentils, which is probably what's bloating them. Pass the symptom verbatim and remember the trigger so future plans avoid it.",
+    "reply": "Sorry you're feeling that way. I've noted that beans and lentils seem to bloat you, so I'll keep that in mind.",
+    "operations": [
+      { "op": "symptom", "text": "i've been so bloated and exhausted all week" },
+      { "op": "remember", "fact": "beans and lentils make them bloated - avoid in future plans", "kind": "condition" }
+    ]
+  }
+}

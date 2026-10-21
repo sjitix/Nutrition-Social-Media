@@ -7,9 +7,9 @@
  * is internal to this folder, and check:boundaries fails anything outside the folder that imports it.
  */
 import { DAYS, type DayPlan, type Meal, type UserProfile, type WeekPlan } from "../core";
-import { microDensity, DAILY_REFERENCE, type MicroKey } from "../nutrition";
+import { microDensity, DAILY_REFERENCE, dietTagConflicts, haystackBlocked, parseExclusionTokens, type MicroKey } from "../nutrition";
 import { type Cuisine, type Recipe } from "../data";
-import { RECIPES, recipeMicros, scaleRecipeToTarget, toMeal } from "./library";
+import { RECIPES, baseRecipeOf, recipeMicros, scaleRecipeToTarget, toMeal } from "./library";
 import { type SlotSplit, bannedForUser, blockedByExclusions, budgetCap, exclusionTokens, localSplit, passesDiet, ratingMap } from "./rules";
 import { slotTargetMacros } from "./rebalance";
 
@@ -215,11 +215,80 @@ export interface SelectionReport {
   // A slot where every remaining dish was one the user asked never to see again. We served one
   // anyway — and, per the disclosure rule, we say so.
   servedBannedDish: boolean;
+  // Imported dishes a re-solve took out because they break one of the person's hard rules, with the
+  // slot each held and why. The note naming what replaced each is written from the FINAL plan of the
+  // operation (importNotes), because a rebalance or a pin can change that slot after selection.
+  replacedImports: ReplacedImport[];
 }
+export interface ReplacedImport { day?: string; type: string; name: string; breaks: ImportBreak }
 
 export const newReport = (): SelectionReport => ({
-  droppedSlots: [], slowestOverLimit: 0, relaxedBudget: false, servedBannedDish: false,
+  droppedSlots: [], slowestOverLimit: 0, relaxedBudget: false, servedBannedDish: false, replacedImports: [],
 });
+
+/** Which of the person's hard rules an imported dish breaks, judged on its own text. */
+export interface ImportBreak { allergies: string[]; avoided: string[]; diet: string[] }
+
+/**
+ * Which hard rule an IMPORTED dish (it carries its source URL) breaks, judged on its OWN text, even when
+ * its title matches a library dish (an import named like one used to be checked against the library
+ * dish's ingredients). Null when it breaks none, or is not an import: a logged or eating-out entry has
+ * no source URL and records what was eaten.
+ *
+ * - Allergies always count (I2), whenever they bound.
+ * - A food the person avoids, and a vegetarian or vegan diet, count only when the change being applied
+ *   introduced them (`before` is the profile before it). An import that already broke the old rule was
+ *   placed over it on purpose, and a later re-solve must not take it away. With no `before`, only the
+ *   allergies are judged.
+ * - The diet is judged by the dish's name and ingredient names, because "boneless thighs" alone does not
+ *   say chicken. No other diet can be judged from them, so an import is never removed for one.
+ */
+export function importBreaks(m: Meal, profile: UserProfile, before?: UserProfile): ImportBreak | null {
+  if (!m.sourceUrl) return null;
+  const hay = `${m.name} ${m.ingredients.map((i) => i.name).join(" ")} ${m.steps.join(" ")}`;
+  const allergies = parseExclusionTokens(profile.allergies ?? "", "").filter((t) => haystackBlocked(hay, [t]));
+  const had = before ? exclusionTokens(before) : null;
+  const avoided = had
+    ? parseExclusionTokens("", profile.dislikes ?? "").filter((t) => haystackBlocked(hay, [t]) && !allergies.includes(t) && !haystackBlocked(hay, had))
+    : [];
+  const words = [m.name, ...m.ingredients.map((i) => i.name)];
+  const judged = (diet: string) => (diet === "vegan" || diet === "vegetarian" ? dietTagConflicts(diet, words) : []);
+  const diet = before && before.diet !== profile.diet && !judged(before.diet).length ? judged(profile.diet) : [];
+  return allergies.length || avoided.length || diet.length ? { allergies, avoided, diet } : null;
+}
+
+const listWords = (items: string[]) => (items.length > 1 ? `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}` : items[0] ?? "");
+const manyOf = (items: string[]) => items.length > 1 || /[^siu]s$/.test(items[0] ?? "");
+
+/** Why an import was taken out, in the person's words: "contains shellfish, which is in your
+ *  allergies", "contains mushrooms, which you avoid", "isn't vegetarian (it has chicken breast)". */
+function importWhy(b: ImportBreak, profile: UserProfile): string {
+  const parts: string[] = [];
+  if (b.allergies.length) parts.push(`contains ${listWords(b.allergies)}, which ${manyOf(b.allergies) ? "are" : "is"} in your allergies`);
+  if (b.avoided.length) parts.push(`${parts.length ? "and" : "contains"} ${listWords(b.avoided)}, which you avoid`);
+  if (b.diet.length) parts.push(`${parts.length ? "and " : ""}isn't ${profile.diet} (it has ${listWords(b.diet)})`);
+  return parts.join(", ");
+}
+
+/**
+ * The notes for imported dishes a re-solve took out, written from the operation's FINAL plan. The
+ * replacement is not named: naming the selector's pick was wrong in 10 of 120 seeded runs and in every
+ * run with a pin in that slot, because a rebalance or a pin changes the slot afterwards, and even the
+ * final plan of one operation goes stale when an agent run takes a further step (review, 2026-10-20).
+ * A pin back in the slot is named: it stays until the person unpins it.
+ */
+export function importNotes(replaced: ReplacedImport[], plan: WeekPlan, profile: UserProfile): string[] {
+  return replaced.flatMap((r) => {
+    const now = plan.days.find((d) => d.day === r.day)?.meals.find((m) => m.type === r.type);
+    if (now?.name === r.name) return []; // it is back (a later step restored it): nothing was taken out
+    const where = r.day ? `${r.day}'s ${r.type}` : `your ${r.type}`;
+    const head = `${r.name}, the recipe you imported for ${where}, ${importWhy(r.breaks, profile)}, so I`;
+    const pinned = (profile.lockedMeals ?? []).some((l) => l.day === r.day && l.mealType === r.type && l.name === now?.name);
+    if (!now) return [`${head} took it out, and nothing else fits that slot.`];
+    if (pinned) return [`${head} took it out, and your pinned ${now.name} is back in that slot.`];
+    return [`${head} replaced it.`];
+  });
+}
 
 /** Turn a report into honest, user-facing sentences. Empty when nothing was compromised. */
 export function reportNotes(rep: SelectionReport, profile: UserProfile): string[] {
@@ -267,12 +336,21 @@ function pickMealsForDay(
     if (keep) {
       const existing = keep.meals.find((m) => m.type === type);
       if (existing) {
-        const base = RECIPES.find((r) => r.name === existing.name);
-        if (!base) {
+        // Looked up the way rebalanceWeek looks it up (case-insensitive), because it rebuilds any meal
+        // with a library dish's name as that dish.
+        const base = baseRecipeOf(existing);
+        // An IMPORTED dish that breaks a hard rule (importBreaks, judged on its own text first) is a
+        // planned plate like any library dish: binding "allergic to shellfish" took the library's shrimp
+        // out of the week and left the imported Garlic Butter Shrimp Tacos on Wednesday (allergen review
+        // LC-01, U1). So its slot is re-picked, and the note says why. A logged or eating-out entry has no
+        // source URL: it records what was eaten, so it is kept as it is.
+        const breaks = importBreaks(existing, profile, keep.before);
+        if (breaks) {
+          report?.replacedImports.push({ type, name: existing.name, breaks });
+        } else if (!base) {
           meals.push(existing);
           continue;
-        }
-        if (keep.keepIf(base)) {
+        } else if (keep.keepIf(base)) {
           ctx.usedIds.add(base.id);
           ctx.usedNames.add(base.name.toLowerCase());
           ctx.proteinDays[base.mainProtein] = (ctx.proteinDays[base.mainProtein] ?? 0) + 1;
@@ -361,9 +439,11 @@ function pickMealsForDay(
  * still passes `keepIf`, and only re-pick the slots that now break a rule. Kept dishes are pre-marked
  * used so a replaced slot can't duplicate one that survived on another day.
  */
-type KeepEdits = { plan: WeekPlan; keepIf: (r: Recipe) => boolean };
+// `before` is the profile before the change being applied: importBreaks judges a diet or a food the
+// person avoids against an import only when that change introduced it.
+type KeepEdits = { plan: WeekPlan; keepIf: (r: Recipe) => boolean; before?: UserProfile };
 
-type KeepDay = { meals: Meal[]; keepIf: (r: Recipe) => boolean };
+type KeepDay = { meals: Meal[]; keepIf: (r: Recipe) => boolean; before?: UserProfile };
 
 export function selectWeekFromDb(
   profile: UserProfile,
@@ -409,13 +489,15 @@ export function selectWeekFromDb(
     }
   }
 
-  const days = DAYS.map((day) => ({
-    day,
-    meals: pickMealsForDay(
+  const days = DAYS.map((day) => {
+    const before = report?.replacedImports.length ?? 0;
+    const meals = pickMealsForDay(
       profile, split, cap, tokens, ctx, cuisinePref, preferFiber, report,
-      keep ? { meals: keep.plan.days.find((d) => d.day === day)?.meals ?? [], keepIf: keep.keepIf } : undefined,
-    ),
-  }));
+      keep ? { meals: keep.plan.days.find((d) => d.day === day)?.meals ?? [], keepIf: keep.keepIf, before: keep.before } : undefined,
+    );
+    for (const r of report?.replacedImports.slice(before) ?? []) r.day = day;
+    return { day, meals };
+  });
 
   const avg = Math.round(
     days.reduce((s, d) => s + d.meals.reduce((m, x) => m + x.calories, 0), 0) / days.length,

@@ -1,0 +1,25 @@
+{
+  "help me lose weight": [
+    {
+      "thinking": "Store the weight-loss target so every later turn applies it.",
+      "reply": "Noted.",
+      "operations": [
+        {
+          "op": "remember",
+          "fact": "goal: lose weight on 1400 kcal a day",
+          "kind": "goal"
+        }
+      ]
+    },
+    {
+      "thinking": "Saved. Tell them.",
+      "reply": "Got it - I'll plan around 1,400 kcal a day for you from here on so you lose weight.",
+      "operations": []
+    },
+    {
+      "thinking": "Told my claim has nothing behind it; say it again.",
+      "reply": "Got it - I'll plan around 1,400 kcal a day for you from here on so you lose weight.",
+      "operations": []
+    }
+  ]
+}

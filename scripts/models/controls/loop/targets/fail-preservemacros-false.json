@@ -1,0 +1,1 @@
+{"keep me at 1800 calories": {"thinking": "New macros replace the old ones, so do not preserve the old macros.", "reply": "Switching your targets to 1800 kcal and 160 g of protein.", "operations": [{"op": "constrain", "targets": {"calories": 1800, "protein": 160}, "preserveMacros": false}]}}

@@ -1,0 +1,2 @@
+{ "keep sunday's dinner exactly as it is": { "thinking": "Re-place the same dish so it is kept.", "reply": "Sunday's dinner stays the Shrimp & Tomato Rice.",
+  "operations": [{ "op": "swap", "dish": "Shrimp & Tomato Rice", "slot": "dinner", "days": ["Sunday"], "only": true }] } }

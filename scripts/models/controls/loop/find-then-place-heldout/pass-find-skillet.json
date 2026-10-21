@@ -1,0 +1,36 @@
+{
+  "no meat or fish": [
+    {
+      "thinking": "Look up vegetarian dinners of 15 minutes or less.",
+      "reply": "",
+      "operations": [
+        {
+          "op": "find_recipes",
+          "mealType": "dinner",
+          "diet": "vegetarian",
+          "maxTime": 15,
+          "sort": "protein"
+        }
+      ]
+    },
+    {
+      "thinking": "Harissa Chickpea & Spinach Skillet is 12 minutes and vegetarian. Tuesday dinner only.",
+      "reply": "Putting the Harissa Chickpea & Spinach Skillet on Tuesday.",
+      "operations": [
+        {
+          "op": "swap",
+          "dish": "Harissa Chickpea & Spinach Skillet",
+          "slot": "dinner",
+          "days": [
+            "Tuesday"
+          ]
+        }
+      ]
+    },
+    {
+      "thinking": "Applied.",
+      "reply": "Tuesday dinner is now the Harissa Chickpea & Spinach Skillet, 12 minutes and meat-free.",
+      "operations": []
+    }
+  ]
+}

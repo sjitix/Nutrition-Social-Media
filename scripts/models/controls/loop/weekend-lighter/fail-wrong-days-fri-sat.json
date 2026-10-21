@@ -1,0 +1,6 @@
+{
+  "lighter meals on the weekend": [
+    {"thinking": "Weekend starts Friday: lighten Friday and Saturday.", "reply": "Lightening your weekend.", "operations": [{"op": "resize", "direction": "smaller", "day": "Friday"}, {"op": "resize", "direction": "smaller", "day": "Saturday"}]},
+    {"thinking": "Done.", "reply": "Your weekend meals are lighter.", "operations": []}
+  ]
+}

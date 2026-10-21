@@ -1,0 +1,21 @@
+{
+  "make tuesday vegetarian": [
+    {
+      "thinking": "Tuesday has Berry Protein Waffles (egg, protein powder: vegetarian), a beef lunch and a tuna dinner. Look up vegetarian lunch and dinner options, then swap just those two slots on Tuesday.",
+      "reply": "",
+      "operations": [
+        { "op": "get_plan", "day": "Tuesday" },
+        { "op": "find_recipes", "mealType": "lunch", "diet": "vegetarian", "sort": "protein" },
+        { "op": "find_recipes", "mealType": "dinner", "diet": "vegetarian", "sort": "protein" }
+      ]
+    },
+    {
+      "thinking": "Breakfast is already vegetarian. Swap lunch and dinner on Tuesday only, keeping breakfast as it is.",
+      "reply": "Swapping Tuesday's beef lunch and tuna dinner for vegetarian dishes; your waffles stay, and no other day changes.",
+      "operations": [
+        { "op": "swap", "dish": "Tempeh Teriyaki Rice Bowl", "slot": "lunch", "days": ["Tuesday"], "only": true },
+        { "op": "swap", "dish": "Red Lentil Dahl with Brown Rice", "slot": "dinner", "days": ["Tuesday"], "only": true }
+      ]
+    }
+  ]
+}

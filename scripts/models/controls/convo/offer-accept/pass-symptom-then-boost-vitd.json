@@ -1,0 +1,14 @@
+{
+  "really run down and tired": {
+    "reply": "I'm sorry you've been feeling so run down. I can't diagnose what's behind it, and if it keeps up a doctor is worth seeing. Want me to check your week and lean it toward whatever looks low?",
+    "operations": [
+      { "op": "symptom", "text": "i've been feeling really run down and tired lately" }
+    ]
+  },
+  "yes please, go ahead": {
+    "reply": "Leaning your week toward vitamin D, as offered.",
+    "operations": [
+      { "op": "constrain", "boostNutrient": "vitD" }
+    ]
+  }
+}

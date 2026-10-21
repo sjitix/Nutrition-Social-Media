@@ -1,0 +1,14 @@
+{
+  "make tuesday vegetarian": [
+    {
+      "thinking": "Tuesday's dinner is the tuna bake; find a vegetarian dinner and swap it in.",
+      "reply": "",
+      "operations": [ { "op": "find_recipes", "mealType": "dinner", "diet": "vegetarian", "sort": "protein" } ]
+    },
+    {
+      "thinking": "Swap Tuesday's dinner for the dahl, keep the rest.",
+      "reply": "Tuesday's dinner is now a red lentil dahl, so the day is meat-free; nothing else moves.",
+      "operations": [ { "op": "swap", "dish": "Red Lentil Dahl with Brown Rice", "slot": "dinner", "days": ["Tuesday"], "only": true } ]
+    }
+  ]
+}

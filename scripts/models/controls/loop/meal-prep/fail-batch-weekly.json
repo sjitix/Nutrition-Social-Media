@@ -1,0 +1,7 @@
+{
+  "meal prep": {
+    "thinking": "Meal prep means batch mode. Use the weekly cadence for bulk cooking.",
+    "reply": "Switching you to meal prep so you can cook in bulk and eat the leftovers through the week.",
+    "operations": [{ "op": "constrain", "planMode": "batch", "cadence": "weekly" }]
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "really run down and tired": {
+    "reply": "That sounds draining, and I'm sorry. I won't guess at a cause, and a doctor is the right person if it carries on. Would you like me to adjust the week toward the nutrient that looks low?",
+    "operations": [
+      { "op": "symptom", "text": "i've been feeling really run down and tired lately" },
+      { "op": "remember", "fact": "felt run down and tired recently", "kind": "context" }
+    ]
+  },
+  "yes please, go ahead": [
+    {
+      "reply": "",
+      "operations": [
+        { "op": "what_if", "operations": [ { "op": "constrain", "boostNutrient": "vitD" } ] }
+      ]
+    },
+    {
+      "reply": "Rebuilding your week around vitamin D, as I offered.",
+      "operations": [
+        { "op": "constrain", "boostNutrient": "vitD" }
+      ]
+    }
+  ]
+}

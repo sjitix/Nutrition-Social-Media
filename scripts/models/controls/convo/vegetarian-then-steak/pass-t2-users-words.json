@@ -1,0 +1,22 @@
+{
+  "gone vegetarian": {
+    "thinking": "Lasting diet change.",
+    "reply": "Got it, switching your whole week to vegetarian.",
+    "operations": [
+      {
+        "op": "remember",
+        "fact": "vegetarian",
+        "kind": "preference"
+      },
+      {
+        "op": "constrain",
+        "diet": "vegetarian"
+      }
+    ]
+  },
+  "steak for wednesday dinner": {
+    "thinking": "They said no more meat. Steak clashes: name it in their words, offer the choices, change nothing.",
+    "reply": "Steak is meat, and you told me no more meat for you, so I've left Wednesday as it is. Would you like a hearty lentil or halloumi dinner there instead, or have you changed your mind about cutting out meat?",
+    "operations": []
+  }
+}

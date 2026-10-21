@@ -1,0 +1,1 @@
+{"can't stand eggs": {"thinking": "A lasting dislike: remember it and exclude eggs across the week (week scope persists).", "reply": "Got it, no more eggs. Taking them out of your week.", "operations": [{"op": "remember", "fact": "can't stand eggs", "kind": "preference"}, {"op": "constrain", "exclude": ["eggs"]}]}}

@@ -1,0 +1,14 @@
+{
+  "drop a few pounds": [
+    {
+      "thinking": "A gentle deficit off 2000 is 1700. Offer it as the question.",
+      "reply": "Happy to. Your target is 2,000 kcal a day right now. Want me to drop it to 1,700 a day, or do you have a number from your doctor?",
+      "operations": []
+    },
+    {
+      "thinking": "Asked again; say the same.",
+      "reply": "Happy to. Your target is 2,000 kcal a day right now. Want me to drop it to 1,700 a day, or do you have a number from your doctor?",
+      "operations": []
+    }
+  ]
+}

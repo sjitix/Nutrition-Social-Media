@@ -72,12 +72,12 @@ gate's job is to keep it true, not to fix it.
 
 | Layer | What lives there | May import | Must never import |
 |---|---|---|---|
-| **L0 · Contracts** | `core/` — `types.ts` (the zod schemas and TS types every layer speaks), `slots.ts`, `micros.ts` (the micronutrient vocabulary), `imported.ts` (an imported recipe and its pure converter to a Meal) | zod only | anything in this repo |
+| **L0 · Contracts** | `core/` — `types.ts` (the zod schemas and TS types every layer speaks), `slots.ts`, `micros.ts` (the micronutrient vocabulary), `imported.ts` (an imported recipe and its pure converter to a Meal), `defaults.ts` (`DEFAULT_TARGETS`, zod-free so the browser can have it) | zod only | anything in this repo |
 | **L1 · Data** | `data/` — the 501 recipe seeds, ingredient identity, `nutrientTable.generated.ts`, `substitutions.ts`, `symptoms.ts`, `conditions.ts` (+ `nutrition/unitGrams.generated.ts`, kept client-safe) | L0 | anything computing over it |
 | **L2 · Pure computation** | `nutrition/` — `units.ts`, `nutrients.ts`, `targets.ts`, `exclusions.ts`, `safety.ts`, `grocery.ts` (+ `presentation/streak.ts`, local-day arithmetic) | L0–L1 | the plan engine, the assistant, any I/O |
 | **L3 · Plan engine** | selection, rebalancing, batch, the executor | L0–L2 | the assistant, providers, UI, `storage` |
 | **L4 · Assistant** | `assistant/` — `primitives.ts`, `agentTools.ts`, `agentLoop.ts`, `reply.ts`, `promptV2.ts` | L0–L3 | providers (the model arrives **injected**), UI, `storage` |
-| **L5 · Adapters** | `providers/` — `ai.ts`, `import.ts`, `videoImport.ts`; and (the accounts lane's, not yet moved) `storage.ts`, `savedStore.ts`, `account/` | L0–L4 | the UI |
+| **L5 · Adapters** | `providers/` — `ai.ts`, `import.ts`, `videoImport.ts`; `persistence/` — `storage.ts`; and the accounts lane's `account/` — sync, sign-in, export, and `savedStore.ts` (local or account) | L0–L4 | the UI |
 | **L6 · Presentation** | `presentation/` — `feed.ts`, `feedFilter.ts`, `recipes.ts` (images), `batchGrocery.ts`; `weekStats.ts`, and everything in `src/app` | L0–L5 **via barrels only** | — |
 | **T · Tooling** | `scripts/*` | anything, including internals | — it is the harness, and it is *supposed* to reach inside |
 
@@ -543,10 +543,14 @@ video path lets the model extract *structure only*, never nutrition.
 Public: the load/save pairs + `clearAll`. Private: **`KEYS`**, and the JSON encoding.
 Invariant: **one concept, one key, and no other module may name one.** Enforced by the gate.
 
-**`persistence/saved-store`** — *"Saved recipes as `list`/`add`/`remove`, async on purpose."*
+**`account/savedStore`** — *"Saved recipes as `list`/`add`/`remove`, async on purpose."*
 Public: `SavedStore`, `savedStore()`, `localSavedStore`, `useSaved`. Invariant: async even though
 localStorage is not, so a network can slide behind it without touching a call site; it **delegates
 to `storage.ts` rather than owning a key**; it must keep working with no account configured.
+**It lives in `account/`, not `persistence/`** (moved 2026-10-18): it chooses between the local store and the
+account, so it imports `account/client` — and from inside `persistence/` that closes a cycle
+(`account/client` → `persistence` → `savedStore` → `account/client`), which rule 5 fails. The accounts lane
+found it before the move was made.
 
 ### L6 · Presentation
 
@@ -617,7 +621,8 @@ kept the two-layer rule — but it was out of order, and it is the last thing th
    and `account/**` are the accounts lane's; `ai.ts`, `promptV2.ts` and `agentLoop.ts` are run daily
    by the models lane. Moving a file another agent is editing is how work gets lost in a rebase, so
    A6 is announced in `lane-v1.md` first, each owner moves (or approves moving) their own files, and
-   the old path keeps a one-line re-export until every lane has rebased past it.
+   the old path keeps a one-line re-export until every lane has rebased past it. (All 28 were removed
+   on 2026-10-21, below.)
 
 ### Phase 1 — seal, without moving anything *(low risk, do first)*
 
@@ -672,7 +677,7 @@ src/nutrition/     nutrients, targets, exclusions, grocery
 src/plan/          select, rebalance, batch, execute, notes, report   ← barrel = today's recipeDb surface
 src/assistant/     primitives, read-surface, loop, reply, prompt
 src/providers/     ai, import, video-import
-src/persistence/   storage, saved-store
+src/persistence/   storage                     (saved-store went to account/: see L5)
 src/presentation/  feed, imagery, batch-grocery, streak, week-stats
 ```
 
@@ -699,9 +704,18 @@ caught — both in the gate's self-test, now 14/0). **Measured, and the reason `
 With it, every `/sage` route is back to its exact pre-barrel size and `/plan` drops 207 → 186 kB. The
 only bare side-effect import in `src/` is `globals.css`, and every listener in `src/lib` is registered
 inside a function; a module that ever needs to run on import must be added to that list.
-**Still open:** removing the shims (when the models lane, which will import the barrels, and the
-accounts lane have moved), the accounts lane's files into `persistence/` (asked), and the last two
-layer/payload debts (the assistant's find_recipes through the feed; `/plan`'s library import).
+**Done 2026-10-18:** `storage.ts` → `persistence/storage.ts` and `savedStore.ts` → `account/savedStore.ts`
+(the cycle, see L5), with shims at both old paths, every importer moved, two debts paid.
+**The shims are gone (2026-10-21, D5a finished).** All 28 old flat paths were deleted once nothing imported them:
+- the models lane moved off them on 2026-10-18 (`be98c57`), and the accounts lane's files moved with `persistence/`;
+- this lane's scripts moved in two steps: seven in `6fb9a28`, then `test-engine.mts` in the commit that deleted them;
+- every import went to its shim's own target, a deep path the `scripts/` exemption allows, because 11 of
+  `test-engine`'s names are private (`extractVideoText`, `UNIT_GRAMS`, `parseIngredient`, `decodeEntities`
+  and the seven read tools).
+The models lane's two side branches (`models-exp`, `models-wording`) each change one file in `assistant/` and add no
+old-path import, so they still rebase cleanly. `check:boundaries` lost the 28 layer entries with the files, so **a
+re-export put back at an old path fails rule 0** (its self-test proves it). Still open: the last two layer/payload
+debts (the assistant's find_recipes through the feed; `/plan`'s library import).
 
 **The value split, and why Phase 3 is done anyway:** Phases 1 and 2 deliver most of the
 *enforcement* — sealed contracts and a file you can hold in your head. This section used to say
@@ -736,8 +750,8 @@ why `/sage/assistant` is 105 kB while Explore is 187 kB. Milestone A4 generalise
 
 | Seam | What makes it work |
 |---|---|
-| `storage.ts` | one concept → one key → **one module that knows the name** |
-| `savedStore.ts` | three methods, **async before a network needs it**, so the account swap is one file |
+| `persistence/storage.ts` | one concept → one key → **one module that knows the name** |
+| `account/savedStore.ts` | three methods, **async before a network needs it**, so the account swap is one file |
 | `reply.ts` | `READ_ONLY_TOOLS` is a *set a new tool must be added to*, and a test fails if it isn't |
 | `agentTools.ts` | pure functions over (args, context); bounded results; errors returned, never thrown |
 | `agentLoop.ts` | **the model injected as `ModelFn`** — the seam that makes the untestable testable |
@@ -767,9 +781,11 @@ A homemade gate in the family of `check:recipes` / `check:data` — no new depen
 |---|---|---|
 | 1 | No module imports **above** its layer (§2) | the layering is otherwise a comment |
 | 2 | Only a module's **barrel** may be imported from outside it — no deep paths | this is what makes "private" real |
-| 3 | **Only `persistence/storage` may contain a localStorage key string** | a second saved-recipes key already drifted once |
+| 3 | **Only the owners in `persistence/` may name a storage key or touch localStorage — and each key is named in exactly one of them** (`storage.ts`, and from 2026-10-18 `theme.ts`, the theme key on its own so the root layout does not load all of storage: −3.16 kB gz on `/`, `/_not-found` and `/recipes`, measured like-for-like by the accounts lane, `2d9e024`) | a second saved-recipes key already drifted once |
 | 4 | No **client component** imports a server barrel (`"use client"` + `plan` ⇒ fail) | the 185 kB Explore payload, made impossible |
 | 5 | No **import cycles** | true today; this keeps it true |
+| 7 | Every local import **resolves** — and none is computed | a path the gate cannot follow is a path it cannot check |
+| 8 | Nothing depends on **running at import time** | `"sideEffects": ["*.css"]` lets the bundler drop it |
 | 6 | No **emoji** in `src/` | a standing project rule with no enforcement today |
 
 `scripts/` is exempt by name (§2). Every failure prints the offending file, the import, and the rule
@@ -812,7 +828,13 @@ until its entry is deleted, so the list never claims a problem that is gone.
 | 5 | ~~**`/plan` → `import.ts`** (a pure converter living inside the network adapter)~~ — **PAID 2026-10-03 (D5a part 2)**: `ImportedRecipe` and `importedToMeal` moved to `core/imported.ts`; `providers/import.ts` re-exports them | B2 / A6 |
 | 6 | **`agentTools` (L4) → `feed` (L6)** — searching the library is engine work, the query moves down — *new* | A6 |
 | 7 | ~~**`conditions`, `symptoms` (L1) → `nutrients` (L2)**~~ — **PAID 2026-10-03 (D5a part 2)**: `MICRO_KEYS`, `MicroKey`, `Micros`, `MICRO_LABEL`, `MICRO_UNIT` moved to `core/micros.ts`; `nutrients.ts` re-exports them | A6 |
-| 8 | `ThemeSwitch` writes `localStorage` itself (the theme key predates the rule) | A6, with the accounts lane |
+| 8 | ~~`ThemeSwitch` writes `localStorage` itself (the theme key predates the rule)~~ — **PAID 2026-10-18**: it calls `saveTheme` and spells its boot script with `THEME_STORAGE_KEY`, both from `persistence/storage.ts` (added by the accounts lane) | the v1 lane |
+| 9–10 | ~~**`storage.ts` → `./types` and `./import`**~~ — **PAID 2026-10-18** by the move itself: `persistence/storage.ts` imports its types from `../core` (type-only, so no zod reaches the browser) | the v1 lane |
+| 11 | ~~**`account/validate.ts` → `../slots`**~~ — **PAID 2026-10-18** by the accounts lane (`dd5b33e`): it imports `DAYS`/`MEAL_TYPES` from `../core/client` | the accounts lane |
+
+Row 6 is keyed on its **names** since the D5a review: it covers `FEED_RECIPES`, `filterFeed`,
+`sortFeed` and `FeedSort` and nothing else, so the import cannot grow behind the debt (it covered the
+whole `presentation` index after part 3 renamed its key — imagery, batchGrocery, streak and all).
 
 Rows 1–3 were known (they are A4's measured target). **Rows 4–7 were not known by anyone** — which is
 the whole argument for having the gate. Rule 5 (cycles) and rule 6 (emoji) found nothing; rule 2
@@ -827,6 +849,48 @@ failed as "paid".
 **It runs without anyone remembering.** `scripts/ship.mjs` runs it first whenever a ship touches
 `src/`, before `test:engine` or `tsc`, so a layering mistake fails in a second rather than after a
 25-minute suite. A branch that predates the script skips it rather than failing.
+
+### Hardened 2026-10-03 — what an adversarial review of D5a found in it
+
+Four reviewers attacked the gate after the folder move, each with a probe against the real `check()`.
+Every hole below was reproduced, then fixed, and each fix has the self-test fixture that would have
+caught it (**11 → 41 cases**, all green; the real tree passes with the debts above).
+
+- **It resolved imports with string concatenation.** `"@/lib/plan/"`, `"@/lib/./recipeDb"`,
+  `"@/app/../lib/recipeDb"` and `require("@/lib/recipeDb")` each shipped the whole engine to a client
+  component with the gate green (a real esbuild bundle printed 501 recipes for each). It now resolves
+  with **TypeScript's own resolver under `tsconfig.json`**, over the in-memory tree (so fixtures still
+  work); `require()`, `import x = require()` and `/// <reference>` are read; and a local import that
+  resolves to nothing, or a computed `import()`, **fails** (rule 7) instead of being taken for a package.
+- **Type positions were invisible.** `import("../assistant/agentLoop").ModelFn` reached past a barrel
+  four times in `providers/ai.ts` and passed. Rules 1 and 2 now read `import("x").T` too (and the four
+  are fixed).
+- **An exemption by location exempted the importer as well.** A shim sits outside every module folder,
+  so any file could import any PRIVATE name through an old flat path (66 such names; `runAssistant`,
+  `fetchHtml`, every read tool). **Importing a shim from `src/` is now rule 2** (`old-path:`), with the
+  accounts lane's three imports listed as debts. Shims are recognised from the **parsed** file, not a
+  regex: a lone CR or U+2028 ends a `//` comment for the parser but not for `[^\n]*`, which let a
+  look-alike carry code.
+- **Entry points were matched by suffix.** A `client.ts` one folder deeper counted as the module's
+  entry. Now exact: `index.ts`, or `client.ts` **only when it is a pure re-export barrel in a folder
+  that is not server-only** — `account/client.ts` is sync glue, not a door.
+- **`assistant/` was server-only by four file names**, so its fifth file, `reply.ts`, and any future
+  `assistant/client.ts` were open. The whole folder is server-only now.
+- **Packages were never followed, so zod was free.** `/onboarding` shipped all of zod for
+  `DEFAULT_TARGETS` (six numbers); `core/client.ts` could have re-exported `types.ts` with the gate
+  green. Rule 4 now fails a client component — **or a `client.ts` entry, imported or not** — that
+  reaches `zod`, `@anthropic-ai/sdk` or `typescript` by value. `DEFAULT_TARGETS` moved to
+  `core/defaults.ts` (in `core/client`); `/plan` takes `DAYS` from `core/client`.
+- **`.js`/`.jsx` files were never walked**, though `allowJs` is on. They are now.
+- **The sideEffects promise was prose.** Rule 8 fails a bare `import "./x"` of a script, any statement
+  at the top level of `src/lib` that runs on load, and `package.json` drifting from `["*.css"]`.
+- **No gate type-checked anything after a `src/lib` change**, and `tsc` never saw a `.mts` script —
+  esbuild does not check that an imported TYPE exists, so a narrowed barrel passed every gate and
+  would have failed only at Vercel. `ship.mjs` now runs `tsc -p tsconfig.scripts.json` (src + scripts,
+  ~6 s) on every gated commit, and `--self-test` whenever the gate itself changes; CI runs both.
+  (It found three type errors in `test-ui.mts`, fixed.)
+- **Rule 5's self-test only had a plain-import cycle.** It now proves a cycle closed only through
+  re-export barrels is caught, and one whose closing edge is `export type` is not.
 
 **The method used to produce §3, so it can be re-run:** parse every `import { … } from "…"` in
 `src/` and `scripts/`, resolve `@/lib/x` and relative specifiers to a module, and compare the set of

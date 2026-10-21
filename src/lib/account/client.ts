@@ -15,7 +15,7 @@ import {
   loadStoreMeta, loadSyncedAt, loadSyncOwner, markSynced, onBrowserChangedHandsElsewhere, onSignInChangedElsewhere,
   onStoreChange, onStoresChangedElsewhere, readStore, resetStoresSilently, saveCarriedNote, savePendingSignIn,
   saveSessionRaw, saveSignInCode, saveSyncOwner, takeBackup, takeCarriedNote, writeStore, type StoreName,
-} from "../storage";
+} from "../persistence";
 import { createMirror, syncNow, type HeldReason, type LocalAccess, type Mirror, type SyncReport } from "./sync";
 import {
   AccountError, challengeFor, createPkcePair, deleteAccountRemote, exchangeCode, freshSession, hasAuthParams,
@@ -686,7 +686,7 @@ function handleFailure(e: unknown, email: string, userId: string): void {
  *
  * Why (review 2): the session lives in storage every tab shares. When another tab signed this browser
  * in as Bob and this tab missed the event (a page restored from the back/forward cache, for one), this
- * tab still showed Ana, and "Delete my account" deleted BOB's account, for good, while telling Ana hers
+ * tab still showed Sam, and "Delete my account" deleted BOB's account, for good, while telling Sam hers
  * was gone. The running sync was already pinned to its account; these actions were not.
  */
 function shownUser(): string | null {

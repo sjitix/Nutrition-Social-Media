@@ -1,0 +1,10 @@
+{
+  "bloated and exhausted": {
+    "thinking": "Pass the symptom verbatim. Fizzy drinks, cabbage and Brussels sprouts are classic bloating triggers; keep them out from now on.",
+    "reply": "Sorry you're feeling that way. I'll keep fizzy drinks, cabbage and Brussels sprouts out of your meals from now on.",
+    "operations": [
+      { "op": "symptom", "text": "i've been so bloated and exhausted all week" },
+      { "op": "constrain", "exclude": ["carbonated drinks", "cabbage", "brussels sprouts"] }
+    ]
+  }
+}

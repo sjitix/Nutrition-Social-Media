@@ -1,0 +1,5 @@
+{ "keep sunday's dinner exactly as it is": { "thinking": "Refresh Sunday, then lock its dinner.", "reply": "Sunday is refreshed and its dinner is pinned.",
+  "operations": [
+    { "op": "constrain", "scope": { "days": ["Sunday"] } },
+    { "op": "pin", "day": "Sunday", "slot": "dinner" }
+  ] } }

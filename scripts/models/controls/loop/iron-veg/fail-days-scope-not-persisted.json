@@ -1,0 +1,10 @@
+{
+  "my doctor said my iron is low": [
+    {
+      "thinking": "Apply vegetarian + iron to every day of the week.",
+      "reply": "I'll make every day vegetarian and iron-rich.",
+      "operations": [ {"op": "constrain", "scope": {"days": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]}, "diet": "vegetarian", "boostNutrient": "iron"} ]
+    },
+    { "thinking": "Applied. Finish.", "reply": "Every day is vegetarian and iron-rich now.", "operations": [] }
+  ]
+}

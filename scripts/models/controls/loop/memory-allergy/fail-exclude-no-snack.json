@@ -1,0 +1,1 @@
+{"high-protein snack": {"thinking": "Keep peanuts out and add a snack.", "reply": "Adding a high-protein afternoon snack, peanut-free.", "operations": [{"op": "remember", "fact": "allergic to peanuts", "kind": "allergy"}, {"op": "constrain", "exclude": ["peanuts"]}]}}

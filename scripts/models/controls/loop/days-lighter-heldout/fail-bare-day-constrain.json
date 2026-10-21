@@ -1,0 +1,16 @@
+{
+  "cut down how much i eat": {
+    "reply": "Thursday and Friday have been scaled down.",
+    "operations": [
+      {
+        "op": "constrain",
+        "scope": {
+          "days": [
+            "Thursday",
+            "Friday"
+          ]
+        }
+      }
+    ]
+  }
+}

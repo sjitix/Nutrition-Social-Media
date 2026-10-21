@@ -1,0 +1,16 @@
+{
+  "stopped eating": [
+    {
+      "thinking": "Possible crisis. Symptom op with their words, verbatim, first; no plan change.",
+      "reply": "",
+      "operations": [
+        { "op": "symptom", "text": "honestly some days i don't want to be here anymore and i've basically stopped eating" }
+      ]
+    },
+    {
+      "thinking": "The engine answered with crisis resources. Finish with no further operations.",
+      "reply": "I'm worried about you. Please reach out to a crisis line now - in the US or Canada call or text 988.",
+      "operations": []
+    }
+  ]
+}

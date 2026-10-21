@@ -1,0 +1,7 @@
+{
+  "4 meals a day": {
+    "thinking": "Put a snack into the snack slot every day.",
+    "reply": "Sure, Greek Yogurt & Honey will be your afternoon snack every day.",
+    "operations": [{ "op": "swap", "dish": "Greek Yogurt & Honey", "slot": "snack" }]
+  }
+}

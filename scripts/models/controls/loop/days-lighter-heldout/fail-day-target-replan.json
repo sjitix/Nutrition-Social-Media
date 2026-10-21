@@ -1,0 +1,27 @@
+{
+  "cut down how much i eat": [
+    {
+      "thinking": "Re-plan Thursday and Friday at 1600 kcal.",
+      "reply": "Re-planning Thursday and Friday lighter.",
+      "operations": [
+        {
+          "op": "constrain",
+          "scope": {
+            "days": [
+              "Thursday",
+              "Friday"
+            ]
+          },
+          "targets": {
+            "calories": 1600
+          }
+        }
+      ]
+    },
+    {
+      "thinking": "Done.",
+      "reply": "Thursday and Friday are planned lighter.",
+      "operations": []
+    }
+  ]
+}

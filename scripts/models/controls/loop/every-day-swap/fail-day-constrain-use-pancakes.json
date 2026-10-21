@@ -1,0 +1,7 @@
+{
+  "pancakes for breakfast every single day": {
+    "thinking": "Re-plan every day around pancakes.",
+    "reply": "Re-planning each day around pancakes.",
+    "operations": [ { "op": "constrain", "scope": { "days": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"] }, "use": ["pancakes"] } ]
+  }
+}

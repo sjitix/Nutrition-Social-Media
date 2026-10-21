@@ -1,0 +1,12 @@
+{
+  "massive pizza": [
+    { "thinking": "Already eaten, Monday lunch. Log it in the user's own words.",
+      "reply": "Thanks for telling me. I'll log that pizza as today's lunch and adjust the rest of Monday.",
+      "operations": [ { "op": "log", "day": "Monday", "slot": "lunch", "dish": "massive pizza" } ] }
+  ],
+  "go easy on dinner": [
+    { "thinking": "After a massive lunch, tonight's dinner should be clearly lighter: resize much_smaller, Monday dinner only.",
+      "reply": "Got it, I'll make tonight's dinner a good deal lighter.",
+      "operations": [ { "op": "resize", "direction": "much_smaller", "day": "Monday", "slot": "dinner" } ] }
+  ]
+}

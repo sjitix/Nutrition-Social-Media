@@ -1,0 +1,1 @@
+{"can't stand eggs": {"thinking": "Substitute the ingredient.", "reply": "I've swapped the eggs out for something else in those meals.", "operations": [{"op": "substitute", "ingredient": "eggs"}]}}

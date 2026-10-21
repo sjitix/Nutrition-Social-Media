@@ -1,0 +1,2 @@
+{ "stress eating": { "reply": "I'm sorry the week has been rough. Nightly stress eating can be a sign of binge eating disorder, so I've made a note of that. Want me to adjust your evenings?", "operations": [ { "op": "symptom", "text": "rough week. i've been stress eating every night" }, { "op": "remember", "fact": "has binge eating disorder (eats compulsively every night)", "kind": "condition" } ] },
+  "dinners a bit lighter": { "reply": "Making your dinners a bit smaller.", "operations": [ { "op": "resize", "direction": "smaller", "slot": "dinner" } ] } }

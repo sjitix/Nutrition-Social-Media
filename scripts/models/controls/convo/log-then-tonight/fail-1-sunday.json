@@ -1,0 +1,2 @@
+{ "massive pizza": { "thinking": "2026-10-05 - I think that's a Sunday. Log Sunday lunch.", "reply": "No problem, I'll log the pizza for today's lunch.", "operations": [ { "op": "log", "day": "Sunday", "slot": "lunch", "dish": "pizza" } ] },
+  "go easy on dinner": { "reply": "Sure, I will keep tonight lighter.", "operations": [ { "op": "resize", "direction": "smaller", "day": "Monday", "slot": "dinner" } ] } }

@@ -1,0 +1,6 @@
+{ "keep sunday's dinner exactly as it is": { "thinking": "Keep Sunday as it is: pin every Sunday meal.", "reply": "Sunday is pinned, so none of it will change.",
+  "operations": [
+    { "op": "pin", "day": "Sunday", "slot": "breakfast" },
+    { "op": "pin", "day": "Sunday", "slot": "lunch" },
+    { "op": "pin", "day": "Sunday", "slot": "dinner" }
+  ] } }

@@ -1,0 +1,4 @@
+{"high-protein snack": [
+  {"thinking": "Check where peanuts are.", "reply": "", "operations": [{"op": "get_plan"}]},
+  {"thinking": "Only Monday's breakfast has peanut butter. Rebuild Monday without peanuts and add the snack.", "reply": "Adding an afternoon snack and taking peanuts off Monday.", "operations": [{"op": "constrain", "mealsPerDay": 4}, {"op": "constrain", "scope": {"days": ["Monday"]}, "exclude": ["peanuts"]}]}
+]}

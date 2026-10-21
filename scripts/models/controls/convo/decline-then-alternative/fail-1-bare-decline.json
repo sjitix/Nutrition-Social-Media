@@ -1,0 +1,2 @@
+{ "portions for two people": { "thinking": "Unsupported.", "reply": "Sorry, I can't do that.", "operations": [] },
+  "make all my meals bigger": { "reply": "Sure, every meal a bit bigger.", "operations": [ { "op": "resize", "direction": "bigger" } ] } }

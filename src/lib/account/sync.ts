@@ -7,7 +7,7 @@
  * browser and no network. Same reason `agentLoop.ts` takes its model as a `ModelFn`.
  */
 import { planSync, type Side, type SyncAction } from "./merge";
-import type { StoreName } from "../storage";
+import type { StoreName } from "../persistence";
 
 /** One stored row on the account side. */
 export interface RemoteRow {

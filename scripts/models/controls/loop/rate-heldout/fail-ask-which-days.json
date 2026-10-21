@@ -1,0 +1,14 @@
+{
+  "keep that one coming back": [
+    {
+      "thinking": "More often: which days?",
+      "reply": "Glad you loved it! Which days would you like it for breakfast: every day, weekdays only, or specific days?",
+      "operations": []
+    },
+    {
+      "thinking": "Asked again; say the same.",
+      "reply": "Glad you loved it! Which days would you like it for breakfast: every day, weekdays only, or specific days?",
+      "operations": []
+    }
+  ]
+}

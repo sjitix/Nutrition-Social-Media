@@ -1,0 +1,10 @@
+{
+  "make tuesday vegetarian": {
+    "thinking": "One day vegetarian; the scope itself is worth noting, the rest of the week stays.",
+    "reply": "Making Tuesday vegetarian and leaving the other days as they are.",
+    "operations": [
+      { "op": "remember", "fact": "likes Tuesdays vegetarian", "kind": "preference" },
+      { "op": "constrain", "scope": { "days": ["Tuesday"] }, "diet": "vegetarian" }
+    ]
+  }
+}

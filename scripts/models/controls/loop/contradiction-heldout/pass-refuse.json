@@ -1,0 +1,7 @@
+{
+  "go vegetarian every day this week, and i want a steak for wednesday's dinner": {
+    "thinking": "Direct contradiction: vegetarian excludes steak. REFUSE: name the clash, offer the choices, change nothing.",
+    "reply": "Those two clash: a vegetarian week can't have steak in it. Would you like a fully vegetarian week, or a week that isn't vegetarian with steak on Wednesday?",
+    "operations": []
+  }
+}

@@ -1467,7 +1467,6 @@ Each of these was discovered by doing the work, and each earned its place.
     And re-read your own fix the same way: moving the fence's read pin into `readKey` put it outside
     that function's `try`, so a browser with storage blocked crashed on every load. That was found
     only by re-reading the change.
-
 64. **An identity check is good until the next `await`.** The accounts lane's sign-out and "Delete
     everything in this browser" checked who was signed in, then sent what was waiting, renewed the
     token and called /logout. If another tab signed someone else in during any of those waits, the
@@ -1479,6 +1478,113 @@ Each of these was discovered by doing the work, and each earned its place.
     order made it necessary, and it was folded into the later one. And a long-running tool needs the
     same care about being interrupted: a mutation run killed with its session left a guard broken
     in `merge.ts`, so the runner now journals each original and restores it on its next start.
+
+65. **A gate that resolves paths its own way has a hole in the shape of every spelling it forgot — and
+    an exemption by LOCATION exempts whoever stands next to it.** `check:boundaries` passed 14/0 on its
+    self-test and was green on the tree, and an adversarial review still walked the whole engine into a
+    client component four ways (`"@/lib/plan/"`, `"@/lib/./recipeDb"`, a `..` detour, `require()`),
+    because the gate built paths by concatenating strings and called anything it could not find "a
+    package". The same review found the D5a shims, exempt because they sit outside every module folder,
+    exempting their IMPORTERS too: 66 private names reachable through old paths with nothing flagged.
+    **Resolve with the toolchain's own resolver, fail closed on anything unresolved, and when you
+    exempt a thing, check who can reach THROUGH it.** And a self-test only proves the cases someone
+    thought of: each hole found gets the fixture that would have caught it (11 → 41).
+
+66. **A size comparison is only as good as its control, and a framework's printed size is not a
+    measurement.** Two lanes measured the same change (moving the theme key out of `storage.ts`) and
+    both got it wrong the same way at first. Each built its control in a throwaway worktree whose
+    `node_modules` was a junction to another folder. webpack then saw every package under a different
+    path, so it split the chunks differently and numbered the modules differently. That produced a
+    false +1 kB on every app page in one measurement and a +0.2 kB that had to be withdrawn in the
+    other. Next's own First Load JS was worse than useless: it left the control's storage chunk out
+    entirely, and so showed a 3.16 kB saving as 1 kB *bigger*. **Build both sides in one folder with one
+    `node_modules`, changing only the change itself. Sum the gzipped size of every file the route
+    really loads** (from `app-build-manifest.json`: `rootMainFiles`, each layout on the route's path,
+    the page). **Check the mechanism, not just the number:** look for a string that only the module in
+    question contains, in the chunks the route loads.
+
+67. **A check proves only what can make it fail, and a document should claim no more than its checks
+    can.** The local live run passed 20/20 against the real GoTrue, PostgREST and Postgres, and its
+    docs said it had confirmed "every platform fact" three batches were built on. Then a ten-agent
+    adversarial review of the tooling confirmed 35 findings:
+    - the RLS write check forged a row Sam already had, so a removed insert policy still met a
+      refusal, from the primary key;
+    - the renewal checks never sent a token that had really expired;
+    - nothing looked at where a sign-in link landed, and the stack's Site URL was the dev page
+      itself, so the allow list was never consulted;
+    - the "verifier kept across a refused request" check could not tell;
+    - "about ten seconds" for GoTrue's refresh-token reuse was neither measured nor its rule (GoTrue
+      accepts the replaced token with no time limit while it is the current one's parent);
+    - `--keep` could not keep the stack.
+
+    The fixes ask of each check what its failure would look like. Each check now names what it proves,
+    asserts its preconditions (Sam has no `imports` row before the forged insert), and identifies the
+    token each request carried (the gateway logs a hash of it). **And it is proven by mutation, like
+    the other suites:** `mutate-live.mjs` breaks 17 guards, among them all four RLS policies, the allow
+    list, the audit setting and each renewal path, and requires each one's named check to go red. Lesson
+    52 was about fakes kinder than the platform; this is the same mistake one level up, in a test kinder
+    than its name.
+
+    **And a survivor against the REAL platform may be teaching you the platform** (lesson 63, one level
+    further). The first mutation run caught 7 of 9. "Replace the verifier on a second request" survived.
+    GoTrue binds a link's code to the person's most recent request, refused ones included (with
+    "Confirm email" off), so a refused request cannot break the link whether the app replaces or reuses
+    its verifier; dropping it still would. Reading GoTrue's source confirmed it. The fake had modelled a
+    per-link binding, and the app's sentence blamed the person ("opened in a different browser") for
+    what was really a second device asking. The fix was not to delete the mutation. It was to test the
+    case where the guard matters (a request GoTrue never received), give the real case a true sentence,
+    and make the fake follow GoTrue's rule.
+
+    **Then the same lesson again, about the fix's own docs.** A second review of that batch found them
+    claiming "every live check is proven by mutation", when the 10 mutations required 9 of 38 checks to
+    fail. It also found the new sentence false for the other cause of the same server error. Now it is
+    17 of 38, each named, with the other 21 accounted for, and a sentence that names both causes. **Count
+    what the mutations require, never what they suggest.**
+
+68. **The tool that commits for every lane needs the same proof as the code it commits, and the git
+    flag that sounds safe can be safe in the wrong way.** `ship.mjs` v1 had one test, which was being
+    used. An adversarial audit (2026-10-18) reproduced 45 ways it could:
+    - push the wrong thing or miss an overlap. It compared raw argument strings, so a new folder, a
+      move, "./x" or "dir\x" slipped through. And its "0 behind" was 25 minutes stale.
+    - lose work. `pull --rebase --autostash` stashed into the one stack every worktree shares, and a
+      commit made during the gate rode out under ship's message.
+    - strand a commit while telling the agent to "run ship again".
+
+    v2 is built from different parts: files rather than strings, a private index, compare-and-swap,
+    a rebuild in a private index instead of stash + pull, and exit codes that say what is true.
+    `test-ship.mjs` replays 43 scenarios in throwaway repositories, and v1 fails 34 of them.
+
+    **The harness caught v2's own mistake on its first run.** The catch-up used `git reset --keep`,
+    chosen because it refuses rather than merges. But it also resets every index entry, so the staged
+    version of a file nobody named vanished. `git read-tree -m -u` (what `git checkout` does) keeps it.
+    **Read the whole contract of the "safe" flag, then test the exact state it promises to keep.**
+
+69. **A gated commit that carries a shared doc can lose its whole gate to another lane's doc edit, so
+    ship the shared docs in a commit of their own.** On 2026-10-20 the accounts lane's batch named 17
+    files: the code, and six docs, among them `CONTEXT.md` and the worklog index, which every lane
+    edits. Its gate passed (`test:engine` 1010/0) after 24 minutes. In those 24 minutes three other
+    commits landed, and two of them changed `CONTEXT.md` and the worklog index. `ship` stopped with
+    nothing committed, as it must: merging there, unseen, is how another lane's words get lost
+    (lesson 47). One green gate was spent, and v1's next commit waited behind it.
+
+    A gate now takes longer than the gap between the lanes' doc commits (an hour on a loaded machine,
+    against three commits in 24 minutes that evening), so a gated commit holding a shared doc will
+    lose that race routinely. **Ship the code gated. Ship `CONTEXT.md`, `CLAUDE.md`, `WORKPLAN.md`,
+    `VISION.md` and the worklog index straight after, as their own commit with `--no-gate`.** `ship`
+    allows that because no gate reads a doc. And a docs commit takes seconds, so the window in which
+    another lane can collide with it is seconds too.
+
+70. **A killed process's exit code is not the program's: read the end of its log before acting on the
+    number.** On 2026-10-21 a gated `ship` was killed a third of the way through `test:engine`, with
+    every other process of every session, minutes after the laptop woke from a night's sleep. Its task
+    reported exit code 4. In ship's own codes, 4 means "pushed, but the folder could not catch up", the one
+    failure that says the work is on origin. Nothing had been pushed. The log ended mid-test, without the
+    `ship:` line that each of ship's own exits prints. A lane that believed the 4 would have announced a
+    commit that did not exist, or gone looking for a folder to catch up.
+    **Trust an exit code only when the log ends in the program's own last word, and read
+    `git log origin/main` before sending anyone a sha.** The same night showed the other half: a
+    background gate lives only as long as its session, and a sleeping laptop throttles one to nothing
+    (146 seconds of CPU in seven and a half hours).
 
 ---
 

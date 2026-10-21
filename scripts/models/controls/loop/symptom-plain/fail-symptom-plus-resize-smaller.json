@@ -1,0 +1,10 @@
+{
+  "bloated and exhausted": {
+    "thinking": "Bloated: smaller portions will help. Pass the symptom too.",
+    "reply": "Sorry you're feeling that way. I've made your portions a bit smaller to ease the bloating.",
+    "operations": [
+      { "op": "symptom", "text": "i've been so bloated and exhausted all week" },
+      { "op": "resize", "direction": "smaller" }
+    ]
+  }
+}

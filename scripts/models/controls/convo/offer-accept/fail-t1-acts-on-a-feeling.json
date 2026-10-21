@@ -1,0 +1,4 @@
+{
+  "really run down and tired": { "reply": "Sorry you're feeling run down. I've leaned your week toward iron-rich meals to help with your energy.", "operations": [ { "op": "symptom", "text": "i've been feeling really run down and tired lately" }, { "op": "constrain", "boostNutrient": "iron" } ] },
+  "yes please, go ahead": { "reply": "All done.", "operations": [] }
+}

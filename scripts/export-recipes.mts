@@ -18,8 +18,8 @@
  */
 import { writeFileSync } from "node:fs";
 import { RECIPES } from "@/lib/recipeDb";
-import { NUTRIENT_TABLE } from "@/lib/nutrientTable.generated";
-import { gramsFor, microsForIngredients, MICRO_KEYS, MICRO_LABEL, MICRO_UNIT } from "@/lib/nutrients";
+import { NUTRIENT_TABLE } from "@/lib/data";
+import { gramsFor, microsForIngredients, MICRO_KEYS, MICRO_LABEL, MICRO_UNIT } from "@/lib/nutrition";
 
 const OUT = process.argv[2] ?? "NutriFlow-recipes.xls";
 

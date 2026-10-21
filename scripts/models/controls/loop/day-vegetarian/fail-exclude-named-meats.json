@@ -1,0 +1,7 @@
+{
+  "make tuesday vegetarian": {
+    "thinking": "Tuesday has beef and tuna; exclude them on Tuesday only.",
+    "reply": "Taking the beef and tuna off Tuesday; the other days stay as they are.",
+    "operations": [ { "op": "constrain", "scope": { "days": ["Tuesday"] }, "exclude": ["beef", "tuna"] } ]
+  }
+}

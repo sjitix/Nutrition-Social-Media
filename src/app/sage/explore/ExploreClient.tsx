@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { memo, useCallback, useDeferredValue, useMemo, useState } from "react";
-import { useSaved } from "@/lib/savedStore";
+import { useSaved } from "@/lib/account/savedStore";
 import { RecipeModal } from "./RecipeModal";
 // From the client-safe half of the feed, NOT @/lib/feed: that module builds the cards from the engine,
 // and importing it here shipped the whole recipe library to every visitor (V1 A4). The cards arrive as a

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Wordmark } from "@/components/icons";
-import { loadPlan } from "@/lib/storage";
+import { loadPlan } from "@/lib/persistence";
 
 const FEATURES: [string, string][] = [
   [

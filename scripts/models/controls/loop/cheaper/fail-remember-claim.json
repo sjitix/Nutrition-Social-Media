@@ -1,0 +1,11 @@
+{
+  "make the week cheaper": [
+    {
+      "thinking": "Store the context.",
+      "reply": "Done, I've made your week cheaper for this month.",
+      "operations": [{ "op": "remember", "fact": "money is tight this month", "kind": "context" }]
+    },
+    { "thinking": "Finished.", "reply": "Done, I've made your week cheaper for this month.", "operations": [] },
+    { "thinking": "It did change.", "reply": "Done, I've made your week cheaper for this month.", "operations": [] }
+  ]
+}

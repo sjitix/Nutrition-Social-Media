@@ -1,0 +1,13 @@
+{
+  "my doctor said my iron is low": [
+    {
+      "thinking": "Low iron: boost iron. They mention being vegetarian; remember it.",
+      "reply": "Sorry to hear that. I'll push iron up across your week and remember that you're vegetarian.",
+      "operations": [
+        {"op": "remember", "fact": "is vegetarian", "kind": "preference"},
+        {"op": "constrain", "boostNutrient": "iron"}
+      ]
+    },
+    { "thinking": "Applied. Finish.", "reply": "Your week now leans toward iron-rich meals.", "operations": [] }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "help me lose weight": [
+    {
+      "thinking": "Save a sensible deficit as their goal, then ask how fast they want to go.",
+      "reply": "",
+      "operations": [
+        {
+          "op": "remember",
+          "fact": "goal: lose a few pounds on a 500-calorie daily deficit",
+          "kind": "goal"
+        }
+      ]
+    },
+    {
+      "thinking": "Saved. Ask one question.",
+      "reply": "Glad to help with that. How quickly would you like to lose it, and by roughly when?",
+      "operations": []
+    },
+    {
+      "thinking": "Asked again; say the same.",
+      "reply": "Glad to help with that. How quickly would you like to lose it, and by roughly when?",
+      "operations": []
+    }
+  ]
+}

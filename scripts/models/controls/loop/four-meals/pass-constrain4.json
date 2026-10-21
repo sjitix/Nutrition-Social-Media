@@ -1,0 +1,7 @@
+{
+  "4 meals a day": {
+    "thinking": "A clear, lasting instruction: four meals a day with an afternoon snack. Adding a snack means mealsPerDay: 4, at week scope so it persists. The engine places and sizes the snack within my existing targets.",
+    "reply": "Sure, I'm adding an afternoon snack to every day so you're on four meals a day from now on.",
+    "operations": [{ "op": "constrain", "mealsPerDay": 4 }]
+  }
+}

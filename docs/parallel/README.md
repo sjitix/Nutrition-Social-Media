@@ -15,9 +15,8 @@ Live status of each lane: **`lane-v1.md`**, **`lane-accounts.md`** and **`lane-m
 folder. **Each agent writes ONLY its own lane file**, so those never conflict. Where this file says "the
 other lane", read "the other lanes" — the rules apply pairwise between all three.
 
-**Where each lane runs (checked 2026-10-18):** v1 in the laptop's main folder; accounts in
-`../NutriFlow-accounts/` on the laptop; the models worktrees (`../NutriFlow-models/`,
-`../NutriFlow-models-exp/`) are **not on the laptop**. The laptop also has **no `.env.local`**, so
+**Where each lane runs (checked 2026-10-18):** all three on the laptop: v1 in the main folder, accounts in `../NutriFlow-accounts/`, models in
+`../NutriFlow-models/` and `../NutriFlow-models-exp/` (created 2026-10-18). The laptop also has **no `.env.local`**, so
 anything that needs the NVIDIA key or LM Studio runs where those are, or the owner recreates the file.
 
 ---
@@ -64,7 +63,7 @@ folder.** Each one's work reaches the other only through `origin/main`.
 
 **The accounts lane owns** (the v1 agent does not edit these; ask instead):
 
-- `src/lib/storage.ts`, `src/lib/savedStore.ts` — the persistence seam
+- `src/lib/persistence/**` (`storage.ts`, moved there 2026-10-18; the old path is a re-export) — the persistence seam. `savedStore.ts` moved into `account/` and is covered by the next line
 - `src/lib/account/**` (new), `src/app/sage/account/**` (new — the account page, inside the /sage shell), `supabase/**` (new — SQL schema, RLS)
 - `scripts/test-account.mts` + `scripts/test-account-tabs.mts` + `scripts/account-tab.mts` + `scripts/account-fakes.ts` + the runner `scripts/test-account.mjs` (run with `node scripts/test-account.mjs`; no package.json change needed), `scripts/mutate-account.mjs` (the guards' mutation check), and `scripts/test-account-sql.mjs` (the migrations in real Postgres)
 - `.env.local.example` — only the account-related lines
@@ -100,25 +99,41 @@ v1 agent never has to wait on the accounts agent. Sync happens underneath.
 
 ## 3. Shipping
 
-Both lanes ship with `scripts/ship.mjs` (never `git add` + wait + `git commit`):
+Every lane ships with `scripts/ship.mjs` (never `git add` + wait + `git commit`):
 
 ```bash
 # v1 lane, in the main folder:
 node scripts/ship.mjs --message-file msg.txt -- <paths>
-# accounts lane, in its worktree:
+# a lane in its own worktree:
 node scripts/ship.mjs --onto main --message-file msg.txt -- <paths>
+# a ship that exited 3 (committed locally, not pushed), once the reason is fixed:
+node scripts/ship.mjs --resume [--onto main]
 ```
 
 `ship` fetches first and **stops if the remote has changed a file you are about to commit** — that is
-the conflict detector, and it fires most often on the shared docs. When it does: `git pull --rebase`
-(accounts lane: `git rebase origin/main`), re-read the other agent's change, re-apply yours by hand,
-ship again. **Never force-push, never resolve a conflict by taking one side wholesale.**
+the conflict detector, and it fires most often on the shared docs. It checks again after the gate.
+When it fires, nothing is committed, and it prints the way through: copy your versions aside,
+`git checkout -- <them>`, `git merge --ff-only origin/main`, re-read the other agent's change,
+re-apply yours by hand, then ship again. **Never force-push, and never resolve a conflict by taking one
+side wholesale.**
+
+Since 2026-10-18 (v2, `node scripts/test-ship.mjs` replays all 43 scenarios), it also **refuses**:
+- unpushed commits it did not make (`--resume` pushes the single one a failed ship left);
+- `--no-gate` for any file a gate reads;
+- a gated ship while other uncommitted work that gate reads sits in your tree. Name that work in
+  the ship, or copy it aside.
+
+Its exit code says what is true: 0 pushed; 1 nothing committed (an error, or the gate went red);
+2 nothing committed (stopped on purpose); **3 committed locally, not pushed: run `--resume`**;
+4 pushed, but your folder could not catch up without touching local edits (it prints the two
+commands that finish it).
 
 **Never `git stash` by hand in any lane.** The stash stack belongs to the repository, not to a
 worktree: a stash pushed in one worktree is `stash@{0}` in every other, so the next lane to run
 `git stash pop` applies YOUR work to ITS tree. To get uncommitted work out of the way (a fast-forward,
 say), copy the changed files aside, check the copies byte for byte, and copy them back afterwards.
-(`ship`'s own `--autostash` is short-lived and checked, so it is the one exception.)
+`ship` itself no longer stashes or pulls at all: when the remote moved, it rebuilds the commit on top
+in a private index.
 
 ## 4. The shared documents
 

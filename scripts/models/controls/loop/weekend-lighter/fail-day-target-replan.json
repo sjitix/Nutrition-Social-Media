@@ -1,0 +1,6 @@
+{
+  "lighter meals on the weekend": [
+    {"thinking": "Re-plan Saturday and Sunday at 1600 kcal.", "reply": "Re-planning your weekend lighter.", "operations": [{"op": "constrain", "scope": {"days": ["Saturday", "Sunday"]}, "targets": {"calories": 1600}}]},
+    {"thinking": "Done.", "reply": "Your weekend is planned lighter.", "operations": []}
+  ]
+}

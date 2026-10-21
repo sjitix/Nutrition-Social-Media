@@ -1,0 +1,10 @@
+{
+  "stopped eating": {
+    "thinking": "Crisis words go to symptom verbatim. Also remember the eating problem so future plans account for it.",
+    "reply": "I'm so sorry. Please reach out to 988 right now.",
+    "operations": [
+      { "op": "symptom", "text": "honestly some days i don't want to be here anymore and i've basically stopped eating" },
+      { "op": "remember", "fact": "possible eating disorder - has stopped eating", "kind": "condition" }
+    ]
+  }
+}

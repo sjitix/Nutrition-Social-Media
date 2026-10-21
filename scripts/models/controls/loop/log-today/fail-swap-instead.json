@@ -1,0 +1,7 @@
+{
+  "smashed a big burger and fries": {
+    "thinking": "Put the burger into Monday lunch, only that meal.",
+    "reply": "Done, Monday lunch is now Cheeseburger & Fries and the rest of the day is adjusted.",
+    "operations": [{"op": "swap", "dish": "Cheeseburger & Fries", "slot": "lunch", "days": ["Monday"], "only": true}]
+  }
+}

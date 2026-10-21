@@ -1,0 +1,10 @@
+{
+  "bloated and exhausted": {
+    "thinking": "A feeling; symptom op verbatim, and remember the context. Do not change the plan.",
+    "reply": "Sorry you've been feeling that way all week. I won't change anything unless you want me to.",
+    "operations": [
+      { "op": "symptom", "text": "i've been so bloated and exhausted all week" },
+      { "op": "remember", "fact": "felt bloated and exhausted the week of 2026-10-05", "kind": "context" }
+    ]
+  }
+}

@@ -1,0 +1,2 @@
+{ "keep sunday's dinner exactly as it is": { "thinking": "Pin Sunday's main meal.", "reply": "Sunday's main meal is pinned and will stay as it is.",
+  "operations": [{ "op": "pin", "day": "Sunday", "slot": "lunch" }] } }

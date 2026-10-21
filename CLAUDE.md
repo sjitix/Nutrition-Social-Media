@@ -83,8 +83,8 @@ disabled) — good for showing the UI without any AI.
 (units, nutrients, targets, exclusions, safety, grocery), `plan/` (the engine), `assistant/` (primitives,
 agentTools, agentLoop, reply, promptV2), `providers/` (ai, import, videoImport) and `presentation/` (feed,
 feedFilter, recipes, batchGrocery, streak). **The old flat paths are one-line re-exports**, so
-`@/lib/exclusions` still works; new code inside `src/lib` imports the real path. The accounts lane's
-`storage.ts`, `savedStore.ts` and `account/` have not moved. A path below written flat (`src/lib/x.ts`) means
+`@/lib/exclusions` still works; new code inside `src/lib` imports the real path. Since 2026-10-18
+`storage.ts` lives in `persistence/` and `savedStore.ts` in `account/` (re-exports at both old paths). A path below written flat (`src/lib/x.ts`) means
 the module, wherever its folder is; `docs/v1/02-module-map.md` §2 is the exact map. **Import a folder through its
 barrel** — `@/lib/nutrition` (`index.ts`, the whole public surface) or, from a client component,
 `@/lib/nutrition/client` (the browser-safe subset; `core/` and `presentation/` have one too) — never a file inside it:
@@ -155,7 +155,7 @@ nothing (measured: without it, 3–7 kB per route) — a module that must run on
   provider and no model at all. Writes still go through `applyPrimitives` — the loop does no
   arithmetic and cannot claim a change the engine did not make.
 - `src/lib/types.ts` — zod schemas (WeekPlan, Meal, AssistantResponse) = the data contract.
-- `src/lib/storage.ts` — **the only place that knows a localStorage key name.** Every persisted
+- `src/lib/persistence/storage.ts` — **the only place that knows a localStorage key name.** Every persisted
   thing (profile, plan, batchPlan, chat, imports, saved, grocery check-offs, visits) is a store in
   `KEYS` here. Do not invent a key elsewhere: a second saved-recipes key was added once and the two
   lists drifted apart silently until an audit caught it — and since accounts, **a key named anywhere
@@ -165,6 +165,10 @@ nothing (measured: without it, 3–7 kB per route) — a module that must run on
   clears it, a tab still working from the earlier data can write nothing (stores, write times, the
   owner, the copies): its saves are dropped with a console warning, `takeBackup` throws, and
   `<AccountSync/>` reloads it (lesson 63). Owned by the accounts lane (`docs/parallel/`).
+  **One key lives beside it, in `persistence/theme.ts`:** the theme choice. The root layout's
+  ThemeSwitch needs only that, every page loads the root layout, and in `storage.ts` it made every
+  page load all of `storage.ts`. `storage.ts` re-exports it, so `@/lib/persistence` still offers it.
+  `check:boundaries` rule 3 lets exactly these two files name a key, and fails if both name the same one.
 - `src/lib/account/` — **accounts: local-first, the account is a mirror.** `portable.ts` (the export
   file), `validate.ts` (ONE zod-free check per store, for files AND rows pulled from the account),
   `merge.ts` (the pure sync rules — key-order-blind, because Postgres jsonb reorders keys; and every
@@ -184,8 +188,12 @@ nothing (measured: without it, 3–7 kB per route) — a module that must run on
   WebAssembly) with Supabase's default grants stubbed in, so no project is needed (lesson 56).
   **And the whole thing runs live** by `node scripts/account-live/run.mjs`: the real `client.ts` against
   the real GoTrue, PostgREST and Postgres (user-level binaries in WSL, fetched once into
-  `~/.cache/nutriflow-live` there; a small gateway and mail catcher in `scripts/account-live/`).
-- `src/lib/savedStore.ts` — a three-method async interface (`list`/`add`/`remove`) over saved
+  `~/.cache/nutriflow-live` there, each checked against a pinned SHA-256; a small gateway and mail
+  catcher in `scripts/account-live/`). 38 checks. **`mutate-live.mjs` breaks 17 guards and requires
+  each one's named check to fail**, so 17 of the 38 are proven able to fail. The rest are platform facts
+  and follow-ons, listed in `supabase/README.md`. The first version's checks could not fail at all
+  (lesson 67). One run at a time: setup and the stack hold a lock.
+- `src/lib/account/savedStore.ts` — a three-method async interface (`list`/`add`/`remove`) over saved
   recipes, delegating to `storage.ts`. **Async on purpose even though localStorage is not**: a
   synchronous interface would have to change shape the moment a network sat behind it, and every
   call site with it.
@@ -237,7 +245,7 @@ nothing (measured: without it, 3–7 kB per route) — a module that must run on
   three measured off the board rather than judged. The shell footer is suppressed on this route.
   It shows the fixture week's **Monday** — `/sage` has no per-reader data, so claiming otherwise
   would be a lie the rest of the screen does not tell.
-  **`/sage/explore` is interactive**: saves persist through `src/lib/savedStore.ts`, clicking a
+  **`/sage/explore` is interactive**: saves persist through `src/lib/account/savedStore.ts`, clicking a
   recipe opens `RecipeModal` (a real `role="dialog"` — Escape, focus return, scroll lock, focus
   trap) with the full ingredient list and method, all 495 non-treat recipes render with no paging,
   and a "Saved" facet filters to them. Three things keep rendering everything cheap and should not
@@ -283,9 +291,10 @@ nothing (measured: without it, 3–7 kB per route) — a module that must run on
   notes are shown rather than summarised. `commands.ts` is the command palette's **pure, model-free**
   parser; `Sheet.tsx` is the dialog shell `MealSheet` / `ReconcileSheet` sit in. Full plan and build
   log: `docs/v1/05-direct-manipulation.md`.
-- **`src/lib/slots.ts` holds `DAYS` and `MEAL_TYPES`, zod-free, and `types.ts` re-exports them.** A
-  client component that needs those two arrays must import THIS, not `types.ts`, which carries zod
-  and every schema. A module is as heavy as its heaviest import.
+- **`core/slots.ts` holds `DAYS` and `MEAL_TYPES`, and `core/defaults.ts` `DEFAULT_TARGETS`, zod-free;
+  `types.ts` re-exports them.** A client component takes them from `@/lib/core/client`, never `@/lib/core`,
+  whose `types.ts` builds every zod schema at load. A module is as heavy as its heaviest import, and
+  `check:boundaries` rule 4 now fails a client component (or any `client.ts` entry) that reaches zod.
 - `src/components/icons.tsx` — SVG line icons (no emoji). `ThemeSwitch.tsx` — violet/sage toggle
   for the original layout; it returns `null` on `/sage`, which pins its own theme.
 - `src/app/globals.css` — **fourteen** colour tokens every utility reads from, the `.theme-sage`
@@ -330,14 +339,18 @@ nothing (measured: without it, 3–7 kB per route) — a module that must run on
 npm run test:engine     # THE gate. Scenarios + adversarial + invariants + fuzz. Never push red.
 npm run check:recipes   # every ingredient priced, every dish plausible, Atwater holds
 npm run check:ingredients # every recipe ingredient resolves to a curated slug + USDA food (D5)
-npm run check:boundaries # the module map enforced: layers, client payload, storage keys, cycles, emoji
-                         # (~1 s; ship.mjs runs it on any src/ change; `-- --self-test` proves it fails)
+npm run check:boundaries # the module map enforced: layers, entry points + old paths, storage keys, client
+                         # payload (modules AND zod), cycles, emoji, unresolved imports, import-time effects
+                         # (~1.5 s; ship.mjs runs it on any src/ change; `-- --self-test` proves it fails, 44 cases)
+npx tsc --noEmit -p tsconfig.scripts.json # types for src/ AND scripts/ (.mts) — ship.mjs runs it on every gated commit
+npm run test:ship       # ship.mjs's 43 scenarios in throwaway repos under the OS temp folder (~45 s); its own gate
 npm run check:data      # gates the training data
 npm run test:api        # HTTP route integration tests
 node scripts/test-account.mjs  # accounts: export file, sync, REST client, client.ts end to end vs a fake Supabase, and across tabs — no network
 node scripts/mutate-account.mjs [--only "text"]  # accounts: removes each guard in turn and proves a test goes red
 node scripts/test-account-sql.mjs [--mutate]  # accounts: the migrations + RLS plan in real Postgres (PGlite; installs once to the OS temp dir)
-node scripts/account-live/run.mjs [--keep]  # accounts: the LIVE run, real GoTrue + PostgREST + Postgres as user-level binaries in WSL (no Docker), driving the real client.ts (~80 s once cached)
+node scripts/account-live/run.mjs [--keep|--down]  # accounts: the LIVE run, real GoTrue + PostgREST + Postgres as user-level binaries in WSL (no Docker), driving the real client.ts (~80 s once cached); --keep holds the stack until Ctrl+C
+node scripts/account-live/mutate-live.mjs [--only "text"]  # accounts: breaks 17 live guards in turn (each RLS policy, the allow list, both renewal paths...) and requires each named check to fail (~25 min)
 npm run export:recipes  # library -> NutriFlow-recipes.xls, incl. a coverage/gaps report
 npm run build:nutrients # regenerate the USDA table (needs --emit to write)
 ```
@@ -401,14 +414,25 @@ LM Studio: load model, push GPU offload to max, context >= 8192, Start Server on
 
   ```bash
   node scripts/ship.mjs --message-file msg.txt -- src/lib/foo.ts docs/bar.md
+  node scripts/ship.mjs --resume     # pushes the one commit a failed ship left behind (exit 3)
   ```
 
-  It fetches, **stops** if the remote has touched a file you are about to commit (naming the overlap,
-  because that is where a careless merge loses someone's work), rebases otherwise and **aborts the
-  rebase on conflict** rather than resolving blindly, runs the right gate, commits **only** the named
-  paths atomically, **verifies the commit holds exactly those paths** and refuses to push if a file
-  was swept in or dropped, then confirms the push landed. `--no-gate` for docs-only; `--dry-run` to
-  look first.
+  It fetches and **stops** if the remote has touched a file you are about to commit, naming the
+  overlap, because that is where a careless merge loses someone's work. It checks again after the gate.
+  - **The snapshot.** It copies the named files into a PRIVATE index (the shared one is never staged
+    into) and runs every gate that reads them. It commits that snapshot only if nothing changed while
+    the gate ran, and only by compare-and-swap, so a commit made meanwhile stops it instead of riding
+    along.
+  - **When the remote moved,** it rebuilds the commit on top of it, without stash or pull, pushes,
+    verifies the push, and catches the folder up without touching local edits.
+  - **It refuses:** unpushed commits it did not make; `--no-gate` on any file a gate reads; a gated ship
+    while other uncommitted work that gate reads is in the tree.
+  - **Exit codes:** 0 pushed; 1 nothing committed (an error or a red gate); 2 nothing committed
+    (stopped on purpose); **3 committed locally, not pushed: run `--resume`**; 4 pushed, but the folder
+    could not catch up (it prints the two commands that finish it).
+
+  `--dry-run` to look first. Its 43 scenarios (`npm run test:ship`) are its own gate whenever it
+  changes, and CI runs them too.
 
   **Why it exists, and the rule even without it:** `git add` leaves work in `.git/index`, which is
   **shared state for the whole working directory**. Staging and then waiting out a 25-minute engine

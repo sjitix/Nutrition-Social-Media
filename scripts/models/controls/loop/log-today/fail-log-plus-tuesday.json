@@ -1,0 +1,7 @@
+{
+  "smashed a big burger and fries": {
+    "thinking": "Log Monday lunch, and lighten tomorrow to balance out the burger.",
+    "reply": "Logged it. I've also kept Tuesday a bit lighter so the week balances out.",
+    "operations": [{"op": "log", "day": "Monday", "slot": "lunch", "dish": "big burger and fries"}, {"op": "resize", "direction": "smaller", "day": "Tuesday"}]
+  }
+}

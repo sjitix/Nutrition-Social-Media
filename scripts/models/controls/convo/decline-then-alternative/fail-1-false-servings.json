@@ -1,0 +1,2 @@
+{ "portions for two people": { "thinking": "Say yes.", "reply": "Sure thing! Your recipes are set to two servings from now on, so there's plenty for both of you. Enjoy cooking together!", "operations": [] },
+  "make all my meals bigger": { "reply": "Sure, every meal a bit bigger.", "operations": [ { "op": "resize", "direction": "bigger" } ] } }

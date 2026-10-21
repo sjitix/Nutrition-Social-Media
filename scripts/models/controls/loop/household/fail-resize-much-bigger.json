@@ -1,0 +1,6 @@
+{
+  "cooking for me and my girlfriend": [
+    { "thinking": "Two people: make portions much bigger.", "reply": "I'll make your portions bigger so there's enough for two.", "operations": [ {"op": "resize", "direction": "much_bigger"} ] },
+    { "thinking": "Applied. Finish.", "reply": "Portions are bigger now, enough for both of you.", "operations": [] }
+  ]
+}

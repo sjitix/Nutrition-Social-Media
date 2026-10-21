@@ -14,7 +14,7 @@
  */
 import { FakeSupabase, MemoryStorage, Events, PROFILE, week, summary } from "./account-fakes";
 
-type Tab = { storage: typeof import("@/lib/storage"); client: typeof import("@/lib/account/client") };
+type Tab = { storage: typeof import("@/lib/persistence"); client: typeof import("@/lib/account/client") };
 type Doc = Events & { visibilityState: "visible" | "hidden" };
 type Win = Events & {
   localStorage: unknown;

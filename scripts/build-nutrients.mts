@@ -13,7 +13,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { RECIPES } from "@/lib/recipeDb";
 
-// The bundled output lives in node_modules/.cache, so resolve paths from the project
+// The bundled output lives in .cache/, so resolve paths from the project
 // root (this script is always run via npm from the repo root), not from import.meta.url.
 const ROOT = process.cwd();
 const USDA = join(ROOT, "data", "usda", "FoodData_Central_sr_legacy_food_csv_2018-04");

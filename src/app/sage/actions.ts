@@ -1,6 +1,6 @@
 "use client";
 
-import { loadBatchPlan, loadPlan, loadProfile, saveBatchPlan, savePlan, saveProfile } from "@/lib/storage";
+import { loadBatchPlan, loadPlan, loadProfile, saveBatchPlan, savePlan, saveProfile } from "@/lib/persistence";
 import { notifyPlanChanged } from "./myPlan";
 import { summariseWeek, type WeekStats } from "./weekStats";
 import type { DayPlan, Meal, Operation, PlanSnapshot, UserProfile, WeekPlan } from "@/lib/core";

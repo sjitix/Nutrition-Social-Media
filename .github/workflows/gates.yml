@@ -29,8 +29,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: TypeScript
-        run: npx tsc --noEmit
+      - name: TypeScript — the app, then the app with scripts/ (whose .mts the app's tsconfig never sees)
+        run: |
+          npx tsc --noEmit
+          npx tsc --noEmit -p tsconfig.scripts.json
       - name: Module boundaries (and the gate's own self-test)
         run: |
           node scripts/check-boundaries.mjs
@@ -41,6 +43,8 @@ jobs:
         run: npm run check:ingredients
       - name: Presentation-layer pure functions
         run: npm run test:ui
+      - name: The ship tool's own scenarios (throwaway repositories, no network)
+        run: npm run test:ship
 
   engine:
     name: Engine suite

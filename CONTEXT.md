@@ -35,8 +35,17 @@ threads at session start, with the boards.
 
 #### PARALLEL LANE — accounts (written by the accounts agent only)
 
-**2026-10-18 — accounts are built up to the keys, adversarially reviewed three times, and now proven
-live: 20/20 against the real GoTrue, PostgREST and Postgres, with no Supabase project.**
+**2026-10-18 — accounts are built up to the keys, adversarially reviewed three times, and run live
+against the real GoTrue, PostgREST and Postgres with no Supabase project: 38/38. The live run's own
+tooling was then reviewed twice (35, then 16 confirmed findings), and 17 of its 38 checks are proven
+able to fail by mutation, with the other 21 accounted for.**
+
+**Where it stopped (2026-10-20):** the second review's fixes landed as `4663a81`, their docs in the
+commit after. Nothing of this lane's is running or uncommitted. Next is whatever the owner's decisions
+doc answers for #1 (the Supabase project) and #4 (the chat log); it had no comments at 23:05. This lane
+now ships the shared docs in a commit of their own, with `--no-gate` (lesson 69): a gated commit
+carrying them was stopped, green, by two other lanes' doc commits.
+
 Live status, the plan and the asks: `docs/parallel/lane-accounts.md`. Design: **local-first, the
 account is a mirror** — `storage.ts`'s load/save API did not change, so no screen had to; underneath,
 every real save stamps a write time and notifies listeners, and a sync layer mirrors each store to one
@@ -96,25 +105,57 @@ Supabase row per user under RLS.
   The account's sentences ("your account had newer data…", "this account was deleted…") now show on
   every `/sage` screen, as a small notice from `<AccountSync/>`, instead of only on the account page.
   And several guards the review showed no test could catch are now tested.
-- **The live run (2026-10-18): `node scripts/account-live/run.mjs`, 20/20.** It runs the real
-  `client.ts` against the real GoTrue v2.197.0, PostgREST 16.4 and Postgres 17.11. These are
-  user-level binaries in WSL, so the run needs no Docker or admin rights, and nothing from them lands
-  in the repo. A small gateway and a mail catcher are all that stand in for Supabase.
-  - It covers four devices: the PKCE link, GoTrue's 60 s limit on a second link, two-device sync,
-    `upsert_state` skipping a stale write, token renewal, RLS between two people, a reused link,
-    sign-out, and a deletion on one device as the other sees it (409/23503, then "was deleted").
-  - It confirmed the platform facts batches 3, 5 and 6 were built on.
-  - One fact was new: GoTrue accepts a just-rotated refresh token for about 10 s. The suite's fake
-    refuses it outright, which only makes it stricter.
-  - About 80 s once the binaries are cached, 60 s of it waiting out that limit.
-- **Gate for this lane:** `node scripts/test-account.mjs` runs two suites: **333 checks** in one tab,
+- **The live run (2026-10-18): `node scripts/account-live/run.mjs`, 38/38.** It runs the real
+  `client.ts` against the real GoTrue v2.197.0, PostgREST 16.4 and Postgres 17.11, as user-level
+  binaries in WSL. No Docker or admin rights once WSL 2 has an x86-64 Ubuntu. Every download is checked
+  against a pinned SHA-256, and nothing lands in the repo.
+  - What stands in for Supabase: a gateway, a mail catcher, and `db.mjs`'s copy of the platform's
+    roles and grants. GoTrue is set up as the guide's steps 3 and 4 say: the production Site URL with
+    localhost on the allow list, "Confirm email" off, audit logs out of the database.
+  - Six browsers. What it checks:
+    - where every link lands;
+    - the 60 s limit, with neither a refused request nor a lost one losing the link already sent;
+    - the takeover rule below, from both sides;
+    - only the newest link working;
+    - sync both ways, and `upsert_state`'s skip;
+    - renewal of a token that has REALLY expired, both before a push and after PostgREST's 401, one
+      rotation each;
+    - RLS on read, insert, and unfiltered update and delete;
+    - sign-out, and a deletion as the other device sees it;
+    - a re-signup's new id, and an empty audit table.
+  - **`node scripts/account-live/mutate-live.mjs` shows 17 of the 38 checks able to fail** (17
+    mutations, each requiring its own named check to go red, ~25 min). The other 21 are platform facts
+    the run records, preconditions and follow-ons of proven checks, and six landings the run never
+    reaches once the first sign-in fails (README lists them). Say "17 of 38", never "every check": the
+    second review caught exactly that claim. The first version's checks could not fail at all: an RLS
+    write check satisfied by a primary-key collision, renewals that never sent an expired token, links
+    nobody followed. Lesson 67.
+  - **A platform fact the mutations found:** GoTrue issues a link's code for the person's MOST
+    RECENT request, whichever browser made it (verify.go -> pkce.go issueAuthCode ->
+    FindFlowStateByUserID(...).Last(), by created_at). With "Confirm email" off, as the setup sets it,
+    it records a request even when it refuses it as too soon (magic_link.go). So a second device
+    asking moves the sign-in there. GoTrue's `bad_code_verifier` cannot say which cause applies:
+    asked for elsewhere, or taken over. So the app's sentence now names both, instead of only "opened
+    in a different browser". The fake models the rule, binding a code when it is first presented, as
+    GoTrue does when the link is opened.
+  - **A fact corrected:** GoTrue accepts the refresh token a renewal just replaced with no time
+    limit while it is the current one's parent, and answers with the current one. The "about ten
+    seconds" written earlier was neither measured nor GoTrue's rule.
+  - **WSL's clock steps backwards** (dmesg). The run orders its own observations by sequence number.
+    For the two things that still rest on that clock, it checks rather than assumes: it reads
+    GoTrue's `auth.flow_state` to confirm which request GoTrue holds as latest before a takeover
+    check, and it retries a request GoTrue still counts as too soon after the wait.
+  - Not exercised: a first link with "Confirm email" on, `/logout` among several sessions, and the
+    Site URL fallback itself (see the README's list).
+- **Gate for this lane:** `node scripts/test-account.mjs` runs two suites: **336 checks** in one tab,
   including the real `client.ts` end to end against an in-memory Supabase (RLS, PKCE, conditional
   writes, jsonb order, skewed clocks, token expiry, a deleted account), and **43 checks across tabs**
   of one browser (stale tabs, the write fence, a tab that hears late, races between tabs signing in
   and out) · `node scripts/test-account-sql.mjs --mutate` — **39 checks in real Postgres, 16/16
-  broken guards caught** · `node scripts/mutate-account.mjs` — **85/85** (`--only "text"` re-checks
+  broken guards caught** · `node scripts/mutate-account.mjs` — **87/87** (`--only "text"` re-checks
   one guard in seconds; an interrupted run is undone on the next start) · `node
-  scripts/account-live/run.mjs` — **20/20 live**.
+  scripts/account-live/run.mjs` — **38/38 live**, and `mutate-live.mjs` **17/17** (17 of the 38 checks
+  shown able to fail).
 - **Owner, to switch accounts on:** `supabase/README.md` — create a project, run **both** migrations,
   set the Site URL to the account page, turn off "Confirm email" and "Write audit logs to the
   database", **configure custom SMTP** (without it only your own organisation receives sign-in
@@ -125,13 +166,61 @@ Supabase row per user under RLS.
 - **Asked of the v1 lane (lane file has the detail):** make `AssistantChat` re-read on
   `PLAN_CHANGED_EVENT`, and drop `actions.ts`'s undo snapshot when sync pulls or the browser is
   cleared — until then `<AccountSync/>` reloads the tab once when the week or profile comes down.
-  **D5a, answered yes:** `storage.ts` and `savedStore.ts` may move to `persistence/` once batch 4's sha
-  is in the lane file. `storage.ts` already owns the theme key, so ThemeSwitch's debt can be paid.
+  **D5a's last move landed (v1, `2b7075d`):** `storage.ts` is `src/lib/persistence/storage.ts` (import
+  `@/lib/persistence`), and `savedStore.ts` is `src/lib/account/savedStore.ts`. It sits in account/,
+  not persistence/, because it value-imports `account/client`, and in the persistence barrel it would
+  close an import cycle. The old paths are one-line re-exports, so the write fence's state is still one
+  instance per tab. Checked: in this lane's files only import lines and the mutation runner's 21 path
+  strings changed; the suites pass 333 + 43 on the moved tree, and v1 ran all 85 mutations, 85/85.
+  **The theme key lives beside it, in `persistence/theme.ts`**, re-exported by `storage.ts`.
+  ThemeSwitch is in the root layout, which every page loads. While the key sat in `storage.ts`, every
+  page loaded all of it. The split (`2d9e024`) took **3.16 kB gz** off "/", the first page anyone opens,
+  and off "/_not-found" and "/recipes". That was measured like-for-like: both sides built in one folder
+  with one `node_modules`, and every loaded file's gzip summed. Rule 3 lets exactly these two files
+  name a key (v1, `2c48ac3`).
 
 One-time handoff carried through this lane: the `modelFailed` fix an earlier session left uncommitted
 in the main folder (`2fd6f02`). Its WORKPLAN lesson was renumbered 38 → 48 because 38–47 were taken.
 
 #### PARALLEL LANE — models (written by the models agent only)
+
+**2026-10-21 (evening) — RESUME HERE. The held-outs and their checks were reviewed adversarially and fixed;
+633 controls hold on v1's `da023da`** (all 49 scenarios, 2 engine seeds; `node scripts/models/run-controls.mjs`).
+The do-nothing and hollow-claim fakes score 0 on both evals.
+- **Scorecards from before `b43873f` were graded on the lenient harness** and are not comparable with new runs.
+- **Every eval message the prompt quotes has a held-out paraphrase** that asks for exactly what its original
+  asks. `node scripts/models/probe-quotes.mjs` exits 0 on main (8 near-quotes in 55 messages, all held out);
+  its `--self-test` passes 10/10. Run it on any prompt change (`--code <branch>`, `--prompt-file <draft>`).
+- **The review** (two of six reviewers finished before a session restart; the other four left their candidate
+  cases, all re-run and judged here) changed:
+  - four held-outs, reworded: a score handed over ("10/10"), a request dropped, a mechanism named ("the
+    portions"), and "meat-free" admitting fish;
+  - checks that passed wrong answers:
+    - offering to do both halves of a clash;
+    - saving "low on iron" as a condition;
+    - choosing "1,600 a day" or "a 15% cut" for a vague goal;
+    - a protein cut beside a new diet;
+    - a treat or an unasked memory in find-then-place.
+  Shipped in `6d1b978`. Details: `docs/worklog/2026-10-21-models.md`.
+- **v1's single-turn eval (`eval:hardcases`) is largely quoted by its own prompt:** 11 of its 45 cases are
+  near-quotes (`probe-quotes.mjs --hard-cases`). Treat it as a regression check, never as a ruler for choosing a
+  model; the loop and conversation evals are the rulers. v1 is told (`7b42059`).
+- **On `da023da` (v1's C-G):** probe-claims 15/15, probe-allergy-labels 28/28 (5 known-open rows), probe-fixes
+  4/4. Five controls flipped because D works (an answer op now finishes with its own reply; a question said
+  beside a memory-only step reaches the user). They are must-pass controls now, the answer-op one among them.
+- **Next, the moment `.env.local` exists** (OWNER-TODO item 0, `NVIDIA_API_KEY=`): the fair arms, then the
+  wording test (block below).
+- **Next, key-free: re-run the controls and probes when v1's next batch lands** (v1 messages the sha). Its changes:
+  - an undo sharing a step with other writes runs as its own step, so the change after it takes the undo slot;
+  - a second undo in a run answers NO_FURTHER_UNDO;
+  - a line said beside a remember-only step is kept even when the fact was stored already;
+  - planChanged and profileChanged are compared with the run's start;
+  - a stated cook-time limit is met exactly whenever a dish meets it;
+  - "zero energy" becomes a fatigue trigger.
+  Expect convo undo-flow and the hold-then-undo controls to move. Reclassify a flip only where the change makes
+  it right. find-then-place's constrain controls should still fail, but as re-plans.
+- The false-claim guard: `probe-claims.mts` 15/15 on main since v1's `c8ccfb0` (1/15 before). Day records:
+  `docs/worklog/2026-10-20-models.md` and `2026-10-21-models.md`.
 
 **2026-10-18 — RESUME HERE. Every NVIDIA run is blocked on a missing `.env.local`; the key-free work
 is done.** Day record: `docs/worklog/2026-10-18-models.md`. Live status: `docs/parallel/lane-models.md`.
@@ -142,7 +231,22 @@ Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Ro
   `../NutriFlow-models-exp/` on `models-exp`), node_modules junctioned to the main folder's. Bundle only
   to `models-*` outfiles outside `node_modules/.cache`, where v1's test bundles live.
 - **No `.env.local` anywhere on the laptop**, and LM Studio is not running. Every model run waits for the
-  owner to recreate the file in the main folder.
+  owner to recreate the file in the main folder, with the NVIDIA key as **`NVIDIA_API_KEY=`** (OWNER-TODO
+  item 0). Under `LOCAL_AI_API_KEY` it would also switch the app's LM Studio path off JSON-schema
+  enforcement (`ai.ts`).
+- **An allergen-safety gap this lane found is FIXED on main (`09f325f`, v1).** The engine used to
+  enforce a remembered allergy only when the model labelled it `kind:"allergy"`. Replaying
+  gpt-oss-20b's recorded unlabelled `remember` left shrimp in a shellfish-allergic user's week.
+  - This lane's patch (`49385e5`) fixed that but over-bound denials ("No allergies; eats dairy and
+    gluten" bound dairy and gluten, 299/501 recipes). v1's adversarial review caught it, and `09f325f`
+    adds a denial check and a carrier filter.
+  - `probe-allergy-labels.mts`: 18/18 on `09f325f`. The original patch fails its four regression rows.
+  - v1's B1 (`ba23884`: plurals, misspellings, every cue sentence): 28/28; its parent passes 20/28.
+  - v1's B2 (an honesty note on every allergy-cue remember, the LC-13 prompt line) and C come next.
+    Re-run the probe on each sha. **B2's prompt line changes what the evals measure**, so the fair arms
+    run after it, on one bundle, as planned.
+  - Not closed: the 550B ignored an allergy that sat only in the history 4/6 (loop `memory-allergy`).
+    Its operations never mention one, so only a raw-words scan could catch it; v1 recorded it as open.
 - **Shipped today:**
   - `be98c57`: `scripts/models` imports only the folder barrels, so the old-path shims can go from this
     lane's side (v1 told).
@@ -151,24 +255,32 @@ Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Ro
     after a failed turn 1. No past real-model score changes. Every stub mode now scores 0 on both evals.
   - Also in `be98c57`: `probe-fixes.mts` re-checks v1's `5c12c4c` (multi-day swap; a claim riding on a
     memory) through the real loop with a scripted model: 1/4 before the fix, 4/4 after.
+  - `77c9dc7`: `fair-arms.mjs`, the fair comparison as one command (below).
+  - `0fdfba1`: a third held-out scenario, `days-lighter-heldout`, and the stub's `script` mode
+    for positive controls. Every check in the held-out test passes the answer it rewards (6/6) and fails
+    do-nothing. The bare day constrain, the 550B's old answer to "lighter weekend", fails both lighter
+    checks.
 - **Next, in order (all need the key):**
   1. **The fair re-measurement, every arm on ONE bundle:**
      - loop A (reasoning on), B (off), C (off + `FAST_FINISH=reply`), convo A, convo C;
      - wall clock, direct to NVIDIA, one arm at a time.
      **Arm A must be re-run.** The 10-03 arm A (21/26, median 23.3 s) ran 26 scenarios on a bundle from
-     before the held-out pair existed (today there are 28). And `5c12c4c` changed the loop: a claim on a
+     before the held-out pair existed (today there are 34). And `5c12c4c` changed the loop: a claim on a
      memory now costs a nudge call. Keep the old arm A as history, not as an arm.
      **One command, from `../NutriFlow-models`:** `node scripts/models/fair-arms.mjs` (try `--dry-run`
      first). It bundles each eval once, runs the five arms one at a time with a 60 s cool-down, clears
      every inherited knob, and writes a manifest after each arm. It reads the key from the main
      `.env.local` itself and exits 3 without it, so the key never goes on a command line. These runs
      double as the real-model re-run of v1's two fixes, since they run on `5c12c4c` or later.
-  2. **Held-out wording test**, main vs `models-wording` (cf89758: rate, reserve, "lighter on <days>" =
-     resize). **First merge current main into the branch**: cf89758 predates `5c12c4c`, and the only
-     difference allowed is the three prompt lines. Run
-     `node scripts/models/fair-arms.mjs --arms C --repeat 3 --only 'heldout|^rate$|^eat-out-future$|^weekend-lighter$'`
-     once as is and once with `--code ../NutriFlow-models-wording`. Send v1 "ready to land" (the
-     merge-base diff of promptV2.ts) only if the branch also fixes the held-out phrasings.
+  2. **Held-out wording test**, main vs `models-wording` (rate, reserve, "lighter on <days>" = resize).
+     The branch is main plus exactly those three prompt lines (`e078efd`, merged today), and its
+     worktree is `../NutriFlow-models-wording`. **If main has moved, merge it into the branch again
+     first**, and check that `git diff --stat origin/main models-wording` shows only `promptV2.ts`. Then run
+     `node scripts/models/fair-arms.mjs --arms C --repeat 3 --only '^(rate|eat-out-future|weekend-lighter|rate-heldout|eat-out-heldout|days-lighter-heldout)$'`
+     once as is and once with `--code ../NutriFlow-models-wording`. That covers 6 scenarios: three quoted
+     by the wording and one held-out paraphrase for each line; the eval prints `held out x/3, their
+     originals y/3`. (A bare `heldout` would now also run five held-outs whose originals are not in the run.) Send v1 "ready to land" (the promptV2.ts
+     diff) only if the branch also fixes the held-out ones.
   3. **Send v1 the fair numbers.** The fast finish (`de1a102`, on `wip/v1-handoff-2026-10-03`) waits on them.
   4. When the owner adds a key from OWNER-TODO, measure that model first, with the loop and convo evals.
 - **Open with v1:**
@@ -193,49 +305,106 @@ Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Ro
 - **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`,
   `docs/worklog/*-models.md`, this block, the lane file. Does not edit v1's files; asks v1 first.
 
-### >>> V1 LANE — 2026-10-18: RESUMED on the laptop. Landing the WIP branch first. <<<
+### >>> V1 LANE — 2026-10-21: the review fixes landed (C–G, `da023da`); a second review of them, then the D5a shims <<<
 
-**2026-10-18.** The v1 lane resumed in the laptop's main folder after two idle weeks (`origin/main` had not
-moved since `e3d758c`, 2026-10-04). Done so far today: the owner's decisions doc (10 decisions, each
-with options and a recommendation, URL above); the owner's standing rules written into
-`docs/parallel/README.md` §0 and `CLAUDE.md`; a starting prompt for the models agent. **Recommended to
-the owner (decision 10):** do not split v1 further except one future **library** lane (recipes,
-ingredients, photos) once decision 8 is answered. **Next, in order:** land `c428c4e`, then the two bug
-fixes from `de1a102` without the fast finish, then the accounts lane's stale-doc fixes in `01-…md`
-(rows 13/14 and D11 say accounts are "not started"; decision #3 should say "publishable key") with the
-schedule board. **Accounts lane news (2026-10-18):** it moved `account/validate.ts` off `../slots`, so
-when `c428c4e` lands, delete the `old-path:src/lib/account/validate.ts->src/lib/slots.ts` KNOWN_DEBT line
-if its gate says the debt is paid. The laptop has **no `.env.local`**.
+**2026-10-21.** Landed **`da023da`**, one commit for one gate (test:engine 1061/0):
+- **C:** an imported dish answers to the hard rules. An allergy always counts. A new diet, or a newly avoided food,
+  counts when that change introduced it. The note names the dish and the rule, never the replacement.
+- **D:** the agent loop:
+  - an `{op:"answer"}` turn keeps its reply;
+  - no line written before a change is shown for it;
+  - only a step that really changed something takes the undo slot, and an in-run undo reverts that run's own change.
+- **E:** a boost keeps the new diet and exclusions, and says "less than before" only when there is less.
+- **F:** a constrain scoped to `{slot, days}` keeps its slot.
+- **G:** an undo in the same turn as a new allergy runs first. It was an I2 hole, from the models lane's audit.
+- **B2's follow-ups:**
+  - allergy notes are written from the final week;
+  - a refused dish is named only when it matches every word asked;
+  - the claim guard no longer replaces honest replies.
+Proof: 51 new rows, 35 of them failing on `c8ccfb0`. Statuses: `docs/v1/allergen-review.md` (LC-17 to LC-20 are new).
+**A second adversarial review of the fixes is running** (workflow `wf_cf2e22d0-cc3`, four lenses plus a skeptic per
+serious finding). Its confirmed findings are the next commit.
+**The first gate died with its session:** the laptop slept with it running, and every session's processes were
+killed at 08:29. The killed ship reported exit code 4, though nothing was pushed: an exit code means what ship.mjs
+says only when its log ends in a `ship:` line. Sessions are now `-e0` (v1), `-39` (accounts) and `-b5` (models).
+Check `ListAgents` before starting a lane.
 
-**RESUME HERE (shutdown, 2026-10-03 night) — still accurate except where the 2026-10-18 paragraph says otherwise.** `LOCAL_AI_EXTRA_BODY` landed (`45a0c12`). Everything else is on
-the pushed branch **`wip/v1-handoff-2026-10-03`** (two commits on `c9208df`), AND the first one is still
-uncommitted in this folder's working tree:
-1. **`c428c4e` — check:boundaries hardened by the D5a review** (TypeScript's own resolver, old-path imports
-   from src/ are rule 2, zod followed by rule 4, rules 7 + 8, debt keyed on names, self-test 41/0;
-   `DEFAULT_TARGETS` → `core/defaults.ts`; `ship.mjs` type-checks scripts/ via `tsconfig.scripts.json`).
-   Fingerprint identical, tsc (src + scripts) clean, boundaries green. Its full gate was STOPPED halfway
-   for the shutdown (476 checks passed, none failed). **To land:** `node scripts/ship.mjs --message-file
-   <its message> -- <its 17 paths>` from this folder (paths: `git show --stat c428c4e`).
-2. **`de1a102` — WIP, full suite not run:** the multi-day swap fix (a swap over Wed–Sun replaced all seven
-   days), the false-claim guard missing a claim that rides on `remember`, and the native fast finish. New
-   test sections pass in isolation. **The models lane says HOLD the fast finish** until their arms B/C
-   (one clock, one commit): split it out (agentLoop.ts's FAST FINISH block, `fastFinished`, its tests),
-   land the two bug fixes alone through the full gate. Worktree `../NutriFlow-v1fix` holds the branch
-   (node_modules is a junction: `cmd /c rmdir` it before `git worktree remove`).
-3. **Open, from the models lane:** "lighter meals on the weekend please" became a bare day constrain (a
-   same-calorie re-plan). Agreed: a prompt line, not an engine no-op. It is IN their wording branch
-   (`models-wording` `cf89758`: "lighter"/"smaller" on some days = `resize smaller` per day, never a bare
-   constrain), unmeasured, and NOT ready to land until it passes their held-out test (they will send "ready").
-   After the gate commit lands, also: CONTEXT/lane/worklog/boards for it, and tell the accounts lane about
-   their three old-path debts.
+**2026-10-20.** Landed `6509cdb` (script bundles in each worktree's own `.cache/`), `9aa3410` (the schedule's
+stale 20/20), and **`c8ccfb0` — B2**, the allergen notes (test:engine 1010/0). Every allergy remark gets a true
+engine note, swaps name the allergy that refused them, the undo says when it took one off, and `allergies=` is in
+the prompts.
+
+**Where it stood (2026-10-18, night).** The v1 lane works in the laptop's main folder. Landed that day, in order:
+- `f27bc71` — the owner's standing rules for every lane (`docs/parallel/README.md` §0, `CLAUDE.md`) and the
+  decisions doc (URL above).
+- `f580918` — the schedule's stale rows (accounts are built; the model decision is reopened); schedule board republished.
+- `5c12c4c` — two assistant bug fixes from the WIP branch: a swap over several days touched every day, and a claim
+  riding on a `remember` slipped the false-claim guard. Landed WITHOUT the fast finish, which stays held on
+  `wip/v1-handoff-2026-10-03` (`de1a102`) until the models lane's fair numbers exist (they need `.env.local`).
+  test:engine 943/0. The models lane re-checked it model-free: 1/4 before, 4/4 after.
+- `058a596` — `c428c4e`: check:boundaries hardened by the D5a review (TypeScript's resolver, old paths are rule 2,
+  zod followed, rules 7–8, self-test 41/0). `ship.mjs` now type-checks `scripts/` on every gated ship.
+- `2b7075d` — the last D5a move: `storage.ts` → `persistence/storage.ts`, `savedStore.ts` → `account/savedStore.ts`
+  (inside `persistence/` it would close a cycle — the accounts lane caught it), a shim at both old paths, every
+  importer moved. mutate-account 85/85.
+- `3ff9732` — ThemeSwitch goes through persistence/storage; `2c48ac3` — rule 3 with two owners plus a duplicate-key
+  guard (self-test 44/0); `7c2d360` — a size claim withdrawn (its control was not like-for-like; lesson 66).
+  **2 known debts left:** `agentTools` → the feed, and `/plan` shipping the library (decision #2).
+- `09f325f` (A, test:engine 971/0) and `ba23884` (B1, 984/0) — **the allergen binding**, after a six-agent adversarial
+  review of the models lane's patch:
+  - A fact that says allergy, intolerance or coeliac binds the plan, whatever the model labelled it.
+  - A denial never binds, and neither does a carrier word on its own ("oil", "powder").
+  - Plurals and misspellings count, every cue in a fact is read, and plural category words count.
+  - The parse is linear.
+  The models lane re-checked both (28/28 on B1, `aa057f7`). The review's 36 findings (the LC-, OVER- and
+  U-numbers used below) get a one-page summary, with each one's status, in `docs/v1/allergen-review.md` with B2.
+- The `ship.mjs` v2 commit — the tool every lane ships with, rebuilt after a 45-finding adversarial audit:
+  - it works from a private-index snapshot, commits by compare-and-swap, and rebuilds on top of a moved remote,
+    never with stash or pull;
+  - it refuses unpushed commits it did not make (`--resume` pushes its own), `--no-gate` on a gate input, and
+    unrelated uncommitted work under the gate;
+  - its exit codes say what is true.
+  `scripts/test-ship.mjs` holds 43 scenarios (v1 fails 34), and CI runs it. **Every lane: `docs/parallel/README.md` §3.**
+
+**Worktrees of this lane:**
+- `../NutriFlow-allergy-c`: the C–G batch as shipped. The second review reads it.
+- `../NutriFlow-allergy-review`: the baseline (`c8ccfb0`, detached). The second review reads it too.
+Remove both once that review finishes, taking each node_modules junction out first
+(`cmd //c "rmdir <wt>\\node_modules"`).
+
+**Next, in order:**
+1. **The second review's confirmed findings**, as one commit. Its gate waits for the accounts lane's gate: they
+   hold a reviewed batch, and only one test:engine runs at a time on this machine.
+2. **Remove the D5a shims.** Only `scripts/test-engine.mts` is left on them, and the migration is mechanical: each
+   import goes to its shim's own target, since scripts may import deep. Delete the 28 shims, then update
+   check-boundaries' shim lists and the module map with its board. Then Track A is done.
+3. **The deferred:**
+   - E4: a boost that comes with a new calorie or protein target drops the target when the nutrient cannot rise;
+   - the cook-time grace is silent (a 15-minute cap can get a 20-minute dish with no note);
+   - the training generator teaches invented calorie figures for reserves and logs.
+4. V1 Day 6's rest, then D7 meal logging.
+
+**Open, recorded:**
+- **LC-08:** "allergic to hazelnuts" binds nothing unlabelled, while a hazelnut dish exists. Binding every unknown
+  word brings back over-blocks ("spring" from "hay fever allergy in spring"), so it needs its own design.
+- **LC-02/03/10** (removing an allergy; undo dropping one) wait on owner decision 12.
+- An allergy stated only in an earlier message and never stored is missed by the 550B in 4 of 6 runs. Only a
+  raw-words pre-scan (like `redFlag`) could catch it, and that needs its own false-positive probe set first.
+- Lanes' gates used to share `node_modules/.cache` through the junctions. Fixed for npm scripts in `6509cdb`; the
+  accounts lane moved its own runners in its batch.
+- Placing an import while the allergy is already bound (`/plan`'s `placeImported`) gives no warning. It needs the
+  matcher in the browser bundle, which is a module-map change.
+- The adversarial attack on `ship.mjs` v2 died on the usage limit, so v2 rests on its own 43 scenarios.
+
+**Owner:** the decisions doc. `.env.local` with `NVIDIA_API_KEY` (the first line of decision 2) unblocks the
+models lane.
 
 
 **D5a — DONE** (`c50d58d` the move, `cc38524` two contracts to `core/`, `1dff171` the barrels; test:engine 924/0).
 `src/lib` is `core/ data/ nutrition/ plan/ assistant/ providers/ presentation/`, each with an `index.ts` carrying
 only what outsiders use and, for core/nutrition/presentation, a browser-safe `client.ts`. **Every old flat path
-is a one-line `export *` shim** so the other lanes' code never broke; they go when the models lane (switching to
-the barrels) and the accounts lane (asked in lane-v1.md, not yet answered; its `storage.ts`, `savedStore.ts`,
-`account/` have not moved) are both off them. `check:boundaries` rule 2 is enforced (shims exempt by exact
+is a one-line `export *` shim** so the other lanes' code never broke; both other lanes are off them
+since 2026-10-18 (`be98c57`, `2b7075d`); only this lane's own `scripts/` still import through them. `check:boundaries` rule 2 is enforced (shims exempt by exact
 shape); 3 debts left. **`package.json` declares `"sideEffects": ["*.css"]`** — without it the barrels cost every
 route 3–7 kB (measured); a module that must run on import has to be listed there. An adversarial review of D5a
 (workflow, 4 lenses + skeptics) was running when this was written — its findings are the next work.
@@ -259,9 +428,9 @@ share `gramsFor`'s parser (latent: no library quantity differs).
 **The false-claim guard LANDED `361b2e1` (879/0):** `claimsChange` in `reply.ts` (the models lane's
 regex; their evals import it, `77e7caf`); `runAgent` gives an unbacked claim one nudge and one retry,
 then `composeReply` shows `NOTHING_CHANGED_REPLY`; `falseClaimRetried` / `falseClaimCaught` on the result.
-**`ship.mjs` now stops on an autostash that came back in conflict** (`82fe92e`, lesson 62): it once
-reported "rebased cleanly" with WORKPLAN.md unmerged. After every ship, `git status` and
-`git stash list` should both be clean.
+**`ship.mjs` v1 stopped on an autostash that came back in conflict** (`82fe92e`, lesson 62): it once
+reported "rebased cleanly" with WORKPLAN.md unmerged. (v2, 2026-10-18, never stashes or pulls at all.)
+After every ship, `git status` and `git stash list` should both be clean.
 
 **Next, in order:**
 1. **Local date — LANDED `9aaff8d` (917/0).** `requestDay(sent, now)` in `streak.ts` accepts the browser's

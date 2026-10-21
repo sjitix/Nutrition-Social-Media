@@ -1,0 +1,14 @@
+{
+  "massive pizza": [
+    { "thinking": "A meal already eaten, today = Monday, lunch. Log it; the engine knows the dish and re-solves the rest of the day. No number of my own.",
+      "reply": "No problem, it happens. I'll log the pizza as your Monday lunch and rebalance the rest of today around it.",
+      "operations": [ { "op": "log", "day": "Monday", "slot": "lunch", "dish": "pizza" } ] },
+    { "reply": "Logged the pizza for Monday lunch and rebalanced the rest of today.", "operations": [] }
+  ],
+  "go easy on dinner": [
+    { "thinking": "Tonight = Monday dinner. Lighter for one meal is resize with that day and slot.",
+      "reply": "Sure, I'll keep tonight's dinner lighter.",
+      "operations": [ { "op": "resize", "direction": "smaller", "day": "Monday", "slot": "dinner" } ] },
+    { "reply": "Tonight's dinner is lighter now.", "operations": [] }
+  ]
+}

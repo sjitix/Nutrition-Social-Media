@@ -1,0 +1,7 @@
+{
+  "pancakes for breakfast every single day": {
+    "thinking": "Build the week around pancakes.",
+    "reply": "Rebuilding the week around pancakes.",
+    "operations": [ { "op": "constrain", "use": ["pancakes"] } ]
+  }
+}

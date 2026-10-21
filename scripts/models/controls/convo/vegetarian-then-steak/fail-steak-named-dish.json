@@ -1,0 +1,30 @@
+{
+  "gone vegetarian": {
+    "reply": "Got it, switching your whole week to vegetarian.",
+    "operations": [
+      {
+        "op": "remember",
+        "fact": "vegetarian",
+        "kind": "preference"
+      },
+      {
+        "op": "constrain",
+        "diet": "vegetarian"
+      }
+    ]
+  },
+  "steak for wednesday dinner": {
+    "thinking": "Use the steak dinner from the library.",
+    "reply": "Putting the steak with sweet potato fries on Wednesday dinner.",
+    "operations": [
+      {
+        "op": "swap",
+        "dish": "Steak with Sweet Potato Fries & Broccoli",
+        "slot": "dinner",
+        "days": [
+          "Wednesday"
+        ]
+      }
+    ]
+  }
+}

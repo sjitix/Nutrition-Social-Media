@@ -1,0 +1,34 @@
+{
+  "how much protein am i getting at breakfast": [
+    {
+      "thinking": "A question about the plan's numbers: look it up, change nothing.",
+      "reply": "",
+      "operations": [{ "op": "get_plan" }]
+    },
+    {
+      "thinking": "Report the breakfast protein per day from get_plan.",
+      "reply": "Your breakfasts this week give you between 29 g and 65 g of protein: Monday 65 g (Peanut Butter Banana Shake Bowl), Tuesday 48 g, Wednesday 41 g, Thursday 45 g, Friday 37 g, Saturday 32 g and Sunday 29 g. The weekend breakfasts are the lightest on protein.",
+      "operations": []
+    }
+  ],
+  "bump that up a bit": [
+    {
+      "thinking": "'That' is breakfast protein. A change to one meal type is a swap. Find higher-protein breakfasts first.",
+      "reply": "",
+      "operations": [{ "op": "find_recipes", "mealType": "breakfast", "sort": "protein", "maxTime": 30 }]
+    },
+    {
+      "thinking": "'A bit': lift the two lowest days, Saturday (32 g) and Sunday (29 g), with dishes from the results not already in the week.",
+      "reply": "",
+      "operations": [
+        { "op": "swap", "dish": "Tofu & Edamame Scramble Bowl", "slot": "breakfast", "days": ["Sunday"] },
+        { "op": "swap", "dish": "Matcha Chia Protein Pudding", "slot": "breakfast", "days": ["Saturday"] }
+      ]
+    },
+    {
+      "thinking": "Applied. Finish with the engine's notes.",
+      "reply": "I've swapped your two lowest-protein breakfasts, Saturday and Sunday, for higher-protein ones.",
+      "operations": []
+    }
+  ]
+}

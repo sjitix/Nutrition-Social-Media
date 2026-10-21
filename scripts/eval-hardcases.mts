@@ -32,10 +32,10 @@
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
-import { assistantV2SystemPrompt } from "@/lib/promptV2";
-import { AssistantTurnV2Schema, applyPrimitives, type PrimitiveOp } from "@/lib/primitives";
+import { assistantV2SystemPrompt } from "@/lib/assistant";
+import { AssistantTurnV2Schema, applyPrimitives, type PrimitiveOp } from "@/lib/assistant";
 import { selectWeekFromDb, rebalanceWeek } from "@/lib/recipeDb";
-import type { UserProfile } from "@/lib/types";
+import type { UserProfile } from "@/lib/core";
 
 const ROOT = process.cwd();
 

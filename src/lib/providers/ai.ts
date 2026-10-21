@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import { buildWeek } from "../recipeDb";
-import { AssistantTurnV2Schema, AgentTurnSchema, type AssistantTurnV2 } from "../assistant";
+import { AssistantTurnV2Schema, AgentTurnSchema, type AssistantTurnV2, type AgentTurn, type ModelFn, type TranscriptEntry } from "../assistant";
 import { assistantV2SystemPrompt } from "../assistant";
 import {
   AssistantResponseSchema,
@@ -738,7 +738,7 @@ export function assistantTurnSystemPrompt(profile: UserProfile, plan: WeekPlan):
     "- reply: natural and friendly — say what you did or answer the question.\n\n" +
     `Weekly AVERAGES per day: ${avgKcal} kcal, ${avgProtein}g protein, ${avgFiber}g fiber.\n` +
     `Current plan:\n${planText}\n\n` +
-    `Profile: diet=${profile.diet}, budget=${profile.budget}, ~${profile.targetCalories} kcal/day, dislikes=${profile.dislikes || "none"}.\n\n` +
+    `Profile: diet=${profile.diet}, budget=${profile.budget}, ~${profile.targetCalories} kcal/day, allergies=${profile.allergies?.trim() || "none"}, dislikes=${profile.dislikes || "none"}.\n\n` +
     "Examples (operations shown):\n" +
     "'make it cheaper and vegetarian, no onions' → [{tool:update_profile, budget:low, diet:vegetarian, excludeFoods:['onions']}]\n" +
     "'make Tuesday vegetarian' → [{tool:regenerate_day, day:Tuesday, diet:vegetarian}]\n" +
@@ -900,7 +900,7 @@ export async function parseAssistantTurnV2(
  * Results are TRUNCATED. A `find_recipes` result is bounded at ten rows by design, but a long
  * transcript of them would still crowd out the conversation — and the model can always ask again.
  */
-function transcriptToTurns(transcript: import("../assistant/agentLoop").TranscriptEntry[]): Turn[] {
+function transcriptToTurns(transcript: TranscriptEntry[]): Turn[] {
   const out: Turn[] = [];
   for (const e of transcript) {
     if (e.role === "user") {
@@ -927,7 +927,7 @@ function transcriptToTurns(transcript: import("../assistant/agentLoop").Transcri
  * not from the state the turn began with. After a write the week has changed, and a prompt built
  * from the starting state would have the model reasoning about a week that no longer exists.
  */
-export function agentModelFn(opts: { today?: string } = {}): import("../assistant/agentLoop").ModelFn {
+export function agentModelFn(opts: { today?: string } = {}): ModelFn {
   // `today` (ISO date) reaches the prompt through the factory, so ModelFn's shape stays unchanged.
   const promptOpts = { agent: true, today: opts.today };
   return async (transcript, _step, state) => {
@@ -946,7 +946,7 @@ export function agentModelFn(opts: { today?: string } = {}): import("../assistan
         // PrimitiveOps. The loop routes them by name (isReadTool) and never hands them to the engine, so
         // the runtime is sound; the honest fix is widening AgentTurn's operation type in agentLoop.ts
         // (v1's, after this lands) — ModelFn itself must not change.
-      ) as unknown as Promise<import("../assistant/agentLoop").AgentTurn>;
+      ) as unknown as Promise<AgentTurn>;
     }
 
     const client = new Anthropic();
@@ -960,6 +960,6 @@ export function agentModelFn(opts: { today?: string } = {}): import("../assistan
     const parsed = response.parsed_output;
     // Throwing is correct here: the loop catches it and reports honestly rather than inventing a turn.
     if (!parsed) throw new Error("The assistant could not understand that.");
-    return parsed as import("../assistant/agentLoop").AgentTurn;
+    return parsed as AgentTurn;
   };
 }

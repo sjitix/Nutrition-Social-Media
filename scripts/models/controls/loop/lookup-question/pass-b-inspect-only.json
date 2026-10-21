@@ -1,0 +1,16 @@
+{
+  "what exactly is in monday's dinner": [
+    {
+      "thinking": "The plan says Monday dinner is Chicken & Vegetable Stir-Fry with Rice. The ingredients are not in my context, so inspect it.",
+      "reply": "",
+      "operations": [
+        { "op": "inspect_recipe", "name": "Chicken & Vegetable Stir-Fry with Rice" }
+      ]
+    },
+    {
+      "thinking": "inspect_recipe gave the ingredient list; the plan line gives 47 gP for the planned portion.",
+      "reply": "Monday's dinner is the Chicken & Vegetable Stir-Fry with Rice. The recipe is 160 g chicken breast, 70 g (dry) brown rice, 160 g mixed stir-fry veg, 2 tbsp soy-ginger sauce and 1 tbsp sesame oil: cook the rice, then stir-fry the chicken and veg in the sauce and serve over it. The portion in your plan comes to 47 g of protein.",
+      "operations": []
+    }
+  ]
+}

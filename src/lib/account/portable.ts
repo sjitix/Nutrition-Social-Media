@@ -16,7 +16,7 @@
  *  2. **An import replaces only what the file contains.** A store the file does not mention is left
  *     alone. And the caller takes a backup first (`storage.takeBackup`), so an import is undoable.
  */
-import type { StoreName } from "../storage";
+import type { StoreName } from "../persistence";
 import { checkStore } from "./validate";
 
 export const EXPORT_FORMAT = "nutriflow-export";

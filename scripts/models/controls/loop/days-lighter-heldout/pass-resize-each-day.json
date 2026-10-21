@@ -1,0 +1,17 @@
+{
+  "cut down how much i eat": {
+    "reply": "I've made Thursday and Friday smaller.",
+    "operations": [
+      {
+        "op": "resize",
+        "direction": "smaller",
+        "day": "Thursday"
+      },
+      {
+        "op": "resize",
+        "direction": "smaller",
+        "day": "Friday"
+      }
+    ]
+  }
+}

@@ -1,0 +1,2 @@
+{ "stress eating": { "reply": "I'm sorry the week has been rough. Stress eating at night is really common, so please be kind to yourself. Want me to make your dinners a bit more filling?", "operations": [] },
+  "dinners a bit lighter": { "reply": "Making your dinners a bit smaller.", "operations": [ { "op": "resize", "direction": "smaller", "slot": "dinner" } ] } }

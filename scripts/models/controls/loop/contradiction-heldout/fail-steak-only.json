@@ -1,0 +1,14 @@
+{
+  "go vegetarian every day this week, and i want a steak for wednesday's dinner": [
+    {
+      "thinking": "The steak on Wednesday is the concrete part; do that.",
+      "reply": "Putting a steak on Wednesday.",
+      "operations": [{"op": "swap", "dish": "Steak with Sweet Potato Fries & Broccoli", "slot": "dinner", "days": ["Wednesday"], "only": true}]
+    },
+    {
+      "thinking": "Applied.",
+      "reply": "Wednesday dinner is steak with sweet potato fries now.",
+      "operations": []
+    }
+  ]
+}

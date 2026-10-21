@@ -1,0 +1,14 @@
+{
+  "cooking for me and my girlfriend": [
+    {
+      "thinking": "Lasting context worth remembering; scaling for two is unsupported, so decline and offer the manual workaround.",
+      "reply": "",
+      "operations": [ {"op": "remember", "fact": "cooks for two (self and girlfriend)", "kind": "context"} ]
+    },
+    {
+      "thinking": "Memory saved. Now the honest decline.",
+      "reply": "I've noted that you're cooking for two, but I can't scale the plan for a second person yet. Your plan stays built around your own targets. For now, double the ingredients when you cook and shop, and keep one portion for yourself.",
+      "operations": []
+    }
+  ]
+}

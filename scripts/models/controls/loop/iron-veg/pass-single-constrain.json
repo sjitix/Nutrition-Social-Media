@@ -1,0 +1,10 @@
+{
+  "my doctor said my iron is low": [
+    {
+      "thinking": "Exactly the prompt's example: low on iron, keep me vegetarian -> constrain(boostNutrient:iron, diet:vegetarian), week scope so the diet persists.",
+      "reply": "I'll keep everything vegetarian and lean the week toward iron-rich dishes.",
+      "operations": [ {"op": "constrain", "boostNutrient": "iron", "diet": "vegetarian"} ]
+    },
+    { "thinking": "Applied. Finish.", "reply": "Done: vegetarian all week, leaning on lentils, beans, tofu and greens for iron.", "operations": [] }
+  ]
+}

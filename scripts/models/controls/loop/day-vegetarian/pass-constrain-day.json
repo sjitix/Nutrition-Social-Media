@@ -1,0 +1,9 @@
+{
+  "make tuesday vegetarian": {
+    "thinking": "One day, one diet. The prompt's own example: a day-scoped constrain with diet vegetarian re-solves only that day and is not saved to the profile.",
+    "reply": "Making Tuesday vegetarian and leaving the other six days exactly as they are.",
+    "operations": [
+      { "op": "constrain", "scope": { "days": ["Tuesday"] }, "diet": "vegetarian" }
+    ]
+  }
+}

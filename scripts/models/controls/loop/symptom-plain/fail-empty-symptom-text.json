@@ -1,0 +1,9 @@
+{
+  "bloated and exhausted": {
+    "thinking": "Run the symptom check; no plan change.",
+    "reply": "That sounds tough. I'll keep your plan as it is.",
+    "operations": [
+      { "op": "symptom", "text": "" }
+    ]
+  }
+}

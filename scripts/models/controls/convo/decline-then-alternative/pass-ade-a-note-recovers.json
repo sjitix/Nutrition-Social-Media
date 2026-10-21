@@ -1,0 +1,5 @@
+{ "portions for two people": [
+    { "reply": "I've made a note that you cook for your partner too, but I can't size the plan for two people yet. Want me to make your own meals bigger instead?", "operations": [ { "op": "remember", "fact": "cooks for their partner too", "kind": "context" } ] },
+    { "reply": "I've made a note that you cook for your partner too, but I can't size the plan for two people yet. Want me to make your own meals bigger instead?", "operations": [] },
+    { "reply": "Noted that you cook for your partner too. Your plan hasn't changed: I can't size it for two people yet. Want me to make your own meals bigger instead?", "operations": [] } ],
+  "make all my meals bigger": { "reply": "Sure.", "operations": [ { "op": "resize", "direction": "bigger" } ] } }

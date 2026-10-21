@@ -1,0 +1,14 @@
+{
+  "make the whole week vegan but put chicken on friday": [
+    {
+      "thinking": "Vegan and chicken clash. Resolve toward the bigger instruction: make the week vegan, and tell them chicken can't go in.",
+      "reply": "Chicken isn't vegan, so I can't put it on Friday. I've made the whole week vegan instead; say if you'd rather have chicken on Friday and drop the vegan week.",
+      "operations": [{"op": "constrain", "diet": "vegan"}]
+    },
+    {
+      "thinking": "Applied. Repeat the flag.",
+      "reply": "Chicken isn't vegan, so I left it out: your whole week is vegan. Say if you'd rather have chicken on Friday and drop the vegan week.",
+      "operations": []
+    }
+  ]
+}
