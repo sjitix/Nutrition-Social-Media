@@ -273,7 +273,7 @@ Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Ro
      `.env.local` itself and exits 3 without it, so the key never goes on a command line. These runs
      double as the real-model re-run of v1's two fixes, since they run on `5c12c4c` or later.
   2. **Held-out wording test**, main vs `models-wording` (rate, reserve, "lighter on <days>" = resize).
-     The branch is main plus exactly those three prompt lines (`e078efd`, merged today), and its
+     The branch is main plus exactly those three prompt lines (`3591188`, main merged in 2026-10-21), and its
      worktree is `../NutriFlow-models-wording`. **If main has moved, merge it into the branch again
      first**, and check that `git diff --stat origin/main models-wording` shows only `promptV2.ts`. Then run
      `node scripts/models/fair-arms.mjs --arms C --repeat 3 --only '^(rate|eat-out-future|weekend-lighter|rate-heldout|eat-out-heldout|days-lighter-heldout)$'`

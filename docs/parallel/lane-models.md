@@ -66,7 +66,7 @@ the key from the main `.env.local` itself (exit 3 without it), so the key never 
 Tested end to end against the stub: 10 runs, every arm exactly its definition, no key text in any output.
 
 **The held-out wording test is ready too.** `models-wording` is now main plus exactly its three prompt
-lines (`e078efd`), with a worktree at `../NutriFlow-models-wording`. The third line ("lighter on <days>"
+lines (`3591188`, main merged in 2026-10-21), with a worktree at `../NutriFlow-models-wording`. The third line ("lighter on <days>"
 = resize) had no held-out paraphrase, so `days-lighter-heldout` was added ("go easy on the portions
 thursday and friday"). The stub's new `script` mode is the positive control: all 6 scenarios of the
 test pass the answer they reward, and fail do-nothing. The bare day constrain fails both lighter checks.
@@ -178,6 +178,6 @@ Branches: `models` (ships my paths onto main). `models-exp` = main + merges, for
 | `627fe56` | 2026-10-18: resumed on the laptop; worktrees created; the NVIDIA runs blocked on a missing `.env.local` |
 | `be98c57` | barrels only; `stub-model.mjs` (two free passes found and closed, no past score changed); `probe-fixes.mts` (v1's `5c12c4c`: 1/4 before, 4/4 after) |
 | `07fad2b` · `77c9dc7` | the fair re-measurement re-runs arm A (old arm A is a different bundle); `fair-arms.mjs`, the fair comparison as one command |
-| `e078efd` (branch `models-wording`) | the wording branch merged with main: main + exactly its 3 prompt lines |
+| `3591188` (branch `models-wording`) | the wording branch merged with main again (2026-10-21; first `e078efd`): main + exactly its 3 prompt lines; probe-quotes exits 0 on it |
 | `0fdfba1` | `days-lighter-heldout` (the third line's held-out paraphrase); the stub's `script` mode, the positive control: all 6 held-out-test checks pass the answer they reward |
 | `49385e5` (branch `models-exp`) | the allergy-label patch for v1: a fact that says allergy binds the engine whatever its label (probe 7/12 → 12/12) |
