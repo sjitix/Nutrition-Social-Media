@@ -227,8 +227,9 @@ The do-nothing and hollow-claim fakes score 0 on both evals.
     - a treat or an unasked memory in find-then-place.
   Shipped in `6d1b978`. Details: `docs/worklog/2026-10-21-models.md`.
 - **v1's single-turn eval (`eval:hardcases`) is largely quoted by its own prompt:** 11 of its 45 cases are
-  near-quotes (`probe-quotes.mjs --hard-cases`). Treat it as a regression check, never as a ruler for choosing a
-  model; the loop and conversation evals are the rulers. v1 is told (`7b42059`).
+  near-quotes (`probe-quotes.mjs --hard-cases`). v1 gave each of the nine with no held-out a twin (`4575524`),
+  and the probe now exits 0 on the set. Until a run compares the twins with their originals, treat it as a
+  regression check, never as a ruler for choosing a model; the loop and conversation evals are the rulers.
 - **Re-run on each of v1's batches; the probes pass on all three** (claims 15/15, allergy labels 28/28 with
   5 known-open rows, fixes 4/4):
   - `da023da` (C-G): five controls flipped because D works (an answer op finishes with its own reply; a question
@@ -237,6 +238,7 @@ The do-nothing and hollow-claim fakes score 0 on both evals.
     find-then-place's day-constrain controls now fail as re-plans instead of over-limit dishes.
   - `7624008` (claims judged sentence by sentence; an undo keeps what the run remembered): nothing flipped. The two
     "I'll do both. Shall I go ahead?" controls are now caught by the guard rather than by the clash test.
+  - `ef71993` (imports' own diet matcher): nothing flipped, and no failure reason changed.
 - **Next, the moment `.env.local` exists** (OWNER-TODO item 0, `NVIDIA_API_KEY=`): the fair arms, then the
   wording test (block below).
 - **Next, key-free:** re-run the probes when v1's F3 (imports get their own diet matcher) lands; the evals
