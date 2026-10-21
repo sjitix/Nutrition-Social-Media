@@ -45,10 +45,13 @@ to fail by mutation, with the other 15 accounted for.**
 - The Site URL batch (`c284616`, docs `2410119`): sign-out on one of two devices, the Site URL
   fallback, the takeover sentence's three causes, and a 25 h limit on a held request.
 - The "Confirm email" batch (`a915d12`): a second GoTrue with it on, behind a `/confirm` gateway prefix.
-  A first link's five minutes counting from the request, the magic link after it counting from the
-  open, and a refused request rolled back with the sign-up are all shown against the real GoTrue.
+  Shown against the real GoTrue: a first link's limit counted from the request (still working at four
+  minutes, refused at six), the magic link after it counted from the open, and a not-yet-confirmed
+  person's refused request rolling back without taking anything over. A review of it (6 findings,
+  none breaking a check) is fixed in `2bd92e8`.
 
-Nothing this stack can do is left unexercised, and nothing of this lane's is running or uncommitted.
+Two things this stack could still show are listed in `supabase/README.md`: "Try again" after a failed
+exchange, and GoTrue's hourly email cap. Nothing of this lane's is running or uncommitted.
 Next: whatever the owner's decisions doc answers for #1 (the Supabase project) and #4 (the chat log).
 It had no comments on 2026-10-21.
 
@@ -140,10 +143,11 @@ Supabase row per user under RLS.
     - sign-out, sign-out on one of two devices ending only that one (`scope=local`), and a deletion as
       the other device sees it;
     - a re-signup's new id, and an empty audit table;
-    - with "Confirm email" on: a first link is a confirmation link; aged past five minutes (the run
-      moves the request back in `auth.flow_state` rather than wait) it is refused with the slow-link
-      sentence; the magic link asked for next still works aged the same; and a refused second request
-      is rolled back with the sign-up, taking nothing over.
+    - with "Confirm email" on: a first link is a confirmation link, still working four minutes after
+      the request and refused by the exchange (422) at six (the run moves requests back in
+      `auth.flow_state` rather than wait); the magic link asked for next still works aged the same; and
+      a not-yet-confirmed person's second request, refused as too soon, rolls back its own flow state,
+      taking nothing over.
   - **`node scripts/account-live/mutate-live.mjs` shows 35 of the 50 checks able to fail** (24
     mutations, ~32 min, 24/24). The other 15 are five platform facts the run records and ten
     preconditions and follow-ons of proven checks (README lists them). One follow-on is also required
@@ -170,6 +174,9 @@ Supabase row per user under RLS.
     For the two things that still rest on that clock, it checks rather than assumes: it reads
     GoTrue's `auth.flow_state` to confirm which request GoTrue holds as latest before a takeover
     check, and it retries a request GoTrue still counts as too soon after the wait.
+  - Not exercised, though this stack could do it: "Try again" after a failed exchange (only the fake
+    covers the kept code), and GoTrue's hourly email cap, which v2.197.0 applies only while "Confirm
+    email" is on (`mail.go`).
 - **Gate for this lane:** `node scripts/test-account.mjs` runs two suites: **339 checks** in one tab,
   including the real `client.ts` end to end against an in-memory Supabase (RLS, PKCE, conditional
   writes, jsonb order, skewed clocks, token expiry, a deleted account), and **43 checks across tabs**

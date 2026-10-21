@@ -11,17 +11,22 @@
 checks are proven able to fail (24/24).** A second GoTrue on the same database has "Confirm email" on,
 a hosted project's default, behind the gateway's `/confirm` prefix. Four browsers are pointed at it.
 Against the real GoTrue, it shows:
-- a new person's first link is a confirmation link, and opened at once it signs them in;
-- opened more than five minutes after the REQUEST, it is refused with the slow-first-link sentence.
-  The run moves the request back in `auth.flow_state` rather than wait; GoTrue takes no less than
-  300 s;
+- a new person's first link is a confirmation link;
+- opened six minutes after the REQUEST, it is refused by the exchange (422) with the slow-first-link
+  sentence, while one opened at four minutes works. The run moves requests back in `auth.flow_state`
+  rather than wait; GoTrue's source gives 300 s and takes no less;
 - the magic link asked for next still works aged the same, because a magic link's five minutes run from
   its opening;
-- a new person's second request, refused as too soon, is rolled back with the sign-up and takes nothing
-  over. That is the README's qualifier on the takeover rule, now measured.
+- a second request from someone who has not yet opened a link, refused as too soon, rolls back its own
+  flow state, because GoTrue's sign-up path refuses inside its transaction. So it takes nothing over.
+  The README's qualifier on the takeover rule now says confirmed versus not, which is the line GoTrue
+  draws.
 
 Two new mutations require it: "Confirm email" off on that server, and the app's 422 mapping removed.
-Nothing this stack can do is left unexercised now.
+A review of the batch (one agent, 6 findings, none of which broke a check) is fixed in `2bd92e8`. It
+covers the mechanism above, a four-minute point to bracket the limit, a logged 422, GoTrue's 60 s
+message pinned, a magic-link path setting GoTrue never reads, and stale text. Two things this stack
+could still show are listed in `supabase/README.md`.
 
 **2026-10-21: the Site URL batch landed (`c284616`): the live run was then 45/45, with 31 of its 45
 checks proven able to fail by mutation (22/22).** It adds:
@@ -91,7 +96,7 @@ platform fact nobody here knew:
   received, so that is what the checks now test (a dropped connection, through a gateway hook).
 
 **A second review, of that batch (6 agents), confirmed 16 more.** All are fixed (`4663a81`, 2026-10-20):
-- **"Every live check is proven by mutation" was itself an overclaim.** It became 17 of the 38 then (31 of 45 since 2026-10-21): seven
+- **"Every live check is proven by mutation" was itself an overclaim.** It became 17 of the 38 then (35 of 50 now): seven
   more mutations, the select policy among them, and the other 21 are accounted for.
 - **The new sentence was wrong for the other cause.** GoTrue's `bad_code_verifier` also comes back
   when a link asked for in another browser is opened where a different sign-in is pending, so the
@@ -349,4 +354,5 @@ whose claims were each checked against the code (and corrected twice by the revi
 | `bbf0f17` | the docs half of `4663a81`, shipped apart from it with `--no-gate`: "17 of 38" everywhere, lesson 67's wording, lesson 69 (shared docs in a commit of their own), the 2026-10-20 day file |
 | `c284616` | the Site URL batch: sign-out on one of two devices (`scope=local`), the Site URL fallback run for real (a refused preview's link lands on the Site URL's page; holding nothing, it names a different web address; holding a request of its own, the takeover sentence does), the takeover sentence's three causes each shown live (Max, Lee, Ivy), the no-request sentence naming cleared data, a held request counting for 25 h, all nine landings required under the allow-list mutation, the same-origin rule recorded through a `passes` requirement, the tablet finishing Jo's link required under the dropped-verifier mutation — 45/45 live, 22/22, 339 + 43, 91/91, engine 1061/0 |
 | `2410119` | the docs half of `c284616` (`--no-gate`): 45/45 and 31 of 45 everywhere, lesson 67 twice more, the 2026-10-21 day file, and the shims removal reflected |
-| `a915d12` | "Confirm email" on, run live: a second GoTrue with it on behind the gateway's `/confirm` prefix and four browsers pointed at it; a first link's five minutes from the request (the request aged in `auth.flow_state`), the magic link after it from its opening, and a refused second request rolled back with the sign-up; two mutations ("Confirm email" off on that server, the app's 422 mapping), and the allow list's tenth landing — 50/50 live, 24/24, 35 of 50 |
+| `a915d12` | "Confirm email" on, run live: a second GoTrue with it on behind the gateway's `/confirm` prefix and four browsers pointed at it; a first link's five minutes from the request (the request aged in `auth.flow_state`), the magic link after it from its opening, and a not-yet-confirmed person's refused second request rolling back its own flow state; two mutations ("Confirm email" off on that server, the app's 422 mapping), and the allow list's tenth landing — 50/50 live, 24/24, 35 of 50 |
+| `2bd92e8` | the review of `a915d12` (one agent, 6 findings, none breaking a check): the rollback described as GoTrue does it (confirmed versus not; the sign-up path refuses inside its transaction), in the README's takeover qualifier, the fake's comment and the app's; a four-minute first link that still works, bracketing the limit; the slow link's code and logged 422 asserted; GoTrue's 60 s message pinned; the magic-link path line GoTrue never reads, dropped; "Try again" and the hourly cap back under "Not exercised"; step 4 on the hourly cap — 50/50 live, 24/24 |
