@@ -1593,6 +1593,16 @@ Each of these was discovered by doing the work, and each earned its place.
     background gate lives only as long as its session, and a sleeping laptop throttles one to nothing
     (146 seconds of CPU in seven and a half hours).
 
+71. **A change to a classifier is measured on everything it will ever read, not only on the rows written
+    for it.** The claim guard's per-sentence rewrite (2026-10-21) passed every row in the suite: 48 claims
+    caught, 37 honest lines left alone. It would still have shipped turning two honest stored replies into
+    "I haven't changed anything yet", because each promises a change and then asks what it needs ("…which
+    day is tomorrow on your plan?"). Running the old and the new guard over all 1,045 stored model replies
+    showed exactly four verdicts moving. Two were the claims the review had found; two were those
+    clarifications, and the rule was changed for them before it shipped.
+    **Before keeping a change to anything that classifies text, diff its verdicts over the whole stored
+    corpus, and read every one that moved.**
+
 ---
 
 ## 4. Training track (runs in parallel, never blocked by the above)

@@ -321,7 +321,7 @@ Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Ro
 - **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`,
   `docs/worklog/*-models.md`, this block, the lane file. Does not edit v1's files; asks v1 first.
 
-### >>> V1 LANE — 2026-10-21: Track A done; the second review's follow-ups landing in three commits (F1 `4bc9e47`) <<<
+### >>> V1 LANE — 2026-10-21: Track A done; the second review's follow-ups: F1 `4bc9e47`, F2 `7624008`, F3 in its proof <<<
 
 **2026-10-21, night: the second review's follow-ups, in three commits.** The review of `da023da` (workflow
 `wf_cf2e22d0-cc3`; four lenses, a skeptic per serious finding; result saved in the session's scratchpad) confirmed 5
@@ -334,17 +334,17 @@ the whole new suite run against the parent's code, every row that tests a change
   - E4 and the review of E: the boost's old week comes back only in the form the rest of the request allows, never
     whole for a new target or cuisine, never thrown out whole for one breaking dish;
   - "zero energy".
-- **F2, in its gate from `../NutriFlow-f2` (13 new rows; 8 fail on F1's code):**
+- **F2, landed `7624008` (test:engine 1094/0; 8 of 13 new rows fail on the parent, 5 guards pass on both):**
   - the claim guard's two regressions from `da023da`: a "?" anywhere excused every claim, and bare removed/excluded
     were narrowed away. Now judged per sentence; over all 1,045 stored replies, only two stored claims change verdict;
   - an undo never takes back what the same run remembered (an I2 hole across loop steps);
   - E7: a boost measured with the pins in place;
   - E2: library dishes judged on the rules the request introduced;
   - imports judged per food avoided (an onion dislike no longer shields a pork import from "no pork").
-- **F3, next after F2:** an import diet matcher of its own. The
+- **F3, built in `../NutriFlow-f2` and in its parent proof:** an import diet matcher of its own. The
   library's tag lint flagged plant milks, butter beans and "Cauliflower Steaks", a regression from `da023da`'s C. The new
   matcher agrees with the library's own tags exactly: none of 133 vegan or 301 vegetarian dishes flagged, none of 362
-  non-vegan or 197 non-vegetarian passed.
+  non-vegan or 197 non-vegetarian passed. On the review's probe it keeps all six plant-based imports the parent removes.
 - **Open after F3:** the 20 minors (three fixed in F1). The undo label can still name a refused write.
 
 **2026-10-21, evening: Track A is done.** `5b6d874` deleted the 28 D5a shims once nothing imported them
@@ -419,14 +419,14 @@ the prompts.
   `scripts/test-ship.mjs` holds 43 scenarios (v1 fails 34), and CI runs it. **Every lane: `docs/parallel/README.md` §3.**
 
 **Worktrees of this lane:**
-- `../NutriFlow-f2` (branch `f2`, at main plus F2): F2 is shipping from it.
-- `../NutriFlow-followups` (branch `followups`): F1 shipped from it; F3 goes there once F2 lands.
+- `../NutriFlow-f2` (branch `f2`): F2 shipped from it; F3 is built there, uncommitted, at main (`7624008`) plus F3.
+- `../NutriFlow-followups` (branch `followups`, clean at `7624008`): F3's parent for the proof run.
 Remove each when its batch lands, taking the node_modules junction out first. In Git Bash, spell the path out:
 `cmd //c "rmdir C:\\…\\<wt>\\node_modules"`. A `$wt` inside that string is passed literally and removes nothing.
 
 **Next, in order:**
-1. **F2's gate, then F3.** F3 is staged only in this session's scratchpad, which another session cannot see. If it
-   is lost, the design is in the F3 bullet above:
+1. **F3's proof, then its gate.** F3 sits uncommitted in `../NutriFlow-f2` (`select.ts` and its rows in
+   `test-engine.mts`). If it is lost, the design is in the F3 bullet above:
    - a word-by-word matcher private to `plan/select.ts`;
    - an exception clears only the hit it qualifies (a plant word before or after it);
    - title words count;

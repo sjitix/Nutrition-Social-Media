@@ -171,7 +171,7 @@
     <div class="stamp">
       <b><i>source</i> docs/worklog/</b>
       <b><i>synced</i> 2026-10-21</b>
-      <b><i>commit</i> 4bc9e47+</b>
+      <b><i>commit</i> 7624008+</b>
     </div>
   </header>
 
@@ -243,18 +243,18 @@
                 <li><b>The check against false claims was replacing some honest replies</b>, such as a question that offered
                   a change. The first fix went too far: any question in a reply let every claim in it through. The
                   corrected check reads sentence by sentence, and across all 1,045 stored replies it changes only the two
-                  real claims the review found. It ships next.</li>
+                  real claims the review found. It shipped tonight.</li>
                 <li><b>A second review of the fixes found more</b>, every item reproduced before it was fixed. Among them:
                   saying &ldquo;undo&rdquo; right after an allergy could take the allergy off; asking for more iron in the
                   same message as a lower calorie target dropped the target; and imported plant-based recipes were taken out
-                  of a vegan week as &ldquo;not vegan (it has coconut milk)&rdquo;. The first fixes shipped tonight, and the
-                  rest follow in two more steps.</li>
+                  of a vegan week as &ldquo;not vegan (it has coconut milk)&rdquo;. Two of the three fixes shipped tonight; the
+                  third, for imported recipes, is in its last tests.</li>
                 <li><b>The laptop slept while the tests ran</b>, and they were stopped partway when it woke. Nothing was
                   lost: the work was simply run again.</li>
               </ul>
             </div>
           </div>
-          <div class="gate">GATE &middot; engine 1081/0 &middot; every new test shown failing on the code before its fix</div>
+          <div class="gate">GATE &middot; engine 1094/0 &middot; every new test shown failing on the code before its fix</div>
         </div>
       </article>
 

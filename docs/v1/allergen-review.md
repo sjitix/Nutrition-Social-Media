@@ -18,6 +18,7 @@ stored allergies block.
 | **B1** `ba23884` | One closed cue list (plurals, misspellings), every cue in a fact read, plural category words, a linear-time parse. 984/0. |
 | **B2** `c8ccfb0` | What the person is told: an engine note on every allergy remark, swap notes that name the blocking allergy, the undo wording, the bound list in the prompt, dedupe, and a false-claim guard widened with the models lane's audit (38/38 claims caught, 0/37 honest lines tripped). test:engine 1010/0. |
 | **C–G** `da023da` | An imported dish answers to the hard rules: always to an allergy, and to a new diet or a newly avoided food when that change introduced it. Its note names the dish and the rule, never a replacement a later step can change. A logged meal stays. An undo in the same turn as a new allergy runs first (G). Every allergy sentence is written from the turn's final week. Shipped with the agent-loop (D), boost (E) and scope (F) fixes, after a second adversarial review. test:engine 1061/0. |
+| **F1, F2, F3** `4bc9e47`, `7624008`, F3 | The second review's follow-ups. For allergies, F2 matters: an undo across loop steps no longer takes back an allergy the same run bound (LC-21), and the claim guard catches "I've excluded shellfish" again (LC-20). test:engine 1094/0 after F2. |
 
 ## Status
 
@@ -73,10 +74,13 @@ stored allergies block.
 | LC-17 | "I'm allergic to peanuts" in the same turn as an undo, in either order, left no allergy and a peanut dish, under "nothing containing them will be planned" (the models lane's undo-flow audit) | fixed, G `da023da`: the undo runs first, alone |
 | LC-18 | "nothing with it is planned" while an import still held the allergen; a restated allergy left that dish in place | fixed `da023da`: notes are written from the final week, and a restated or denied bound allergy that a planned dish holds re-solves the week |
 | LC-19 | a refused swap blamed an allergy on a dish the person never asked for ("veggie burger" read "Cheeseburger & Fries contains dairy" in 45 of 92 such notes) | fixed `da023da`: a dish is named only when it matches every word asked; a dish the diet refuses says so |
-| LC-20 | the claim guard replaced honest replies (a refusal, a decline, a question offering a change) and missed "I've scaled Saturday down" | fixed `da023da`: a promise counts only in a reply that asks nothing; three stored honest replies stand again |
+| LC-20 | the claim guard replaced honest replies (a refusal, a decline, a question offering a change) and missed "I've scaled Saturday down" | fixed `da023da`, then corrected by F2 `7624008`. The first fix excused every claim in a reply that asked anything: "Got it — no more celery in your week! Anything else?" and "I've excluded shellfish across your whole week" were shown with nothing bound. Now judged per sentence; over all 1,045 stored replies only two stored claims change verdict |
+| LC-21 | "I'm allergic to peanuts, and undo that swap" sent by the model as two steps, [remember] then [undo]: the undo reverted the run's own allergy and left the peanut dish the swap had placed | fixed, F2 `7624008`: an undo never takes back what the same run remembered; a run that only remembered undoes the previous turn |
+| LC-22 | an imported plant-based dish taken out of a vegan week as "isn't vegan (it has coconut milk)" (the import diet judged with the library's substring lint) | F3: imports get a matcher of their own (diet, not allergy: I2 was never at stake) |
 
-LC-17 to LC-20 came after the 36. LC-17 is from the models lane's audit of its evals; LC-18 to LC-20 are from the
-adversarial review of B2 and of the C–F batch (2026-10-20: four reviewers, a skeptic per serious finding).
+LC-17 to LC-22 came after the 36. LC-17 is from the models lane's audit of its evals. LC-18 to LC-20 are from the
+adversarial review of B2 and of the C–F batch (2026-10-20: four reviewers, a skeptic per serious finding). LC-21 and
+LC-22 are from the second review, of `da023da` (2026-10-21).
 
 ## Rejected fixes, and why (do not repeat these)
 
