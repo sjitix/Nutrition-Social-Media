@@ -10,7 +10,7 @@ import { DAYS, type DayPlan, type Meal, type UserProfile, type WeekPlan } from "
 import { microDensity, DAILY_REFERENCE, dietTagConflicts, haystackBlocked, parseExclusionTokens, type MicroKey } from "../nutrition";
 import { type Cuisine, type Recipe } from "../data";
 import { RECIPES, baseRecipeOf, recipeMicros, scaleRecipeToTarget, toMeal } from "./library";
-import { type SlotSplit, bannedForUser, blockedByExclusions, budgetCap, exclusionTokens, localSplit, passesDiet, ratingMap } from "./rules";
+import { type SlotSplit, bannedForUser, blockedByExclusions, budgetCap, exclusionKey, exclusionTokens, localSplit, passesDiet, ratingMap } from "./rules";
 import { slotTargetMacros } from "./rebalance";
 
 // Find the library recipe that best matches a free-text dish request (e.g.
@@ -249,8 +249,13 @@ export function importBreaks(m: Meal, profile: UserProfile, before?: UserProfile
   const hay = `${m.name} ${m.ingredients.map((i) => i.name).join(" ")} ${m.steps.join(" ")}`;
   const allergies = parseExclusionTokens(profile.allergies ?? "", "").filter((t) => haystackBlocked(hay, [t]));
   const had = before ? exclusionTokens(before) : null;
+  // Judged per food avoided: one the change introduced counts, one the person already avoided does not (the
+  // import was placed over it on purpose). It used to ask whether the import matched ANY old exclusion, so an
+  // onion dislike shielded a pork import from "no pork", and a peanut dish from "no peanuts" (review,
+  // 2026-10-21). A restatement ("onion", then "onions") is old: same key, or covered by an old token.
+  const oldKeys = new Set((had ?? []).map(exclusionKey));
   const avoided = had
-    ? parseExclusionTokens("", profile.dislikes ?? "").filter((t) => haystackBlocked(hay, [t]) && !allergies.includes(t) && !haystackBlocked(hay, had))
+    ? parseExclusionTokens("", profile.dislikes ?? "").filter((t) => !oldKeys.has(exclusionKey(t)) && !haystackBlocked(t, had) && !allergies.includes(t) && haystackBlocked(hay, [t]))
     : [];
   const words = [m.name, ...m.ingredients.map((i) => i.name)];
   const judged = (diet: string) => (diet === "vegan" || diet === "vegetarian" ? dietTagConflicts(diet, words) : []);

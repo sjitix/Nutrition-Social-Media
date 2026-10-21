@@ -8,7 +8,7 @@
  */
 import { type UserProfile, type WeekPlan } from "../core";
 import { conditionBoosts } from "../data";
-import { MICRO_LABEL, type MicroKey } from "../nutrition";
+import { MICRO_LABEL, parseExclusionTokens, type MicroKey } from "../nutrition";
 import { RECIPES, baseRecipeOf, recipeMicros, scaleRecipeToTarget, toMeal } from "./library";
 import { bannedForUser, blockedByExclusions, exclusionTokens, localSplit, passesDiet } from "./rules";
 import { rebalanceWeek } from "./rebalance";
@@ -90,6 +90,10 @@ export function guaranteeBoost(
    *    note blaming the rules: excluding greek yogurt with a zinc boost took zinc from 28.1 to 26.8 mg a
    *    day, where removing that one dish leaves 27.5 and the two changes asked apart reach 28.7 (review). */
   keep: { unchanged: boolean; resolve: () => WeekPlan } | null = { unchanged: true, resolve: () => prev },
+  /** What the caller does to the chosen week afterwards (the pins put back), applied to every candidate
+   *  before it is measured: the boost used to count a gain in a pinned slot, the pin then went back, and
+   *  the week ended LOWER with no note (E7: zinc 25.9 -> 25.4 under a pinned low dinner; review, 2026-10-21). */
+  finish: (pl: WeekPlan) => WeekPlan = (pl) => pl,
 ): { plan: WeekPlan; note?: string } {
   const EPS = 1e-6;
   const level = (pl: WeekPlan) => weekMicroAverage(pl, key).amount;
@@ -104,7 +108,8 @@ export function guaranteeBoost(
   const keptOk = !!kept && fitsHardRules(kept, profile, before);
   // The kept week itself is a candidate too: portion rebalancing can claw back what an upgrade's swaps
   // gained, so the win is verified, never assumed.
-  const candidates = [upgradeForNutrient(profile, built, key), ...(keptOk ? [upgradeForNutrient(profile, kept!, key), kept!] : [])];
+  const candidates = [upgradeForNutrient(profile, built, key), ...(keptOk ? [upgradeForNutrient(profile, kept!, key), kept!] : [])]
+    .map((pl) => (pl === prev ? prev : finish(pl)));
   const best = candidates.reduce((a, b) => (level(b) > level(a) ? b : a));
   if (level(best) > start + EPS) return { plan: best };
   if (keptOk && kept === prev) {
@@ -135,29 +140,39 @@ export function guaranteeBoost(
   };
 }
 
-/** The names of the week's dishes that break the profile's hard rules (fitsHardRules, dish by dish). */
-function brokenDishes(plan: WeekPlan, profile: UserProfile, before?: UserProfile): string[] {
+/**
+ * Which of the week's dishes break the hard rules, dish by dish. An imported dish is judged by importBreaks,
+ * on its own text first. A library dish (looked up the way rebalanceWeek looks it up) is judged the same
+ * way: an allergy always counts; a diet or an exclusion counts when the change being applied (`before` ->
+ * `profile`) introduced it. A one-day override (Saturday re-planned with no diet on a vegetarian profile)
+ * breaks no rule the boost brought, and judging it against the saved diet re-picked it: a boost asked alone
+ * took B12 from 7.4 to 6.6 and undid the override (review, 2026-10-21). With no `before`, every rule counts.
+ * A logged or eating-out entry passes: it records what was eaten.
+ */
+function breaksRules(profile: UserProfile, before?: UserProfile): (m: WeekPlan["days"][number]["meals"][number]) => boolean {
+  const allergies = parseExclusionTokens(profile.allergies ?? "", "");
   const tokens = exclusionTokens(profile);
-  const names = plan.days.flatMap((d) => d.meals).filter((m) => {
+  const had = before ? new Set(exclusionTokens(before)) : null;
+  const introduced = had ? tokens.filter((t) => !had.has(t)) : tokens;
+  const dietNew = !before || before.diet !== profile.diet;
+  return (m) => {
     if (importBreaks(m, profile, before)) return true;
     const r = baseRecipeOf(m);
-    return !!r && (!passesDiet(r, profile.diet) || blockedByExclusions(r, tokens));
-  }).map((m) => m.name);
-  return [...new Set(names)];
+    if (!r) return false;
+    return blockedByExclusions(r, allergies) || (dietNew && !passesDiet(r, profile.diet)) || blockedByExclusions(r, introduced);
+  };
 }
 
-/** Every dish in the week passes the profile's hard rules: a library dish its diet, allergies and
- *  exclusions (looked up the way rebalanceWeek looks it up); an imported dish what importBreaks judges,
- *  on its own text first. A logged or eating-out entry passes: it records what was eaten. */
+/** The names of the week's dishes that break the hard rules (breaksRules). */
+function brokenDishes(plan: WeekPlan, profile: UserProfile, before?: UserProfile): string[] {
+  const breaks = breaksRules(profile, before);
+  return [...new Set(plan.days.flatMap((d) => d.meals).filter(breaks).map((m) => m.name))];
+}
+
+/** Every dish in the week passes the hard rules (breaksRules). */
 function fitsHardRules(plan: WeekPlan, profile: UserProfile, before?: UserProfile): boolean {
-  const tokens = exclusionTokens(profile);
-  return plan.days.every((d) =>
-    d.meals.every((m) => {
-      if (importBreaks(m, profile, before)) return false;
-      const r = baseRecipeOf(m);
-      return !r || (passesDiet(r, profile.diet) && !blockedByExclusions(r, tokens));
-    }),
-  );
+  const breaks = breaksRules(profile, before);
+  return plan.days.every((d) => !d.meals.some(breaks));
 }
 
 /**

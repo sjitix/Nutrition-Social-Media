@@ -7,7 +7,7 @@
  * is internal to this folder, and check:boundaries fails anything outside the folder that imports it.
  */
 import { type Operation, type UserProfile } from "../core";
-import { haystackBlocked, parseExclusionTokens } from "../nutrition";
+import { expandExclusion, haystackBlocked, parseExclusionTokens } from "../nutrition";
 import { type Cuisine, type Recipe } from "../data";
 
 // --- Selection engine ------------------------------------------------------
@@ -79,6 +79,10 @@ export function bannedForUser(profile: UserProfile, name: string): boolean {
   const lower = name.toLowerCase();
   return list.some((r) => r.rating === 1 && r.name.toLowerCase() === lower);
 }
+
+/** Two tokens are the same exclusion when the matcher expands them to the same foods (egg / eggs). Shared by
+ *  the executor's notes and the import judge (select.ts), which cannot import each other. */
+export const exclusionKey = (t: string) => [...new Set(expandExclusion(t))].sort().join("|");
 
 export function exclusionTokens(profile: UserProfile): string[] {
   return parseExclusionTokens(profile.allergies, profile.dislikes);

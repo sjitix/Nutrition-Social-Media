@@ -10,9 +10,9 @@
 import { DAYS, type DayPlan, type Meal, type Operation, type UserProfile, type WeekPlan, type LockedMeal, type MealRating, type PlanSnapshot } from "../core";
 import { computeTargets, explainTargets, hydrationTarget, explainHydration, CALORIE_FLOOR, DEFAULT_CALORIE_FLOOR, BODY_LIMITS, bodyStatProblems, bodyStatMessage, isRealBody, referenceWeightKg } from "../nutrition/client";
 import { type Recipe } from "../data";
-import { expandExclusion, haystackBlocked, parseExclusionTokens, wordMatches } from "../nutrition";
+import { haystackBlocked, parseExclusionTokens, wordMatches } from "../nutrition";
 import { RECIPES, baseRecipeOf, scaleRecipeToTarget, toMeal } from "./library";
-import { bannedForUser, blockedByExclusions, budgetCap, exclusionTokens, fiberOn, keepMacros, localSplit, mergeDislikes, normalizeCuisine, passesDiet } from "./rules";
+import { bannedForUser, blockedByExclusions, budgetCap, exclusionKey, exclusionTokens, fiberOn, keepMacros, localSplit, mergeDislikes, normalizeCuisine, passesDiet } from "./rules";
 import { SCALE_LO, clampScale, dayTargetMacros, macroDistance, rebalanceDay, rebalanceWeek, recipeMacros, scaleRecipeByFactor, scaleToTargets, slotShare, slotTargetMacros, slotsUpTo } from "./rebalance";
 import { importNotes, newReport, reportNotes, selectDay, selectWeekFromDb, withSeed, type ReplacedImport } from "./select";
 import { buildWeek } from "./batch";
@@ -89,8 +89,6 @@ function findRecipeForSwap(
  * cleared, only to explain. What it finds is named in a note and NEVER placed.
  * ------------------------------------------------------------------------- */
 
-/** Two tokens are the same exclusion when the matcher expands them to the same foods (egg / eggs). */
-const exclusionKey = (t: string) => [...new Set(expandExclusion(t))].sort().join("|");
 const uniqueByKey = (tokens: string[]) => {
   const seen = new Set<string>();
   return tokens.filter((t) => !seen.has(exclusionKey(t)) && Boolean(seen.add(exclusionKey(t))));
@@ -784,7 +782,8 @@ export function applyOperations(
                 return fixed;
               },
             };
-            const g = guaranteeBoost(p, prev, curPlan, op.boostNutrient, was, keep);
+            // Measured with the pins back in place, as the person will see the week (E7).
+            const g = guaranteeBoost(p, prev, curPlan, op.boostNutrient, was, keep, (pl) => reimposeLocks(p, pl).plan);
             curPlan = g.plan;
             if (g.note) notes.push(g.note);
           }
@@ -820,7 +819,7 @@ export function applyOperations(
               unchanged: true,
               resolve: () => rebalanceWeek(selectWeekFromDb(p, undefined, false, undefined, undefined, newReport(),
                 { plan: prev, keepIf: (r) => passesDiet(r, p.diet) && !blockedByExclusions(r, tokNow) }), p),
-            });
+            }, (pl) => reimposeLocks(p, pl).plan);
             curPlan = g.plan;
             if (g.note) notes.push(g.note);
           }

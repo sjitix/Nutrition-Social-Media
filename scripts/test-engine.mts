@@ -42,7 +42,7 @@ import {
   findRecipes, inspectRecipe, getPlan, getProfile, getSaved, report, whatIf,
   runReadTool, isReadTool, READ_TOOL_NAMES, MAX_ROWS,
 } from "@/lib/assistant/agentTools";
-import { runAgent, MAX_STEPS, FALSE_CLAIM_NUDGE, FALSE_CLAIM_NUDGE_MEMORY, NO_FURTHER_UNDO, type AgentTurn, type ModelFn } from "@/lib/assistant/agentLoop";
+import { runAgent, MAX_STEPS, FALSE_CLAIM_NUDGE, FALSE_CLAIM_NUDGE_MEMORY, NO_FURTHER_UNDO, NOTHING_EARLIER_TO_UNDO, type AgentTurn, type ModelFn } from "@/lib/assistant/agentLoop";
 import { weekMicroAverage } from "@/lib/plan/report";
 import { localExtraBody } from "@/lib/providers/extraBody";
 
@@ -4519,6 +4519,21 @@ console.log("\n--- THE ASSISTANT'S WORDS BIND THE ENGINE ---");
       check("imported dish + an OLD vegetarian diet: a chicken import placed over it stays on a later re-solve",
         on(stays.plan, pasta.name) === "Thursday", on(stays.plan, pasta.name));
     }
+    // Judged per food avoided (review, 2026-10-21): an onion dislike the import broke used to shield it from
+    // every later exclusion, so "no pork" left the pork stir-fry on the plate with nothing said.
+    {
+      const pork = importedToMeal({ name: "Sticky Pork & Onion Stir-Fry", sourceUrl: "https://example.com/pork", servings: 2,
+        ingredients: [{ name: "pork loin", quantity: "300 g" }, { name: "red onion", quantity: "1" }, { name: "soy sauce", quantity: "2 tbsp" }, { name: "rice", quantity: "150 g" }],
+        steps: ["Stir-fry the pork with the onion."], calories: 640, proteinGrams: 40, carbsGrams: 60, fatGrams: 22, macrosSource: "site" }, "dinner");
+      const onion = { ...BASE, dislikes: "onion" };
+      const withPork = put(aw, "Thursday", pork);
+      const r = applyPrimitives(onion, withPork, [{ op: "constrain", exclude: ["pork"] } as unknown as PrimitiveOp]);
+      check("imported dish + an old dislike it breaks + a NEW one: the new one still counts (onion, then no pork)",
+        on(r.plan, pork.name) === "" && r.notes.some((n) => n === "Sticky Pork & Onion Stir-Fry, the recipe you imported for Thursday's dinner, contains pork, which you avoid, so I replaced it."),
+        r.notes.join(" | "));
+      const restated = applyPrimitives(onion, withPork, [{ op: "constrain", exclude: ["onions"] } as unknown as PrimitiveOp]);
+      check("imported dish + a restated dislike (onion, then onions): the import placed over it stays", on(restated.plan, pork.name) === "Thursday", on(restated.plan, pork.name));
+    }
     // A pinned slot: the note says the pin is back, rather than naming the selector's pick.
     {
       const pinned = { ...BASE, lockedMeals: [{ day: "Wednesday", mealType: "dinner", name: "Turkey & Bean Chilli" }] } as UserProfile;
@@ -4616,6 +4631,33 @@ console.log("\n--- THE ASSISTANT'S WORDS BIND THE ENGINE ---");
       `${weekMicroAverage(z0, "zinc").amount.toFixed(2)} -> ${weekMicroAverage(zr.plan, "zinc").amount.toFixed(2)}, yogurt left ${yogurtLeft}`);
     const lessNotes = zr.notes.filter((n) => /has less/.test(n));
     check("boost + exclusion: ...and says nothing about less when there is not less", lessNotes.length === 0, lessNotes.join(" | "));
+
+    // E7 (review, 2026-10-21): under a pinned low dinner, the boost counted a gain in the pinned slot, the pin
+    // went back, and the week ended LOWER with no note (zinc 26.7 -> 26.1). Candidates are now measured with
+    // the pins in place.
+    {
+      let w = withSeed(4, () => freshWeek(BASE));
+      for (let i = 0; i < 2; i++) w = withSeed(4 + i, () => applyOperations(BASE, w, [op({ tool: "update_profile", boostNutrient: "zinc" })])).plan;
+      const sw = withSeed(1, () => applyOperations(BASE, w, [op({ tool: "swap_meal", day: "Monday", mealType: "dinner", dish: "Baked Salmon & Pepper Couscous" })]));
+      const pin = withSeed(1, () => applyOperations(sw.profile, sw.plan, [op({ tool: "lock_meal", day: "Monday", mealType: "dinner" })]));
+      const r = withSeed(7, () => applyOperations(pin.profile, pin.plan, [op({ tool: "update_profile", excludeFoods: ["greek yogurt"], boostNutrient: "zinc" })]));
+      const start = weekMicroAverage(pin.plan, "zinc").amount, end = weekMicroAverage(r.plan, "zinc").amount;
+      check("boost under a pin: the week does not end lower without saying so",
+        end >= start - 1e-6 || r.notes.some((n) => /has less zinc than before/.test(n)), `${start.toFixed(2)} -> ${end.toFixed(2)} | ${r.notes[0]}`);
+    }
+    // E2 (review, 2026-10-21): a boost asked alone judged a one-day override (Saturday with no diet, on a
+    // vegetarian profile) against the saved diet, re-picked it, and lowered B12 (7.4 -> 6.6).
+    {
+      const VEG = { ...BASE, diet: "vegetarian" } as UserProfile;
+      let w = withSeed(1, () => freshWeek(VEG));
+      w = withSeed(1, () => applyOperations(VEG, w, [op({ tool: "update_profile", boostNutrient: "b12" })])).plan;
+      const sat = withSeed(1, () => applyOperations(VEG, w, [op({ tool: "regenerate_day", day: "Saturday", diet: "none", boostNutrient: "b12" })]));
+      const r = withSeed(1, () => applyOperations(sat.profile, sat.plan, [op({ tool: "update_profile", boostNutrient: "b12" })]));
+      const meaty = (pl: WeekPlan) => pl.days.find((d) => d.day === "Saturday")!.meals.filter((m) => { const x = RECIPES.find((y) => y.name === m.name); return !!x && !x.dietTags.includes("vegetarian"); }).length;
+      check("boost alone: a one-day override stays, and the nutrient does not fall",
+        meaty(sat.plan) > 0 && meaty(r.plan) === meaty(sat.plan) && weekMicroAverage(r.plan, "b12").amount >= weekMicroAverage(sat.plan, "b12").amount - 1e-6,
+        `override dishes ${meaty(sat.plan)} -> ${meaty(r.plan)}, b12 ${weekMicroAverage(sat.plan, "b12").amount.toFixed(2)} -> ${weekMicroAverage(r.plan, "b12").amount.toFixed(2)}`);
+    }
   }
 
   // F (2026-10-20, the models lane): a constrain scoped to a slot AND days lost its slot in the schema (a
@@ -4676,6 +4718,30 @@ console.log("\n--- THE ASSISTANT'S WORDS BIND THE ENGINE ---");
     const missed = CLAIMS_STORED.filter((t) => !claimsChange(t));
     check("false claim (stored replies): a refusal, a decline or a question that offers a change is not replaced", tripped.length === 0, tripped.join(" | "));
     check("false claim (stored replies): 'scaled … down' and 'gently reworked' are caught", missed.length === 0, missed.join(" | "));
+
+    // The second review (2026-10-21): the whole-reply ASKS gate let any "?" or "which" pass every promise
+    // and state claim, and tying removed/excluded to "from/out of/off" let an exclusion claim through.
+    const CLAIMS_ASKING = [
+      "Got it! I’ll switch the entire week to a vegetarian menu, drop any mushroom dishes, and keep all dinners under 20 minutes so you can get back to work faster. If anything feels off, just let me know!",
+      "Sure thing! I’ll add more protein to your breakfasts so you can start each day strong. Let me know if any particular foods or dislikes come up later.",
+      "Got it — no more celery in your week! Anything else you'd like to change?", "Good news: eggs are back on the menu. Want me to add a few egg breakfasts?",
+      "No more peanuts in your plan from now on. Anything else?", "I'll swap Monday's dinner for the salmon bowl, which has more protein.",
+      "I'll pick a lighter dinner for Tuesday.", "I'll keep shellfish out of your week from now on. Anything else?",
+      "Give me a second — I'll swap Tuesday's lunch for something vegetarian.", "Sure! I’ll add more protein to your breakfasts… Let me know if you want more.",
+      "Got it, I've excluded shellfish across your whole week.", "Got it — I've cut out dairy completely.", "I've removed all the peanut dishes.",
+      "I've dropped the mushroom dishes for you.", "I've excluded peanuts, so you're safe.",
+    ];
+    const HONEST_WAITING = [
+      "Sunday's dinner is locked in because you pinned it, so I left it as it is. Want me to unpin it?",
+      "Your Monday dinner is locked in, so I can't swap it until you unpin it.", "I've dropped you a quick summary below.",
+      // Stored clarifications: the promise waits on what the question asks.
+      "Got it — I've noted your lactose intolerance, so I'll make it a dairy-free creamy pasta (think cashew or oat-based cream — still silky!). One quick thing: which day is tomorrow on your plan, so I slot it into the right dinner?",
+      "I'd love to add seafood for Friday dinner! Just to be safe — you mentioned a shellfish allergy. Are you thinking fish (like salmon, cod, tilapia) or something else? I'll keep shellfish out.",
+    ];
+    const missedAsking = CLAIMS_ASKING.filter((t) => !claimsChange(t));
+    const trippedWaiting = HONEST_WAITING.filter((t) => claimsChange(t));
+    check("false claim: a claim is caught even when the reply also asks something, or uses removed/excluded bare", missedAsking.length === 0, missedAsking.join(" | "));
+    check("false claim: ...while a pin explained, and a summary dropped below, stay honest", trippedWaiting.length === 0, trippedWaiting.join(" | "));
 
     // The refused-dish note names the dish ASKED for, and the rule that really refused it.
     const veggie = applyOperations({ ...BASE, allergies: "dairy" }, aw, [{ tool: "swap_meal", day: "Monday", mealType: "dinner", dish: "veggie burger" }]);
@@ -5393,6 +5459,27 @@ if (violations.size === 0) {
         const r = await runAgent({ ...base, profile: veg, model: scripted([turn(claim, [restate]), turn(""), turn("", [act]), turn("")]).fn });
         check("loop claim: a claim beside a RESTATED fact is retried, and the model then acts",
           r.falseClaimRetried && r.profile.diet === "vegetarian", `retried ${r.falseClaimRetried}, diet ${r.profile.diet}`);
+      }
+      // G at the level of the run (review, 2026-10-21): "I'm allergic to peanuts, and undo that swap" sent as two
+      // steps unbound the allergy and left the peanut dish the swap had placed. An undo never takes back what
+      // the same run remembered; a run that only remembered means the change before it.
+      {
+        const w7 = withSeed(7, () => freshWeek(BASE));
+        const t1 = applyPrimitives(BASE, w7, [{ op: "swap", dish: "Thai Peanut Chicken Rice Bowl", slot: "dinner", days: ["Monday"] } as unknown as PrimitiveOp]);
+        const swapped = din(t1.plan, "Monday");
+        const prevSwap = { plan: w7, profile: BASE, label: "swapped Monday's dinner" };
+        const rem = { op: "remember", fact: "I'm allergic to peanuts" } as PrimitiveOp;
+        const peanutDishes = (pl: WeekPlan) => pl.days.flatMap((d) => d.meals).filter((m) => haystackBlocked(`${m.name} ${m.ingredients.map((i) => i.name).join(" ")} ${m.steps.join(" ")}`, ["peanuts"])).length;
+        for (const steps of [[[rem], [undo]], [[undo], [rem]], [[rem, undo]]]) {
+          const tag = steps.map((g) => `[${g.map((o) => (o as { op: string }).op).join(", ")}]`).join(" ");
+          const r = await runAgent({ ...base, profile: t1.profile, plan: t1.plan, previous: prevSwap, model: scripted([...steps.map((ops) => turn("", ops)), turn("")]).fn });
+          check(`loop undo ${tag}: the allergy stays bound and no peanut dish is left (I2)`,
+            /peanut/.test(r.profile.allergies ?? "") && peanutDishes(r.plan) === 0, `allergies "${r.profile.allergies}", peanut dishes ${peanutDishes(r.plan)}`);
+          check(`loop undo ${tag}: ...and the swap the person asked to undo is gone`, din(r.plan, "Monday") !== swapped, din(r.plan, "Monday"));
+        }
+        const alone = await runAgent({ ...base, model: scripted([turn("", [rem]), turn("", [undo]), turn("")]).fn });
+        check("loop undo: a run that only remembered, with nothing earlier to undo, keeps the allergy and says so",
+          /peanut/.test(alone.profile.allergies ?? "") && alone.notes.includes(NOTHING_EARLIER_TO_UNDO), alone.notes.join(" | ").slice(0, 160));
       }
     }
   }

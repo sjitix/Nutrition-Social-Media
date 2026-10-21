@@ -134,6 +134,8 @@ const PLAN_DESCRIBING = new Set(["report", "weekly_report", "explain", "explain_
 /** A second undo in one run, once the one level there is has been used: said by the loop, because the
  *  engine's own answer ("I haven't changed anything yet") is false right after "I've put things back". */
 export const NO_FURTHER_UNDO = "That's as far back as I can go: I can undo one change.";
+/** An undo in a run that has only remembered something, with no earlier change to take back. */
+export const NOTHING_EARLIER_TO_UNDO = "There's no earlier change for me to undo, and what you've just told me stays noted.";
 
 /**
  * What `undo` says it reversed: "…before I noted what you told me and swapped Monday's dinner." A
@@ -193,6 +195,8 @@ export async function runAgent(args: {
   // before the first. A step is judged as a whole, so a refused write that shares a step with a real
   // change is named too (open, recorded: telling them apart means applying a step's writes one by one).
   const written: PrimitiveOp[] = [];
+  // Every remember this run applied: an undo in the same run must not take them back (G, run level).
+  const remembered: PrimitiveOp[] = [];
 
   let steps = 0;
   let lastReply = "";
@@ -285,15 +289,35 @@ export async function runAgent(args: {
         transcript.push({ role: "tool", name: "apply", result: { notes: [NO_FURTHER_UNDO], planChanged: false, profileChanged: false } });
         continue;
       }
+      // G at the level of the run: an undo never takes back what this run remembered. A run that has only
+      // remembered means the change BEFORE it ("I'm allergic to peanuts, and undo that swap", sent as two
+      // steps), so its undo goes to the previous turn. Either way, this run's remembers are folded into the
+      // state the undo restores, so the engine never takes them off (and says nothing false about them),
+      // and a restored week that still serves a bound allergen is re-solved by the remember itself. Sent as
+      // [remember], [undo], the allergy used to be unbound and the peanut dish left on the plate (I2;
+      // review, 2026-10-21).
+      const undoing = group.every(isUndo);
+      const remembersOnly = undoing && written.length > 0 && written.every(isRemember);
+      if (remembersOnly && (undoneArgs || !args.previous)) {
+        notes.push(NOTHING_EARLIER_TO_UNDO);
+        transcript.push({ role: "tool", name: "apply", result: { notes: [NOTHING_EARLIER_TO_UNDO], planChanged: false, profileChanged: false } });
+        continue;
+      }
+      let target = remembersOnly ? args.previous : snapshot ?? (undoneArgs ? undefined : args.previous);
+      if (undoing && target && remembered.length) {
+        const kept = applyPrimitives(target.profile, target.plan, remembered, args.today);
+        target = { ...target, plan: kept.plan, profile: kept.profile };
+      }
       const before = { plan, profile };
       // An undo inside the run reverts THIS run's changes first (to the state before its first change);
       // it used to restore the previous turn's snapshot, reverting the person's earlier change as well.
-      const res = applyPrimitives(profile, plan, group, args.today, snapshot ?? (undoneArgs ? undefined : args.previous));
+      const res = applyPrimitives(profile, plan, group, args.today, target);
       // Compared, not flagged: a profile write that leaves the profile as it was (a repeated remember, a
       // weight that was already stored) is no change, and must not take the undo slot.
       const stepChanged = res.planChanged || !same(before.profile, res.profile);
+      if (!undoing) remembered.push(...group.filter(isRemember));
       if (res.undone) {
-        if (!snapshot) undoneArgs = true;
+        if (!snapshot || remembersOnly) undoneArgs = true;
         // Undoing this run's own change: what its steps said ("Monday now has …") is no longer true.
         else for (const [from, to] of [...stale].reverse()) notes.splice(from, to - from);
         stale = [];

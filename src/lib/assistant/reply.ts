@@ -105,21 +105,25 @@ export function operationPhrases(operations: Operation[]): string[] {
 // PLAN object: "I've made your week lighter" is a claim; "I've made a quick comparison" and "I've made a
 // note that…" are not, and the honest line used to replace them.
 // The review of B2 (2026-10-20, on the stored model turns) then:
-// - tied removed / excluded / dropped / cut to what was taken out ("…from your plan", "…out of", "…off"),
-//   because "I've dropped you a quick summary below" is not a change;
+// - tied dropped / cut to what was taken out ("…from your plan", "…out of", "…off", "the mushroom
+//   dishes"), because "I've dropped you a quick summary below" is not a change. It tied removed and
+//   excluded too, and that let "Got it, I've excluded shellfish across your whole week" through over an
+//   allergy nothing bound; no honest use of either was found, so both are bare again (review, 2026-10-21);
 // - added the passive list's verbs to the active one, plus reworked, rebuilt, re-solved, capped and
 //   tweaked: "I've scaled Saturday and Sunday down" and "I've gently reworked this week" were stored
 //   claims the guard missed.
 const CLAIMS_CHANGE =
-  /^(done|all set)\b|\b(?:you're|you are) all set\b|(?<!\bright |\bcurrently |\bas of )\bnow (has|lands|averages|comes to)\b|\bi(?:'ve| have) (?:\w+ly )?(?:swapped|changed|updated|added|lightened|moved|set|replaced|resized|raised|increased|boosted|bumped|switched|pinned|locked|rated|doubled|halved|scaled|adjusted|reduced|lowered|trimmed|reworked|rebuilt|re-solved|capped|tweaked)\b|\bi(?:'ve| have) (?:removed|excluded|dropped|cut)\b[^.!?]{0,40}?\b(?:from|out of|off)\b|\bi(?:'ve| have) cut back\b|\bi(?:'ve| have) made (?:(?:your|the|this|that|these|those|every|each|all|both|it|them)\b|(?:a|some|a few|a couple of) (?:changes?|tweaks?|swaps?|adjustments?)\b|(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|breakfasts?|lunch(?:es)?|dinners?|snacks?|portions?|meals?|week|plan|days?)\b)|\bi(?:'ve| have) taken (?!note\b)[^.!?]{0,40}?\boff\b/i;
+  /^(done|all set)\b|\b(?:you're|you are) all set\b|(?<!\bright |\bcurrently |\bas of )\bnow (has|lands|averages|comes to)\b|\bi(?:'ve| have) (?:\w+ly )?(?:swapped|changed|updated|added|lightened|moved|set|replaced|resized|raised|increased|boosted|bumped|switched|pinned|locked|rated|doubled|halved|scaled|adjusted|reduced|lowered|trimmed|reworked|rebuilt|re-solved|capped|tweaked|removed|excluded)\b|\bi(?:'ve| have) (?:dropped|cut)\b[^.!?]{0,40}?\b(?:from|out of|off|out|dish(?:es)?|meals?|breakfasts?|lunch(?:es)?|dinners?|snacks?|plan|week|days?)\b|\bi(?:'ve| have) cut back\b|\bi(?:'ve| have) made (?:(?:your|the|this|that|these|those|every|each|all|both|it|them)\b|(?:a|some|a few|a couple of) (?:changes?|tweaks?|swaps?|adjustments?)\b|(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|breakfasts?|lunch(?:es)?|dinners?|snacks?|portions?|meals?|week|plan|days?)\b)|\bi(?:'ve| have) taken (?!note\b)[^.!?]{0,40}?\boff\b/i;
 
 /** The passive voice says it too: "Breakfast has been swapped", "Your dinners are now quicker". Same
  *  exception for a description ("currently lighter", "right now"). Models lane, 2026-10-03: with it,
  *  8/8 of their claims are caught and 0/8 of their honest replies tripped. "is now excluded": LC-06. */
 const CLAIMS_CHANGE_PASSIVE =
-  /\b(?:has|have) been (?:swapped|changed|updated|added|lightened|scaled|moved|replaced|resized|raised|increased|boosted|bumped|made|set|adjusted|reduced|lowered|removed|cut|trimmed)\b|(?<!\bright |\bcurrently )\b(?:is|are) now (?:lighter|quicker|faster|smaller|bigger|heavier|cheaper|vegetarian|vegan|higher|lower|meat-free|dairy-free|gluten-free|excluded)\b|\b(?:is|are) now set up for\b|\bset up for (?:two|three|four|five|six|\d+)(?: people)? now\b|\b(?:is|are) (?:now )?locked in\b|\b(?:week|plan|day|meals?|menu) (?:is|are) (?:now )?ready\b/i;
+  /\b(?:has|have) been (?:swapped|changed|updated|added|lightened|scaled|moved|replaced|resized|raised|increased|boosted|bumped|made|set|adjusted|reduced|lowered|removed|cut|trimmed)\b|(?<!\bright |\bcurrently )\b(?:is|are) now (?:lighter|quicker|faster|smaller|bigger|heavier|cheaper|vegetarian|vegan|higher|lower|meat-free|dairy-free|gluten-free|excluded)\b|\b(?:is|are) now set up for\b|\bset up for (?:two|three|four|five|six|\d+)(?: people)? now\b|\b(?:is|are) (?:now )?locked in\b(?![^.!?]*\b(?:can't|cannot|until|unpin|because|so i)\b)|\b(?:week|plan|day|meals?|menu) (?:is|are) (?:now )?ready\b/i;
 // "is set up for" alone is a DESCRIPTION ("Your current plan is set up for three meals a day", a stored
 // honest decline); only "is now set up for" or "set up for two now" claims a change (review of B2).
+// "is locked in" is a claim, except when the sentence goes on to say why nothing moved: "Your Monday
+// dinner is locked in, so I can't swap it until you unpin it" (review, 2026-10-21).
 
 /**
  * A state the engine never produced, said as fact: "so they're back on the menu", "Eggs can go back into
@@ -133,19 +137,36 @@ const CLAIMS_STATE =
  *  operation reads as done (models lane, 2026-10-20). Counted like a state, never in an offer or a
  *  question; "I'll keep it in mind" and "I'll make sure…" promise no change. */
 const PROMISES_CHANGE =
-  /\bi(?:'ll| will) (?!make sure\b)(?:put|add|swap|change|plan|make|move|replace|switch|set|lighten|scale|double|halve|remove|drop|take|cut|exclude|pin|lock|rate|build|rebuild|update|boost|bump|slot)\b|\bi(?:'ll| will) keep\b[^.!?]{0,30}\bout\b/i;
+  /\bi(?:'ll| will) (?!make sure\b)(?:put|add|swap|change|plan|make|move|replace|switch|set|lighten|scale|double|halve|remove|drop|take|cut|exclude|pin|lock|rate|build|rebuild|update|boost|bump|slot|pick)\b|\bi(?:'ll| will) keep\b[^.!?]{0,30}\bout\b/i;
 const OFFER_OR_QUESTION =
   /\?\s*$|\b(?:want me to|shall i|should i|can i|i can|i could|would you like|do you want|if|once|unless|until|happy to|let me know)\b/i;
-/** A reply that ASKS anything (a question anywhere, or a request for the person's choice) is waiting on
- *  them, so its "I'll …" is conditional, not a change: "Pick two, and I'll build it", "Which day is
- *  today? Then I'll make dinner lighter", "Tell me which day and I'll swap it" are stored honest
- *  refusals and clarifications that B2 replaced with the canned line (review of B2, 2026-10-20). */
-const ASKS = /\?|\b(?:tell me|pick|choose|say the word|confirm|give me|let me know|which)\b/i;
+/** A promise that waits on the person's choice is not a change: "Pick two, and I'll build it", "Tell me
+ *  which day and I'll swap it", "Which day is today? Then I'll make dinner lighter" are stored honest
+ *  refusals and clarifications that B2 replaced with the canned line (review of B2, 2026-10-20). Judged
+ *  SENTENCE by sentence, and only where the request opens the sentence or "Then" follows a question. The
+ *  whole-reply gate it replaces let any "?" or "which" anywhere pass every promise and state claim:
+ *  "Got it — no more celery in your week! Anything else?" and "I'll swap Monday's dinner for the salmon
+ *  bowl, which has more protein" were shown as true with nothing changed (review, 2026-10-21). */
+const REQUEST = /^(?:(?:just|so|okay|ok)[,\s]+)?(?:tell me|pick|choose|say the word|confirm|let me know)\b/i;
+/** A question that asks for what the change needs (which day, what kind, this or that), not a sign-off:
+ *  "…so I'll make it a dairy-free creamy pasta. One quick thing: which day is tomorrow on your plan?" waits
+ *  on the answer, while "Anything else?" and "Want me to add a few?" do not. Two stored clarifications
+ *  read as claims without it (of 1,045 stored replies, 2026-10-21). */
+const CLARIFY = /\b(?:which|what|when|where|how (?:many|much)|or)\b[^.!]*\?\s*$/i;
 
 export function claimsChange(text: string): boolean {
   const t = text.trim().replace(/[‘’]/g, "'");
-  return CLAIMS_CHANGE.test(t) || CLAIMS_CHANGE_PASSIVE.test(t) ||
-    (!ASKS.test(t) && t.split(/(?<=[.!?])\s+/).some((s) => (CLAIMS_STATE.test(s) || PROMISES_CHANGE.test(s)) && !OFFER_OR_QUESTION.test(s)));
+  if (CLAIMS_CHANGE.test(t) || CLAIMS_CHANGE_PASSIVE.test(t)) return true;
+  // "…" ends a sentence too: "I'll add more protein to your breakfasts… Let me know if…" was one sentence,
+  // and its "let me know" excused the promise.
+  const sentences = t.split(/(?<=[.!?…])\s+/);
+  return sentences.some((s, i) => {
+    if (OFFER_OR_QUESTION.test(s)) return false;
+    if (CLAIMS_STATE.test(s)) return true;
+    if (!PROMISES_CHANGE.test(s)) return false;
+    return !(REQUEST.test(s) || (/^then\b/i.test(s) && /\?\s*$/.test(sentences[i - 1] ?? "")) ||
+      sentences.some((q, j) => j !== i && CLARIFY.test(q)));
+  });
 }
 
 /** What the user reads instead of a claim the engine cannot back. Honest, and it keeps the turn going. */
