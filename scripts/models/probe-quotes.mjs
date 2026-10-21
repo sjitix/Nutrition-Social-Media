@@ -11,8 +11,9 @@
  *   node scripts/models/probe-quotes.mjs --hard-cases                         # eval:hardcases' set, vs its prompt
  *
  * --hard-cases adds the user turns of data/hard-cases.json (v1's single-turn set, read only) and scans the
- * single-turn prompt that eval sends (no agent section, no date line). That set has no held-outs, so this
- * mode exits non-zero while the prompt quotes any of it: on 2026-10-21, 11 of its 45 cases.
+ * single-turn prompt that eval sends (no agent section, no date line). On 2026-10-21 the prompt quoted 11 of its
+ * 45 cases; v1 then gave the nine with no held-out a twin each (`heldOutOf`, 4575524), so this mode exits 0 as
+ * long as every quoted case has one, like the loop and conversation evals.
  *
  * Two tests, either one makes a NEAR-QUOTE:
  * - one prompt line holds at least 75% of a message's content words (stop words dropped, plurals folded),
@@ -106,7 +107,7 @@ const convoTurns = (convo.match(/\{ user: "/g) ?? []).length;
 if (!convoIds || msgs.filter((m) => m.eval === "convo").length !== convoTurns) { console.error("probe-quotes: could not read convo-eval's turns"); process.exit(255); }
 if (hardCases) {
   const set = JSON.parse(readFileSync(join(HARNESS, "data", "hard-cases.json"), "utf8"));
-  for (const c of set.cases) for (const t of c.turns) if (t.role === "user") msgs.push({ eval: "hard", id: c.id, heldOutOf: null, msg: t.text });
+  for (const c of set.cases) for (const t of c.turns) if (t.role === "user") msgs.push({ eval: "hard", id: c.id, heldOutOf: c.heldOutOf ?? null, msg: t.text });
 }
 const heldOut = new Set(msgs.filter((m) => m.heldOutOf).map((m) => m.heldOutOf));
 const heldOutFor = (r) => msgs.find((m) => m.heldOutOf && (m.heldOutOf === r.id || msgs.some((o) => o.id === m.heldOutOf && o.msg === r.msg)))?.id ?? null;
