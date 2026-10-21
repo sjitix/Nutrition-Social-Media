@@ -10,16 +10,29 @@
  * live.mts (an RLS write check satisfied by a primary-key collision, a renewal check that never sent an
  * expired token, and redirects nobody looked at).
  *
- * WHAT IT PROVES, EXACTLY: 17 mutations, each requiring a different named check to fail, so 17 of
- * live.mts's 38 checks are shown able to fail. The other 21 are:
- *  - platform facts the run records rather than guards it tests: GoTrue's parent rule, the newest link
- *    signing in, the takeover's other side, /logout's 403 and a re-signup's new id;
- *  - preconditions and follow-ons of the proven ones: sign-in, first sync, the pulls, edits arriving;
- *  - six more landings, which the allow-list mutation would break too, but which the run never reaches
- *    once the first sign-in fails.
- * Say "17 of 38", never "every check" (the re-review of this file's first version caught that claim).
+ * WHAT IT PROVES, EXACTLY: 22 mutations, which between them require 31 distinct named checks to fail
+ * (the allow list's takes all nine landings, the newest-link sentence's two checks, the dropped
+ * verifier's two, and the reused verifier shares one of them), so 31 of live.mts's 45 checks are shown
+ * able to fail. The other 14 are:
+ *  - four platform facts the run records rather than guards it tests: GoTrue's parent rule, the newest
+ *    link signing in, /logout's 403, and a re-signup's new id;
+ *  - ten preconditions and follow-ons of the proven ones: the laptop's sign-in, the first sync, the
+ *    phone's pull, the mirror, the newer week kept, both edits after a renewal, the plain sign-out, the
+ *    delete itself, and Kai's second link coming back to the Site URL's page.
+ * That last one cannot tell GoTrue's same-origin rule from its fallback to the Site URL, which there is
+ * the same address. So the bare-domain Site URL mutation requires it to PASS (`passes`), where only the
+ * same-origin rule can bring it back: that is how the run records the rule.
  *
- * Each mutation runs the full live run, about 85 s, so all 17 take about 25 minutes. An anchor that no
+ * Two corrections, both from the reviews of the Site URL batch. An earlier header said the landings were
+ * never reached once the first sign-in failed; the first sign-in never fails under the allow-list
+ * mutation (the run hands each code to the device it names, wherever the link landed), so the other
+ * eight went red unrequired. And it counted "the takeover's other side" (the tablet finishing Jo's link)
+ * as a platform fact, though dropping the verifier on a refused request turns it red every time, so that
+ * mutation now requires it. Count from the run's output, never from memory. Say "31 of 45", never
+ * "every check".
+ *
+ * Each mutation runs the full live run, about 80 s (21 took 1681 s on 2026-10-21), so all 22 take about
+ * 30 minutes. An anchor that no
  * longer matches exactly once is reported as SKIP and fails the run, like mutate-account.mjs. A run
  * killed mid-mutation is undone at the next start (the journal), so a broken file never outlives it.
  */
@@ -99,11 +112,25 @@ const MUTATIONS = [
     fails: ["RLS: Rob's delete with no filter"],
   },
   {
+    // The first sign-in still completes under this mutation: the run hands each code to the device it
+    // names, wherever the link landed, and GoTrue's PKCE grant never looks at the return address. So the
+    // run carries on, and every one of its nine landings must go red, each named on its own (one shared
+    // substring would be satisfied by any single FAIL).
     name: "the redirect allow list no longer admits the account page (one star stops at a slash)",
     file: "scripts/account-live/stack.sh",
     from: 'export GOTRUE_URI_ALLOW_LIST="http://localhost:3000/**"',
     to: 'export GOTRUE_URI_ALLOW_LIST="http://localhost:3000/*"',
-    fails: ["redirect: Lap's link lands back"],
+    fails: [
+      "redirect: Lap's link lands back",
+      "redirect: Desk's link (asked for here, then from the tablet) lands back",
+      "redirect: Tablet's link (sent for the desk's request) lands back",
+      "redirect: Pho's link lands back",
+      "redirect: Rob's replaced link lands back",
+      "redirect: Rob's newest link lands back",
+      "redirect: Desk's link (Jo's second device) lands back",
+      "redirect: Late's reopened link lands back",
+      "redirect: Pho's re-signup link lands back",
+    ],
   },
   {
     name: "audit logs are written to the database again",
@@ -127,11 +154,14 @@ const MUTATIONS = [
     fails: ["renewal: a token PostgREST refuses (401)"],
   },
   {
+    // Two checks rest on this guard: the phone's link surviving its refused and lost requests, and the
+    // tablet finishing Jo's link after its own request was refused as too soon (without the verifier it
+    // kept, the tablet holds nothing when the link arrives).
     name: "a request GoTrue refuses (429) drops the pending verifier",
     file: "src/lib/account/client.ts",
     from: "  await requestMagicLink(cfg, address, `${window.location.origin}${window.location.pathname}`, await challengeFor(verifier));",
     to: "  await requestMagicLink(cfg, address, `${window.location.origin}${window.location.pathname}`, await challengeFor(verifier)).catch((e) => { savePendingSignIn(null); throw e; });",
-    fails: ["sign-in: requests GoTrue refuses (429) or never receives"],
+    fails: ["sign-in: requests GoTrue refuses (429) or never receives", "takeover: …while the browser that asked last finishes with it"],
   },
   {
     // Against the real GoTrue a refused (429) request is harmless here: GoTrue records it as the person's
@@ -149,6 +179,45 @@ const MUTATIONS = [
     from: "  if (res.status === 400 && ((await res.clone().json().catch(() => ({}))) as { error_code?: string }).error_code === \"bad_code_verifier\") {\n    throw new AccountError(LINK_TAKEN_OVER, \"auth\");\n  }\n",
     to: "",
     fails: ["takeover: once another browser asks"],
+  },
+  {
+    name: "sign-out ends every session the person has (GoTrue's default scope, global)",
+    file: "src/lib/account/supabase.ts",
+    from: "/auth/v1/logout?scope=local`",
+    to: "/auth/v1/logout`",
+    fails: ["sign-out: ends only the browser it was pressed in (scope=local)"],
+  },
+  {
+    // And the one rule the run can only see here: with the Site URL a bare domain, Kai's second request,
+    // from the account page on that same origin, comes back to the account page only because GoTrue
+    // admits the Site URL's own origin without the allow list. Its fallback would land on "/".
+    name: "the Site URL is the bare domain, not the account page (step 3 skipped)",
+    file: "scripts/account-live/stack.sh",
+    from: 'export GOTRUE_SITE_URL="https://ntrux.vercel.app/sage/account"',
+    to: 'export GOTRUE_SITE_URL="https://ntrux.vercel.app"',
+    fails: ["redirect: a link asked for at an address the allow list refuses lands on the Site URL"],
+    passes: ["redirect: …and asking again on that page, as it says, brings the link back to it"],
+  },
+  {
+    name: "a link that lands where no request is held blames another browser only",
+    file: "src/lib/account/client.ts",
+    from: "\"That sign-in link can't be finished here: it was opened somewhere other than where it was asked for (in a different browser, or at a different web address), or this browser's data was cleared since. Ask for a new link here, and open it in this browser.\"",
+    to: "\"That sign-in link was opened in a different browser from the one that asked for it. Ask for a new link here, and open it in this browser.\"",
+    fails: ["where the request is not held (another origin)"],
+  },
+  {
+    name: "a refused verifier (bad_code_verifier) no longer names another web address as a cause",
+    file: "src/lib/account/supabase.ts",
+    from: "it was asked for in a different browser or at a different web address, or a newer sign-in request took it over",
+    to: "it was asked for in a different browser, or a newer sign-in request took it over",
+    fails: ["where that page holds an earlier request of its own"],
+  },
+  {
+    name: "a refused verifier (bad_code_verifier) no longer names another browser as a cause",
+    file: "src/lib/account/supabase.ts",
+    from: "it was asked for in a different browser or at a different web address, or a newer sign-in request took it over",
+    to: "it was asked for at a different web address, or a newer sign-in request took it over",
+    fails: ["takeover: a fresh link asked for in another browser"],
   },
 ];
 
@@ -193,10 +262,15 @@ for (const m of chosen) {
     rmSync(journal, { force: true });
   }
   const failed = out.split("\n").filter((l) => l.startsWith("FAIL"));
+  const passed = out.split("\n").filter((l) => l.startsWith("PASS"));
   const missed = m.fails.filter((label) => !failed.some((l) => l.includes(label)));
-  if (missed.length) allCaught = false;
-  console.log(`${missed.length ? "MISSED" : "CAUGHT"}  ${m.name}`);
+  // A check that must still PASS under the mutation: what records a platform rule only this broken
+  // configuration can show.
+  const unheld = (m.passes ?? []).filter((label) => !passed.some((l) => l.includes(label)));
+  if (missed.length || unheld.length) allCaught = false;
+  console.log(`${missed.length || unheld.length ? "MISSED" : "CAUGHT"}  ${m.name}`);
   for (const label of missed) console.log(`          expected a FAIL for: ${label}`);
+  for (const label of unheld) console.log(`          expected a PASS for: ${label}`);
   if (missed.length && !failed.length) console.log(`          the run printed no FAIL at all; its last lines:\n${out.trim().split("\n").slice(-6).map((l) => `            ${l}`).join("\n")}`);
 }
 console.log(allCaught ? "\nevery mutation was caught" : "\nSOME MUTATIONS WERE NOT CAUGHT");

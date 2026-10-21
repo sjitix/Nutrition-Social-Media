@@ -15,8 +15,14 @@
  * link landed. Each check below names what it proves and asserts exactly that, preconditions included.
  *
  * Devices: Sam's laptop and phone (separate browsers), Rob on a browser of his own, a fourth browser
- * ("Late") that opens a link Rob already used, and two more ("Desk", "Tablet") that Ivy and Jo each ask
- * from in turn: GoTrue issues a link's code for the person's LATEST request, whichever browser made it.
+ * ("Late") where Max asks for a link that the desk then opens, and which later opens a link Rob already
+ * used, and two more ("Desk", "Tablet") that Ivy and Jo each ask from in turn: GoTrue issues a link's
+ * code for the person's LATEST request, whichever browser made it.
+ * Jo later signs in on the desk as well, and signs out there: only that browser's session may end. And
+ * one more browser, seen at two web addresses, each with storage of its own: a preview deployment the
+ * allow list does not admit ("Prev"), where Kai asks, and the Site URL's account page ("Site"), where
+ * GoTrue sends that link instead. Lee uses the same two: asks at the Site URL, leaves it, then asks on
+ * the preview, so that link lands where Lee's earlier request is still held.
  */
 import { execFileSync } from "node:child_process";
 import { createHash, createHmac } from "node:crypto";
@@ -35,12 +41,16 @@ const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const SECRET = process.env.LIVE_JWT_SECRET!;
 const PAGE = "http://localhost:3000/sage/account"; // where every device asks for its link, so where it must land
+/** Step 3's Site URL, as stack.sh sets it: where GoTrue sends a link whose return address it refuses. */
+const SITE_URL = "https://ntrux.vercel.app/sage/account";
+/** A preview deployment's account page: another host than the Site URL's, and not on the allow list. */
+const PREVIEW = "https://ntrux-git-preview.vercel.app/sage/account";
 const windows: Record<string, Win> = {};
 const docs: Record<string, Events & { visibilityState: "visible" | "hidden" }> = {};
 const landed: Record<string, string> = {};
 
-function makeDevice(name: string) {
-  const page = new URL(PAGE);
+function makeDevice(name: string, at = PAGE) {
+  const page = new URL(at);
   const window = Object.assign(new Events(), {
     localStorage: new MemoryStorage(),
     sessionStorage: new MemoryStorage(),
@@ -215,16 +225,23 @@ async function hide(name: string) {
 }
 
 for (const name of ["Lap", "Pho", "Rob", "Late", "Desk", "Tablet"]) makeDevice(name);
+makeDevice("Prev", PREVIEW);
+makeDevice("Site", SITE_URL);
 const Lap = await load("Lap");
 const Pho = await load("Pho");
 const Rob = await load("Rob");
 const Late = await load("Late");
 const Desk = await load("Desk");
 const Tablet = await load("Tablet");
+const Prev = await load("Prev");
+const Site = await load("Site");
 const sam = "sam.live@example.com";
 const rob = "rob.live@example.com";
 const ivy = "ivy.live@example.com";
 const jo = "jo.live@example.com";
+const kai = "kai.live@example.com";
+const lee = "lee.live@example.com";
+const max = "max.live@example.com";
 const sessionOf = (d: Device) => d.storage.loadSessionRaw() as Session | null;
 
 // =================================================================================================
@@ -269,6 +286,20 @@ check("takeover: once another browser asks, even refused as too soon (429), the 
   ivyFromTablet instanceof Error && /too many sign-in emails/i.test(ivyFromTablet.message) && ivyTabletLatest && ivyOnDesk instanceof Error &&
     ivyOnDesk.message.includes("newer sign-in request took it over") && Desk.client.currentSession() === null,
   json({ tablet: errText(ivyFromTablet), tabletLatest: ivyTabletLatest, desk: errText(ivyOnDesk) }));
+// The same refusal's other cause: a link asked for in ANOTHER browser, opened where this browser holds a
+// request of its own. Max asks on the Late browser; the link is opened on the desk, which still holds
+// Ivy's request (a failed link keeps its verifier). Nothing took Max's link over (it is his newest), so
+// of the sentence's causes only "a different browser" is true, and it must be there.
+await Late.client.sendSignInLink(max);
+const maxTo = await open(await newMail(max));
+windows.Desk.location.search = maxTo.search;
+windows.Desk.location.hash = maxTo.hash;
+const maxOnDesk = await mayThrow(Desk.client.completeSignInFromUrl());
+check("takeover: a fresh link asked for in another browser, opened where this one holds a request of its own, is refused, and names a different browser",
+  maxOnDesk instanceof Error && maxOnDesk.message.includes("asked for in a different browser") && maxOnDesk.message.includes("took it over") &&
+    Desk.client.currentSession() === null && (Desk.storage.loadPendingSignIn() as { email?: string } | null)?.email === ivy &&
+    (Late.storage.loadPendingSignIn() as { email?: string } | null)?.email === max,
+  errText(maxOnDesk));
 // …and the other side of the same rule: Jo's link, sent for the desk's request, finishes on the tablet.
 await Desk.client.sendSignInLink(jo);
 const joLink = await newMail(jo);
@@ -279,6 +310,32 @@ const joOnTablet = await mayThrow(Tablet.client.completeSignInFromUrl());
 check("takeover: …while the browser that asked last finishes with it, though the link was sent for the other's request",
   joFromTablet instanceof Error && joTabletLatest && !(joOnTablet instanceof Error) && !!joOnTablet && joOnTablet.email === jo,
   json({ tablet: errText(joFromTablet), tabletLatest: joTabletLatest, session: errText(joOnTablet) }));
+
+// A return address the allow list refuses. Kai asks on a preview deployment nobody added to it, so
+// GoTrue sends the link to the Site URL instead (with no Referer, as here, its only fallback). That is
+// another origin, with storage of its own, so the request is not held there: the sign-in cannot finish,
+// and the page must not say another browser was used, since none was. Asked before the wait, so that
+// Kai can ask again after it without adding a minute to the run (below the phone's sign-in).
+await Prev.client.sendSignInLink(kai);
+const kaiTo = await open(await newMail(kai));
+check("redirect: a link asked for at an address the allow list refuses lands on the Site URL, the production account page (step 3)",
+  kaiTo.origin + kaiTo.pathname === SITE_URL && kaiTo.searchParams.has("code"), kaiTo.origin + kaiTo.pathname);
+windows.Site.location.search = kaiTo.search;
+windows.Site.location.hash = kaiTo.hash;
+// The precondition, and the branch: nothing is held at the Site URL's page yet, and the sentence is the
+// no-request one ("data was cleared" is in it alone). The takeover sentence names both addresses too, so
+// the phrases alone could not tell the two branches apart (the re-review of the Site URL batch).
+const siteHeldBefore = Site.storage.loadPendingSignIn();
+const kaiOnSite = await mayThrow(Site.client.completeSignInFromUrl());
+check("redirect: …where the request is not held (another origin), so it cannot finish there, and the page names a different web address",
+  siteHeldBefore === null && kaiOnSite instanceof Error && kaiOnSite.message.includes("at a different web address") &&
+    kaiOnSite.message.includes("in a different browser") && kaiOnSite.message.includes("data was cleared") &&
+    Site.client.currentSession() === null && (Prev.storage.loadPendingSignIn() as { email?: string } | null)?.email === kai,
+  json({ heldBefore: siteHeldBefore, refusal: errText(kaiOnSite) }));
+// Lee asks on the Site URL's page and leaves that link unopened: this browser now holds a request of
+// its own at that address (below, after the wait, Lee asks again on the preview).
+await Site.client.sendSignInLink(lee);
+await newMail(lee);
 
 console.log("      (waiting out GoTrue's 60-second per-person email limit)");
 await sleep(61_000);
@@ -298,6 +355,41 @@ check("sign-in: requests GoTrue refuses (429) or never receives (a dropped conne
   json({ again: errText(phoAgain), lost: errText(phoLost), session: errText(phoSession) }));
 await Pho.client.startSync();
 check("second device: the phone pulls the laptop's week", summary(Pho.storage.loadPlan()) === "week LAPTOP", summary(Pho.storage.loadPlan()));
+
+// Lee, more than a minute on, asks again, this time on the preview. That link also lands on the Site
+// URL's page, which still holds Lee's earlier request, so the page exchanges the code with that
+// request's verifier. GoTrue issued the code for Lee's newest request, the preview's, so it refuses the
+// verifier (bad_code_verifier), and the page shows the takeover sentence. Its other two causes, a
+// different browser and a newer request, are both false here (same browser, and this IS the newest
+// link), so it must name the web address.
+await askOnceAllowed(Prev, lee);
+const leeLink = await newMail(lee);
+const leePrevLatest = await becomeLatest(Prev, lee);
+const leeTo = await open(leeLink);
+windows.Site.location.search = leeTo.search;
+windows.Site.location.hash = leeTo.hash;
+const leeOnSite = await mayThrow(Site.client.completeSignInFromUrl());
+check("redirect: …but where that page holds an earlier request of its own, the refusal is the takeover sentence, and it names a different web address too",
+  leeTo.origin + leeTo.pathname === SITE_URL && leePrevLatest && leeOnSite instanceof Error &&
+    leeOnSite.message.includes("newer sign-in request took it over") && leeOnSite.message.includes("at a different web address") &&
+    Site.client.currentSession() === null && (Site.storage.loadPendingSignIn() as { email?: string } | null)?.email === lee,
+  json({ landed: leeTo.origin + leeTo.pathname, latest: leePrevLatest, refusal: errText(leeOnSite) }));
+
+// Kai, more than a minute on, does what that page said: asks again there, and the link comes back to
+// the page that asked, and finishes. Two rules of GoTrue's would each bring it back: IsRedirectURLValid
+// admits the Site URL's own origin (same scheme, host and port; any path) without the allow list, and a
+// refused address falls back to the Site URL, which here is the same address. So this check cannot tell
+// which; under mutate-live's bare-domain Site URL it is required to PASS, which only the first can do.
+await askOnceAllowed(Site, kai);
+const kaiAgain = await newMail(kai);
+const kaiSiteLatest = await becomeLatest(Site, kai);
+const kaiBack = await open(kaiAgain);
+windows.Site.location.search = kaiBack.search;
+windows.Site.location.hash = kaiBack.hash;
+const kaiOnSiteAgain = await mayThrow(Site.client.completeSignInFromUrl());
+check("redirect: …and asking again on that page, as it says, brings the link back to it, where it signs Kai in",
+  kaiBack.origin + kaiBack.pathname === SITE_URL && kaiSiteLatest && !(kaiOnSiteAgain instanceof Error) && kaiOnSiteAgain?.email === kai,
+  json({ landed: kaiBack.origin + kaiBack.pathname, latest: kaiSiteLatest, session: errText(kaiOnSiteAgain) }));
 
 // =================================================================================================
 // 3. An edit on the phone reaches the laptop
@@ -371,6 +463,7 @@ check("renewal: …and that edit reached the account too", json(savedB.body?.[0]
 
 // =================================================================================================
 // 6. Another person: only the newest link works, RLS keeps the accounts apart, sign-out ends the session
+//    (and, for Jo, signed in on two browsers, only the one it was pressed in)
 // =================================================================================================
 Rob.storage.savePlan(week("ROB"));
 await askOnceAllowed(Rob, rob); // more than a minute after the first: accepted, and the first is retired
@@ -418,6 +511,29 @@ check("sign-out: the real GoTrue refuses the signed-out session's refresh token 
   afterOut.status === 400 && afterOut.body.error_code === "refresh_token_not_found", json(afterOut));
 check("sign-out: …and the page reports a plain sign-out, with nothing to add",
   Rob.client.accountStatus().state === "signed-out" && Rob.client.accountStatus().message === undefined, json(Rob.client.accountStatus()));
+
+// Several sessions, one sign-out. Jo has been signed in on the tablet since section 2, signs in on the
+// desk as well (more than a minute after Jo's last email), and signs out there. scope=local ends that
+// browser's session only. GoTrue's default, global, would end the tablet's too: the tablet would keep
+// syncing until its access token ran out (up to an hour), then stop, told only that its sign-in had
+// expired (signOutRemote in supabase.ts). Rob above is signed in on one browser only, so his sign-out
+// cannot tell. (GoTrue also keeps an unused session from each autoconfirmed sign-up, which nothing here
+// holds a token for.)
+const tabletRefresh = sessionOf(Tablet)?.refreshToken;
+await askOnceAllowed(Desk, jo);
+const joDeskLink = await newMail(jo);
+const joDeskLatest = await becomeLatest(Desk, jo);
+await landOn("Desk", await open(joDeskLink), "link (Jo's second device)");
+const joOnDesk = await mayThrow(Desk.client.completeSignInFromUrl());
+const deskRefresh = Desk.client.currentSession()?.refreshToken;
+const deskOut = await mayThrow(Desk.client.signOut());
+const deskAfter = deskRefresh ? await refresh(deskRefresh) : null;
+const tabletAfter = tabletRefresh ? await refresh(tabletRefresh) : null;
+check("sign-out: ends only the browser it was pressed in (scope=local): Jo's desk session is refused, and the tablet's still renews",
+  joDeskLatest && !(joOnDesk instanceof Error) && joOnDesk?.email === jo && !(deskOut instanceof Error) &&
+    deskAfter?.status === 400 && tabletAfter?.status === 200,
+  json({ deskLatest: joDeskLatest, desk: errText(joOnDesk), signOut: errText(deskOut),
+    deskAfter: deskAfter && [deskAfter.status, deskAfter.body.error_code], tabletAfter: tabletAfter && [tabletAfter.status, tabletAfter.body.error_code] }));
 
 // The link Rob signed in with, opened again in another browser
 await landOn("Late", await open(robNewest), "reopened link");

@@ -119,7 +119,7 @@ try {
   const secret = wsl(["cat", `${wslHome}/.cache/nutriflow-live/jwt-secret`]); // to mint a truly expired token
   const out = (name) => resolve(".cache/account-live", name); // the worktree's own, never a shared node_modules
   const common = { bundle: true, platform: "node", format: "esm", tsconfig: "tsconfig.json", logLevel: "error" };
-  for (const device of ["Lap", "Pho", "Rob", "Late", "Desk", "Tablet"]) {
+  for (const device of ["Lap", "Pho", "Rob", "Late", "Desk", "Tablet", "Prev", "Site"]) {
     await build({
       ...common,
       entryPoints: ["scripts/account-tab.mts"],

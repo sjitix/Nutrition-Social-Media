@@ -161,8 +161,15 @@ const LABEL: Record<StoreName, string> = {
 
 /* ---- sign in / out ---- */
 
-/** A link older than this is not worth completing: Supabase's own links expire long before it. */
-const PENDING_SIGN_IN_TTL_MS = 24 * 60 * 60 * 1000;
+/**
+ * A request older than this is treated as gone. It must outlast every link that can still work. GoTrue's
+ * own default link life is a day (Mailer.OtpExp, 86400 s; a hosted project starts at an hour), and a
+ * repeat request reuses the verifier for up to an hour without restamping it (REUSE_VERIFIER_MS), so
+ * the newest link can be an hour younger than the request it finishes. At 24 h, such a link opened late
+ * on its last day was refused with the no-request sentence, whose every cause was then false (the
+ * review of the Site URL batch).
+ */
+const PENDING_SIGN_IN_TTL_MS = 25 * 60 * 60 * 1000;
 /** How long a repeat request for the same address reuses the pending verifier. Links last an hour. */
 const REUSE_VERIFIER_MS = 60 * 60 * 1000;
 
@@ -214,10 +221,18 @@ export async function completeSignInFromUrl(): Promise<Session | null> {
   // A failed link keeps the verifier: another link issued to the same request may still work.
   if (result.kind === "error") throw new AccountError(result.message, "auth");
   const pending = loadPendingSignIn();
+  // Nothing held here has three causes, and this page cannot tell them apart:
+  //  - another browser asked for the link;
+  //  - another web address of the app asked. GoTrue sends a link whose return address the allow list
+  //    refuses to the Site URL (supabase/README.md, step 3), a different origin with storage of its own,
+  //    so a person asking on such an address lands here in the very browser they asked from;
+  //  - this browser's data was cleared since, by "Delete everything in this browser" or a browser that
+  //    clears site data on exit.
+  // "Web" keeps it from reading as their email address.
   if (!pending || Date.now() - pending.at > PENDING_SIGN_IN_TTL_MS) {
     savePendingSignIn(null);
     throw new AccountError(
-      "That sign-in link was opened in a different browser from the one that asked for it. Ask for a new link here, and open it in this browser.",
+      "That sign-in link can't be finished here: it was opened somewhere other than where it was asked for (in a different browser, or at a different web address), or this browser's data was cleared since. Ask for a new link here, and open it in this browser.",
       "auth",
     );
   }

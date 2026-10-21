@@ -222,6 +222,30 @@ const MUTATIONS = [
     to: "",
   },
   {
+    name: "a link that lands where no request is held blames another browser only (not another web address, nor cleared data)",
+    file: "src/lib/account/client.ts",
+    from: "\"That sign-in link can't be finished here: it was opened somewhere other than where it was asked for (in a different browser, or at a different web address), or this browser's data was cleared since. Ask for a new link here, and open it in this browser.\"",
+    to: "\"That sign-in link was opened in a different browser from the one that asked for it. Ask for a new link here, and open it in this browser.\"",
+  },
+  {
+    name: "a refused verifier (bad_code_verifier) no longer names another web address as a cause",
+    file: "src/lib/account/supabase.ts",
+    from: "it was asked for in a different browser or at a different web address, or a newer sign-in request took it over",
+    to: "it was asked for in a different browser, or a newer sign-in request took it over",
+  },
+  {
+    name: "a refused verifier (bad_code_verifier) no longer names another browser as a cause",
+    file: "src/lib/account/supabase.ts",
+    from: "it was asked for in a different browser or at a different web address, or a newer sign-in request took it over",
+    to: "it was asked for at a different web address, or a newer sign-in request took it over",
+  },
+  {
+    name: "a held request counts for 24 h again, shorter than a day-long link plus the reuse hour",
+    file: "src/lib/account/client.ts",
+    from: "const PENDING_SIGN_IN_TTL_MS = 25 * 60 * 60 * 1000;",
+    to: "const PENDING_SIGN_IN_TTL_MS = 24 * 60 * 60 * 1000;",
+  },
+  {
     name: "a mistyped address is stored as the pending sign-in before it is checked",
     file: "src/lib/account/client.ts",
     from: "  if (!looksLikeEmail(address)) throw new AccountError(\"That doesn't look like an email address.\");",
