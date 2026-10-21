@@ -36,21 +36,25 @@ threads at session start, with the boards.
 #### PARALLEL LANE — accounts (written by the accounts agent only)
 
 **Accounts are built up to the keys, adversarially reviewed three times, and run live against the real
-GoTrue, PostgREST and Postgres with no Supabase project: 45/45. The live run's own tooling has been
-through four review rounds (35, 16 and 20 confirmed findings, then 14 in a re-review of the last
-round's fixes), and 31 of its 45 checks are proven able to fail by mutation, with the other 14
-accounted for.**
+GoTrue, PostgREST and Postgres with no Supabase project: 50/50, including a second GoTrue with "Confirm
+email" on. The live run's own tooling has been through four review rounds (35, 16 and 20 confirmed
+findings, then 14 in a re-review of the last round's fixes), and 35 of its 50 checks are proven able
+to fail by mutation, with the other 15 accounted for.**
 
-**Where it stopped (2026-10-21):** the Site URL batch landed as `c284616`, its docs in the commit
-after. It covers sign-out on one of two devices, the Site URL fallback, the takeover sentence's three
-causes, and a 25 h limit on a held request. Nothing of this lane's is running or uncommitted. Next:
-- a first link with "Confirm email" on, run live (the one item left under "Not exercised");
-- whatever the owner's decisions doc answers for #1 (the Supabase project) and #4 (the chat log). It
-  had no comments on 2026-10-21.
+**Where it stopped (2026-10-21):** two batches landed that day.
+- The Site URL batch (`c284616`, docs `2410119`): sign-out on one of two devices, the Site URL
+  fallback, the takeover sentence's three causes, and a 25 h limit on a held request.
+- The "Confirm email" batch (`a915d12`): a second GoTrue with it on, behind a `/confirm` gateway prefix.
+  A first link's five minutes counting from the request, the magic link after it counting from the
+  open, and a refused request rolled back with the sign-up are all shown against the real GoTrue.
+
+Nothing this stack can do is left unexercised, and nothing of this lane's is running or uncommitted.
+Next: whatever the owner's decisions doc answers for #1 (the Supabase project) and #4 (the chat log).
+It had no comments on 2026-10-21.
 
 This lane ships the shared docs in a commit of their own, with `--no-gate` (lesson 69): a gated commit
 carrying them was stopped, green, by two other lanes' doc commits. Engine gates are taken in turn and
-announced; v1's shims removal waits behind this lane's next gate.
+announced to the other lanes.
 
 Live status, the plan and the asks: `docs/parallel/lane-accounts.md`. Design: **local-first, the
 account is a mirror** — `storage.ts`'s load/save API did not change, so no screen had to; underneath,
@@ -111,15 +115,18 @@ Supabase row per user under RLS.
   The account's sentences ("your account had newer data…", "this account was deleted…") now show on
   every `/sage` screen, as a small notice from `<AccountSync/>`, instead of only on the account page.
   And several guards the review showed no test could catch are now tested.
-- **The live run (2026-10-18, extended 10-21): `node scripts/account-live/run.mjs`, 45/45.** It runs the real
+- **The live run (2026-10-18, extended 10-21): `node scripts/account-live/run.mjs`, 50/50.** It runs the real
   `client.ts` against the real GoTrue v2.197.0, PostgREST 16.4 and Postgres 17.11, as user-level
   binaries in WSL. No Docker or admin rights once WSL 2 has an x86-64 Ubuntu. Every download is checked
   against a pinned SHA-256, and nothing lands in the repo.
   - What stands in for Supabase: a gateway, a mail catcher, and `db.mjs`'s copy of the platform's
     roles and grants. GoTrue is set up as the guide's steps 3 and 4 say: the production Site URL with
-    localhost on the allow list, "Confirm email" off, audit logs out of the database.
-  - Seven browsers, one of them seen at two web addresses (a preview the allow list refuses, and the
-    Site URL's page, each with storage of its own). What it checks:
+    localhost on the allow list, "Confirm email" off, audit logs out of the database. A second GoTrue
+    on the same database has "Confirm email" on, a hosted project's default (port 54331, behind the
+    gateway's `/confirm` prefix).
+  - Eleven browsers. Seven use the first GoTrue, one of them seen at two web addresses (a preview the
+    allow list refuses, and the Site URL's page, each with storage of its own); four use the second.
+    What it checks:
     - where every link lands, including a refused return address landing on the Site URL;
     - the 60 s limit, with neither a refused request nor a lost one losing the link already sent;
     - the takeover rule below, from both sides, and each of the takeover sentence's three causes (a
@@ -132,12 +139,16 @@ Supabase row per user under RLS.
     - RLS on read, insert, and unfiltered update and delete;
     - sign-out, sign-out on one of two devices ending only that one (`scope=local`), and a deletion as
       the other device sees it;
-    - a re-signup's new id, and an empty audit table.
-  - **`node scripts/account-live/mutate-live.mjs` shows 31 of the 45 checks able to fail** (22
-    mutations, ~30 min, 22/22). The other 14 are four platform facts the run records and ten
+    - a re-signup's new id, and an empty audit table;
+    - with "Confirm email" on: a first link is a confirmation link; aged past five minutes (the run
+      moves the request back in `auth.flow_state` rather than wait) it is refused with the slow-link
+      sentence; the magic link asked for next still works aged the same; and a refused second request
+      is rolled back with the sign-up, taking nothing over.
+  - **`node scripts/account-live/mutate-live.mjs` shows 35 of the 50 checks able to fail** (24
+    mutations, ~32 min, 24/24). The other 15 are five platform facts the run records and ten
     preconditions and follow-ons of proven checks (README lists them). One follow-on is also required
     to PASS under the bare-domain Site URL, which is how the run records GoTrue's same-origin rule.
-    Say "31 of 45", never "every check": reviews have caught that kind of claim three times, the last
+    Say "35 of 50", never "every check": reviews have caught that kind of claim three times, the last
     two in the Site URL batch (eight landings "never reached" that in fact went red unrequired, and a
     "platform fact" one mutation turns red every time). The first version's checks could not fail at
     all: an RLS write check satisfied by a primary-key collision, renewals that never sent an expired
@@ -159,9 +170,6 @@ Supabase row per user under RLS.
     For the two things that still rest on that clock, it checks rather than assumes: it reads
     GoTrue's `auth.flow_state` to confirm which request GoTrue holds as latest before a takeover
     check, and it retries a request GoTrue still counts as too soon after the wait.
-  - Not exercised: a first link with "Confirm email" on. It needs a second GoTrue configured that way
-    (the gateway can route a prefix to it, and one device's bundle can be given that URL), and the
-    five-minute expiry can be shown by ageing the request's `auth.flow_state` row instead of waiting.
 - **Gate for this lane:** `node scripts/test-account.mjs` runs two suites: **339 checks** in one tab,
   including the real `client.ts` end to end against an in-memory Supabase (RLS, PKCE, conditional
   writes, jsonb order, skewed clocks, token expiry, a deleted account), and **43 checks across tabs**
@@ -169,7 +177,7 @@ Supabase row per user under RLS.
   and out) · `node scripts/test-account-sql.mjs --mutate` — **39 checks in real Postgres, 16/16
   broken guards caught** · `node scripts/mutate-account.mjs` — **91/91** (`--only "text"` re-checks
   one guard in seconds; an interrupted run is undone on the next start, as one was on 2026-10-21) ·
-  `node scripts/account-live/run.mjs` — **45/45 live**, and `mutate-live.mjs` **22/22** (31 of the 45
+  `node scripts/account-live/run.mjs` — **50/50 live**, and `mutate-live.mjs` **24/24** (35 of the 50
   checks shown able to fail).
 - **Owner, to switch accounts on:** `supabase/README.md` — create a project, run **both** migrations,
   set the Site URL to the account page, turn off "Confirm email" and "Write audit logs to the

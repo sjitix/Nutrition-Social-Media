@@ -190,11 +190,11 @@ nothing (measured: without it, 3–7 kB per route) — a module that must run on
   **And the whole thing runs live** by `node scripts/account-live/run.mjs`: the real `client.ts` against
   the real GoTrue, PostgREST and Postgres (user-level binaries in WSL, fetched once into
   `~/.cache/nutriflow-live` there, each checked against a pinned SHA-256; a small gateway and mail
-  catcher in `scripts/account-live/`). 45 checks. **`mutate-live.mjs` breaks 22 guards and requires
-  each one's named checks to fail**, so 31 of the 45 are proven able to fail. The other 14 are platform
-  facts the run records and follow-ons of the proven checks, listed in `supabase/README.md`. The first
-  version's checks could not fail at all (lesson 67). One run at a time: setup and the stack hold a
-  lock.
+  catcher in `scripts/account-live/`; a second GoTrue with "Confirm email" on behind its `/confirm`
+  prefix). 50 checks. **`mutate-live.mjs` breaks 24 guards and requires each one's named checks to
+  fail**, so 35 of the 50 are proven able to fail. The other 15 are platform facts the run records
+  and follow-ons of the proven checks, listed in `supabase/README.md`. The first version's checks could
+  not fail at all (lesson 67). One run at a time: setup and the stack hold a lock.
 - `src/lib/account/savedStore.ts` — a three-method async interface (`list`/`add`/`remove`) over saved
   recipes, delegating to `storage.ts`. **Async on purpose even though localStorage is not**: a
   synchronous interface would have to change shape the moment a network sat behind it, and every
@@ -352,7 +352,7 @@ node scripts/test-account.mjs  # accounts: export file, sync, REST client, clien
 node scripts/mutate-account.mjs [--only "text"]  # accounts: removes each guard in turn and proves a test goes red
 node scripts/test-account-sql.mjs [--mutate]  # accounts: the migrations + RLS plan in real Postgres (PGlite; installs once to the OS temp dir)
 node scripts/account-live/run.mjs [--keep|--down]  # accounts: the LIVE run, real GoTrue + PostgREST + Postgres as user-level binaries in WSL (no Docker), driving the real client.ts (~80 s once cached); --keep holds the stack until Ctrl+C
-node scripts/account-live/mutate-live.mjs [--only "text"]  # accounts: breaks 22 live guards in turn (each RLS policy, the allow list, both renewal paths, sign-out's scope...) and requires each named check to fail (~30 min)
+node scripts/account-live/mutate-live.mjs [--only "text"]  # accounts: breaks 24 live guards in turn (each RLS policy, the allow list, both renewal paths, sign-out's scope, "Confirm email"...) and requires each named check to fail (~32 min)
 npm run export:recipes  # library -> NutriFlow-recipes.xls, incl. a coverage/gaps report
 npm run build:nutrients # regenerate the USDA table (needs --emit to write)
 ```

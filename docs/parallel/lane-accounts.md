@@ -7,8 +7,24 @@
 
 ## Now doing
 
-**2026-10-21: the Site URL batch landed (`c284616`): the live run is 45/45, with 31 of its 45 checks
-proven able to fail by mutation (22/22).** It adds:
+**2026-10-21, later: "Confirm email" on, run live (`a915d12`). The live run is 50/50, and 35 of its 50
+checks are proven able to fail (24/24).** A second GoTrue on the same database has "Confirm email" on,
+a hosted project's default, behind the gateway's `/confirm` prefix. Four browsers are pointed at it.
+Against the real GoTrue, it shows:
+- a new person's first link is a confirmation link, and opened at once it signs them in;
+- opened more than five minutes after the REQUEST, it is refused with the slow-first-link sentence.
+  The run moves the request back in `auth.flow_state` rather than wait; GoTrue takes no less than
+  300 s;
+- the magic link asked for next still works aged the same, because a magic link's five minutes run from
+  its opening;
+- a new person's second request, refused as too soon, is rolled back with the sign-up and takes nothing
+  over. That is the README's qualifier on the takeover rule, now measured.
+
+Two new mutations require it: "Confirm email" off on that server, and the app's 422 mapping removed.
+Nothing this stack can do is left unexercised now.
+
+**2026-10-21: the Site URL batch landed (`c284616`): the live run was then 45/45, with 31 of its 45
+checks proven able to fail by mutation (22/22).** It adds:
 - **Sign-out on one of two devices** ends only that one: Jo signs in on the tablet and the desk, signs
   out on the desk, and the tablet still renews (`scope=local`).
 - **The Site URL fallback,** run for real. A preview the allow list refuses (Kai, then Lee) gets its
@@ -93,10 +109,8 @@ Also today: `account/validate.ts` imports from `../core/client` (`dd5b33e`); the
 own module, which took 3.16 kB gz off "/" (`2d9e024`); and two script imports moved off a D5a shim
 for v1's shim removal.
 
-**Next:** a first link with "Confirm email" on, run live: a second GoTrue configured that way behind a
-gateway prefix, one device's bundle pointed at it, and the five-minute expiry shown by ageing the
-request's `auth.flow_state` row rather than waiting. Then whatever the owner's decisions doc answers
-for #1 (the Supabase project) and #4 (the chat log).
+**Next:** whatever the owner's decisions doc answers for #1 (the Supabase project) and #4 (the chat
+log). Until then, the three things only a hosted project can show stay listed in `supabase/README.md`.
 
 **2026-10-03: review 2 is fully fixed, and so is the review of that work (batch 6, `ea71ca6`).**
 Everything ran against fakes that behave like GoTrue and PostgREST, and against real Postgres (PGlite).
@@ -334,3 +348,5 @@ whose claims were each checked against the code (and corrected twice by the revi
 | `4663a81` | the second review of the live run (16 findings): 17 of the 38 checks proven able to fail (seven more mutations, the select policy among them), and the docs saying so instead of "every check"; the `bad_code_verifier` sentence names both causes (asked for elsewhere, or taken over), with a test for the first; GoTrue's ordering confirmed from `auth.flow_state` before the takeover checks; the stale socket lock cleared; `setup.sh` under the stack's lock; a CR-blind lockfile hash; the fake binds a code when it is first presented; the takeover rule qualified ("Confirm email" off); the Referer fallback documented; bundles and journals in the worktree's own `.cache/`. Shipped apart from its docs, which follow in the next commit (lesson 69) — 38/38 live, 17/17, 336 + 43, 87/87, engine 1010/0, test:ui 51/0 |
 | `bbf0f17` | the docs half of `4663a81`, shipped apart from it with `--no-gate`: "17 of 38" everywhere, lesson 67's wording, lesson 69 (shared docs in a commit of their own), the 2026-10-20 day file |
 | `c284616` | the Site URL batch: sign-out on one of two devices (`scope=local`), the Site URL fallback run for real (a refused preview's link lands on the Site URL's page; holding nothing, it names a different web address; holding a request of its own, the takeover sentence does), the takeover sentence's three causes each shown live (Max, Lee, Ivy), the no-request sentence naming cleared data, a held request counting for 25 h, all nine landings required under the allow-list mutation, the same-origin rule recorded through a `passes` requirement, the tablet finishing Jo's link required under the dropped-verifier mutation — 45/45 live, 22/22, 339 + 43, 91/91, engine 1061/0 |
+| `2410119` | the docs half of `c284616` (`--no-gate`): 45/45 and 31 of 45 everywhere, lesson 67 twice more, the 2026-10-21 day file, and the shims removal reflected |
+| `a915d12` | "Confirm email" on, run live: a second GoTrue with it on behind the gateway's `/confirm` prefix and four browsers pointed at it; a first link's five minutes from the request (the request aged in `auth.flow_state`), the magic link after it from its opening, and a refused second request rolled back with the sign-up; two mutations ("Confirm email" off on that server, the app's 422 mapping), and the allow list's tenth landing — 50/50 live, 24/24, 35 of 50 |
