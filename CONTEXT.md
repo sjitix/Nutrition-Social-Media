@@ -184,20 +184,39 @@ in the main folder (`2fd6f02`). Its WORKPLAN lesson was renumbered 38 → 48 bec
 
 #### PARALLEL LANE — models (written by the models agent only)
 
-**2026-10-21 — RESUME HERE. Every check in both evals is fixed, and 586 controls prove it** (all 49 scenarios,
-2 engine seeds; `node scripts/models/run-controls.mjs`). An audit on 10-18 had found 153 of 337 plausible wrong
-answers passing. The do-nothing and hollow-claim fakes score 0 on both evals.
+**2026-10-21 (evening) — RESUME HERE. The held-outs and their checks were reviewed adversarially and fixed;
+633 controls hold on v1's `da023da`** (all 49 scenarios, 2 engine seeds; `node scripts/models/run-controls.mjs`).
+The do-nothing and hollow-claim fakes score 0 on both evals.
 - **Scorecards from before `b43873f` were graded on the lenient harness** and are not comparable with new runs.
-- **Every eval message the prompt quotes now has a held-out paraphrase.** `node scripts/models/probe-quotes.mjs`
-  exits 0 on main: 8 near-quotes in 55 messages, all held out. Run it on any prompt change (`--code <branch>`,
-  `--prompt-file <draft>`). Both evals print each held-out beside its original.
+- **Every eval message the prompt quotes has a held-out paraphrase** that asks for exactly what its original
+  asks. `node scripts/models/probe-quotes.mjs` exits 0 on main (8 near-quotes in 55 messages, all held out);
+  its `--self-test` passes 10/10. Run it on any prompt change (`--code <branch>`, `--prompt-file <draft>`).
+- **The review** (two of six reviewers finished before a session restart; the other four left their candidate
+  cases, all re-run and judged here) changed:
+  - four held-outs, reworded: a score handed over ("10/10"), a request dropped, a mechanism named ("the
+    portions"), and "meat-free" admitting fish;
+  - checks that passed wrong answers:
+    - offering to do both halves of a clash;
+    - saving "low on iron" as a condition;
+    - choosing "1,600 a day" or "a 15% cut" for a vague goal;
+    - a protein cut beside a new diet;
+    - a treat or an unasked memory in find-then-place.
+  Shipped in `6d1b978`. Details: `docs/worklog/2026-10-21-models.md`.
+- **On `da023da` (v1's C-G):** probe-claims 15/15, probe-allergy-labels 28/28 (5 known-open rows), probe-fixes
+  4/4. Five controls flipped because D works (an answer op now finishes with its own reply; a question said
+  beside a memory-only step reaches the user). They are must-pass controls now, the answer-op one among them.
 - **Next, the moment `.env.local` exists** (OWNER-TODO item 0, `NVIDIA_API_KEY=`): the fair arms, then the
-  wording test (block below). The evals can now be trusted to grade them.
-- **Next, key-free:**
-  - re-run `run-controls.mjs` when v1's C/D/E/F commit lands;
-  - after D (the answer op keeps the latest reply), add a must-pass control for an answer-op hold (dropped
-    for now, because today the user reads "Happy to help.").
-- The false-claim guard: `probe-claims.mts` 1/15 on main, 15/15 with v1's `c8ccfb0`. Day records:
+  wording test (block below).
+- **Next, key-free: re-run the controls and probes when v1's next batch lands** (v1 messages the sha). Its changes:
+  - an undo sharing a step with other writes runs as its own step, so the change after it takes the undo slot;
+  - a second undo in a run answers NO_FURTHER_UNDO;
+  - a line said beside a remember-only step is kept even when the fact was stored already;
+  - planChanged and profileChanged are compared with the run's start;
+  - a stated cook-time limit is met exactly whenever a dish meets it;
+  - "zero energy" becomes a fatigue trigger.
+  Expect convo undo-flow and the hold-then-undo controls to move. Reclassify a flip only where the change makes
+  it right. find-then-place's constrain controls should still fail, but as re-plans.
+- The false-claim guard: `probe-claims.mts` 15/15 on main since v1's `c8ccfb0` (1/15 before). Day records:
   `docs/worklog/2026-10-20-models.md` and `2026-10-21-models.md`.
 
 **2026-10-18 — RESUME HERE. Every NVIDIA run is blocked on a missing `.env.local`; the key-free work
@@ -257,7 +276,7 @@ Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Ro
      `node scripts/models/fair-arms.mjs --arms C --repeat 3 --only '^(rate|eat-out-future|weekend-lighter|rate-heldout|eat-out-heldout|days-lighter-heldout)$'`
      once as is and once with `--code ../NutriFlow-models-wording`. That covers 6 scenarios: three quoted
      by the wording and one held-out paraphrase for each line; the eval prints `held out x/3, their
-     originals y/3`. (A bare `heldout` would now also run four held-outs whose originals are not in the run.) Send v1 "ready to land" (the promptV2.ts
+     originals y/3`. (A bare `heldout` would now also run five held-outs whose originals are not in the run.) Send v1 "ready to land" (the promptV2.ts
      diff) only if the branch also fixes the held-out ones.
   3. **Send v1 the fair numbers.** The fast finish (`de1a102`, on `wip/v1-handoff-2026-10-03`) waits on them.
   4. When the owner adds a key from OWNER-TODO, measure that model first, with the loop and convo evals.
