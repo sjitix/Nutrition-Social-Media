@@ -8,6 +8,11 @@
  *   node scripts/models/probe-quotes.mjs --prompt-file draft.txt              # a draft, before it lands
  *   node scripts/models/probe-quotes.mjs --all                                # every message from 50% up
  *   node scripts/models/probe-quotes.mjs --self-test                          # proves the probe can fail
+ *   node scripts/models/probe-quotes.mjs --hard-cases                         # eval:hardcases' set, vs its prompt
+ *
+ * --hard-cases adds the user turns of data/hard-cases.json (v1's single-turn set, read only) and scans the
+ * single-turn prompt that eval sends (no agent section, no date line). That set has no held-outs, so this
+ * mode exits non-zero while the prompt quotes any of it: on 2026-10-21, 11 of its 45 cases.
  *
  * Two tests, either one makes a NEAR-QUOTE:
  * - one prompt line holds at least 75% of a message's content words (stop words dropped, plurals folded),
@@ -33,6 +38,7 @@ const flag = (n, d) => { const i = argv.indexOf(n); return i >= 0 && argv[i + 1]
 const code = resolve(flag("--code", HARNESS));
 const promptFile = flag("--prompt-file", "");
 const all = argv.includes("--all");
+const hardCases = argv.includes("--hard-cases");
 const MIN_SHARE = 0.75, MIN_HITS = 3, MIN_RUN = 3;
 
 const STOP = new Set(("a an the and or but so to of in on for at by with from is are was were be been am i i'm im me my you " +
@@ -51,7 +57,7 @@ async function renderPrompt() {
     const bundle = await bundleEval({ entry: join(HARNESS, "scripts", "models", "loop-eval.mts"), code, outfile: join(tmp, "probe-quotes-loop.mjs") });
     // The eval will not start without a model, so it gets the do-nothing script; it stops before any call.
     writeFileSync(join(tmp, "do-nothing.json"), "{}");
-    const env = { ...process.env, PRINT_PROMPT: "1", MODEL_SCRIPT: join(tmp, "do-nothing.json") };
+    const env = { ...process.env, PRINT_PROMPT: hardCases ? "single" : "1", MODEL_SCRIPT: join(tmp, "do-nothing.json") };
     for (const k of ["AI_PROVIDER", "LOCAL_AI_URL", "LOCAL_AI_MODEL", "LOCAL_AI_API_KEY"]) delete env[k];
     const printed = spawnSync(process.execPath, [bundle], { cwd: tmp, env, encoding: "utf8" });
     const text = /<<<PROMPT\n([\s\S]*)\nPROMPT>>>/.exec(printed.stdout ?? "")?.[1];
@@ -98,6 +104,10 @@ for (const line of convo.split(/\r?\n/)) {
 const convoIds = convo.split(/\r?\n/).filter((l) => /^\s*id: "/.test(l)).length;
 const convoTurns = (convo.match(/\{ user: "/g) ?? []).length;
 if (!convoIds || msgs.filter((m) => m.eval === "convo").length !== convoTurns) { console.error("probe-quotes: could not read convo-eval's turns"); process.exit(255); }
+if (hardCases) {
+  const set = JSON.parse(readFileSync(join(HARNESS, "data", "hard-cases.json"), "utf8"));
+  for (const c of set.cases) for (const t of c.turns) if (t.role === "user") msgs.push({ eval: "hard", id: c.id, heldOutOf: null, msg: t.text });
+}
 const heldOut = new Set(msgs.filter((m) => m.heldOutOf).map((m) => m.heldOutOf));
 const heldOutFor = (r) => msgs.find((m) => m.heldOutOf && (m.heldOutOf === r.id || msgs.some((o) => o.id === m.heldOutOf && o.msg === r.msg)))?.id ?? null;
 

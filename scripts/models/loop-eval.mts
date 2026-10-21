@@ -662,7 +662,11 @@ const PROMPT = {
   label: process.env.PROMPT_VERSION ?? null,
 };
 // PRINT_PROMPT=1: print the prompt the model is sent, between markers, and stop (probe-quotes.mjs reads it).
-if (process.env.PRINT_PROMPT) { console.log(`<<<PROMPT\n${sentPromptText}\nPROMPT>>>`); process.exit(0); }
+// PRINT_PROMPT=single: the single-turn prompt eval:hardcases sends instead (no agent section, no date line).
+if (process.env.PRINT_PROMPT) {
+  console.log(`<<<PROMPT\n${process.env.PRINT_PROMPT === "single" ? promptFn(PROFILE, PLAN) : sentPromptText}\nPROMPT>>>`);
+  process.exit(0);
+}
 console.log(`prompt ${PROMPT.sha}${PROMPT.label ? ` (${PROMPT.label})` : ""} · agent section ${PROMPT.agentSection ? "yes" : "no"} · how-to-decide ${PROMPT.howToDecide ? "yes" : "no"}`);
 // A held-out names its original by id; a typo would drop the pair from the summary without a word.
 for (const s of SCENARIOS) {

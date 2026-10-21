@@ -15,7 +15,7 @@ message (8 at worst), so **per-call latency × steps** is the number a user feel
 
 | axis | how it's measured | bar |
 |---|---|---|
-| single-turn judgement | `npm run eval:hardcases` (45 cases, engine-verified); also regraded strictly by `scripts/models/regrade-hardcases.mjs` (v3) | beat **84%** (gpt-oss-20b, old prompt) — every big model now clears it; the ruler has saturated |
+| single-turn judgement | `npm run eval:hardcases` (45 cases, engine-verified); also regraded strictly by `scripts/models/regrade-hardcases.mjs` (v3) | beat **84%** (gpt-oss-20b, old prompt) — every big model now clears it; the ruler has saturated, and partly on recall: 11 of its 45 cases are near-quotes of the prompt it sends, six of them holding every content word (`probe-quotes.mjs --hard-cases`, 2026-10-21). A regression check, not a ruler for choosing a model |
 | honest declines | the `decline` bucket of the same eval | ≥ 5/6 |
 | loop behaviour | `scripts/models/loop-eval.mts` (34 scenarios through the real loop, 8 of them held-out paraphrases) — reads before writes, stops cleanly, no `gaveUp` | read-before-write 3/3, gave up 0 |
 | **conversation** | `scripts/models/convo-eval.mts` (15 two-turn conversations, one a held-out paraphrase, state carried like the client) | **the ruler that separates sizes** — 550B 79%, 20B 43% (2026-10-03, on the lenient harness: re-measure) |
