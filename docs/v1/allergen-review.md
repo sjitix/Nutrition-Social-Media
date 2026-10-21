@@ -18,7 +18,8 @@ stored allergies block.
 | **B1** `ba23884` | One closed cue list (plurals, misspellings), every cue in a fact read, plural category words, a linear-time parse. 984/0. |
 | **B2** `c8ccfb0` | What the person is told: an engine note on every allergy remark, swap notes that name the blocking allergy, the undo wording, the bound list in the prompt, dedupe, and a false-claim guard widened with the models lane's audit (38/38 claims caught, 0/37 honest lines tripped). test:engine 1010/0. |
 | **C–G** `da023da` | An imported dish answers to the hard rules: always to an allergy, and to a new diet or a newly avoided food when that change introduced it. Its note names the dish and the rule, never a replacement a later step can change. A logged meal stays. An undo in the same turn as a new allergy runs first (G). Every allergy sentence is written from the turn's final week. Shipped with the agent-loop (D), boost (E) and scope (F) fixes, after a second adversarial review. test:engine 1061/0. |
-| **F1, F2, F3** `4bc9e47`, `7624008`, F3 | The second review's follow-ups. For allergies, F2 matters: an undo across loop steps no longer takes back an allergy the same run bound (LC-21), and the claim guard catches "I've excluded shellfish" again (LC-20). test:engine 1094/0 after F2. |
+| **F1, F2, F3** `4bc9e47`, `7624008`, `ef71993` | The second review's follow-ups. For allergies, F2 matters: an undo across loop steps no longer takes back an allergy the same run bound (LC-21), and the claim guard catches "I've excluded shellfish" again (LC-20). F3 gives imports a diet matcher of their own (LC-22). test:engine 1101/0 after F3. |
+| **F4** (being built) | The review's minors, and LC-08: an unlabelled allergy fact binds any of the matcher's own 182 allergen words, and a food a stored allergy already covers is named as covered, not stored again. Not landed yet. |
 
 ## Status
 
@@ -51,7 +52,7 @@ stored allergies block.
 | U10 | "allergic to satay" / "allergic to hummus" | satay (0) / hummus (8) | **open**: the dish is stored, its allergen (peanut, sesame) is not |
 | U11 | "allergic to legumes" | nothing (labelled: blocks 0) | **open**: chickpeas and lentils are still planned |
 | U12 | coeliac leaves unlabelled oats | | **owner decision 11** |
-| LC-08 | "allergic to hazelnuts" (unlabelled) | nothing | **open**, needs its own design (see below) |
+| LC-08 | "allergic to hazelnuts" (unlabelled) | nothing | **fix built in F4, not landed.** 93 of the matcher's 182 allergen words bound nothing unlabelled; the vocabulary is the matcher's own words (see below) |
 
 **Lifecycle and honesty:**
 
@@ -76,7 +77,7 @@ stored allergies block.
 | LC-19 | a refused swap blamed an allergy on a dish the person never asked for ("veggie burger" read "Cheeseburger & Fries contains dairy" in 45 of 92 such notes) | fixed `da023da`: a dish is named only when it matches every word asked; a dish the diet refuses says so |
 | LC-20 | the claim guard replaced honest replies (a refusal, a decline, a question offering a change) and missed "I've scaled Saturday down" | fixed `da023da`, then corrected by F2 `7624008`. The first fix excused every claim in a reply that asked anything: "Got it — no more celery in your week! Anything else?" and "I've excluded shellfish across your whole week" were shown with nothing bound. Now judged per sentence; over all 1,045 stored replies only two stored claims change verdict |
 | LC-21 | "I'm allergic to peanuts, and undo that swap" sent by the model as two steps, [remember] then [undo]: the undo reverted the run's own allergy and left the peanut dish the swap had placed | fixed, F2 `7624008`: an undo never takes back what the same run remembered; a run that only remembered undoes the previous turn |
-| LC-22 | an imported plant-based dish taken out of a vegan week as "isn't vegan (it has coconut milk)" (the import diet judged with the library's substring lint) | F3: imports get a matcher of their own (diet, not allergy: I2 was never at stake) |
+| LC-22 | an imported plant-based dish taken out of a vegan week as "isn't vegan (it has coconut milk)" (the import diet judged with the library's substring lint) | fixed, F3 `ef71993`: imports get a matcher of their own (diet, not allergy: I2 was never at stake). It agrees with the library's own tags exactly |
 
 LC-17 to LC-22 came after the 36. LC-17 is from the models lane's audit of its evals. LC-18 to LC-20 are from the
 adversarial review of B2 and of the C–F batch (2026-10-20: four reviewers, a skeptic per serious finding). LC-21 and
@@ -93,6 +94,8 @@ LC-22 are from the second review, of `da023da` (2026-10-21).
 - **Bind every unknown word after a cue** (LC-08). "hay fever allergy in spring" banned spring onions;
   "skin allergies" banned two recipes; pet, drug and seasonal allergies bound nonsense. Unknown food
   words need a vocabulary built from the library's own ingredients, with its own over-block probe set.
+  F4 uses the matcher's own allergen words as that vocabulary. On 64 over-block probes it adds only a food word
+  before a non-food ("crab grass", as "rye grass" already did) and allowance clauses (OVER-3's class).
 - **A model-invoked `remove_allergy` op** (LC-03). It would be the one path that puts an allergen back
   on a plate on the model's word ("my daughter isn't allergic to eggs any more" could remove YOUR egg
   allergy). Removal belongs to a deterministic control: decision 12.

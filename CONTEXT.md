@@ -327,9 +327,9 @@ Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Ro
 - **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`,
   `docs/worklog/*-models.md`, this block, the lane file. Does not edit v1's files; asks v1 first.
 
-### >>> V1 LANE — 2026-10-21: Track A done; the second review's follow-ups: F1 `4bc9e47`, F2 `7624008`, F3 in its proof <<<
+### >>> V1 LANE — 2026-10-21: Track A done; the second review's follow-ups: F1 `4bc9e47`, F2 `7624008`, F3 `ef71993`, F4 being built <<<
 
-**2026-10-21, night: the second review's follow-ups, in three commits.** The review of `da023da` (workflow
+**2026-10-21, night: the second review's follow-ups, one commit at a time.** The review of `da023da` (workflow
 `wf_cf2e22d0-cc3`; four lenses, a skeptic per serious finding; result saved in the session's scratchpad) confirmed 5
 majors, left 6 unverified (the skeptic cap), and listed 20 minors. Each commit is proven against its parent the same way:
 the whole new suite run against the parent's code, every row that tests a change failing there.
@@ -347,11 +347,41 @@ the whole new suite run against the parent's code, every row that tests a change
   - E7: a boost measured with the pins in place;
   - E2: library dishes judged on the rules the request introduced;
   - imports judged per food avoided (an onion dislike no longer shields a pork import from "no pork").
-- **F3, built in `../NutriFlow-f2` and in its parent proof:** an import diet matcher of its own. The
-  library's tag lint flagged plant milks, butter beans and "Cauliflower Steaks", a regression from `da023da`'s C. The new
-  matcher agrees with the library's own tags exactly: none of 133 vegan or 301 vegetarian dishes flagged, none of 362
-  non-vegan or 197 non-vegetarian passed. On the review's probe it keeps all six plant-based imports the parent removes.
-- **Open after F3:** the 20 minors (three fixed in F1). The undo label can still name a refused write.
+- **F3, landed `ef71993` (test:engine 1101/0; the 6 new rows that test it fail on the parent, the I2 guard passes on
+  both):** an import diet matcher of its own. The library's tag lint flagged plant milks, butter beans and "Cauliflower
+  Steaks", a regression from `da023da`'s C. The new matcher agrees with the library's own tags exactly: none of 133
+  vegan or 301 vegetarian dishes flagged, none of 362 non-vegan or 197 non-vegetarian passed. On the review's probe it
+  keeps all six plant-based imports the parent removes.
+- **F4, built in `../NutriFlow-followups` on `ef71993` (uncommitted; 31 new rows, 24 of them fail on the parent and
+  the 7 guards pass on both, run alone; the full parent proof waits for the accounts lane's gate):** the minors that
+  need no schema change, and LC-08.
+  - A confirm-before-act question ("I'll rebuild your week. Shall I go ahead?") excuses the promise before it
+    (models lane; 0 of 1,045 stored verdicts change). A malformed slot scope is refused rather than read as whole
+    days (#11). The same fact under another label takes no undo slot (#16). A denial beside an undo that took the
+    allergy off no longer says "haven't changed" (#15). A refused dish is named only when every asked word is in its
+    NAME (#17). "allergic to walnut" binds like "walnuts" (#20). A boost in meal-prep mode says it was not applied
+    (#13).
+  - Imports: one titled like a library dish is never treated as it (#6; `baseRecipeOf` is undefined for a meal with
+    a source URL, which also keeps the rebalance from rebuilding it). The allergy note says what the matcher
+    flagged ("lists coconut milk, which I screen out for your allergy to lactose", not "contains lactose"), naming
+    each allergy once as stored (#7). An undo in the same call clears the import notes (#8). A slot the request
+    removed is not "nothing else fits" (#9). A re-theme names a rule-breaking import it dropped (#10; a boost
+    already did, since F1).
+  - #12 (leaving meal-prep with a boost keeps nothing of the batch week) did not reproduce on `ef71993`; its
+    change is under test.
+  - **LC-08, fixed by a vocabulary:** an unlabelled allergy fact binds any of the matcher's own 182 allergen words.
+    93 of them bound nothing (cashews, scallops, crab, hazelnuts, sardines…). 0 of the 126 stored `remember` facts
+    bind differently. On 64 over-block probes the only new over-blocks are a food word before a non-food ("crab
+    grass", as "rye grass" already did on main) and allowance clauses (OVER-3's open class); "spring", "skin" and
+    pet, drug and seasonal allergies still bind nothing.
+  - **The covered rule:** a food a stored allergy already blocks entirely ("walnuts" under "nuts"), labelled or not,
+    is named as covered and not stored again (LC-16, from the same foods to fewer). 788 covered pairs over the
+    library and every allergen word as a dish of its own: 0 block less. The undo's "took X off" uses the same
+    test (#19), through one shared `exclusionCovers` in the matcher (a module-map change, in the same commit).
+  - **Found while building it:** a nutrient boost removes a logged meal, an eating-out reservation and an import
+    with nothing said (9 of 9 runs on `ef71993`: three seeds, iron, B12 and calcium). See "Open, recorded".
+- **Open of the minors after F4:** #4 the undo label can name a refused write; #14 allergy notes rechecked at the
+  end of a run; #5/#18 wait for D7's logged mark.
 
 **2026-10-21, evening: Track A is done.** `5b6d874` deleted the 28 D5a shims once nothing imported them
 (test:engine 1061/0, the same count). `check:boundaries` lost their layer entries with them, so a re-export put back
@@ -425,22 +455,19 @@ the prompts.
   `scripts/test-ship.mjs` holds 43 scenarios (v1 fails 34), and CI runs it. **Every lane: `docs/parallel/README.md` §3.**
 
 **Worktrees of this lane:**
-- `../NutriFlow-f2` (branch `f2`): F2 shipped from it; F3 is built there, uncommitted, at main (`7624008`) plus F3.
-- `../NutriFlow-followups` (branch `followups`, clean at `7624008`): F3's parent for the proof run.
-Remove each when its batch lands, taking the node_modules junction out first. In Git Bash, spell the path out:
+- `../NutriFlow-followups` (branch `followups`): F4, uncommitted (`primitives.ts`, `reply.ts`, `execute.ts`, `ai.ts`).
+Remove a worktree when its batch lands, taking the node_modules junction out first. In Git Bash, spell the path out:
 `cmd //c "rmdir C:\\…\\<wt>\\node_modules"`. A `$wt` inside that string is passed literally and removes nothing.
 
 **Next, in order:**
-1. **F3's proof, then its gate.** F3 sits uncommitted in `../NutriFlow-f2` (`select.ts` and its rows in
-   `test-engine.mts`). If it is lost, the design is in the F3 bullet above:
-   - a word-by-word matcher private to `plan/select.ts`;
-   - an exception clears only the hit it qualifies (a plant word before or after it);
-   - title words count;
-   - `importWhy` prints the matched ingredient, or "its name says X";
-   - the shared `dietTagConflicts` lists stay as they are (the library lint and the evals use them).
-   Proof target: the library's own tags, exactly.
+1. **F4:** settle #12, then the full parent proof and the gate, after the accounts lane's gate. If the
+   worktree is lost, the LC-08 design is above: the matcher's own allergen words count as food in `isFood`, the
+   unlabelled gate also reads a whole phrase ("sea bass"), and `exclusionCovers` in `nutrition/exclusions.ts` (a
+   token's whole expansion blocked by the stored allergies) reports covered. Keeping two-word matcher foods
+   whole in `knownPhrase` was tried and reverted: "tikka masala" then stored neither "tikka" nor "masala", and
+   blocked 13 dishes fewer than main.
 2. **The deferred:**
-   - the review's 20 minors, three of them fixed in F1;
+   - the review's minors left after F4 (above);
    - the training generator teaches invented calorie figures for reserves and logs;
    - `data/hard-cases.json`: 11 of its 45 user turns are near-quotes of the prompt's own examples (the models
      lane's `probe-quotes.mjs --hard-cases`), so `eval:hardcases` partly measures recall. A held-out case per
@@ -448,8 +475,16 @@ Remove each when its batch lands, taking the node_modules junction out first. In
 3. V1 Day 6's rest, then D7 meal logging.
 
 **Open, recorded:**
-- **LC-08:** "allergic to hazelnuts" binds nothing unlabelled, while a hazelnut dish exists. Binding every unknown
-  word brings back over-blocks ("spring" from "hay fever allergy in spring"), so it needs its own design.
+- **LC-08** is fixed in F4 (above), not yet landed.
+- **A re-plan drops the person's records with nothing said** (found 2026-10-21 while building F4). On `ef71993`, a
+  nutrient boost removed a logged meal ("Logged by you."), an eating-out reservation and an import in 9 of 9 runs
+  (seeds 1–3; iron, B12, calcium). Two routes: `upgradeForNutrient` reads a meal with no recipe behind it as 0 of
+  the nutrient and swaps it first, and the boost's fresh week, which usually wins, never had them. Every re-theme
+  (a cuisine, a fiber push, a fridge clear-out) and `regenerate_week` select from scratch the same way. Making the
+  upgrade loop skip such meals alone changed 0 of the 9, so it was not shipped. **The fix belongs to D7:** a
+  logged library dish carries the library's description today (review #18), so only D7's logged mark can tell a
+  record from a plan. Then every re-plan puts records back in their slots, the way pins are re-imposed. Probe:
+  `boostkeep.mts` in the session scratchpad.
 - **LC-02/03/10** (removing an allergy; undo dropping one) wait on owner decision 12.
 - An allergy stated only in an earlier message and never stored is missed by the 550B in 4 of 6 runs. Only a
   raw-words pre-scan (like `redFlag`) could catch it, and that needs its own false-positive probe set first.

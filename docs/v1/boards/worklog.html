@@ -171,7 +171,7 @@
     <div class="stamp">
       <b><i>source</i> docs/worklog/</b>
       <b><i>synced</i> 2026-10-21</b>
-      <b><i>commit</i> 7624008+</b>
+      <b><i>commit</i> ef71993+</b>
     </div>
   </header>
 
@@ -247,14 +247,17 @@
                 <li><b>A second review of the fixes found more</b>, every item reproduced before it was fixed. Among them:
                   saying &ldquo;undo&rdquo; right after an allergy could take the allergy off; asking for more iron in the
                   same message as a lower calorie target dropped the target; and imported plant-based recipes were taken out
-                  of a vegan week as &ldquo;not vegan (it has coconut milk)&rdquo;. Two of the three fixes shipped tonight; the
-                  third, for imported recipes, is in its last tests.</li>
+                  of a vegan week as &ldquo;not vegan (it has coconut milk)&rdquo;. All three fixes shipped tonight.</li>
+                <li><b>An allergy to cashews, scallops or crab could go unscreened.</b> When the assistant saved &ldquo;I&rsquo;m
+                  allergic to cashews&rdquo; without marking it as an allergy, nothing was screened for 93 of the 182 foods the
+                  allergy checker knows. The reply said so honestly, but the dish could stay. The fix is built and in its
+                  tests. Checked against all 126 allergy sentences on record, none of them is screened differently.</li>
                 <li><b>The laptop slept while the tests ran</b>, and they were stopped partway when it woke. Nothing was
                   lost: the work was simply run again.</li>
               </ul>
             </div>
           </div>
-          <div class="gate">GATE &middot; engine 1094/0 &middot; every new test shown failing on the code before its fix</div>
+          <div class="gate">GATE &middot; engine 1101/0 &middot; every new test shown failing on the code before its fix</div>
         </div>
       </article>
 

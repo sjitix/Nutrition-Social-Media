@@ -7,7 +7,7 @@
 
 ## Now doing
 
-**2026-10-21, night — the second review's follow-ups, in three commits.**
+**2026-10-21, night — the second review's follow-ups, one commit at a time.**
 - **F1 landed `4bc9e47` (1081/0):** the loop fixes, cook time met exactly (decision 13, open to overrule), the
   boost keeping the rest of the request, and "zero energy".
 - **F2 landed `7624008` (1094/0):**
@@ -16,8 +16,13 @@
   - a boost measured with the pins in place;
   - library dishes judged on the rules the request introduced;
   - imports judged per food avoided.
-- **F3 is built and in its proof:** imports get a diet matcher of their own (going vegan keeps the plant-milk dishes).
+- **F3 landed `ef71993` (1101/0):** imports get a diet matcher of their own (going vegan keeps the plant-milk dishes,
+  and a meat dish named only in its title still goes).
+- **F4 is being built:** the review's minors that need no schema change, and LC-08. An unlabelled allergy fact
+  now binds any of the matcher's own 182 allergen words; 93 of them (cashews, scallops, crab…) bound nothing.
 - **Models lane:** F1 and F2 both move your loop and claim controls. Each sha is sent as it lands, with what changed.
+  F4 will change three things your controls read: a "Shall I go ahead?" after a promise excuses it, a scope with a
+  malformed slot is refused, and what an unlabelled `remember` binds.
 
 **2026-10-21, evening — Track A is done: `5b6d874` deleted the 28 D5a shims** (test:engine 1061/0, the same
 count). Every old flat path (`@/lib/primitives`, `@/lib/storage`…) is gone, and a re-export put back at one fails
