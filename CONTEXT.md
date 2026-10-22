@@ -477,8 +477,18 @@ the prompts.
 **Worktrees of this lane:**
 - `../NutriFlow-followups` (branch `followups`): F4 landed from it. It stays, read-only, while F5's mapping workflow
   (`wf_65b5adc7-a11`) reads F4's code there, and is removed when that finishes. `../NutriFlow-f2` is removed.
+- `../NutriFlow-ff` (branch `fastfinish`, on `0c4ccee`): **the fast finish, ported and uncommitted** (see Now).
 Remove a worktree when its batch lands, taking the node_modules junction out first. In Git Bash, spell the path out:
 `cmd //c "rmdir C:\\…\\<wt>\\node_modules"`. A `$wt` inside that string is passed literally and removes nothing.
+
+**Now (2026-10-22, afternoon): the fast finish, ready to land when the models lane's repeats hold.** Its fair numbers
+are in (`cd2244b`, Nemotron-3-Ultra 550B, reasoning off, one run each): with the fast finish, 28 of 34 at 5.5 s a
+message median and 1.2 model calls a message; without, 26 of 34 at 7.1 s and 1.8. The models lane is repeating that
+arm (3 runs) before calling it final. The port is rebuilt the way the lane's eval wrapper measured it, not
+cherry-picked from `de1a102`: the loop answers the finishing call itself with an empty turn, inside `runAgent`, off
+unless `fastFinish: true` (the route passes it, so evals still choose). 11 rows; on the parent the 3 that test the
+change fail and the 8 guards pass; tsc clean. An adversarial review (`wf_1102bd6e-d4e`) is running. The models lane
+re-ran its 633 controls on F4 (`afa7f89`) under two seeds: all hold, and only the reasons it predicted moved.
 
 **Next, in order:**
 1. **F5, the rest of the follow-ups:** #14 (every note rendered from the run's final week and profile, not each
