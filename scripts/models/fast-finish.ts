@@ -16,10 +16,22 @@
  * reply. A model planning writes across steps would leave the reply empty ("more to come"), and must not
  * be cut short. `blockedByEmptyReply` counts how often that rule withheld a skip, which is what decides
  * whether the extra rule costs anything.
+ *
+ * Mode "shadow" (v1's review, 2026-10-22): decide exactly as "reply", but MAKE the skipped call anyway,
+ * record what it would have sent, and then behave as the skip. The verdict is the skip's; what is measured
+ * is the skip's cost: a finishing call that would have sent operations (a remember, an exclude) is a write
+ * the skip cuts. That is what gates the fast finish per model. The extra calls make a shadow run's latency
+ * worthless, by design.
+ *
+ * The app has its own native skip since 2026-10-22 (runAgent's fastFinish, AI_FAST_FINISH=1 on the route),
+ * equal to "reply" here. The evals keep this wrapper, so arm C matches production through it; never use both.
  */
 import { isReadTool, type ModelFn, type TranscriptEntry } from "@/lib/assistant";
 
-export type FastFinishMode = "off" | "plain" | "reply";
+export type FastFinishMode = "off" | "plain" | "reply" | "shadow";
+
+/** A finishing call the skip saved, made anyway in shadow mode: what the model would have sent. */
+export interface ShadowCall { ops: string[]; reply: string; error?: string }
 
 /** "skip" when this step may be skipped; "blocked" when only the empty-reply rule stopped it. */
 function finishable(t: TranscriptEntry[], mode: FastFinishMode): "skip" | "blocked" | "no" {
@@ -40,12 +52,21 @@ function finishable(t: TranscriptEntry[], mode: FastFinishMode): "skip" | "block
 /** `enabled` keeps the original boolean form working (true = "plain"). */
 export function withFastFinish(model: ModelFn, enabled: boolean | FastFinishMode) {
   const mode: FastFinishMode = enabled === true ? "plain" : enabled === false ? "off" : enabled;
-  const stats = { realCalls: 0, skipped: 0, blockedByEmptyReply: 0 };
+  const stats = { realCalls: 0, skipped: 0, blockedByEmptyReply: 0, shadow: [] as ShadowCall[] };
   const fn: ModelFn = async (transcript, step, state) => {
     if (mode !== "off") {
-      const f = finishable(transcript, mode);
+      const f = finishable(transcript, mode === "shadow" ? "reply" : mode);
       if (f === "skip") {
         stats.skipped++;
+        if (mode === "shadow") {
+          // The call the skip saves, made only to be recorded. A failure here must not change the run.
+          try {
+            const t = await model(transcript, step, state);
+            stats.shadow.push({ ops: t.operations.map((o) => String((o as { op?: string }).op)), reply: (t.reply ?? "").trim() });
+          } catch (e) {
+            stats.shadow.push({ ops: [], reply: "", error: (e as Error).message.slice(0, 200) });
+          }
+        }
         return { thinking: "(fast finish: the engine's notes are the reply)", reply: "", operations: [] };
       }
       if (f === "blocked") stats.blockedByEmptyReply++;
@@ -56,7 +77,8 @@ export function withFastFinish(model: ModelFn, enabled: boolean | FastFinishMode
   return { fn, stats };
 }
 
-/** FAST_FINISH env: "1" = plain, "reply" = with v1's non-empty-reply rule, anything else = off. */
+/** FAST_FINISH env: "1" = plain, "reply" = with v1's non-empty-reply rule, "shadow" = "reply" with the skipped
+ *  calls made and recorded, anything else = off. */
 export function fastFinishModeFromEnv(v: string | undefined): FastFinishMode {
-  return v === "1" ? "plain" : v === "reply" ? "reply" : "off";
+  return v === "1" ? "plain" : v === "reply" ? "reply" : v === "shadow" ? "shadow" : "off";
 }

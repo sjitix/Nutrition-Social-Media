@@ -37,7 +37,7 @@ import {
 import { agentModelFn, resolveProvider, withTargetDefaults } from "@/lib/providers";
 import { selectWeekFromDb, rebalanceWeek, withSeed, RECIPES } from "@/lib/plan";
 import { haystackBlocked, parseExclusionTokens, MICRO_LABEL, type MicroKey } from "@/lib/nutrition";
-import { withFastFinish, fastFinishModeFromEnv } from "./fast-finish";
+import { withFastFinish, fastFinishModeFromEnv, type ShadowCall } from "./fast-finish";
 import {
   withErrorCapture, isInfraError, holdFailure, scriptedModel, scriptLabel, reseedEngine, engineSeedConfig,
   outsideScope, unaskedProfileEdit, writesSent, isVegMeal, isVeganMeal, symptomTexts, quotesUser, holdWrites,
@@ -556,7 +556,7 @@ console.log(`\nconversation eval · model ${MODEL} · ${convos.length} conversat
 const writesOf = (r: AgentRunResult) =>
   JSON.stringify(r.transcript.flatMap((e) => (e.role === "assistant" ? e.turn.operations : []))
     .filter((o) => !isReadTool(String((o as { op?: string }).op)))).slice(0, 800);
-interface TurnRow { user: string; want: "act" | "hold"; pass: boolean; infra: boolean; reason: string | null; steps: number; gaveUp: boolean; seconds: number; ops: string[]; writes: string; reply: string; emoji: boolean; modelCalls: number; falseClaim: boolean; guardRetried: boolean; guardCaught: boolean; wallSeconds?: number }
+interface TurnRow { user: string; want: "act" | "hold"; pass: boolean; infra: boolean; reason: string | null; steps: number; gaveUp: boolean; seconds: number; ops: string[]; writes: string; reply: string; emoji: boolean; modelCalls: number; falseClaim: boolean; guardRetried: boolean; guardCaught: boolean; wallSeconds?: number; shadow?: ShadowCall[] }
 interface ConvoRow { id: string; skill: Skill; pass: boolean; infra: boolean; turns: TurnRow[]; heldOutOf?: string; heldOutTurn?: number }
 const EMOJI = /\p{Extended_Pictographic}/u;
 const rows: ConvoRow[] = [];
@@ -575,6 +575,7 @@ for (const c of convos) {
     let up0 = await upstreamSeconds();
     let r: AgentRunResult | null = null;
     let sk0 = ff.skipped;
+    let sh0 = ff.shadow.length;
     cap.reset();
     try {
       r = await go();
@@ -585,6 +586,7 @@ for (const c of convos) {
         t0 = performance.now();
         up0 = await upstreamSeconds();
         sk0 = ff.skipped;
+        sh0 = ff.shadow.length;
         cap.reset();
         r = await go();
       }
@@ -608,7 +610,8 @@ for (const c of convos) {
       return x.op === "constrain" && typeof x.scope === "object" && x.scope !== null && "slot" in x.scope;
     }));
     if (reason && slotConstrain && !r.planChanged) reason += " [the model sent a slot-scoped constrain, which the engine does not support]";
-    turns.push({ user: t.user, want: t.want, pass: reason === null, infra: false, reason, steps: r.steps, gaveUp: r.gaveUp, seconds, ops: opsOf(r), writes: writesOf(r), reply: r.reply.replace(/\s+/g, " ").slice(0, 600), emoji: EMOJI.test(r.reply), modelCalls: r.steps - (ff.skipped - sk0), falseClaim: claimed, guardRetried: Boolean(guard(r).falseClaimRetried), guardCaught: Boolean(guard(r).falseClaimCaught), wallSeconds });
+    turns.push({ user: t.user, want: t.want, pass: reason === null, infra: false, reason, steps: r.steps, gaveUp: r.gaveUp, seconds, ops: opsOf(r), writes: writesOf(r), reply: r.reply.replace(/\s+/g, " ").slice(0, 600), emoji: EMOJI.test(r.reply), modelCalls: r.steps - (ff.skipped - sk0), falseClaim: claimed, guardRetried: Boolean(guard(r).falseClaimRetried), guardCaught: Boolean(guard(r).falseClaimCaught), wallSeconds,
+      shadow: FAST_FINISH_MODE === "shadow" ? ff.shadow.slice(sh0) : undefined });
     // Carry state forward exactly as the client does between requests.
     profile = r.profile;
     plan = r.plan;
@@ -656,6 +659,12 @@ const summary = {
   fastFinish: FAST_FINISH_MODE,
   /** Skips the "reply" rule withheld because the write step's reply was empty. */
   fastFinishBlockedByEmptyReply: ff.blockedByEmptyReply,
+  /** FAST_FINISH=shadow: the skipped finishing calls, made anyway; those that would have sent operations are
+   *  writes a real skip cuts (fast-finish.ts). Null in every other mode. */
+  fastFinishShadow: FAST_FINISH_MODE === "shadow"
+    ? { calls: ff.shadow.length, withOps: ff.shadow.filter((c) => c.ops.length).length, failed: ff.shadow.filter((c) => c.error).length,
+        turns: rows.flatMap((r) => r.turns.filter((t) => t.shadow?.some((c) => c.ops.length)).map((t) => `${r.id}: ${t.user}`)) }
+    : null,
   medianSecondsPerTurn: q(0.5),
   /** The same turns on the wall clock (includes proxy pacing and retry waits): compare like with like. */
   medianWallSecondsPerTurn: (() => { const w = gradedTurns.map((t) => t.wallSeconds ?? t.seconds).sort((x, y) => x - y); return w.length ? +w[Math.floor(w.length / 2)].toFixed(1) : null; })(),
@@ -681,7 +690,11 @@ console.log(`\npass ${summary.pass}/${graded.length} conversations (${summary.pa
 console.log(`by skill ${Object.entries(bySkill).map(([k, v]) => `${k} ${v}`).join("  · ")}`);
 if (summary.heldOut.pairs) console.log(`held out ${summary.heldOut.heldOutPass}/${summary.heldOut.pairs}, their originals ${summary.heldOut.originalPass}/${summary.heldOut.pairs}${summary.heldOut.onlyInPromptWords.length ? `  · passed only in the prompt's words: ${summary.heldOut.onlyInPromptWords.join(", ")}` : ""}`);
 if (summary.heldOut.unpaired.length) console.log(`held out, original not in this run (compared with nothing): ${summary.heldOut.unpaired.join(", ")}`);
-console.log(`gave up ${summary.gaveUp}  · model calls per turn ${summary.meanModelCallsPerTurn}${FAST_FINISH ? ` (fast finish: ${FAST_FINISH_MODE}${FAST_FINISH_MODE === "reply" ? `, ${ff.blockedByEmptyReply} withheld` : ""})` : ""}  · emoji replies ${summary.emojiReplies}  · FALSE CLAIMS ${summary.falseClaims} (guard: ${summary.guardRetries} nudged, ${summary.guardCatches} caught)  · per-turn seconds: median ${summary.medianSecondsPerTurn}  p90 ${summary.p90SecondsPerTurn}  max ${summary.maxSecondsPerTurn}`);
+if (summary.fastFinishShadow) {
+  const sh = summary.fastFinishShadow;
+  console.log(`shadow: ${sh.withOps} of ${sh.calls} skipped finishing calls would have sent operations${sh.turns.length ? ` (${sh.turns.join("; ")})` : ""}${sh.failed ? `; ${sh.failed} shadow call(s) failed` : ""}. Latency in this run includes them, so it is not comparable.`);
+}
+console.log(`gave up ${summary.gaveUp}  · model calls per turn ${summary.meanModelCallsPerTurn}${FAST_FINISH ? ` (fast finish: ${FAST_FINISH_MODE}${FAST_FINISH_MODE !== "plain" ? `, ${ff.blockedByEmptyReply} withheld` : ""})` : ""}  · emoji replies ${summary.emojiReplies}  · FALSE CLAIMS ${summary.falseClaims} (guard: ${summary.guardRetries} nudged, ${summary.guardCatches} caught)  · per-turn seconds: median ${summary.medianSecondsPerTurn}  p90 ${summary.p90SecondsPerTurn}  max ${summary.maxSecondsPerTurn}`);
 if (!summary.trustworthy) console.log(`!! ${summary.infraFailures} conversation(s) never finished reaching the model — not counted; re-run before quoting.`);
 
 const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
