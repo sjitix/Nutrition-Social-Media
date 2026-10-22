@@ -65,7 +65,7 @@ function runOne(w, seed, slot) {
   const cwd = join(base, `run-${slot}-${w.kind}-${w.id}-${w.name.replace(/[^a-z0-9-]+/gi, "_")}-s${seed}`);
   mkdirSync(cwd, { recursive: true });
   const env = { ...process.env, MODEL_SCRIPT: w.file ?? empty, ONLY: `^${w.id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, ENGINE_SEED: String(seed), LOOP_RETRIES: "0" };
-  for (const k of ["AI_PROVIDER", "LOCAL_AI_URL", "LOCAL_AI_MODEL", "LOCAL_AI_API_KEY", "LOCAL_AI_EXTRA_BODY", "FAST_FINISH", "PACE_STATS"]) delete env[k];
+  for (const k of ["AI_PROVIDER", "LOCAL_AI_URL", "LOCAL_AI_MODEL", "LOCAL_AI_API_KEY", "LOCAL_AI_EXTRA_BODY", "FAST_FINISH", "AI_FAST_FINISH", "PACE_STATS"]) delete env[k];
   return new Promise((done) => {
     const child = spawn(process.execPath, [bundles[w.kind]], { cwd, env, stdio: ["ignore", "pipe", "pipe"] });
     let out = "";

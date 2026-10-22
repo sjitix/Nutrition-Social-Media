@@ -7,6 +7,22 @@ Protocol: [`README.md`](README.md). Worktree: `../NutriFlow-models/`, branch `mo
 
 ## Now doing
 
+**2026-10-22, evening — the evals run the app's own fast finish, and sleep can no longer spoil a timed run;
+633 controls hold on v1's `b2b4285`.**
+- **The production path.** `AI_FAST_FINISH=1`, the switch the route reads, now reaches `runAgent` from both
+  evals. fair-arms has arms N and convoN for it, and the app's speed is quoted from them. On every control,
+  the native skip and the eval's wrapper give byte-identical rows (verdict, reason, reply, writes, steps, model calls; 453 finishing calls skipped by each), and no control changes verdict between the skip off and on. The evals refuse both switches at once.
+- **Sleep.** A message the machine slept through is left out of the seconds and named (it stays in the pass
+  rate), and fair-arms holds a Windows machine awake for the whole run. The lock exits by itself when the run
+  does, killed or not.
+- **On `b2b4285`:** 633/633 controls hold under 2 seeds, every must-fail control failing for the same reason
+  as on `afa7f89`.
+- **The diagnosis is done** (`docs/models/nemotron-diagnosis.md`). Three safety habits need code, and v1
+  took them: a crisis operation, history allergies, and numbers only from the user's words. The rest are prompt
+  lines for this lane, after the harness corrections. Next: those corrections, then the clean speed range (B
+  against N interleaved, three times each, plus convoN three times, with the laptop on its charger), then the
+  prompt candidate against main.
+
 **2026-10-21 — every eval message the prompt quotes has a held-out paraphrase, reviewed and fixed; 633
 controls hold on v1's `da023da`.** `node scripts/models/probe-quotes.mjs` reads the prompt the model is sent and
 lists the eval messages it quotes: 8 of 55 on main, all held out, so it exits 0. Its `--self-test` passes 10/10.

@@ -19,9 +19,9 @@ message (8 at worst), so **per-call latency × steps** is the number a user feel
 | honest declines | the `decline` bucket of the same eval | ≥ 5/6 |
 | loop behaviour | `scripts/models/loop-eval.mts` (34 scenarios through the real loop, 8 of them held-out paraphrases) — reads before writes, stops cleanly, no `gaveUp` | read-before-write 3/3, gave up 0 |
 | **conversation** | `scripts/models/convo-eval.mts` (15 two-turn conversations, one a held-out paraphrase, state carried like the client) | **the ruler that separates sizes** — 550B 79%, 20B 43% (2026-10-03, on the lenient harness: re-measure) |
-| **the harness itself** | `node scripts/models/run-controls.mjs` — 633 scripted controls: every check must pass its correct answers and fail its wrong ones, under several engine seeds | all hold on `da023da` (2026-10-21) |
+| **the harness itself** | `node scripts/models/run-controls.mjs` — 633 scripted controls: every check must pass its correct answers and fail its wrong ones, under several engine seeds | all hold on `b2b4285` under 2 seeds, every must-fail control for the same reason as before (2026-10-22) |
 | **what the prompt quotes** | `node scripts/models/probe-quotes.mjs` — the eval messages the rendered prompt quotes (a near-quote measures recall of its example, not judgement) | every near-quote held out: exit 0; `--self-test` 10/10 (2026-10-21) |
-| latency | median + p90 seconds **per message** from the loop/convo evals | message-level ≤ ~10 s |
+| latency | median + p90 seconds **per message** from the loop/convo evals, quoted for the app from arms N and convoN (the loop's own fast finish, as the app runs it) | message-level ≤ ~10 s |
 | cost | $/message at beta volume | free now; priced before launch |
 
 ## Ground rules for measurements
@@ -32,7 +32,10 @@ message (8 at worst), so **per-call latency × steps** is the number a user feel
    happen.
 3. **Latency is measured, never quoted from a provider page.** Free tiers queue; the same model can be
    2 s or 250 s depending on where it is hosted. And only per-MESSAGE seconds from the real loop count:
-   short-prompt sweeps flatter every model 3–10×.
+   short-prompt sweeps flatter every model 3–10×. **A message the machine slept through is not latency**:
+   the laptop idle-sleeps after 5 minutes on AC (3 on battery), and on 2026-10-22 messages that spanned a sleep
+   were timed at 1,854 and 4,314 s. The evals now leave such a message out of the seconds and say so (it stays
+   in the pass rate), and `fair-arms.mjs` holds a Windows machine awake for the whole run.
 4. Single-turn scores are a proxy. The loop and conversation evals are the real test.
 5. **Repeat before you claim.** Identical runs swing up to 9 points on the hard cases; quote ranges.
 6. **Grade what the engine did, not what the model sent.** Counting emitted operations hid three
@@ -51,7 +54,9 @@ message (8 at worst), so **per-call latency × steps** is the number a user feel
 8. **A comparison runs every arm from ONE bundle.** An arm measured on an older bundle is history, not
    an arm. The withdrawn speed claim compared arms across code; on 2026-10-18 the old arm A was found to
    have a different scenario set (26 vs 29 then; 34 now) and to predate a loop change.
-   `node scripts/models/fair-arms.mjs` is the only way this lane runs one.
+   `node scripts/models/fair-arms.mjs` is the only way this lane runs one. Speed for the app is quoted from
+   arms N and convoN: they pass `AI_FAST_FINISH=1` to the loop, the switch the route reads, so they run the
+   code that ships. Arm C measured the same rule through the eval's wrapper before it landed.
 9. **A scenario the prompt quotes needs a held-out paraphrase, graded by the same code.** `probe-quotes.mjs`
    exits non-zero for a quote with no held-out, or a held-out the prompt has come to quote itself. Run it
    on every prompt change (`--code <branch>`, `--prompt-file <draft>`) and read each held-out beside its
@@ -60,6 +65,11 @@ message (8 at worst), so **per-call latency × steps** is the number a user feel
 
 ## Decisions on record
 
+- **2026-10-22 — NVIDIA's free endpoint is for testing only; launch needs a paid host of the same model.**
+  Its trial terms (`nemotron-diagnosis.md`, owner question 2) allow internal testing and evaluation, not
+  production, and forbid uploading health or personal information. The evals send made-up messages, so this
+  lane keeps measuring there. OpenRouter sells the same model through DeepInfra, BaseTen and Venice at FP4 or
+  FP8, so the chosen host is re-measured before launch. Which host is the owner's call (decision 2).
 - **2026-10-22 — Nemotron's setting: reasoning off plus the fast finish.** The fair arms (`cd2244b`) show
   it is about 2.8 times faster than reasoning on at the median (5.5 s against 15.3) with the same pass rate
   (26-28 of 34 over four runs, against 27). The fast finish cuts calls from 1.9 to 1.2 per message. v1 ships it
@@ -87,6 +97,9 @@ message (8 at worst), so **per-call latency × steps** is the number a user feel
 
 ## Files
 
+- `nemotron-diagnosis.md` — why Nemotron-3-Ultra 550B fails at its chosen setting, and the plan that makes it
+  fit to serve: three safety guards for v1, prompt lines and harness corrections for this lane, eight questions
+  for the owner (2026-10-22). The full diagnoses are in `nemotron-diagnosis-2026-10-22.json`.
 - `OWNER-TODO.md` — things only the owner can do; this lane never waits on them.
 - `survey.md` — the model survey: what's reachable, parameter counts, measured latency, scores.
 - `free-providers-2026-10.md` — the verified search of every free provider: what is big, fast and free, and what isn't.

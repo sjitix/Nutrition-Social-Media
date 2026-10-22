@@ -2,6 +2,7 @@
  * FAIR ARMS — one command for a speed/quality comparison that can be trusted.
  *
  *   node scripts/models/fair-arms.mjs                       # loop A, B, C, convo A, convo C on the 550B
+ *   node scripts/models/fair-arms.mjs --arms N,convoN --repeat 3   # the app's own path (AI_FAST_FINISH=1): its speed range
  *   node scripts/models/fair-arms.mjs --dry-run             # bundle, show the plan and whether a key is there
  *   node scripts/models/fair-arms.mjs --arms C --repeat 3 --only '^(rate|eat-out-future|weekend-lighter|rate-heldout|eat-out-heldout|days-lighter-heldout)$' --code ../NutriFlow-models-wording
  *     (the wording test: each held-out WITH its original, or the eval has nothing to compare it to)
@@ -17,18 +18,20 @@
  * - ONE arm at a time (the free tier is rate-limited), round-robin across repeats (A1 B1 C1 A2 B2 C2…),
  *   with a cool-down between arms (`--gap`, default 60 s) so one arm's 429 tail does not land in the
  *   next arm's latency. Direct to the host: PACE_STATS is cleared, so every arm is on the wall clock.
- * - Every inherited knob is cleared first (LOCAL_AI_*, FAST_FINISH, ONLY, PACE_STATS…), so an arm is
+ * - Every inherited knob is cleared first (LOCAL_AI_*, FAST_FINISH, AI_FAST_FINISH, ONLY, PACE_STATS…), so an arm is
  *   exactly its definition below and nothing leaks in from the shell.
  * - The key is read from the main folder's .env.local by this script (NVIDIA_API_KEY, else
  *   LOCAL_AI_API_KEY; `--key-var` for another host) and handed to the child's environment as
  *   LOCAL_AI_API_KEY. It never appears on a command line, in a log, in the manifest or in a scorecard.
  * - A manifest is written after EVERY arm (`data/eval-runs/<ts>-fair-arms-<model>.json`), so a run cut
  *   short still leaves a record. An arm with infra failures is marked "not evidence" (lesson 44).
+ * - On Windows the machine is held awake for the whole run (`--no-keep-awake` opts out), and a message the
+ *   machine slept through anyway is left out of the seconds by the evals themselves (sleepWatch).
  *
  * Reasoning off is host-specific: the default `--off` is NVIDIA's chat-template switch for the 550B.
  * Another host needs its own (e.g. `--off '{"reasoning_effort":"low"}'`).
  */
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -62,6 +65,11 @@ const ARMS = {
   // speed comparison uses it.
   S: { evalKind: "loop", what: "reasoning off + fast finish in shadow (skipped calls made and recorded)", env: { LOCAL_AI_EXTRA_BODY: OFF, FAST_FINISH: "shadow" } },
   convoS: { evalKind: "convo", what: "reasoning off + fast finish in shadow (skipped calls made and recorded)", env: { LOCAL_AI_EXTRA_BODY: OFF, FAST_FINISH: "shadow" } },
+  // The production path (b2b4285): the loop's own fast finish, switched on by the AI_FAST_FINISH=1 the route
+  // reads. C measured the same rule through the wrapper before it landed (v1 proved the two equal on 552 seeded
+  // runs); N measures the code that ships, so it is the arm a speed figure for the app is quoted from.
+  N: { evalKind: "loop", what: "reasoning off + the loop's own fast finish (AI_FAST_FINISH=1, as the app runs it)", env: { LOCAL_AI_EXTRA_BODY: OFF, AI_FAST_FINISH: "1" } },
+  convoN: { evalKind: "convo", what: "reasoning off + the loop's own fast finish (AI_FAST_FINISH=1, as the app runs it)", env: { LOCAL_AI_EXTRA_BODY: OFF, AI_FAST_FINISH: "1" } },
 };
 
 const arms = flag("--arms", "A,B,C,convoA,convoC").split(",").map((a) => a.trim()).filter(Boolean);
@@ -154,8 +162,26 @@ if (dryRun) {
   process.exit(0);
 }
 
+// ── the machine stays awake for the whole run (Windows) ─────────────────────────────────────────
+// The laptop idle-sleeps after 5 minutes on AC and 3 on battery, and on 2026-10-22 that cut the repeats:
+// messages that spanned a sleep were timed at 1,854 and 4,314 s. A hidden PowerShell child asks Windows for
+// "system required" (SetThreadExecutionState) while this process lives, and exits by itself within seconds
+// of it, so a killed run never leaves the machine held awake. It changes no power setting, and it cannot
+// stop a lid-close or a sleep chosen by hand; the evals' sleep watch catches those (eval-common sleepWatch).
+if (process.platform === "win32" && !has("--no-keep-awake")) {
+  const hold = "[uint32]2147483649"; // ES_CONTINUOUS | ES_SYSTEM_REQUIRED; the call returns 0 when refused
+  const ps = [
+    `Add-Type -Namespace KeepAwake -Name Native -MemberDefinition '[DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint f);'`,
+    `$granted = [KeepAwake.Native]::SetThreadExecutionState(${hold}) -ne 0`,
+    `Write-Output "fair-arms: keep-awake $(if ($granted) { 'held' } else { 'REFUSED by Windows' })"`,
+    `while (Get-Process -Id ${process.pid} -ErrorAction SilentlyContinue) { [void][KeepAwake.Native]::SetThreadExecutionState(${hold}); Start-Sleep -Seconds 20 }`,
+  ].join("; ");
+  // unref: this process must not wait for the child, which waits for this process to end.
+  spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", ps], { stdio: ["ignore", "inherit", "inherit"], windowsHide: true }).unref();
+}
+
 // ── run ─────────────────────────────────────────────────────────────────────────────────────────
-const CLEARED = /^(AI_PROVIDER|LOCAL_AI_\w+|FAST_FINISH|ONLY|PACE_STATS|PROMPT_VERSION|LOOP_RETRIES|ANTHROPIC_API_KEY|CLAUDE_MODEL|ENGINE_SEED|MODEL_SCRIPT)$/;
+const CLEARED = /^(AI_PROVIDER|LOCAL_AI_\w+|FAST_FINISH|AI_FAST_FINISH|ONLY|PACE_STATS|PROMPT_VERSION|LOOP_RETRIES|ANTHROPIC_API_KEY|CLAUDE_MODEL|ENGINE_SEED|MODEL_SCRIPT)$/;
 const scoreDir = join(out, "data", "eval-runs");
 mkdirSync(scoreDir, { recursive: true });
 const modelSlug = model.replace(/[^a-z0-9.-]+/gi, "-").toLowerCase();
@@ -173,10 +199,12 @@ const pick = (kind, s) =>
   kind === "loop"
     ? { pass: `${s.pass}/${s.scenarios}`, act: s.actPass, hold: s.holdPass, infra: s.infraFailures, unusable: s.unusableOutput,
         medianWall: r1(s.medianWallSecondsPerMessage), median: r1(s.medianSecondsPerMessage), p90: r1(s.p90SecondsPerMessage), calls: r1(s.meanModelCalls),
-        gaveUp: s.gaveUp, guardCaught: s.guardCatches, fastFinishBlocked: s.fastFinishBlockedByEmptyReply, heldOut: heldOutOf(s), shadow: s.fastFinishShadow ?? null }
+        gaveUp: s.gaveUp, guardCaught: s.guardCatches, fastFinishBlocked: s.fastFinishBlockedByEmptyReply, fastFinished: s.fastFinished ?? null,
+        slept: s.sleptMessages ?? null, heldOut: heldOutOf(s), shadow: s.fastFinishShadow ?? null }
     : { pass: `${s.pass}/${s.conversations}`, turns: s.turnsPassed, infra: s.infraFailures, unusable: s.unusableOutput,
         medianWall: r1(s.medianWallSecondsPerTurn), median: r1(s.medianSecondsPerTurn), p90: r1(s.p90SecondsPerTurn), calls: r1(s.meanModelCallsPerTurn),
-        gaveUp: s.gaveUp, guardCaught: s.guardCatches, fastFinishBlocked: s.fastFinishBlockedByEmptyReply, heldOut: heldOutOf(s), shadow: s.fastFinishShadow ?? null };
+        gaveUp: s.gaveUp, guardCaught: s.guardCatches, fastFinishBlocked: s.fastFinishBlockedByEmptyReply, fastFinished: s.fastFinished ?? null,
+        slept: s.sleptTurns ?? null, heldOut: heldOutOf(s), shadow: s.fastFinishShadow ?? null };
 
 const manifest = {
   kind: "fair-arms", ranAt: new Date().toISOString(), model, endpoint: url, clock: "wall clock, direct to the host (PACE_STATS cleared)",
@@ -208,7 +236,7 @@ for (const [i, { arm, run }] of runs.entries()) {
   const res = spawnSync(process.execPath, [bundles[def.evalKind].file], { cwd: out, env, stdio: "inherit" });
   const written = readdirSync(scoreDir).filter((f) => !before.has(f) && f.includes(`-${def.evalKind}-`) && f.endsWith(".json"));
   const entry = { arm, run, eval: def.evalKind, what: def.what, extraBody: def.env.LOCAL_AI_EXTRA_BODY ?? null,
-    fastFinish: def.env.FAST_FINISH ?? "off", exit: res.status, minutes: Number(((Date.now() - t0) / 60000).toFixed(1)),
+    fastFinish: def.env.AI_FAST_FINISH === "1" ? "native" : def.env.FAST_FINISH ?? "off", exit: res.status, minutes: Number(((Date.now() - t0) / 60000).toFixed(1)),
     scorecard: written[0] ?? null, summary: null, evidence: false };
   if (written.length === 1) {
     const s = JSON.parse(readFileSync(join(scoreDir, written[0]), "utf8")).summary;
@@ -238,6 +266,7 @@ for (const e of manifest.arms) {
       `${e.evidence ? "yes" : e.problem ? `NO (${e.problem})` : "NO (infra)"}`,
   );
   if (s.heldOut?.onlyInPromptWords.length) console.log(`         passed only in the prompt's words: ${s.heldOut.onlyInPromptWords.join(", ")}`);
+  if (s.slept) console.log(`         the machine slept during ${s.slept} message(s): left out of its seconds, kept in its pass rate`);
   if (s.shadow) console.log(`         shadow: ${s.shadow.withOps} of ${s.shadow.calls} skipped finishing calls would have sent operations${(s.shadow.scenarios ?? s.shadow.turns ?? []).length ? ` (${(s.shadow.scenarios ?? s.shadow.turns).join("; ")})` : ""}`);
 }
 if (repeat > 1) {

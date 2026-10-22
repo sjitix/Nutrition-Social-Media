@@ -33,7 +33,7 @@ import {
   withErrorCapture, isInfraError, holdFailure, scriptedModel, scriptLabel, reseedEngine, engineSeedConfig,
   outsideScope, unaskedProfileEdit, writesSent, inventedFigures, isVegMeal, isVeganMeal, memoryAdded,
   symptomTexts, quotesUser, foodWordsAdded, holdWrites, mentions, declines, asksQuestion, changedOutside,
-  replanningConstrains, NAMES_VEGETARIAN, namesClash, chosenCalorieFigure, memoryFactsAdded, DIAGNOSIS,
+  replanningConstrains, NAMES_VEGETARIAN, namesClash, chosenCalorieFigure, memoryFactsAdded, DIAGNOSIS, sleepWatch,
 } from "./eval-common";
 import type { UserProfile, WeekPlan, Meal } from "@/lib/core";
 
@@ -633,6 +633,14 @@ const baseModel = SCRIPT ? scriptedModel(SCRIPT) : (agentModelFn as (o?: { today
 // FAST_FINISH=reply adds v1's rule: skip only when the write step also carried a reply.
 const FAST_FINISH_MODE = fastFinishModeFromEnv(process.env.FAST_FINISH);
 const FAST_FINISH = FAST_FINISH_MODE !== "off";
+// AI_FAST_FINISH=1: the app's own skip (runAgent's fastFinish, b2b4285), read from the same switch the
+// assistant-v2 route reads, so the run is the production path. Never with the wrapper: it would answer a call
+// the loop already answered, and its counts would be wrong.
+const NATIVE_FAST_FINISH = process.env.AI_FAST_FINISH === "1";
+if (NATIVE_FAST_FINISH && FAST_FINISH) {
+  console.error("AI_FAST_FINISH=1 is the loop's own fast finish; FAST_FINISH is the eval's wrapper of it. Set one, not both.");
+  process.exit(2);
+}
 const cap = withErrorCapture(baseModel);
 const { fn: model, stats: ff } = withFastFinish(cap.fn, FAST_FINISH_MODE);
 /** What this run actually sent, beyond the prompt: the scorecard's prompt sha cannot tell these arms apart. */
@@ -642,7 +650,7 @@ const RUN_CONFIG = {
   modelScript: SCRIPT || null,
   engineSeed: engineSeedConfig(),
   extraBody: process.env.LOCAL_AI_EXTRA_BODY ?? null,
-  fastFinish: FAST_FINISH_MODE,
+  fastFinish: NATIVE_FAST_FINISH ? "native" : FAST_FINISH_MODE,
   clock: process.env.PACE_STATS ? "upstream seconds via pace-proxy /stats (pacing and 429 waits excluded)" : "wall clock (includes the adapter's own retry back-off)",
 };
 
@@ -686,8 +694,11 @@ interface Row {
   /** Every WRITE operation with its arguments — op names alone could not tell "forgot exclude" from
    *  "the engine ignored exclude" (2026-10-03, memory-allergy). */
   writes: string;
-  /** Real model calls this message cost (steps minus any FAST_FINISH skips). */
+  /** Real model calls this message cost (steps minus the skipped finishing call, the wrapper's or the loop's). */
   modelCalls: number;
+  /** The finishing call was skipped: by the loop itself (AI_FAST_FINISH=1, AgentRunResult.fastFinished) or by
+   *  the wrapper (FAST_FINISH). */
+  fastFinished?: boolean;
   /** The reply claimed a change when no write ran (see falseClaim). */
   falseClaim: boolean;
   /** The app's guard (361b2e1): nudged the model once / replaced the reply. */
@@ -699,9 +710,12 @@ interface Row {
   heldOutOf?: string;
   /** FAST_FINISH=shadow: the finishing calls this message's skip saved, made anyway, and what they sent. */
   shadow?: ShadowCall[];
+  /** Seconds the machine slept while this message ran (sleepWatch): its seconds are not latency. */
+  slept?: number;
 }
 const EMOJI = /\p{Extended_Pictographic}/u;
 const rows: Row[] = [];
+const sleep = sleepWatch();
 
 for (const s of scenarios) {
   const before = structuredClone(PLAN);
@@ -711,6 +725,7 @@ for (const s of scenarios) {
   ]);
   let t0 = performance.now();
   let up0 = await upstreamSeconds();
+  let z0 = sleep.total();
   let sk0 = ff.skipped;
   let sh0 = ff.shadow.length;
   cap.reset();
@@ -721,7 +736,7 @@ for (const s of scenarios) {
     // that turned a whole run into infra failures (2026-10-03: 20/21). Only the final attempt is timed,
     // so the latency reported is a real answer's, not one padded by our own back-off.
     reseedEngine(s.id); // the same dice for the same scenario, every run and every arm (bundle.mjs)
-    r = await runAgent({ profile: structuredClone(PROFILE), plan: structuredClone(PLAN), message: s.message, history, today: TODAY, model });
+    r = await runAgent({ profile: structuredClone(PROFILE), plan: structuredClone(PLAN), message: s.message, history, today: TODAY, model, fastFinish: NATIVE_FAST_FINISH });
     // Only a TRANSPORT failure is re-run. Unusable model output (bad JSON, schema miss) is the model's miss.
     for (let attempt = 1; r.modelFailed && isInfraError(cap.lastError()) && attempt <= LOOP_RETRIES; attempt++) {
       const wait = 30_000 * attempt;
@@ -729,11 +744,12 @@ for (const s of scenarios) {
       await new Promise((res) => setTimeout(res, wait));
       t0 = performance.now();
       up0 = await upstreamSeconds();
+      z0 = sleep.total();
       sk0 = ff.skipped;
       sh0 = ff.shadow.length;
       cap.reset();
       reseedEngine(s.id);
-      r = await runAgent({ profile: structuredClone(PROFILE), plan: structuredClone(PLAN), message: s.message, history, today: TODAY, model });
+      r = await runAgent({ profile: structuredClone(PROFILE), plan: structuredClone(PLAN), message: s.message, history, today: TODAY, model, fastFinish: NATIVE_FAST_FINISH });
     }
   } catch (e) {
     rows.push({ id: s.id, want: s.want, pass: false, infra: true, reason: `threw: ${(e as Error).message}`, steps: 0, gaveUp: false, modelFailed: true, seconds: (performance.now() - t0) / 1000, readFirst: null, ops: [], reply: "", emoji: false, engineIssue: null, writes: "", modelCalls: 0, falseClaim: false, guardRetried: false, guardCaught: false, heldOutOf: s.heldOutOf });
@@ -741,6 +757,7 @@ for (const s of scenarios) {
     continue;
   }
   const wallSeconds = (performance.now() - t0) / 1000;
+  const slept = sleep.total() - z0;
   // Behind the pace proxy, the model's own time is the upstream delta; the wall clock includes our pacing.
   const up1 = await upstreamSeconds();
   const seconds = up0 != null && up1 != null ? up1 - up0 : wallSeconds;
@@ -765,15 +782,17 @@ for (const s of scenarios) {
     : badOutput ? `unusable model output: ${cap.lastError().slice(0, 120)}`
     : claimed ? "claimed a change it did not make" : s.check(r, before);
   const pass = !infra && reason === null;
-  rows.push({ id: s.id, want: s.want, pass, infra, reason, steps: r.steps, gaveUp: r.gaveUp, modelFailed: r.modelFailed, seconds, readFirst, ops: opsSeq, reply: r.reply.replace(/\s+/g, " ").slice(0, 200), emoji: EMOJI.test(r.reply), engineIssue: infra || !s.engine ? null : s.engine(r, before), writes: writesOf(r), modelCalls: r.steps - (ff.skipped - sk0), falseClaim: claimed, guardRetried: Boolean(guard(r).falseClaimRetried), guardCaught: Boolean(guard(r).falseClaimCaught), wallSeconds, heldOutOf: s.heldOutOf,
-    shadow: FAST_FINISH_MODE === "shadow" ? ff.shadow.slice(sh0) : undefined });
-  console.log(`${pass ? "✓ " : infra ? "!!" : "✗ "} ${s.id.padEnd(18)} ${seconds.toFixed(1).padStart(6)}s  ${r.steps} step${r.steps === 1 ? " " : "s"}${r.gaveUp ? " GAVE-UP" : ""}  [${opsSeq.join(",") || "no ops"}]${reason ? `  — ${reason}` : ""}`);
+  rows.push({ id: s.id, want: s.want, pass, infra, reason, steps: r.steps, gaveUp: r.gaveUp, modelFailed: r.modelFailed, seconds, readFirst, ops: opsSeq, reply: r.reply.replace(/\s+/g, " ").slice(0, 200), emoji: EMOJI.test(r.reply), engineIssue: infra || !s.engine ? null : s.engine(r, before), writes: writesOf(r), modelCalls: r.steps - (ff.skipped - sk0) - (r.fastFinished ? 1 : 0), fastFinished: Boolean(r.fastFinished) || ff.skipped > sk0, falseClaim: claimed, guardRetried: Boolean(guard(r).falseClaimRetried), guardCaught: Boolean(guard(r).falseClaimCaught), wallSeconds, heldOutOf: s.heldOutOf,
+    shadow: FAST_FINISH_MODE === "shadow" ? ff.shadow.slice(sh0) : undefined, slept: slept > 0 ? Math.round(slept) : undefined });
+  console.log(`${pass ? "✓ " : infra ? "!!" : "✗ "} ${s.id.padEnd(18)} ${seconds.toFixed(1).padStart(6)}s${slept > 0 ? ` (the machine slept ${Math.round(slept)}s: not latency)` : ""}  ${r.steps} step${r.steps === 1 ? " " : "s"}${r.gaveUp ? " GAVE-UP" : ""}  [${opsSeq.join(",") || "no ops"}]${reason ? `  — ${reason}` : ""}`);
 }
 
 // ── summary ─────────────────────────────────────────────────────────────────────────────────────
 const graded = rows.filter((r) => !r.infra);
 const pct = (n: number, d: number) => (d ? Math.round((100 * n) / d) : 0);
-const secs = graded.map((r) => r.seconds).sort((a, b) => a - b);
+// Latency only from messages the machine stayed awake through (sleepWatch).
+const timed = graded.filter((r) => !r.slept);
+const secs = timed.map((r) => r.seconds).sort((a, b) => a - b);
 const q = (p: number) => (secs.length ? secs[Math.min(secs.length - 1, Math.floor(p * secs.length))] : null);
 const readCases = graded.filter((r) => r.readFirst !== null);
 const summary = {
@@ -794,9 +813,12 @@ const summary = {
   engineIssues: rows.filter((r) => r.engineIssue).map((r) => `${r.id}: ${r.engineIssue}`),
   meanSteps: graded.length ? +(graded.reduce((s, r) => s + r.steps, 0) / graded.length).toFixed(2) : null,
   meanModelCalls: graded.length ? +(graded.reduce((s, r) => s + r.modelCalls, 0) / graded.length).toFixed(2) : null,
-  fastFinish: FAST_FINISH_MODE,
-  /** Skips the "reply" rule withheld because the write step's reply was empty. */
+  fastFinish: NATIVE_FAST_FINISH ? "native" : FAST_FINISH_MODE,
+  /** Skips the "reply" rule withheld because the write step's reply was empty (the wrapper's count). */
   fastFinishBlockedByEmptyReply: ff.blockedByEmptyReply,
+  /** Messages whose finishing call was skipped, by the wrapper or by the loop itself (one at most each: the
+   *  answered call has no operations, so the loop ends on it). */
+  fastFinished: graded.filter((r) => r.fastFinished).length,
   /** FAST_FINISH=shadow: the skipped finishing calls, made anyway; those that would have sent operations are
    *  writes a real skip cuts (fast-finish.ts). Null in every other mode. */
   fastFinishShadow: FAST_FINISH_MODE === "shadow"
@@ -805,7 +827,9 @@ const summary = {
     : null,
   medianSecondsPerMessage: q(0.5),
   /** The same messages on the wall clock (includes proxy pacing and retry waits): compare like with like. */
-  medianWallSecondsPerMessage: (() => { const w = graded.map((r) => r.wallSeconds ?? r.seconds).sort((x, y) => x - y); return w.length ? +w[Math.floor(w.length / 2)].toFixed(1) : null; })(),
+  medianWallSecondsPerMessage: (() => { const w = timed.map((r) => r.wallSeconds ?? r.seconds).sort((x, y) => x - y); return w.length ? +w[Math.floor(w.length / 2)].toFixed(1) : null; })(),
+  /** Messages left out of every latency figure because the machine slept while they ran (sleepWatch). */
+  sleptMessages: graded.length - timed.length,
   unusableOutput: graded.filter((r) => /^unusable model output/.test(r.reason ?? "")).length,
   p90SecondsPerMessage: q(0.9),
   maxSecondsPerMessage: secs.length ? secs[secs.length - 1] : null,
@@ -827,9 +851,10 @@ if (summary.fastFinishShadow) {
   const sh = summary.fastFinishShadow;
   console.log(`shadow: ${sh.withOps} of ${sh.calls} skipped finishing calls would have sent operations${sh.scenarios.length ? ` (${sh.scenarios.join(", ")})` : ""}${sh.failed ? `; ${sh.failed} shadow call(s) failed` : ""}. Latency in this run includes them, so it is not comparable.`);
 }
-console.log(`steps mean ${summary.meanSteps}  · model calls mean ${summary.meanModelCalls}${FAST_FINISH ? ` (fast finish: ${FAST_FINISH_MODE}${FAST_FINISH_MODE !== "plain" ? `, ${ff.blockedByEmptyReply} withheld` : ""})` : ""}  · gave up ${summary.gaveUp}  · emoji replies ${summary.emojiReplies}  · FALSE CLAIMS ${summary.falseClaims} (guard: ${summary.guardRetries} nudged, ${summary.guardCatches} caught)  · per-message seconds: median ${summary.medianSecondsPerMessage?.toFixed(1)}  p90 ${summary.p90SecondsPerMessage?.toFixed(1)}  max ${summary.maxSecondsPerMessage?.toFixed(1)}`);
+console.log(`steps mean ${summary.meanSteps}  · model calls mean ${summary.meanModelCalls}${NATIVE_FAST_FINISH ? ` (fast finish: native, ${summary.fastFinished} skipped)` : FAST_FINISH ? ` (fast finish: ${FAST_FINISH_MODE}${FAST_FINISH_MODE !== "plain" ? `, ${ff.blockedByEmptyReply} withheld` : ""})` : ""}  · gave up ${summary.gaveUp}  · emoji replies ${summary.emojiReplies}  · FALSE CLAIMS ${summary.falseClaims} (guard: ${summary.guardRetries} nudged, ${summary.guardCatches} caught)  · per-message seconds: median ${summary.medianSecondsPerMessage?.toFixed(1)}  p90 ${summary.p90SecondsPerMessage?.toFixed(1)}  max ${summary.maxSecondsPerMessage?.toFixed(1)}`);
 if (summary.heldOut.pairs) console.log(`held out ${summary.heldOut.heldOutPass}/${summary.heldOut.pairs}, their originals ${summary.heldOut.originalPass}/${summary.heldOut.pairs}${summary.heldOut.onlyInPromptWords.length ? `  · passed only in the prompt's words: ${summary.heldOut.onlyInPromptWords.join(", ")}` : ""}`);
 if (summary.heldOut.unpaired.length) console.log(`held out, original not in this run (compared with nothing): ${summary.heldOut.unpaired.join(", ")}`);
+if (summary.sleptMessages) console.log(`the machine slept during ${summary.sleptMessages} message(s): left out of the seconds above, kept in the pass rate`);
 for (const e of summary.engineIssues) console.log(`ENGINE (not the model): ${e}`);
 if (!summary.trustworthy) console.log(`!! ${summary.infraFailures} scenario(s) never reached the model — not counted as misses; re-run before quoting.`);
 

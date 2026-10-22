@@ -24,7 +24,9 @@
  * worthless, by design.
  *
  * The app has its own native skip since 2026-10-22 (runAgent's fastFinish, AI_FAST_FINISH=1 on the route),
- * equal to "reply" here. The evals keep this wrapper, so arm C matches production through it; never use both.
+ * equal to "reply" here. The evals run it natively from the same switch (arms N and convoN in fair-arms.mjs),
+ * which is the path a speed figure for the app comes from; arm C and shadow keep this wrapper. The evals refuse
+ * both at once: the wrapper would answer a call the loop already answered, and its counts would be wrong.
  */
 import { isReadTool, type ModelFn, type TranscriptEntry } from "@/lib/assistant";
 
