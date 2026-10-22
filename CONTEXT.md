@@ -494,8 +494,9 @@ wrapper measured it), so Nemotron-3-Ultra 550B with reasoning off makes 1.2 mode
   - The 550B never splits: 0 of 275 recorded write messages sent more, and 0 of 23 in the fair run.
   - gpt-oss-20b did, in 7 of 49.
   - The reply rule withheld 1 skip in 84.
-  - So `runAgent` takes `fastFinish` (off by default), and the route reads `AI_FAST_FINISH=1`, a deployment setting
-    for the 550B.
+  - So `runAgent` takes `fastFinish` (off by default), and the route reads `AI_FAST_FINISH=1`, a setting for the
+    550B with reasoning off. It was measured on NVIDIA's free endpoint, which is for testing only (below), so it is
+    measured again on whichever paid host the app launches on.
 - **The models lane's side.** Its repeats (`e8322f5`): the pass range holds (26 to 28 of 34) and calls hold at 1.2.
   Their seconds are contaminated, because the laptop slept, so this morning's set (5.5 s against 7.1 s) stays the
   clean speed figure. It wrote decision 2's recommended config with `AI_FAST_FINISH=1` (doc rev 25, `41d2af2`), and
@@ -588,6 +589,14 @@ measured. The decisions doc (rev 26) records decision 8's new finding and a new 
 and the models lane's five fair arms are running on it (`bb9021f`). The fast finish (`de1a102`) is decided on their
 numbers. The owner wants Nemotron-3-Ultra 550B to run the assistant ("i like nemotron, id be happy if we could make it
 work", `7634ddb`), so the models lane is making that one fast and correct enough, with other models as fallbacks.
+**NVIDIA's free endpoint may not serve real users (found by the models lane, 2026-10-22).** Its trial terms say:
+- trial use only, never in production (1.2, 1.4);
+- no health information about an identifiable person (4.3);
+- NVIDIA keeps what is sent, to improve its models (3.3).
+So it is for testing with made-up messages. The live app needs a paid host for the same model: OpenRouter lists
+DeepInfra, BaseTen and Venice, about a third of a cent a message. The evals are re-run there before launch, because
+the builds differ in precision, and that host's reasoning-off switch is not chosen yet. Decision 2 in the doc (rev
+31), the schedule's §5 row 1, `.env.local.example` and CLAUDE.md all say so.
 
 
 **D5a — DONE** (`c50d58d` the move, `cc38524` two contracts to `core/`, `1dff171` the barrels; test:engine 924/0).
