@@ -246,8 +246,9 @@ The do-nothing and hollow-claim fakes score 0 on both evals.
   - `7624008` (claims judged sentence by sentence; an undo keeps what the run remembered): nothing flipped. The two
     "I'll do both. Shall I go ahead?" controls are now caught by the guard rather than by the clash test.
   - `ef71993` (imports' own diet matcher): nothing flipped, and no failure reason changed.
-- **Next, the moment `.env.local` exists** (OWNER-TODO item 0, `NVIDIA_API_KEY=`): the fair arms, then the
-  wording test (block below).
+- **The key is in (2026-10-22): the owner's `.env.local` holds `NVIDIA_API_KEY`.** A smoke call to the 550B
+  worked. **In flight since ~13:01: the five fair arms** (A B C convoA convoC on `affd3d7`, one at a time). Then
+  the wording test (block below). If no fair-arms manifest for 2026-10-22 is committed, nothing of it landed.
 - **Next, key-free:** re-run the probes when v1's F3 (imports get their own diet matcher) lands; the evals
   import no recipes, so the controls should not move.
 - The false-claim guard: `probe-claims.mts` 15/15 on main since v1's `c8ccfb0` (1/15 before). Day records:

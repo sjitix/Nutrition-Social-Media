@@ -19,7 +19,10 @@ lists the eval messages it quotes: 8 of 55 on main, all held out, so it exits 0.
 - On `4bc9e47` (v1's follow-ups: undo as its own step, stated cook times met, "zero energy" as tiredness): 633/633
   hold and the probes pass. Nothing flipped. find-then-place's day-constrain controls now fail as re-plans, not
   as over-limit dishes. Next: v1's claim-guard batch (a "?" had excused every claim).
-- Still no `.env.local`. With the key, the fair arms run first.
+- **The key is in (2026-10-22, the owner's `.env.local`, `NVIDIA_API_KEY`).** A smoke call worked (9.1 s, one
+  message, no infra errors). **In flight since ~13:01: the five fair arms** (`node scripts/models/fair-arms.mjs`,
+  A B C convoA convoC on `affd3d7`, one at a time, 60 s apart; scorecards to `data/eval-runs/`). If this session
+  is gone and no fair-arms manifest for 2026-10-22 is committed, nothing of it landed: run it again.
 Day records: `docs/worklog/2026-10-20-models.md`, `2026-10-21-models.md`.
 
 **2026-10-20 — every check in both evals is fixed and proven: 524 controls hold across all 44 scenarios**

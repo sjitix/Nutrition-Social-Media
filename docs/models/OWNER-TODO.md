@@ -10,7 +10,9 @@ all at once.** The keys below are ranked by what they unlock per minute of your 
 
 ## Open — ranked
 
-- [ ] **0. The laptop has no `.env.local` (added 2026-10-18), so every model measurement is stopped
+- [x] **0. DONE 2026-10-22: the laptop's `.env.local` holds `NVIDIA_API_KEY`** (a smoke call to the 550B worked:
+  9.1 s for one message, no infra errors). The fair arms started the same hour. What the item said:
+  **The laptop has no `.env.local` (added 2026-10-18), so every model measurement is stopped
   here.** You already hold the NVIDIA key: it is the `LOCAL_AI_API_KEY=` line in the desktop's
   `.env.local`. On the laptop, create `.env.local` in the main folder (`Nutrition-Social-Media-main/`) and
   put that key in it as **`NVIDIA_API_KEY=...`**, under that name and not `LOCAL_AI_API_KEY`. The app reads
