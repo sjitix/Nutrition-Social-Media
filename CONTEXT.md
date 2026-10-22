@@ -349,7 +349,7 @@ Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Ro
 - **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`,
   `docs/worklog/*-models.md`, this block, the lane file. Does not edit v1's files; asks v1 first.
 
-### >>> V1 LANE — 2026-10-22: the second review's follow-ups landed: F1 `4bc9e47`, F2 `7624008`, F3 `ef71993`, F4 `afa7f89` <<<
+### >>> V1 LANE — 2026-10-22: the review's follow-ups landed (F1 `4bc9e47`, F2 `7624008`, F3 `ef71993`, F4 `afa7f89`); the fast finish `b2b4285`; F5 being mapped <<<
 
 **2026-10-21 and 22: the second review's follow-ups, one commit at a time.** The review of `da023da` (workflow
 `wf_cf2e22d0-cc3`; four lenses, a skeptic per serious finding; result saved in the session's scratchpad) confirmed 5
@@ -481,28 +481,49 @@ the prompts.
 **Worktrees of this lane:**
 - `../NutriFlow-followups` (branch `followups`): F4 landed from it. It stays, read-only, while F5's mapping workflow
   (`wf_65b5adc7-a11`) reads F4's code there, and is removed when that finishes. `../NutriFlow-f2` is removed.
-- `../NutriFlow-ff` (branch `fastfinish`, on `0c4ccee`): **the fast finish, ported and uncommitted** (see Now).
+  `../NutriFlow-ff` is removed (the fast finish landed from it).
 Remove a worktree when its batch lands, taking the node_modules junction out first. In Git Bash, spell the path out:
 `cmd //c "rmdir C:\\…\\<wt>\\node_modules"`. A `$wt` inside that string is passed literally and removes nothing.
 
-**Now (2026-10-22, afternoon): the fast finish, ready to land when the models lane's repeats hold.** Its fair numbers
-are in (`cd2244b`, Nemotron-3-Ultra 550B, reasoning off, one run each): with the fast finish, 28 of 34 at 5.5 s a
-message median and 1.2 model calls a message; without, 26 of 34 at 7.1 s and 1.8. The models lane is repeating that
-arm (3 runs) before calling it final. The port is rebuilt the way the lane's eval wrapper measured it, not
-cherry-picked from `de1a102`: the loop answers the finishing call itself with an empty turn, inside `runAgent`, off
-unless `fastFinish: true` (the route passes it, so evals still choose). 11 rows; on the parent the 3 that test the
-change fail and the 8 guards pass; tsc clean. An adversarial review (`wf_1102bd6e-d4e`) is running. The models lane
-re-ran its 633 controls on F4 (`afa7f89`) under two seeds: all hold, and only the reasons it predicted moved.
+**2026-10-22, evening: the fast finish landed, `b2b4285` (test:engine 1179/0), set per model.** After a write whose
+engine notes are the reply, the loop answers the finishing call itself (an empty turn, as the models lane's eval
+wrapper measured it), so Nemotron-3-Ultra 550B with reasoning off makes 1.2 model calls a message instead of 1.8.
+- **Why it is set per model.** Its adversarial review (`wf_1102bd6e-d4e`) found no major issue, but it showed the
+  safety is the model's, not the rule's. The skip also cuts any write the model would have sent next: a scripted
+  second-step allergy is lost, and the peanut dishes stay.
+  - The 550B never splits: 0 of 275 recorded write messages sent more, and 0 of 23 in the fair run.
+  - gpt-oss-20b did, in 7 of 49.
+  - The reply rule withheld 1 skip in 84.
+  - So `runAgent` takes `fastFinish` (off by default), and the route reads `AI_FAST_FINISH=1`, a deployment setting
+    for the 550B.
+- **The models lane's side.** Its repeats (`e8322f5`): the pass range holds (26 to 28 of 34) and calls hold at 1.2.
+  Their seconds are contaminated, because the laptop slept, so this morning's set (5.5 s against 7.1 s) stays the
+  clean speed figure. It wrote decision 2's recommended config with `AI_FAST_FINISH=1` (doc rev 25, `41d2af2`), and
+  built `FAST_FINISH=shadow` (`6344c77`): the skipped call is made anyway, to count what the skip would cut, before
+  the setting goes to any other model.
+- **Pending:** a prompt rule ("leave reply empty if more changes follow"), drafted for the models lane's wording
+  test. It is not to land before their shadow numbers on a model that splits writes. The models lane re-ran its 633
+  controls on F4 (`afa7f89`) under two seeds: all hold.
 
 **Next, in order:**
 1. **F5, the rest of the follow-ups:** #14 (every note rendered from the run's final week and profile, not each
    step's: a denial step then an undo step leaves "still include peanuts, so nothing with them is planned" over a
    week with peanut dishes), #4 (the undo label naming a refused write), and the matcher's "chick pea". Each proven
    against its parent, and re-measured on the stored-allergy comparison after every fix (lesson 72). **Being mapped
-   (2026-10-22, workflow `wf_65b5adc7-a11`):** an inventory of every note writer, stale notes within one call and
-   across loop steps, three designs for #14 and a judge, the undo label, a whole-vocabulary sweep of spelling
-   variants, and what the person is told when the model fails. The last one matters more now that the owner wants
-   Nemotron to run the assistant. The F4 review found a schema failure reported as "offline".
+   (2026-10-22, workflow `wf_65b5adc7-a11`).** Its agents run as foreground requests, so every interruption of this
+   session's turn killed them, and the workflow restarted them from scratch. Spelling has had 6 attempts, stale-ops
+   5 and undo-label 4. Three lenses are in, and they reshape F5:
+   - **Model failures, first to fix now that Nemotron is the model:**
+     - MF-1: the 503 "offline" path throws away what the engine already said, including the symptom tool's
+       urgent-care reply;
+     - MF-2: a stated allergy is dropped with the whole turn when any other op in it fails the schema;
+     - MF-3: a schema failure, cut-off JSON or empty content is reported as "offline".
+   - **#14:** 101 note writers, 82 of which can go stale. Across loop steps, seven major classes (AS-1 to AS-7): the
+     #14 denial-then-undo case; the fold-in's own re-solve never shown; boost, day and week figures, reserves and
+     logged meals surviving a later step.
+   - **Side finds:** `log` records a fuzzy library match and discards the calories the person stated (AS-12), and a
+     denial with four or more words between the negation and the cue binds the allergy it denies (AS-13).
+   - Still running: spelling, stale-ops and undo-label, then the three #14 designs and a judge, then a critic.
    **Not now (owner, 2026-10-22):** splitting the v1 lane. A screens lane fits better than a library lane, but only
    while the usage limit has headroom (decision 10).
 2. **The deferred:**

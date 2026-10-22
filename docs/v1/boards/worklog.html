@@ -171,7 +171,7 @@
     <div class="stamp">
       <b><i>source</i> docs/worklog/</b>
       <b><i>synced</i> 2026-10-22</b>
-      <b><i>commit</i> afa7f89+</b>
+      <b><i>commit</i> b2b4285+</b>
     </div>
   </header>
 
@@ -192,7 +192,7 @@
       <div class="stat"><div class="v">7</div><div class="l">days logged</div></div>
       <div class="stat"><div class="v">10</div><div class="l">milestones done</div></div>
       <div class="stat"><div class="v">9</div><div class="l">days to V1</div></div>
-      <div class="stat"><div class="v">9</div><div class="l">open deferrals</div></div>
+      <div class="stat"><div class="v">10</div><div class="l">open deferrals</div></div>
     </div>
   </section>
 
@@ -209,9 +209,9 @@
             <span class="date">2026-10-22</span>
             <span class="pill done">solved &middot; done</span>
           </div>
-          <h3>Every food the allergy checker knows is now screened, and imported recipes are read as written</h3>
-          <p class="sub">The last of the four follow-up commits. Four reviewers tried to break it before it shipped and found
-            four ways an allergen could still reach a plate. All four are fixed in it.</p>
+          <h3>Every food the allergy checker knows is now screened, and on Nemotron the assistant makes fewer model calls</h3>
+          <p class="sub">The last of the four follow-up commits, after four reviewers found four ways an allergen could still
+            reach a plate (all fixed). Then, in the evening, the fast finish, switched on only for the model it was measured on.</p>
           <div class="blocks">
             <div class="blk">
               <h4>What moved</h4>
@@ -229,6 +229,13 @@
                 <li><b>The check against false claims reads a question properly.</b> &ldquo;I&rsquo;ll rebuild your week
                   around 1,800 kcal. Shall I go ahead?&rdquo; is honest, so it stands. &ldquo;Should I do that for
                   Wednesday too?&rdquo; no longer excuses a claim about Tuesday.</li>
+                <li><b>On Nemotron, most changes now take one call to the model instead of two</b> (1.2 a message instead
+                  of 1.8, about 5.5 seconds a message against 7.1 when measured back to back). The second call only let
+                  the model say &ldquo;done&rdquo;, and its words were thrown away. It is switched on only for Nemotron with
+                  reasoning off: skipping that call would also cut a second change a model planned, and only Nemotron
+                  was measured never to split a request (0 of 275 messages).</li>
+                <li><b>Your two answers are carried out.</b> Nemotron is the model (decision 1, in the schedule and on
+                  its board). The lane stays one agent for now (decision 10).</li>
               </ul>
             </div>
             <div class="blk found">
@@ -246,10 +253,14 @@
                 <li><b>One question for you:</b> an allergy typed as just &ldquo;flour&rdquo; still lets chickpea and oat
                   flour through (5 dishes). It is the new row in decision 9 of
                   <a href="https://claude.ai/code/artifact/a3290f96-fc25-43a6-932d-9982a46bb70f">your decisions doc</a>.</li>
+                <li><b>When the model fails partway through, the app can lose what it already said.</b> The
+                  &ldquo;assistant offline&rdquo; message can replace urgent-care advice the app had already written, and
+                  one malformed part of a reply can lose an allergy you just stated. Now that Nemotron runs the
+                  assistant, these are the first fixes next.</li>
               </ul>
             </div>
           </div>
-          <div class="gate">GATE &middot; engine 1167/0 &middot; the 45 new tests that check a change all fail on the code before it</div>
+          <div class="gate">GATE &middot; engine 1167/0, then 1179/0 &middot; every new test that checks a change fails on the code before it</div>
         </div>
       </article>
 
@@ -922,6 +933,7 @@
     <h2>Open deferrals</h2>
     <p class="lede">Every deferral names a destination and a reason. “Later” is not a destination.</p>
     <div class="defers" style="margin-top:16px">
+      <div class="defer"><div><b>What the assistant says when the model fails</b> &mdash; a failure partway through can replace urgent-care advice with &ldquo;offline&rdquo;, one malformed part of a reply can lose an allergy you stated, and a reply the model did send is called &ldquo;offline&rdquo; when it is malformed. Found by the next batch&rsquo;s mapping; first, because Nemotron now runs the assistant.</div><span class="to">next step</span></div>
       <div class="defer"><div><b>The last smaller findings from the second review</b> &mdash; every note written from the finished week (one can still say &ldquo;nothing with peanuts is planned&rdquo; after an undo put one back), the undo naming a change it refused, and &ldquo;chick pea&rdquo;. The rest shipped on 2026-10-22; two wait for meal logging.</div><span class="to">next step</span></div>
       <div class="defer"><div><b>A re-plan can erase what you logged</b> &mdash; asking for more iron removed a logged meal, a restaurant reservation and an imported recipe, with nothing said. The app cannot yet tell a logged meal from a planned one, so the fix comes with meal logging.</div><span class="to">day 7</span></div>
       <div class="defer"><div><b>The training examples invent calorie figures</b> for a meal eaten out or logged. Fixing it changes what those examples teach, so it is a training-data change of its own.</div><span class="to">with the next training data</span></div>

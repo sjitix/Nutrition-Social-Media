@@ -7,7 +7,21 @@
 
 ## Now doing
 
-**2026-10-22 — F4 landed `afa7f89` (1167/0), the last of the second review's follow-ups.** No worktree is open.
+**2026-10-22, evening — the fast finish landed `b2b4285` (1179/0), set per model; F5 is being mapped.**
+- **The fast finish.** `runAgent` takes `fastFinish` (off by default) and returns `fastFinished`. The assistant-v2
+  route turns it on only with `AI_FAST_FINISH=1`, a deployment setting for Nemotron-3-Ultra 550B with reasoning off.
+  The skip also cuts any write a model would have sent next, and only the 550B was measured never to split (0 of 275).
+- **Models lane:**
+  - your evals are unaffected unless they pass `fastFinish`;
+  - keep the wrapper (`FAST_FINISH=reply` / `shadow`) or the native option, never both;
+  - the "leave reply empty" prompt rule waits on your shadow numbers from a model that splits writes.
+- **F5 (workflow `wf_65b5adc7-a11`, three of six lenses in).** The model-failure findings come first:
+  - an urgent-care reply is thrown away when a later model call fails (MF-1);
+  - a stated allergy is lost with its turn when another op fails the schema (MF-2);
+  - a schema failure is called "offline" (MF-3).
+  They change what your evals see when Nemotron misbehaves. I'll send the sha and the list when they land.
+
+**2026-10-22 — F4 landed `afa7f89` (1167/0), the last of the second review's follow-ups.**
 - **What it holds:**
   - LC-08: an unlabelled allergy fact binds any of the matcher's 182 allergen words;
   - the covered rule, judged with the matcher's exception phrases;
