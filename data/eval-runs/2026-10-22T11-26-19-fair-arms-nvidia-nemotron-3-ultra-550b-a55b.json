@@ -1,0 +1,221 @@
+{
+  "kind": "fair-arms",
+  "ranAt": "2026-10-22T11:26:21.077Z",
+  "model": "nvidia/nemotron-3-ultra-550b-a55b",
+  "endpoint": "https://integrate.api.nvidia.com/v1",
+  "clock": "wall clock, direct to the host (PACE_STATS cleared)",
+  "engineSeed": "seeded bundle (bundle.mjs): seed 1, reseeded per scenario",
+  "code": {
+    "dir": "C:\\Users\\anase\\Desktop\\Nutrition-Social-Media-main\\NutriFlow-models",
+    "sha": "cd2244b",
+    "dirty": false
+  },
+  "harness": {
+    "sha": "cd2244b",
+    "dirty": false
+  },
+  "bundles": {
+    "loop": "26436f368e7e4ae7e11da9a3f2904b8d98f8006c8e0d965279ea9c410ac3c4e6",
+    "convo": "9ce56a315ca580305ee1f8dbeb72869faffb68e94395086a101317169c590afb"
+  },
+  "only": null,
+  "repeat": 3,
+  "gapSeconds": 60,
+  "arms": [
+    {
+      "arm": "C",
+      "run": 1,
+      "eval": "loop",
+      "what": "reasoning off + fast finish (reply rule)",
+      "extraBody": "{\"chat_template_kwargs\":{\"enable_thinking\":false}}",
+      "fastFinish": "reply",
+      "exit": 0,
+      "minutes": 35.5,
+      "scorecard": "2026-10-22T12-01-49-loop-nvidia-nemotron-3-ultra-550b-a55b.json",
+      "summary": {
+        "pass": "26/34",
+        "act": "15/21",
+        "hold": "11/13",
+        "infra": 0,
+        "unusable": 0,
+        "medianWall": 5,
+        "median": 5,
+        "p90": 18.6,
+        "calls": 1.2,
+        "gaveUp": 0,
+        "guardCaught": 0,
+        "fastFinishBlocked": 0,
+        "heldOut": {
+          "heldOut": "6/8",
+          "originals": "5/8",
+          "onlyInPromptWords": [
+            "vague-goal"
+          ],
+          "unpaired": []
+        }
+      },
+      "evidence": true
+    },
+    {
+      "arm": "convoC",
+      "run": 1,
+      "eval": "convo",
+      "what": "reasoning off + fast finish (reply rule)",
+      "extraBody": "{\"chat_template_kwargs\":{\"enable_thinking\":false}}",
+      "fastFinish": "reply",
+      "exit": 0,
+      "minutes": 301.9,
+      "scorecard": "2026-10-22T17-04-41-convo-nvidia-nemotron-3-ultra-550b-a55b.json",
+      "summary": {
+        "pass": "11/15",
+        "turns": "26/30",
+        "infra": 0,
+        "unusable": 0,
+        "medianWall": 6.9,
+        "median": 6.9,
+        "p90": 22.6,
+        "calls": 1.4,
+        "gaveUp": 0,
+        "guardCaught": 0,
+        "fastFinishBlocked": 1,
+        "heldOut": {
+          "heldOut": "1/1",
+          "originals": "1/1",
+          "onlyInPromptWords": [],
+          "unpaired": []
+        }
+      },
+      "evidence": true
+    },
+    {
+      "arm": "C",
+      "run": 2,
+      "eval": "loop",
+      "what": "reasoning off + fast finish (reply rule)",
+      "extraBody": "{\"chat_template_kwargs\":{\"enable_thinking\":false}}",
+      "fastFinish": "reply",
+      "exit": 0,
+      "minutes": 8.6,
+      "scorecard": "2026-10-22T17-14-16-loop-nvidia-nemotron-3-ultra-550b-a55b.json",
+      "summary": {
+        "pass": "27/34",
+        "act": "15/21",
+        "hold": "12/13",
+        "infra": 0,
+        "unusable": 0,
+        "medianWall": 9.8,
+        "median": 9.8,
+        "p90": 29.7,
+        "calls": 1.2,
+        "gaveUp": 0,
+        "guardCaught": 0,
+        "fastFinishBlocked": 0,
+        "heldOut": {
+          "heldOut": "6/8",
+          "originals": "5/8",
+          "onlyInPromptWords": [
+            "vague-goal"
+          ],
+          "unpaired": []
+        }
+      },
+      "evidence": true
+    },
+    {
+      "arm": "convoC",
+      "run": 2,
+      "eval": "convo",
+      "what": "reasoning off + fast finish (reply rule)",
+      "extraBody": "{\"chat_template_kwargs\":{\"enable_thinking\":false}}",
+      "fastFinish": "reply",
+      "exit": 0,
+      "minutes": 12.7,
+      "scorecard": "2026-10-22T17-27-56-convo-nvidia-nemotron-3-ultra-550b-a55b.json",
+      "summary": {
+        "pass": "12/15",
+        "turns": "27/30",
+        "infra": 0,
+        "unusable": 0,
+        "medianWall": 10.5,
+        "median": 10.5,
+        "p90": 36,
+        "calls": 1.4,
+        "gaveUp": 0,
+        "guardCaught": 0,
+        "fastFinishBlocked": 1,
+        "heldOut": {
+          "heldOut": "1/1",
+          "originals": "1/1",
+          "onlyInPromptWords": [],
+          "unpaired": []
+        }
+      },
+      "evidence": true
+    },
+    {
+      "arm": "C",
+      "run": 3,
+      "eval": "loop",
+      "what": "reasoning off + fast finish (reply rule)",
+      "extraBody": "{\"chat_template_kwargs\":{\"enable_thinking\":false}}",
+      "fastFinish": "reply",
+      "exit": 0,
+      "minutes": 13.6,
+      "scorecard": "2026-10-22T17-42-29-loop-nvidia-nemotron-3-ultra-550b-a55b.json",
+      "summary": {
+        "pass": "28/34",
+        "act": "17/21",
+        "hold": "11/13",
+        "infra": 0,
+        "unusable": 0,
+        "medianWall": 10.3,
+        "median": 10.3,
+        "p90": 24.2,
+        "calls": 1.2,
+        "gaveUp": 0,
+        "guardCaught": 0,
+        "fastFinishBlocked": 0,
+        "heldOut": {
+          "heldOut": "6/8",
+          "originals": "5/8",
+          "onlyInPromptWords": [
+            "vague-goal"
+          ],
+          "unpaired": []
+        }
+      },
+      "evidence": true
+    },
+    {
+      "arm": "convoC",
+      "run": 3,
+      "eval": "convo",
+      "what": "reasoning off + fast finish (reply rule)",
+      "extraBody": "{\"chat_template_kwargs\":{\"enable_thinking\":false}}",
+      "fastFinish": "reply",
+      "exit": 0,
+      "minutes": 11.5,
+      "scorecard": "2026-10-22T17-55-00-convo-nvidia-nemotron-3-ultra-550b-a55b.json",
+      "summary": {
+        "pass": "10/15",
+        "turns": "25/30",
+        "infra": 0,
+        "unusable": 1,
+        "medianWall": 7,
+        "median": 7,
+        "p90": 42,
+        "calls": 1.2,
+        "gaveUp": 0,
+        "guardCaught": 0,
+        "fastFinishBlocked": 1,
+        "heldOut": {
+          "heldOut": "1/1",
+          "originals": "1/1",
+          "onlyInPromptWords": [],
+          "unpaired": []
+        }
+      },
+      "evidence": true
+    }
+  ]
+}
