@@ -1,5 +1,5 @@
 {
-  "note": "The HARD eval — the ruler for the assistant rebuild, and the ceiling test (run these through a big PROMPTED model vs the small one; if big crushes the hard ones and small can't, model size is the ceiling; if big also fails, it's our design/data). Each case is model- and schema-agnostic on purpose: it states the CORRECT BEHAVIOR in plain language + which of the four buckets it falls in (do | clarify | decline | refuse), so we can grade any model before the new primitive schema exists. Now 54 cases spanning all four buckets, memory-application, multi-turn corrections, and the health/cycle roadmap behavior. A noisy eval can't steer training (a lesson from earlier runs) — keep it broad and specific. The last 9 are HELD-OUT paraphrases (`heldOutOf` names the original): the prompt quotes the originals' own words as examples, so on those the eval measured recall as much as judgement (the models lane's probe-quotes.mjs --hard-cases, 2026-10-21). A held-out keeps its original's bucket and expected behavior and avoids the prompt's wording; score the pair, not one alone.",
+  "note": "The HARD eval — the ruler for the assistant rebuild, and the ceiling test (run these through a big PROMPTED model vs the small one; if big crushes the hard ones and small can't, model size is the ceiling; if big also fails, it's our design/data). Each case is model- and schema-agnostic on purpose: it states the CORRECT BEHAVIOR in plain language + which of the four buckets it falls in (do | clarify | decline | refuse), so we can grade any model before the new primitive schema exists. Now 55 cases spanning all four buckets, memory-application, multi-turn corrections, and the health/cycle roadmap behavior. A noisy eval can't steer training (a lesson from earlier runs) — keep it broad and specific. The last 10 are HELD-OUT paraphrases (`heldOutOf` names the original): the prompt quotes the originals' own words as examples, so on those the eval measured recall as much as judgement (the models lane's probe-quotes.mjs --hard-cases, 2026-10-21). A held-out keeps its original's bucket and expected behavior and avoids the prompt's wording; score the pair, not one alone.",
   "buckets": {
     "do": "map to supported operation(s) and execute",
     "clarify": "ask ONE question; change nothing",
@@ -362,6 +362,12 @@
       "turns": [{ "role": "user", "text": "i never eat anything before noon, so drop the morning meal from my plan altogether" }],
       "expected": "Honest: plans are 3 or 4 meals a day and I can't drop to 2 yet — offer the nearest (a very light breakfast, or shift its calories into lunch and dinner). Don't silently pretend it's gone.",
       "why_hard": "Held out of skip-meal: the same structural limit, asked without the prompt's own sentence."
+    },
+    {
+      "id": "rate-recur-heldout", "heldOutOf": "rate-recur", "category": "preference", "bucket": "do",
+      "turns": [{ "role": "user", "text": "wednesday's dinner really hit the spot, bring it back round again sometime" }],
+      "expected": "Record a high rating / preference so that dish recurs more; warm reply.",
+      "why_hard": "Held out of rate-recur: praise and a wish to see the dish again, in none of the words the prompt's rating line uses."
     }
   ]
 }
