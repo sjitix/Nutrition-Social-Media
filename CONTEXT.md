@@ -255,8 +255,12 @@ The do-nothing and hollow-claim fakes score 0 on both evals.
   - B, reasoning off: 26/34, median 7.1 s, p90 20.8;
   - C, off plus fast finish: 28/34, median 5.5 s, p90 12.5;
   - convo A: 12/15 at 11.3 s per turn; convo C: 12/15 at 6.0 s.
-  C is the setting. **In flight:** repeats of C and convo C, 3 each, on `cd2244b`, for a range (v1 ships the fast
-  finish when they hold); and a no-model diagnosis of every failure. Then the wording test, on C.
+  **C is the setting.** Its repeats (`e8322f5`, on `cd2244b`) held: 26-28 of 34, convo 10-12 of 15. Their
+  latencies are not clean, because the laptop slept mid-run, so keep it awake for timed runs. v1 ships the fast
+  finish as `AI_FAST_FINISH=1`, gated to this model. Decision 2 in the owner's doc has the numbers and the
+  config. Shadow mode (`6344c77`) measures what the skip cuts.
+- **In flight:** a no-model diagnosis of every failure. **Next:** a clean latency range for C, then the wording
+  test on C (with v1's LOOP RULE 5 on the shadow arm).
 - **Next, key-free:** re-run the probes when v1's F3 (imports get their own diet matcher) lands; the evals
   import no recipes, so the controls should not move.
 - The false-claim guard: `probe-claims.mts` 15/15 on main since v1's `c8ccfb0` (1/15 before). Day records:

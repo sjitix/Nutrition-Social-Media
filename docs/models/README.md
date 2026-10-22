@@ -60,6 +60,11 @@ message (8 at worst), so **per-call latency × steps** is the number a user feel
 
 ## Decisions on record
 
+- **2026-10-22 — Nemotron's setting: reasoning off plus the fast finish.** The fair arms (`cd2244b`) show
+  it is about 2.8 times faster than reasoning on at the median (5.5 s against 15.3) with the same pass rate
+  (26-28 of 34 over four runs, against 27). The fast finish cuts calls from 1.9 to 1.2 per message. v1 ships it
+  as `AI_FAST_FINISH=1`, gated to this model: the skipped call never wrote anything on the 550B, and did on
+  gpt-oss-20b. The repeats' latencies are not quoted, because the laptop slept mid-run.
 - **2026-10-22 — the owner's preference: make Nemotron-3-Ultra 550B work.** In the owner's words, "i like
   nemotron, id be happy if we could make it work". So the lane's main line is no longer choosing a model. It is
   making `nvidia/nemotron-3-ultra-550b-a55b` fast and correct enough to run the assistant, through:

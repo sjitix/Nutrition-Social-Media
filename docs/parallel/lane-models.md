@@ -26,7 +26,9 @@ lists the eval messages it quotes: 8 of 55 on main, all held out, so it exits 0.
   - C (reasoning off plus fast finish) is the setting: 28/34 at 5.5 s median, p90 12.5.
   - A (reasoning on): 27/34 at 15.3 s; B: 26/34 at 7.1 s.
   - Convo: 12/15 both ways, 6.0 s per turn against 11.3.
-  **In flight:** repeats of C and convo C (3 each, on `cd2244b`), and a no-model diagnosis of every failure.
+  The repeats held (26-28 of 34, `e8322f5`), though the laptop slept mid-run, so their latencies are not
+  quoted. The fast finish is cleared (v1, `AI_FAST_FINISH=1`), and decision 2 is written. Shadow mode is
+  `6344c77`. **In flight:** the no-model diagnosis of every failure.
 Day records: `docs/worklog/2026-10-20-models.md`, `2026-10-21-models.md`.
 
 **2026-10-20 — every check in both evals is fixed and proven: 524 controls hold across all 44 scenarios**
