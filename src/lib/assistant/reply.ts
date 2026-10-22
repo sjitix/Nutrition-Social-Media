@@ -153,19 +153,37 @@ const REQUEST = /^(?:(?:just|so|okay|ok)[,\s]+)?(?:tell me|pick|choose|say the w
  *  on the answer, while "Anything else?" and "Want me to add a few?" do not. Two stored clarifications
  *  read as claims without it (of 1,045 stored replies, 2026-10-21). */
 const CLARIFY = /\b(?:which|what|when|where|how (?:many|much)|or)\b[^.!]*\?\s*$/i;
+/** A closing question that asks to go ahead with the change just described: "I'll rebuild your week around
+ *  1,800 kcal. Shall I go ahead?" asks before acting, and was replaced by the canned line (models lane,
+ *  2026-10-21). It excuses only the promise right before it. */
+const CONFIRM =
+  /^(?:(?:so|ok|okay|great|just to check)[,\s]+)?(?:(?:shall|should|can|may) i|(?:do you )?want me to|would you like me to) (?:go ahead|proceed|do (?:it|that|this))\b[^.!]*\?\s*$|^(?:sounds? good|does that sound (?:good|ok|okay|right)|is that (?:ok|okay|alright)|does that work(?: for you)?|ok(?:ay)?)\?\s*$/i;
+/** ...unless it asks about a DIFFERENT change: "Shall I go ahead and do Wednesday as well?", "Should I do that
+ *  for your snacks too?" left the promise standing as if made, and the loop's nudge never fired (review,
+ *  2026-10-21). */
+const OTHER_CHANGE =
+  /\b(?:too|also|as well|next|instead|another|others?|rest|every|each|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday|breakfasts?|lunch(?:es)?|dinners?|snacks?)\b/i;
+/** ...or the reply says elsewhere that the change is done: "Updated. I'll keep the peanuts out from now on.
+ *  Okay?" claims the change; the promise was what caught it (review, 2026-10-21). */
+const DONE_ALREADY =
+  /^(?:all )?(?:done|updated|swapped|sorted|changed|fixed|finished)\b|\ball set\b|\bhere'?s your (?:new|updated)\b|\b(?:is|are) now\b|\b(?:is|are) gone\b/i;
 
 export function claimsChange(text: string): boolean {
   const t = text.trim().replace(/[‘’]/g, "'");
   if (CLAIMS_CHANGE.test(t) || CLAIMS_CHANGE_PASSIVE.test(t)) return true;
   // "…" ends a sentence too: "I'll add more protein to your breakfasts… Let me know if…" was one sentence,
-  // and its "let me know" excused the promise.
-  const sentences = t.split(/(?<=[.!?…])\s+/);
+  // and its "let me know" excused the promise. So does a full stop inside a closing quote, a bracket or bold:
+  // "I'll swap it for “Salmon Bowl.” Anything else?" was one sentence, and its "?" excused the promise.
+  const sentences = t.replace(/\*\*|__/g, "").split(/(?<=[.!?…]["”')\]]*)\s+/);
+  const last = sentences[sentences.length - 1] ?? "";
+  const confirms = CONFIRM.test(last) && !OTHER_CHANGE.test(last) && !sentences.slice(0, -1).some((s) => DONE_ALREADY.test(s));
   return sentences.some((s, i) => {
     if (OFFER_OR_QUESTION.test(s)) return false;
     if (CLAIMS_STATE.test(s)) return true;
     if (!PROMISES_CHANGE.test(s)) return false;
     return !(REQUEST.test(s) || (/^then\b/i.test(s) && /\?\s*$/.test(sentences[i - 1] ?? "")) ||
-      sentences.some((q, j) => j !== i && CLARIFY.test(q)));
+      sentences.some((q, j) => j !== i && CLARIFY.test(q)) ||
+      (i === sentences.length - 2 && confirms));
   });
 }
 

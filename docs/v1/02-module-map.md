@@ -270,7 +270,13 @@ micros, report coverage against a daily reference."*
 
 **`nutrition/exclusions`** — *"Allergen and diet matching, word-aware, in both directions."*
 - **Public:** `haystackBlocked`, `parseExclusionTokens`, `dietTagConflicts`, `wordMatches`,
-  `expandExclusion` and `EXCLUSION_CATEGORIES` (read by `primitives.ts` and the property tests).
+  `expandExclusion` and `EXCLUSION_CATEGORIES` (read by `primitives.ts` and the property tests), and
+  `exclusionCovers` (2026-10-21: whether stored tokens already block every food a token does, exception
+  phrases included. Read by `primitives.ts` when an allergy is added and by the undo in `plan/execute.ts`, so
+  the two judge "covered" alike. It lives here because the engine may not import the assistant, and the
+  engine's public surface is fixed), and `mealHaystack` (2026-10-21: one dish's text for the matcher, its
+  parts kept apart so no term or exception spans two ingredients; every matcher call on a dish, in `plan/`
+  and `assistant/`, builds its text with it).
   **Private:** `ingredientHasGluten`, `CATEGORY_TERMS` and the food lists, `VEGAN_EXCEPTIONS`.
 - **Invariants:** **I2 — an allergen or excluded ingredient never reaches a plate.** Matching is
   word-aware in *both* directions (`peanuts` must match `peanut butter`; `egg` must not match
@@ -526,7 +532,10 @@ mode."*
 - **Public:** `resolveProvider`, `generatePlan`, `agentModelFn`, `parseAssistantTurn`,
   `assistantTurnSystemPrompt`, `withTargetDefaults`, `extractRecipeFromText`, and `localExtraBody`
   (`providers/extraBody.ts`: `LOCAL_AI_EXTRA_BODY`, a JSON object merged last into the local chat body —
-  how reasoning is switched off on the 550B as configuration, not code; unset = the body unchanged).
+  how reasoning is switched off on the 550B as configuration, not code; unset = the body unchanged), and
+  `normalizeMealTypes` (`providers/turnShape.ts`, 2026-10-21: a model's turn read the way the schema reads it
+  before validation, its meal types lowercased and every constrain scope made readable; its own module, like
+  extraBody, so the rule is tested without loading the provider).
 - **Private / to seal:** `withPlanDefaults`, `Provider`, `ExtractedRecipeSchema`, `ExtractedRecipe`,
   `parseAssistantTurnV2`. **To delete:** `runAssistant` (no caller).
 - **Invariants:** the env vars it reads are exactly `AI_PROVIDER`, `ANTHROPIC_API_KEY`,

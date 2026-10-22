@@ -7,7 +7,7 @@
  * is internal to this folder, and check:boundaries fails anything outside the folder that imports it.
  */
 import { type Operation, type UserProfile } from "../core";
-import { expandExclusion, haystackBlocked, parseExclusionTokens } from "../nutrition";
+import { expandExclusion, haystackBlocked, mealHaystack, parseExclusionTokens } from "../nutrition";
 import { type Cuisine, type Recipe } from "../data";
 
 // --- Selection engine ------------------------------------------------------
@@ -55,8 +55,7 @@ export function blockedByExclusions(r: Recipe, tokens: string[]): boolean {
   // Include steps so method exclusions work too ("no oven" → drop bake/roast recipes).
   // Matching is word-aware and expands categories: "nuts" must block almonds (a raw substring
   // test did not), while "egg" must NOT block eggplant. Allergies are a hard rule.
-  const hay = `${r.name} ${r.ingredients.map((i) => i.name).join(" ")} ${r.steps.join(" ")}`;
-  return haystackBlocked(hay, tokens);
+  return haystackBlocked(mealHaystack(r.name, r.ingredients.map((i) => i.name), r.steps), tokens);
 }
 
 /** The user's ratings as the selector wants them: lowercased name -> 1..5. */

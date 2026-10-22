@@ -400,11 +400,54 @@ export function parseExclusionTokens(allergies: string, dislikes: string): strin
   return [...out];
 }
 
-/** Compounds an exception lets a dislike keep, which an allergy must still block. */
+/**
+ * Compounds an exception lets a dislike keep, which an allergy must still block. The gluten words' own
+ * exceptions (corn tortillas, rice and glass noodles, rice crackers are safe for a coeliac) also exempted
+ * those foods from an allergy to the food itself: "I have a tortilla allergy" served corn tortillas under
+ * "nothing containing it will be planned" (review, 2026-10-21). Whoever names the food is allergic to all
+ * of it; the category keeps its exceptions. Flour's (chickpea, oat, rice, almond, coconut) are an owner call.
+ */
 const ALLERGY_KEEPS: Record<string, string[]> = {
   olive: ["olive oil"], olives: ["olive oil"],
   pepper: ["black pepper", "white pepper"], peppers: ["black pepper", "white pepper"],
+  tortilla: ["corn tortilla"], tortillas: ["corn tortilla"],
+  noodle: ["rice noodle", "zucchini noodle", "courgette noodle", "glass noodle", "shirataki noodle"],
+  noodles: ["rice noodle", "zucchini noodle", "courgette noodle", "glass noodle", "shirataki noodle"],
+  cracker: ["rice cracker"], crackers: ["rice cracker"],
 };
+
+/**
+ * One dish's text for the matcher: its name, ingredient names and steps, kept apart by a mark no term or
+ * exception can span. Joined with spaces, two ingredients could form an exception phrase and hide an
+ * allergen: "cocoa" then "butter" read as cocoa butter, so a dairy-allergic person kept a mug cake, and
+ * "rice" then "flour" passed a wheat allergy (review, 2026-10-21). Not ";" or ".": the toast/wrap rule reads
+ * those as the start of an instruction. Every matcher call on a dish builds its text here.
+ */
+export function mealHaystack(name: string, ingredientNames: string[], steps: string[] = []): string {
+  return [name, ...ingredientNames, ...steps].join(" | ");
+}
+
+/** Every phrase an exception lets through, singular and plural: what "covered" must also be judged on. */
+const EXCEPTION_PROBES = [...new Set(Object.values(TERM_EXCEPTIONS).flat().flatMap((p) => [p, `${p}s`, `${p}es`]))];
+
+/**
+ * Every food `token` blocks, the `have` tokens block too, so storing it beside them excludes nothing new:
+ * "walnuts" under "nuts", "oat" beside "oats". Judged on this module's own expansion of the token, each food
+ * read by the same word-aware matcher, and on every exception phrase: a stored "gluten" blocks the word
+ * "tortillas" but lets corn tortillas through, which a tortilla allergy must not, so it does not cover it
+ * (review, 2026-10-21). Read where an allergy is added or taken off, so a food already covered is named as
+ * covered, not "added", and an undo never says it "took X off" while X stays blocked (the LC-16 residue).
+ */
+export function exclusionCovers(have: string[], token: string): boolean {
+  if (!have.length) return false;
+  const tokens = parseExclusionTokens(token, "");
+  if (!tokens.length) return false;
+  const foodsCovered = tokens.every((t) => {
+    const foods = expandExclusion(t);
+    return foods.length > 0 && foods.every((f) => haystackBlocked(f, have));
+  });
+  return foodsCovered && EXCEPTION_PROBES.every((p) => !haystackBlocked(p, tokens) || haystackBlocked(p, have));
+}
 
 /* ------------------------------------------------------------------------- *
  * Data integrity: does a recipe's dietTags actually agree with its ingredients?

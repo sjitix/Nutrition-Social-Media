@@ -26,7 +26,7 @@
  * remains the only thing allowed to claim that something changed.
  */
 import { runReadTool, isReadTool, type AgentContext } from "./agentTools";
-import { applyPrimitives, expandConstrain, noOpConstrain, verbToOperations, type ConstrainOp, type PrimitiveOp, type VerbOp } from "./primitives";
+import { applyPrimitives, expandConstrain, noOpConstrain, sameAllergies, verbToOperations, withoutUnchangedClaims, type ConstrainOp, type PrimitiveOp, type VerbOp } from "./primitives";
 import { claimsChange, composeReply, joinPhrases, operationPhrases } from "./reply";
 import type { Operation, PlanSnapshot, UserProfile, WeekPlan } from "../core";
 
@@ -374,6 +374,9 @@ export async function runAgent(args: {
   // and "Plan updated." under a week that did not change would be false (review, 2026-10-21). The
   // flags OR-ed step by step stay for the decisions inside the run.
   const planDiffers = !samePlan(args.plan, plan);
+  // "Your allergies haven't changed" is true of one step at most: the run runs an undo as a step of its own,
+  // so a denial's step could not see that the undo's step took an allergy off (review, 2026-10-21).
+  if (!sameAllergies(args.profile.allergies, profile.allergies)) notes.splice(0, notes.length, ...withoutUnchangedClaims(notes));
   // profileChanged here is "changed in a way a claim could be about": a saved memory is not (above).
   const reply = composeReply({ modelReply: said, notes, replyOverride, planChanged: planDiffers, profileChanged: profileEdited(), memorySaved: memorySaved() });
   return {

@@ -134,4 +134,9 @@ export function scaleRecipeToTarget(r: Recipe, target: number): Recipe {
 
 const recipeByName = new Map(RECIPES.map((r) => [r.name.toLowerCase(), r]));
 
-export const baseRecipeOf = (m: Meal): Recipe | undefined => recipeByName.get(m.name.toLowerCase());
+/** The library recipe a planned meal is, by name. An imported dish (it carries its source URL) is never
+ *  one, even titled like one: a "Chickpea Curry" import with cashews was rebuilt as the library's by a
+ *  portion rebalance, and a re-solve judged a gluten-free "Chicken Fajitas" import by the library dish's
+ *  tortillas and took it out with nothing said (review, 2026-10-21). An import is judged on its own text
+ *  (select.ts importBreaks) and kept as it is. */
+export const baseRecipeOf = (m: Meal): Recipe | undefined => (m.sourceUrl ? undefined : recipeByName.get(m.name.toLowerCase()));

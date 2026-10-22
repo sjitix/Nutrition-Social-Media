@@ -12,11 +12,13 @@ import { z } from "zod";
 import type { Meal, Operation, UserProfile, UserFact, WeekPlan, PlanSnapshot } from "../core";
 import { DAYS, MEAL_TYPES } from "../core";
 import { applyOperations } from "../recipeDb";
-import { parseExclusionTokens, EXCLUSION_CATEGORIES, expandExclusion, haystackBlocked } from "../nutrition";
+import { parseExclusionTokens, EXCLUSION_CATEGORIES, expandExclusion, exclusionCovers, haystackBlocked, mealHaystack } from "../nutrition";
 import { INGREDIENTS } from "../data";
 
 /** What counts as a FOOD word below: an allergen category, or any word of a curated ingredient. */
 const CATEGORIES = new Set(EXCLUSION_CATEGORIES);
+const ALLERGEN_KEYS = [...EXCLUSION_CATEGORIES];
+const ALLERGEN_TERMS = new Set(ALLERGEN_KEYS.flatMap((k) => expandExclusion(k)));
 const CURATED_NAMES = new Set(Object.values(INGREDIENTS).map((i) => i.name.toLowerCase()));
 const FOOD_WORDS = new Set(
   [...CURATED_NAMES].flatMap((n) => n.split(/[^a-z]+/)).filter((w) => w.length >= 3),
@@ -25,6 +27,22 @@ const FOOD_WORDS = new Set(
 // and "soybeans" were dropped by the unlabelled filter because only "crustacean" is a category key.
 const isFood = (w: string) =>
   [w, w.replace(/ies$/, "y"), w.replace(/es$/, ""), w.replace(/s$/, "")].some((s) => CATEGORIES.has(s) || FOOD_WORDS.has(s));
+/**
+ * Whether a whole token NAMES a food, for binding it and for keeping a word a cue sentence offers. Wider than
+ * isFood in two ways (review, 2026-10-21). Plural-tolerant both ways: the curated names are often plural, so
+ * "allergic to walnut" bound nothing while "walnuts" did. And the matcher's own allergen words count (LC-08):
+ * no curated ingredient is a cashew, a scallop or a hazelnut, so unlabelled, 93 of the 182 foods the matcher
+ * blocks on bound nothing; a phrase counts when it is one ("sea bass") or holds one. It is a closed
+ * vocabulary of foods, so "spring", "skin" and "pets" still bind nothing. Never for the words of a phrase being
+ * split: "glass noodle" split into "noodle" stored a word whose exceptions serve glass noodles, and "sesame
+ * seed" stored "seed", which blocks every seed dish. Splitting keeps isFood.
+ */
+const namesFood = (t: string) => {
+  const food = (w: string) =>
+    [w, w.replace(/ies$/, "y"), w.replace(/es$/, ""), w.replace(/s$/, ""), `${w}s`, `${w}es`, w.replace(/y$/, "ies")]
+      .some((s) => CATEGORIES.has(s) || ALLERGEN_TERMS.has(s) || FOOD_WORDS.has(s));
+  return food(t) || t.split(/\s+/).some(food);
+};
 /**
  * The words that make a remembered fact an allergy whatever the model labelled it: one closed list,
  * shared by the gate, the denial check and the coeliac rule so the three cannot drift apart. It takes
@@ -36,7 +54,9 @@ const CUE_WORDS = String.raw`al+erg(?:ic|y|ies|ie|ens?)|intol+er[ae]n(?:t|ces?)|
 const ALLERGY_CUE = new RegExp(String.raw`\b(?:${CUE_WORDS})\b|\banaphyla`, "i");
 const COELIAC = /\bc(?:o)?eli(?:ac|ak)s?\b/;
 const COELIAC_WORD = /^c(?:o)?eli(?:ac|ak)s?$/;
-/** A phrase we recognise whole: an allergen category ("tree nuts") or a curated name ("peanut butter"). */
+/** A phrase we recognise whole: an allergen category ("tree nuts") or a curated name ("peanut butter"). Not
+ *  the matcher's other two-word foods: kept whole, "tikka masala" stopped storing "tikka" and "masala" and
+ *  blocked 13 dishes fewer. Unlabelled, such a phrase still binds whole ("sea bass"), by the gate. */
 const knownPhrase = (t: string) => CATEGORIES.has(t) || CURATED_NAMES.has(t) || CURATED_NAMES.has(t.replace(/s$/, ""));
 
 /**
@@ -149,26 +169,41 @@ export function allergensInFact(fact: string): string[] {
   const afterTokens = [...text.matchAll(AFTER_CUE)].flatMap((m) => (m[1] ? parseExclusionTokens(m[1], "") : []));
   const beforeTokens = beforeCuePhrases(text).flatMap((p) => (p.trim() ? parseExclusionTokens(p, "") : []));
   const fromCue = afterTokens.length
-    ? [...afterTokens, ...beforeTokens.filter((t) => t.split(/\s+/).some(isFood))]
+    ? [...afterTokens, ...beforeTokens.filter(namesFood)]
     : beforeTokens;
   // A cue whose phrase yields nothing ("I don't do dairy, allergy" — the allergen sits before the
   // comma) falls back to the whole sentence, read for food words only.
   const cue = fromCue.length > 0;
   const tokens = cue ? fromCue : parseExclusionTokens(text, "");
+  // The parser also hands back compounds an allergy must keep blocking ("tortillas" brings "corn tortilla"),
+  // which the person never said; enforcement adds them again from the stored word. Split as phrases, they
+  // stored "corn", and "rice" and "zucchini" from "allergic to noodle" (review, 2026-10-22). So a phrase
+  // counts only when the fact holds its words, in any number: the parser returns "tree nuts" for "tree nut".
+  const folded = text.normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const stem = (w: string) => w.replace(/(?:ies|es|s)$/, "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const said = (t: string) => !t.includes(" ") || t.split(/\s+/).every((w) => new RegExp(`(?:^|[^a-z])${stem(w)}`).test(folded));
   for (const t of tokens) {
+    if (!said(t)) continue;
     // "coeliac" is now an exclusion word in its own right (it blocks what "gluten" blocks), but the
     // rule above already stored it AS gluten — keeping both would tell the user "gluten and coeliac".
     if (COELIAC_WORD.test(t)) continue;
     if (!t.includes(" ")) {
-      if (cue || isFood(t)) out.add(t); // an explicitly named allergen we do not stock ("lupin") is kept
+      if (cue || namesFood(t)) out.add(t); // an explicitly named allergen we do not stock ("lupin") is kept
       continue;
     }
     if (knownPhrase(t)) { out.add(t); continue; } // "tree nuts", "peanut butter"
     // "severe peanut" -> "peanut"; "my son has nut" -> "nut". Never a carrier or modifier on its own
     // (NOT_ALONE), and never "coeliac", which the gluten rule above already stored as gluten.
     const foods = t.split(/\s+/).filter((w) => isFood(w) && !NOT_ALONE.has(w) && !COELIAC_WORD.test(w));
-    if (foods.length) foods.forEach((f) => out.add(f));
-    else if (cue) out.add(t); // an unknown multi-word allergen the user named: keep it whole
+    if (foods.length) {
+      foods.forEach((f) => out.add(f));
+      // The phrase too, when its food words do not block it: an exception keeps a "rice noodle" out of
+      // "noodle", so storing the word alone would serve the very food the person named.
+      if (!haystackBlocked(t, foods)) out.add(t);
+      // An unknown multi-word allergen the user named after a cue: keep it whole. With no cue, only a phrase that
+      // is itself one of the matcher's foods ("sea bass"): one that merely holds a food word was a sentence,
+      // and "prefers a light dinner after a big lunch" was stored as an allergy.
+    } else if (cue || ALLERGEN_TERMS.has(t)) out.add(t);
   }
   return [...out];
 }
@@ -193,8 +228,6 @@ const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 /** A word the matcher knows as a member of an allergen family ("walnut", "barley", "custard"). Only these
  *  are NAMED when they are not added: the parser also hands back words like "now", "him" or "toddler"
  *  from the same sentences, and "I haven't added toddler" would be nonsense. */
-const ALLERGEN_KEYS = [...EXCLUSION_CATEGORIES];
-const ALLERGEN_TERMS = new Set(ALLERGEN_KEYS.flatMap((k) => expandExclusion(k)));
 const namesAllergen = (t: string) =>
   ALLERGEN_TERMS.has(t) || t.split(/\s+/).every((w) => haystackBlocked(w, ALLERGEN_KEYS));
 
@@ -218,7 +251,7 @@ function servedWith(items: string[], plan: WeekPlan): string[] {
   const tokens = items.flatMap((t) => parseExclusionTokens(t, ""));
   if (!tokens.length) return [];
   const hits = plan.days.flatMap((d) => d.meals).filter(served)
-    .filter((m) => haystackBlocked(`${m.name} ${m.ingredients.map((i) => i.name).join(" ")} ${m.steps.join(" ")}`, tokens));
+    .filter((m) => haystackBlocked(mealHaystack(m.name, m.ingredients.map((i) => i.name), m.steps), tokens));
   return [...new Set(hits.map((m) => m.name))];
 }
 
@@ -244,7 +277,8 @@ interface AllergyOutcome {
  *
  * Which tokens bind is unchanged: the unlabelled food filter, then the matcher's own parser, so what is
  * stored is exactly what is enforced. A word the parser drops ("red" from a dye) is neither stored nor
- * announced (LC-09); a token that expands to an allergy already stored is not stored again (LC-16).
+ * announced (LC-09); a token that expands to an allergy already stored is not stored again (LC-16), and
+ * nor is one an allergy already stored covers ("walnuts" under "nuts"), which is named as covered.
  */
 function allergyOutcome(fact: string, labelled: boolean, profile: UserProfile): AllergyOutcome {
   const none: AllergyOutcome = { add: [], already: [], covered: [], kept: [], notAdded: [], unknown: [] };
@@ -257,14 +291,18 @@ function allergyOutcome(fact: string, labelled: boolean, profile: UserProfile): 
   const factKeys = new Set<string>();
   const add: string[] = [];
   const already: string[] = [];
+  const covered: string[] = [];
   const unread: string[] = []; // named, but the food filter or the parser dropped it
   for (const t of named) {
     // Unlabelled, only FOOD words count, so "allergic to penicillin" blocks nothing.
-    const keys = labelled || t.split(/\s+/).some(isFood) ? parseExclusionTokens(t, "").map(allergyKey) : [];
+    const keys = labelled || namesFood(t) ? parseExclusionTokens(t, "").map(allergyKey) : [];
     if (!keys.length) { unread.push(t); continue; }
     if (keys.every((k) => factKeys.has(k))) continue; // the same allergy twice in one fact
     const isNew = !keys.every((k) => haveKeys.has(k) || factKeys.has(k));
-    if (isNew) add.push(t);
+    // A food the stored allergies already block entirely ("walnuts" under "nuts", "oat" beside "oats") is
+    // named as covered, not added: storing it excludes nothing new (LC-16, from the same foods to fewer).
+    if (isNew && exclusionCovers(have, t)) covered.push(t);
+    else if (isNew) add.push(t);
     else if (keys.every((k) => haveKeys.has(k))) already.push(t);
     keys.forEach((k) => factKeys.add(k));
   }
@@ -273,7 +311,6 @@ function allergyOutcome(fact: string, labelled: boolean, profile: UserProfile): 
   // avoids), or it is not, and then the person is told so in plain words.
   const enforced = [...have, ...add.flatMap((t) => parseExclusionTokens(t, ""))];
   const avoided = parseExclusionTokens("", profile.dislikes ?? "");
-  const covered: string[] = [];
   const kept: string[] = [];
   const notAdded: string[] = [];
   const unknown: string[] = [];
@@ -291,6 +328,31 @@ function allergyOutcome(fact: string, labelled: boolean, profile: UserProfile): 
   return { add, already, covered, kept, notAdded, unknown };
 }
 
+/** What a denial, or a fact that names no food, says when it bound nothing. "Your allergies haven't changed"
+ *  is true of that one fact only, so it is taken back when anything else in the same reply moved them
+ *  (withoutUnchangedClaims). */
+const DENIED_NOTHING_BOUND = "I've noted that. Your allergies haven't changed.";
+const NAMES_NO_FOOD = "I've noted that. It doesn't name a food, so your allergies haven't changed.";
+
+/** The same allergies when each list blocks what the other does: "walnut" and "walnuts", or "nuts" against
+ *  "nuts, walnuts", are no change. */
+export function sameAllergies(a = "", b = ""): boolean {
+  const A = parseExclusionTokens(a, ""), B = parseExclusionTokens(b, "");
+  const within = (xs: string[], ys: string[]) => xs.every((t) => ys.some((u) => allergyKey(u) === allergyKey(t)) || exclusionCovers(ys, t));
+  return within(A, B) && within(B, A);
+}
+
+/**
+ * A reply's notes with "your allergies haven't changed" taken out, for when something else in the same reply
+ * did change them: an undo that took one off, or another fact that bound one. "That also took peanuts off your
+ * allergies. I've noted that. Your allergies haven't changed." was said in one turn, and through the agent
+ * loop, which runs the undo as a step of its own (review, 2026-10-21). Called once per call by applyPrimitives
+ * and once per run by runAgent, each comparing its start with its end.
+ */
+export function withoutUnchangedClaims(notes: string[]): string[] {
+  return notes.map((n) => (n === DENIED_NOTHING_BOUND ? "I've noted that." : n === NAMES_NO_FOOD ? "I've noted that. It doesn't name a food." : n));
+}
+
 /**
  * The sentences for one remembered allergy fact, written from the FINAL week and profile of the turn.
  * "…so nothing with it is planned" is said only when no dish the week serves still holds it, and "your
@@ -305,9 +367,9 @@ function allergyNotes(o: AllergyOutcome, plan: WeekPlan, profile: UserProfile): 
       ? `, but ${listOf(left)} in your plan still ${left.length > 1 ? "have" : "has"} ${itOrThem(items)}.`
       : `, so nothing ${verb} ${itOrThem(items)} ${tense}.`;
   };
-  if (o.nameless) return ["I've noted that. It doesn't name a food, so your allergies haven't changed."];
+  if (o.nameless) return [NAMES_NO_FOOD];
   if (o.denied) {
-    return [o.denied.length ? `Your allergies still include ${listOf(o.denied)}${promise(o.denied, "with", "is planned")}` : "I've noted that. Your allergies haven't changed."];
+    return [o.denied.length ? `Your allergies still include ${listOf(o.denied)}${promise(o.denied, "with", "is planned")}` : DENIED_NOTHING_BOUND];
   }
   const screened = parseExclusionTokens(profile.allergies ?? "", profile.dislikes ?? "");
   const excludedNow = (w: string) => haystackBlocked(w, screened);
@@ -459,13 +521,16 @@ export function slotScopeNote(c: ConstrainOp): string | null {
 }
 
 /** Apply a `remember` to the profile's memory: dedupe on the fact text, stamp the day if given. A fact
- *  already stored with the same kind leaves the profile EXACTLY as it was (position and first `since`
- *  kept): restating it used to move it to the end with a new stamp, which counted as a change and took
- *  the undo slot from the person's last real change (review, 2026-10-20). */
+ *  already stored leaves the profile EXACTLY as it was (position, first `since` and label kept): restating
+ *  it used to move it to the end with a new stamp, which counted as a change and took the undo slot from
+ *  the person's last real change (review, 2026-10-20). The same text under another label is the same fact
+ *  too: models label one fact inconsistently, and the engine never reads the stored label (the prompt line
+ *  and the condition triggers read the text; an allergy binds by the op's own label, in applyPrimitives).
+ *  The model's get_profile read shows the label as first stored. */
 export function applyRemember(profile: UserProfile, r: RememberOp, today?: string): UserProfile {
   const text = r.fact.trim();
   if (!text) return profile;
-  const same = (profile.memory ?? []).some((f) => f.fact.toLowerCase() === text.toLowerCase() && (f.kind ?? null) === (r.kind ?? null));
+  const same = (profile.memory ?? []).some((f) => f.fact.toLowerCase() === text.toLowerCase());
   if (same) return profile;
   const fact: UserFact = { fact: text, ...(r.kind ? { kind: r.kind } : {}), ...(today ? { since: today } : {}) };
   const rest = (profile.memory ?? []).filter((f) => f.fact.toLowerCase() !== text.toLowerCase());
@@ -569,9 +634,10 @@ export function applyPrimitives(
   if (undoOp && ops.some((o) => !isUndoOp(o))) {
     const back = applyPrimitives(profile, plan, [undoOp], today, previous);
     const rest = applyPrimitives(back.profile, back.plan, ops.filter((o) => !isUndoOp(o)), today);
+    const notes = [...back.notes, ...rest.notes];
     return {
       ...rest,
-      notes: [...back.notes, ...rest.notes],
+      notes: sameAllergies(profile.allergies, rest.profile.allergies) ? notes : withoutUnchangedClaims(notes),
       planChanged: back.planChanged || rest.planChanged,
       profileChanged: back.profileChanged || rest.profileChanged,
       undone: back.undone || rest.undone,
@@ -639,7 +705,12 @@ export function applyPrimitives(
   // The notes written here are ENGINE notes like any other, so composeReply shows them as the truth
   // rather than letting the model's prose claim a change that did not happen.
   const written = extraNotes.flatMap((n) => (typeof n === "string" ? [n] : n({ plan: res.plan, profile: res.profile })));
-  return { ...res, notes: [...written, ...res.notes], profileChanged: res.profileChanged || remembered };
+  const notes = [...written, ...res.notes];
+  return {
+    ...res,
+    notes: sameAllergies(profile.allergies, res.profile.allergies) ? notes : withoutUnchangedClaims(notes),
+    profileChanged: res.profileChanged || remembered,
+  };
 }
 
 /** Render the memory as a compact context line for the model's system prompt each turn. */
@@ -655,11 +726,15 @@ const slotEnum = z.enum(MEAL_TYPES);
 // {slot, days?} comes BEFORE {days}: a union takes its first member that parses, and zod strips the keys
 // a member does not name, so {slot:"lunch", days:["Wednesday"]} used to parse as {days:["Wednesday"]}.
 // The whole day was re-planned, and the "can't change just your lunch" note never fired (models lane,
-// 2026-10-20).
+// 2026-10-20). {days} is strict too: a slot the first member refuses ({slot:"brunch"}, a list of slots) used
+// to fall through to it with the slot stripped, re-planning whole days again (review, 2026-10-21). Such a turn
+// is now refused. The provider first reads what it can (ai.ts normalizeScope): a slot under another key or in
+// capitals is the slot, and a key that names no meal (null, "", "all") or no meal at all is dropped, so those
+// still mean the whole day(s).
 const scopeSchema = z.union([
   z.literal("week"),
   z.object({ slot: slotEnum, days: z.array(dayEnum).optional() }),
-  z.object({ days: z.array(dayEnum) }),
+  z.object({ days: z.array(dayEnum) }).strict(),
 ]);
 const nutrientEnum = z.enum(["iron", "calcium", "magnesium", "potassium", "zinc", "vitD", "vitC", "folate", "b12"]);
 

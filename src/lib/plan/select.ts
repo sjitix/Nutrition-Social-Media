@@ -7,7 +7,7 @@
  * is internal to this folder, and check:boundaries fails anything outside the folder that imports it.
  */
 import { DAYS, type DayPlan, type Meal, type UserProfile, type WeekPlan } from "../core";
-import { microDensity, DAILY_REFERENCE, haystackBlocked, parseExclusionTokens, type MicroKey } from "../nutrition";
+import { microDensity, DAILY_REFERENCE, haystackBlocked, mealHaystack, parseExclusionTokens, type MicroKey } from "../nutrition";
 import { type Cuisine, type Recipe } from "../data";
 import { RECIPES, baseRecipeOf, recipeMicros, scaleRecipeToTarget, toMeal } from "./library";
 import { type SlotSplit, bannedForUser, blockedByExclusions, budgetCap, exclusionKey, exclusionTokens, localSplit, passesDiet, ratingMap } from "./rules";
@@ -299,6 +299,9 @@ function importDietConflicts(diet: string, name: string, ingredientNames: string
 /** Which of the person's hard rules an imported dish breaks, judged on its own text. */
 export interface ImportBreak {
   allergies: string[];
+  /** For the note, one entry per allergy it breaks: the allergy as the person would name it, and the dish's
+   *  ingredient names the matcher flagged for that allergy (none when only the title or a step did). */
+  allergyHits?: { label: string; listed: string[] }[];
   avoided: string[];
   /** The ingredient names that break the new diet; `dietName` holds the title's words when none does. */
   diet: string[];
@@ -324,7 +327,7 @@ export interface ImportBreak {
  */
 export function importBreaks(m: Meal, profile: UserProfile, before?: UserProfile): ImportBreak | null {
   if (!m.sourceUrl) return null;
-  const hay = `${m.name} ${m.ingredients.map((i) => i.name).join(" ")} ${m.steps.join(" ")}`;
+  const hay = mealHaystack(m.name, m.ingredients.map((i) => i.name), m.steps);
   const allergies = parseExclusionTokens(profile.allergies ?? "", "").filter((t) => haystackBlocked(hay, [t]));
   const had = before ? exclusionTokens(before) : null;
   // Judged per food avoided: one the change introduced counts, one the person already avoided does not (the
@@ -340,19 +343,63 @@ export function importBreaks(m: Meal, profile: UserProfile, before?: UserProfile
   const now = old && !old.ingredients.length && !old.title.length ? judged(profile.diet) : null;
   const diet = now?.ingredients ?? [];
   const dietName = now && !now.ingredients.length ? now.title : [];
-  return allergies.length || avoided.length || diet.length || dietName.length
-    ? { allergies, avoided, diet, dietName, brokenDiet: profile.diet }
-    : null;
+  if (!(allergies.length || avoided.length || diet.length || dietName.length)) return null;
+  // Each ingredient once, as a shopper reads it: "large shrimp, peeled and deveined" is "large shrimp".
+  const names = [...new Map(m.ingredients.map((i) => i.name.split(",")[0].trim()).filter(Boolean).map((n) => [n.toLowerCase(), n])).values()];
+  const allergyHits = allergyLabels(profile.allergies ?? "")
+    .filter((g) => g.tokens.some((t) => allergies.includes(t)))
+    .map((g) => ({ label: g.label, listed: names.filter((n) => haystackBlocked(n, g.tokens)) }));
+  return { allergies, allergyHits, avoided, diet, dietName, brokenDiet: profile.diet };
+}
+
+/**
+ * The stored allergies as the person would name them, one per allergy, with the matcher's tokens for each:
+ * "tree nuts", never also its mined "nuts"; "tortillas", never its kept "corn tortilla"; "shellfish" for an
+ * entry typed "I'm allergic to shellfish"; coeliac as gluten. The import note named the raw entry, and read
+ * "your allergy to I'm allergic to shellfish" or "to dairy-free" (review, 2026-10-21).
+ */
+function allergyLabels(stored: string): { label: string; tokens: string[] }[] {
+  const words = (s: string) => s.split(/\s+/).map((w) => w.replace(/(?:es|s)$/, ""));
+  const related = (a: string, b: string) => {
+    const A = words(a), B = words(b);
+    return A.every((w) => B.includes(w)) || B.every((w) => A.includes(w));
+  };
+  const shown = (t: string) => (/^c(?:o)?eli(?:ac|ak)s?$/.test(t) ? "gluten" : t);
+  const out: { label: string; tokens: string[] }[] = [];
+  for (const entry of stored.split(/[,;\n]+/)) {
+    const tokens = parseExclusionTokens(entry, "");
+    for (const t of tokens) {
+      const label = shown(tokens.find((u) => related(u, t)) ?? t);
+      let group = out.find((g) => g.label === label);
+      if (!group) out.push((group = { label, tokens: [] }));
+      if (!group.tokens.includes(t)) group.tokens.push(t);
+    }
+  }
+  return out;
 }
 
 const listWords = (items: string[]) => (items.length > 1 ? `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}` : items[0] ?? "");
 const manyOf = (items: string[]) => items.length > 1 || /[^siu]s$/.test(items[0] ?? "");
 
-/** Why an import was taken out, in the person's words: "contains shellfish, which is in your
- *  allergies", "contains mushrooms, which you avoid", "isn't vegetarian (it has chicken breast)". */
+/** Why an import was taken out, in the person's words: "lists shrimp, which I screen out for your allergy to
+ *  shellfish", "contains mushrooms, which you avoid", "isn't vegetarian (it has chicken breast)". An allergy
+ *  is worded as what the matcher flagged, never as a fact about the dish: it over-blocks on purpose, and
+ *  "contains lactose" was said of a coconut-milk curry and "contains dairy" of a butter-bean stew. Each
+ *  allergy is named once, with only the ingredients it flagged (review, 2026-10-21). */
 function importWhy(b: ImportBreak, profile: UserProfile): string {
   const parts: string[] = [];
-  if (b.allergies.length) parts.push(`contains ${listWords(b.allergies)}, which ${manyOf(b.allergies) ? "are" : "is"} in your allergies`);
+  if (b.allergies.length) {
+    const hits = b.allergyHits?.length ? b.allergyHits : b.allergies.map((t) => ({ label: t, listed: [] as string[] }));
+    parts.push(hits.map((h, i) => {
+      const shown = h.listed.length > 3 ? [...h.listed.slice(0, 2), `${h.listed.length - 2} more`] : h.listed;
+      // "lists" again after a "may contain": "may contain shellfish, which is in your allergies, and sour cream,
+      // which I screen out…" read as if the sour cream were only possible.
+      const lists = i === 0 || !hits[i - 1].listed.length ? "lists " : "";
+      return h.listed.length
+        ? `${lists}${listWords(shown)}, which I screen out for your allergy to ${h.label}`
+        : `may contain ${h.label}, which ${manyOf([h.label]) ? "are" : "is"} in your allergies`;
+    }).join(", and "));
+  }
   if (b.avoided.length) parts.push(`${parts.length ? "and" : "contains"} ${listWords(b.avoided)}, which you avoid`);
   if (b.diet.length || b.dietName?.length) {
     const what = b.diet.length ? `it has ${listWords(b.diet)}` : `its name says ${listWords(b.dietName ?? [])}`;
@@ -369,16 +416,36 @@ function importWhy(b: ImportBreak, profile: UserProfile): string {
  * A pin back in the slot is named: it stays until the person unpins it.
  */
 export function importNotes(replaced: ReplacedImport[], plan: WeekPlan, profile: UserProfile): string[] {
+  const seen = new Set<string>();
   return replaced.flatMap((r) => {
+    // Once per slot: a boost's two re-solves can both record the same import.
+    const key = `${r.day}|${r.type}|${r.name}`;
+    if (seen.has(key)) return [];
+    seen.add(key);
     const now = plan.days.find((d) => d.day === r.day)?.meals.find((m) => m.type === r.type);
-    if (now?.name === r.name) return []; // it is back (a later step restored it): nothing was taken out
+    // It is back (a later step restored it): nothing was taken out. The import itself, not a library dish or a
+    // pin with its title: those used to hide the note (review, 2026-10-21).
+    if (now?.name === r.name && now.sourceUrl) return [];
     const where = r.day ? `${r.day}'s ${r.type}` : `your ${r.type}`;
     const head = `${r.name}, the recipe you imported for ${where}, ${importWhy(r.breaks, profile)}, so I`;
     const pinned = (profile.lockedMeals ?? []).some((l) => l.day === r.day && l.mealType === r.type && l.name === now?.name);
+    // An empty slot is "nothing fits" only while the plan still has that meal: the same request can drop to
+    // three meals a day and take the snack away (review, 2026-10-21).
+    if (!now && !localSplit(profile.mealsPerDay).some(([t]) => t === r.type)) return [`${head} took it out, and your plan no longer has a ${r.type}.`];
     if (!now) return [`${head} took it out, and nothing else fits that slot.`];
     if (pinned) return [`${head} took it out, and your pinned ${now.name} is back in that slot.`];
     return [`${head} replaced it.`];
   });
+}
+
+/** The imports in a week that break the hard rules, with their slots, for importNotes: a re-plan that picks
+ *  from scratch (a cuisine, a fiber or nutrient push, a mode switch) has no keep pass to record them, so one
+ *  removed for an allergy went unnamed (review, 2026-10-21). */
+export function brokenImports(plan: WeekPlan, profile: UserProfile, before?: UserProfile): ReplacedImport[] {
+  return plan.days.flatMap((d) => d.meals.flatMap((m) => {
+    const breaks = importBreaks(m, profile, before);
+    return breaks ? [{ day: d.day, type: m.type, name: m.name, breaks }] : [];
+  }));
 }
 
 /** Turn a report into honest, user-facing sentences. Empty when nothing was compromised. */
@@ -419,12 +486,14 @@ function pickMealsForDay(
     // current portions), not re-cooked from base: rebalanceWeek runs afterward and re-scales it if a
     // target actually changed, so a no-op change (relaxing a diet, restating the current target)
     // reproduces the week exactly instead of jittering the portions. A meal we can't find in the
-    // library (a logged / eating-out entry) is likewise kept verbatim, never guessed at.
+    // library (a logged / eating-out entry, or an import that breaks no rule) is likewise kept verbatim,
+    // never guessed at.
     if (keep) {
       const existing = keep.meals.find((m) => m.type === type);
       if (existing) {
         // Looked up the way rebalanceWeek looks it up (case-insensitive), because it rebuilds any meal
-        // with a library dish's name as that dish.
+        // with a library dish's name as that dish. Never for an import, even titled like one: it was
+        // judged by the library dish's rules and re-picked with nothing said (review, 2026-10-21).
         const base = baseRecipeOf(existing);
         // An IMPORTED dish that breaks a hard rule (importBreaks, judged on its own text first) is a
         // planned plate like any library dish: binding "allergic to shellfish" took the library's shrimp

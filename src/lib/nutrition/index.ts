@@ -7,6 +7,6 @@ export {
   computeTargets, bmr, hydrationTarget, explainTargets, explainHydration, CALORIE_FLOOR, DEFAULT_CALORIE_FLOOR,
   BODY_LIMITS, bodyStatProblems, bodyStatMessage, isRealBody, referenceWeightKg, type Activity,
 } from "./targets";
-export { haystackBlocked, parseExclusionTokens, dietTagConflicts, wordMatches, expandExclusion, EXCLUSION_CATEGORIES } from "./exclusions";
+export { haystackBlocked, parseExclusionTokens, dietTagConflicts, wordMatches, expandExclusion, exclusionCovers, mealHaystack, EXCLUSION_CATEGORIES } from "./exclusions";
 export { redFlag, CRISIS_REPLY, URGENT_REPLY } from "./safety";
 export { groupByAisle, aisleFor, AISLE_ORDER, type Aisle } from "./grocery";
