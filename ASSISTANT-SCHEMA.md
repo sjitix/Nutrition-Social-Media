@@ -192,6 +192,23 @@ reply = composeReply(turn.reply, engine notes)
   import it. Its blind spot is a claim made when the plan DID change, so the engine closes that from
   its side: a day re-plan always writes "<day> now has …", and an empty constrain changes nothing and
   says so (a week-scoped one, or a day scope whose only field is preserveMacros: false).
+- **The finishing call can be skipped when it cannot change what the person reads** (the fast finish,
+  2026-10-22). After a step that changed something and got engine notes, whose turn made no lookups and
+  carried a reply of its own, `composeReply` returns the notes and discards whatever a finishing call
+  says. So the loop answers that call itself with an empty turn (`fastFinished: true`), exactly as the
+  models lane's eval wrapper did when it measured the rule. A refusal, a lookup, a nudge and an empty
+  reply still go back to the model.
+  - **It also cuts any write the model would have sent next,** including a remembered allergy. So it is
+    safe only for a model that finishes in one write turn. Nemotron-3-Ultra 550B with reasoning off does:
+    across its recorded runs, the call the skip replaces sent nothing new after a write (0 of 275 write
+    messages; 0 of 23 in the fair run's matched messages). gpt-oss-20b does not (7 of 49).
+  - **The reply rule is not what keeps it safe.** The 550B writes a reply beside nearly every write, so the
+    rule withheld 1 skip in 84.
+  - **Off unless the caller passes `fastFinish: true`.** The route passes it when `AI_FAST_FINISH=1`, a
+    setting for the model it was measured on. An eval asks for it, or uses the models lane's wrapper, but
+    not both.
+  - **What it saves on the 550B** (`cd2244b`): 1.2 model calls a message against 1.8, and 5.5 s median
+    against 7.1 s.
 
 ## Testing it with no model at all (RULE 2)
 
@@ -206,6 +223,7 @@ The loop is ordinary code and is tested with a scripted provider that returns ca
 | emits ops the engine refuses | the refusal reaches the model and it can change course |
 | claims a change with no operation | one nudge and one retry; then the honest line, never the claim |
 | sends an EMPTY constrain (week scope, or only preserveMacros:false) | nothing changes, and the engine says what it needs; a bare day constrain still re-plans that day and says where it landed |
+| writes with a reply, the engine writes notes, `fastFinish` on | no finishing call, and the run leaves exactly what an empty finishing turn would (8 writes compared) |
 
 No GPU, no keys, no fine-tune. This belongs in `npm run test:engine`, and it must exist BEFORE a
 real model is wired in — otherwise a harness bug and a model weakness look identical.

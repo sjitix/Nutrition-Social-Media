@@ -20,6 +20,7 @@ import {
 } from "../core";
 // Host-specific request fields from configuration (LOCAL_AI_EXTRA_BODY): see ./extraBody.
 import { localExtraBody } from "./extraBody";
+import { normalizeMealTypes } from "./turnShape";
 export { localExtraBody };
 
 type MealType = (typeof MEAL_TYPES)[number];
@@ -272,23 +273,7 @@ interface LocalChatMessage {
   content: string;
 }
 
-// Open models sometimes capitalize meal types ("Breakfast") — normalize any
-// "type" field whose lowercase form is a valid meal type, wherever it appears.
-const MEAL_TYPE_SET = new Set(["breakfast", "lunch", "dinner", "snack"]);
-
-function normalizeMealTypes(node: unknown): void {
-  if (Array.isArray(node)) {
-    for (const item of node) normalizeMealTypes(item);
-    return;
-  }
-  if (node && typeof node === "object") {
-    const obj = node as Record<string, unknown>;
-    if (typeof obj.type === "string" && MEAL_TYPE_SET.has(obj.type.toLowerCase())) {
-      obj.type = obj.type.toLowerCase();
-    }
-    for (const value of Object.values(obj)) normalizeMealTypes(value);
-  }
-}
+// A model turn is read the way the schema reads it before validation: see ./turnShape.
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 

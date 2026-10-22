@@ -1,5 +1,5 @@
 {
-  "note": "The HARD eval — the ruler for the assistant rebuild, and the ceiling test (run these through a big PROMPTED model vs the small one; if big crushes the hard ones and small can't, model size is the ceiling; if big also fails, it's our design/data). Each case is model- and schema-agnostic on purpose: it states the CORRECT BEHAVIOR in plain language + which of the four buckets it falls in (do | clarify | decline | refuse), so we can grade any model before the new primitive schema exists. Now 45 cases spanning all four buckets, memory-application, multi-turn corrections, and the health/cycle roadmap behavior. A noisy eval can't steer training (a lesson from earlier runs) — keep it broad and specific.",
+  "note": "The HARD eval — the ruler for the assistant rebuild, and the ceiling test (run these through a big PROMPTED model vs the small one; if big crushes the hard ones and small can't, model size is the ceiling; if big also fails, it's our design/data). Each case is model- and schema-agnostic on purpose: it states the CORRECT BEHAVIOR in plain language + which of the four buckets it falls in (do | clarify | decline | refuse), so we can grade any model before the new primitive schema exists. Now 55 cases spanning all four buckets, memory-application, multi-turn corrections, and the health/cycle roadmap behavior. A noisy eval can't steer training (a lesson from earlier runs) — keep it broad and specific. The last 10 are HELD-OUT paraphrases (`heldOutOf` names the original): the prompt quotes the originals' own words as examples, so on those the eval measured recall as much as judgement (the models lane's probe-quotes.mjs --hard-cases, 2026-10-21). A held-out keeps its original's bucket and expected behavior and avoids the prompt's wording; score the pair, not one alone.",
   "buckets": {
     "do": "map to supported operation(s) and execute",
     "clarify": "ask ONE question; change nothing",
@@ -300,6 +300,74 @@
       ],
       "expected": "Replace keto with mediterranean (switch the diet), not layer both.",
       "why_hard": "A correction that REPLACES a just-applied change; must swap, not stack."
+    },
+    {
+      "id": "compound-1-heldout", "heldOutOf": "compound-1", "category": "compound", "bucket": "do",
+      "turns": [{ "role": "user", "text": "keep the costs down, go meat-free, and leave mushrooms out of everything" }],
+      "expected": "One update: budget=low, diet=vegetarian, exclude mushrooms. Three changes in a single turn, one rebuild.",
+      "why_hard": "Held out of compound-1: three constraints, none named the way the prompt's example names them."
+    },
+    {
+      "id": "weekend-1-heldout", "heldOutOf": "weekend-1", "category": "scope", "bucket": "do",
+      "turns": [{ "role": "user", "text": "smaller portions over the weekend, i'm mostly on the sofa then" }],
+      "expected": "Lower calories on Saturday and Sunday only (two day-level changes). 'Weekend' = Sat+Sun.",
+      "why_hard": "Held out of weekend-1: must still resolve 'weekend' to the two days, without the prompt's 'lighter on the weekend'."
+    },
+    {
+      "id": "everyday-1-heldout", "heldOutOf": "everyday-1", "category": "scope", "bucket": "do",
+      "turns": [{ "role": "user", "text": "can i have overnight oats as my breakfast all week long, every morning" }],
+      "expected": "Set overnight oats as breakfast on ALL seven days (whole-week swap). NOT one day claimed as every day.",
+      "why_hard": "Held out of everyday-1: the same one-day-claimed-as-every-day trap, with no pancakes to recall."
+    },
+    {
+      "id": "everyday-correction-heldout", "heldOutOf": "everyday-correction", "category": "multi-turn", "bucket": "do",
+      "turns": [
+        { "role": "user", "text": "i'd love an omelette at breakfast all week" },
+        { "role": "assistant", "text": "Done — omelette for Monday breakfast." },
+        { "role": "user", "text": "that's only monday, i meant all seven mornings" }
+      ],
+      "expected": "Recognize the correction; apply the omelette to every day's breakfast, not just Monday.",
+      "why_hard": "Held out of everyday-correction: must catch the under-delivery and fix the scope, worded differently."
+    },
+    {
+      "id": "contradiction-1-heldout", "heldOutOf": "contradiction-1", "category": "contradiction", "bucket": "refuse",
+      "turns": [{ "role": "user", "text": "turn the entire week plant-based, and i'd also like a beef burger on tuesday night" }],
+      "expected": "Flag the conflict: plant-based (vegan) excludes beef. Offer a choice (a vegan week, or a non-vegan week with the burger on Tuesday). Don't silently do a broken thing.",
+      "why_hard": "Held out of contradiction-1: the prompt's worked example is vegan-plus-chicken almost word for word."
+    },
+    {
+      "id": "memory-apply-heldout", "heldOutOf": "memory-apply", "category": "memory", "bucket": "do",
+      "turns": [
+        { "role": "user", "text": "fyi i have a lactose intolerance" },
+        { "role": "assistant", "text": "Noted — I'll keep dairy out of your plans." },
+        { "role": "user", "text": "put a cheesy risotto on thursday's dinner" }
+      ],
+      "expected": "Add a cheesy risotto made dairy-free (apply the remembered fact); note the dairy-free swap.",
+      "why_hard": "Held out of memory-apply: must APPLY an earlier fact to a later request, without the prompt's 'I'm lactose intolerant'."
+    },
+    {
+      "id": "rambling-multi-heldout", "heldOutOf": "rambling-multi", "category": "rambling", "bucket": "do",
+      "turns": [{ "role": "user", "text": "honestly this week is chaos, night shifts and the kids are off school, i stopped eating meat a while back i think, and please never give me olives — could the evening meals at least be fast" }],
+      "expected": "Extract the real actions: diet=vegetarian, exclude olives, quick dinners. Warm, brief reply. Optionally remember the shift-work context.",
+      "why_hard": "Held out of rambling-multi: buried instructions among feelings, with no 'i went vegetarian' to recall."
+    },
+    {
+      "id": "per-slot-protein-heldout", "heldOutOf": "per-slot-protein", "category": "per-slot", "bucket": "do",
+      "turns": [{ "role": "user", "text": "my mornings leave me starving by ten, can the first meal of the day pack more protein? lunch and dinner are fine as they are" }],
+      "expected": "Raise protein at the breakfast slot only (higher-protein breakfasts, or a per-slot protein bias), leaving other meals as-is.",
+      "why_hard": "Held out of per-slot-protein: the slot is named only as 'the first meal of the day'."
+    },
+    {
+      "id": "skip-meal-heldout", "heldOutOf": "skip-meal", "category": "structure", "bucket": "decline",
+      "turns": [{ "role": "user", "text": "i never eat anything before noon, so drop the morning meal from my plan altogether" }],
+      "expected": "Honest: plans are 3 or 4 meals a day and I can't drop to 2 yet — offer the nearest (a very light breakfast, or shift its calories into lunch and dinner). Don't silently pretend it's gone.",
+      "why_hard": "Held out of skip-meal: the same structural limit, asked without the prompt's own sentence."
+    },
+    {
+      "id": "rate-recur-heldout", "heldOutOf": "rate-recur", "category": "preference", "bucket": "do",
+      "turns": [{ "role": "user", "text": "wednesday's dinner really hit the spot, bring it back round again sometime" }],
+      "expected": "Record a high rating / preference so that dish recurs more; warm reply.",
+      "why_hard": "Held out of rate-recur: praise and a wish to see the dish again, in none of the words the prompt's rating line uses."
     }
   ]
 }

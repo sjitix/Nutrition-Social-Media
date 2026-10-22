@@ -8,7 +8,7 @@
  */
 import { type UserProfile, type WeekPlan } from "../core";
 import { conditionBoosts } from "../data";
-import { MICRO_LABEL, type MicroKey } from "../nutrition";
+import { MICRO_LABEL, parseExclusionTokens, type MicroKey } from "../nutrition";
 import { RECIPES, baseRecipeOf, recipeMicros, scaleRecipeToTarget, toMeal } from "./library";
 import { bannedForUser, blockedByExclusions, exclusionTokens, localSplit, passesDiet } from "./rules";
 import { rebalanceWeek } from "./rebalance";
@@ -79,48 +79,100 @@ export function guaranteeBoost(
   /** The profile before the change that came with the boost, so an import is judged as the re-solve
    *  judged it (importBreaks). Omitted: only the allergies are judged against imports. */
   before?: UserProfile,
+  /** How the week the person had may stay, as the rest of THIS request lets it. null: not at all (a
+   *  cuisine, a fiber push, a different number of meals). Otherwise `prev` itself when the request asked
+   *  nothing else (`unchanged`) and it fits the rules, and else `resolve()`: `prev` re-solved under the
+   *  request, its rule-breaking dishes re-picked and its portions following new targets (the keep path),
+   *  run only when needed because a re-solve is not byte-identical even when nothing changes. It replaced:
+   *  - handing back `prev` whatever came with the boost, which dropped the other change with no word (E4:
+   *    a 1600 kcal target in 8 of 8 seeded runs, "Italian" in 8 of 8, a low budget in 1 of 8; 2026-10-21);
+   *  - dropping `prev` whole when one dish broke a rule, which lowered the nutrient for no reason under a
+   *    note blaming the rules: excluding greek yogurt with a zinc boost took zinc from 28.1 to 26.8 mg a
+   *    day, where removing that one dish leaves 27.5 and the two changes asked apart reach 28.7 (review). */
+  keep: { unchanged: boolean; resolve: () => WeekPlan } | null = { unchanged: true, resolve: () => prev },
+  /** What the caller does to the chosen week afterwards (the pins put back), applied to every candidate
+   *  before it is measured: the boost used to count a gain in a pinned slot, the pin then went back, and
+   *  the week ended LOWER with no note (E7: zinc 25.9 -> 25.4 under a pinned low dinner; review, 2026-10-21). */
+  finish: (pl: WeekPlan) => WeekPlan = (pl) => pl,
 ): { plan: WeekPlan; note?: string } {
+  const EPS = 1e-6;
   const level = (pl: WeekPlan) => weekMicroAverage(pl, key).amount;
   const start = level(prev);
-  // The week the person had is a candidate only while every dish in it passes the rules as they are
-  // NOW. A diet change or a new exclusion arriving in the same request as the boost used to upgrade the
-  // old week in place: its unreplaced dishes kept the old rules, so "go vegetarian, and more B12"
-  // returned salmon and tuna in a "vegetarian" week, with no word said (models lane audit, iron-veg#2).
+  const label = MICRO_LABEL[key];
+  // A week is a candidate only while every dish in it passes the rules as they are NOW. A diet change or a
+  // new exclusion arriving in the same request as the boost used to upgrade the old week in place: its
+  // unreplaced dishes kept the old rules, so "go vegetarian, and more B12" returned salmon and tuna in a
+  // "vegetarian" week, with no word said (models lane audit, iron-veg#2).
   const prevFits = fitsHardRules(prev, profile, before);
-  const candidates = [upgradeForNutrient(profile, built, key), ...(prevFits ? [upgradeForNutrient(profile, prev, key)] : [])];
+  const kept = !keep ? null : keep.unchanged && prevFits ? prev : keep.resolve();
+  const keptOk = !!kept && fitsHardRules(kept, profile, before);
+  // The kept week itself is a candidate too: portion rebalancing can claw back what an upgrade's swaps
+  // gained, so the win is verified, never assumed.
+  const candidates = [upgradeForNutrient(profile, built, key), ...(keptOk ? [upgradeForNutrient(profile, kept!, key), kept!] : [])]
+    .map((pl) => (pl === prev ? prev : finish(pl)));
   const best = candidates.reduce((a, b) => (level(b) > level(a) ? b : a));
-  // Portion rebalancing can claw back what the swaps gained, so the win is verified, not assumed.
-  if (level(best) > start) return { plan: best };
-  if (prevFits) {
+  if (level(best) > start + EPS) return { plan: best };
+  if (keptOk && kept === prev) {
+    return { plan: prev, note: `I couldn't put more ${label} into your week than it already has, so I left it alone.` };
+  }
+  // The week has to change for the rest of the request, and the nutrient could not rise above where it
+  // was. Say what the boost achieved, and give the true reason: "less" only when there is less (it once
+  // fired at 0 -> 0), the old week's rule-breaking dishes by name when they are the reason, and no claim
+  // that what was used is the richest possible (the upgrade is greedy, not a maximum).
+  const less = level(best) < start - EPS;
+  if (!prevFits) {
+    const broke = brokenDishes(prev, profile, before);
+    const why = broke.length === 1 ? `${broke[0]} no longer fits your rules`
+      : broke.length <= 3 ? `${broke.slice(0, -1).join(", ")} and ${broke[broke.length - 1]} no longer fit your rules`
+      : `${broke.length} of its dishes, among them ${broke[0]} and ${broke[1]}, no longer fit your rules`;
     return {
-      plan: prev,
-      note: `I couldn't put more ${MICRO_LABEL[key]} into your week than it already has, so I left it alone.`,
+      plan: best,
+      note: less
+        ? `Your week has less ${label} than before: ${why}, and nothing that fits made up for ${broke.length === 1 ? "it" : "them"}.`
+        : `I couldn't put more ${label} into your week while keeping to your rules.`,
     };
   }
-  // The old week breaks the rules, so it cannot be kept. Say what the boost achieved, and only that: a
-  // drop only when there is one, and no "new rules" when the rules did not change (review, 2026-10-20:
-  // a boost alone over a week that already broke a rule said "now fits your new rules", and the "less
-  // than before" line fired at 0 -> 0).
   return {
     plan: best,
-    note: level(best) < start
-      ? `Your week has less ${MICRO_LABEL[key]} than before: the dishes that had more don't fit your rules. I've used the richest ones that do.`
-      : `I couldn't put more ${MICRO_LABEL[key]} into your week while keeping to your rules.`,
+    note: less
+      ? `Your week has less ${label} than before, with the other changes you asked for.`
+      : `I couldn't put more ${label} into your week while making the other changes you asked for.`,
   };
 }
 
-/** Every dish in the week passes the profile's hard rules: a library dish its diet, allergies and
- *  exclusions (looked up the way rebalanceWeek looks it up); an imported dish what importBreaks judges,
- *  on its own text first. A logged or eating-out entry passes: it records what was eaten. */
-function fitsHardRules(plan: WeekPlan, profile: UserProfile, before?: UserProfile): boolean {
+/**
+ * Which of the week's dishes break the hard rules, dish by dish. An imported dish is judged by importBreaks,
+ * on its own text first. A library dish (looked up the way rebalanceWeek looks it up) is judged the same
+ * way: an allergy always counts; a diet or an exclusion counts when the change being applied (`before` ->
+ * `profile`) introduced it. A one-day override (Saturday re-planned with no diet on a vegetarian profile)
+ * breaks no rule the boost brought, and judging it against the saved diet re-picked it: a boost asked alone
+ * took B12 from 7.4 to 6.6 and undid the override (review, 2026-10-21). With no `before`, every rule counts.
+ * A logged or eating-out entry passes: it records what was eaten.
+ */
+function breaksRules(profile: UserProfile, before?: UserProfile): (m: WeekPlan["days"][number]["meals"][number]) => boolean {
+  const allergies = parseExclusionTokens(profile.allergies ?? "", "");
   const tokens = exclusionTokens(profile);
-  return plan.days.every((d) =>
-    d.meals.every((m) => {
-      if (importBreaks(m, profile, before)) return false;
-      const r = baseRecipeOf(m);
-      return !r || (passesDiet(r, profile.diet) && !blockedByExclusions(r, tokens));
-    }),
-  );
+  const had = before ? new Set(exclusionTokens(before)) : null;
+  const introduced = had ? tokens.filter((t) => !had.has(t)) : tokens;
+  const dietNew = !before || before.diet !== profile.diet;
+  return (m) => {
+    if (importBreaks(m, profile, before)) return true;
+    const r = baseRecipeOf(m);
+    if (!r) return false;
+    return blockedByExclusions(r, allergies) || (dietNew && !passesDiet(r, profile.diet)) || blockedByExclusions(r, introduced);
+  };
+}
+
+/** The names of the week's dishes that break the hard rules (breaksRules). */
+function brokenDishes(plan: WeekPlan, profile: UserProfile, before?: UserProfile): string[] {
+  const breaks = breaksRules(profile, before);
+  return [...new Set(plan.days.flatMap((d) => d.meals).filter(breaks).map((m) => m.name))];
+}
+
+/** Every dish in the week passes the hard rules (breaksRules). */
+function fitsHardRules(plan: WeekPlan, profile: UserProfile, before?: UserProfile): boolean {
+  const breaks = breaksRules(profile, before);
+  return plan.days.every((d) => !d.meals.some(breaks));
 }
 
 /**

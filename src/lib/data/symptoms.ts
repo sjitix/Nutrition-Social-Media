@@ -32,7 +32,9 @@ export const SYMPTOMS: Symptom[] = [
   {
     key: "fatigue",
     label: "feeling tired",
-    triggers: ["tired", "tiredness", "fatigue", "fatigued", "exhausted", "exhaustion", "no energy", "low energy", "knackered", "lethargic", "sluggish", "worn out", "drained"],
+    // "zero energy" (models lane, 2026-10-21): "it's that time of the month and i've got zero energy" got
+    // the no-angle answer. Matched as a word set, so "low on energy" already hits "low energy".
+    triggers: ["tired", "tiredness", "fatigue", "fatigued", "exhausted", "exhaustion", "no energy", "low energy", "zero energy", "knackered", "lethargic", "sluggish", "worn out", "drained"],
     nutrients: ["iron", "b12", "folate", "vitD", "magnesium"],
   },
   {

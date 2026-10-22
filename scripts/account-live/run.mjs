@@ -12,7 +12,8 @@
  *   1. setup.sh   fetches the binaries once, into ~/.cache/nutriflow-live in WSL (never into the repo),
  *                 each checked against its pinned SHA-256
  *   2. stack.sh   reset (an empty project every run), then up: Postgres, the platform's roles, GoTrue's
- *                 migrations, THIS repo's migrations, GoTrue, PostgREST, and gateway.mjs on :54321
+ *                 migrations, THIS repo's migrations, GoTrue twice (the second with "Confirm email"
+ *                 on, behind /confirm), PostgREST, and gateway.mjs on :54321
  *   3. live.mts   bundled with one copy of storage.ts + client.ts per device, run against :54321
  *   4. the stack goes when its `up` process goes (its own EXIT trap), and `down` sweeps up after it
  *
@@ -87,7 +88,7 @@ const stackId = await new Promise((ready, fail) => {
   console.error(e.message);
   process.exit(1);
 });
-console.log("stack: up (GoTrue, PostgREST, Postgres; gateway on :54321)\n");
+console.log("stack: up (two GoTrues, PostgREST, Postgres; gateway on :54321)\n");
 
 /**
  * The gateway as Windows sees it. WSL forwards localhost, sometimes a moment after the server is up, and
@@ -119,7 +120,10 @@ try {
   const secret = wsl(["cat", `${wslHome}/.cache/nutriflow-live/jwt-secret`]); // to mint a truly expired token
   const out = (name) => resolve(".cache/account-live", name); // the worktree's own, never a shared node_modules
   const common = { bundle: true, platform: "node", format: "esm", tsconfig: "tsconfig.json", logLevel: "error" };
-  for (const device of ["Lap", "Pho", "Rob", "Late", "Desk", "Tablet"]) {
+  // The Conf browsers talk to the second GoTrue ("Confirm email" on) through the gateway's /confirm
+  // prefix: the app reads the project URL as a literal process.env read, so a define gives one bundle its own.
+  const confirmUrl = { "process.env.NEXT_PUBLIC_SUPABASE_URL": JSON.stringify("http://localhost:54321/confirm") };
+  for (const device of ["Lap", "Pho", "Rob", "Late", "Desk", "Tablet", "Prev", "Site", "ConfA", "ConfB", "ConfC", "ConfD"]) {
     await build({
       ...common,
       entryPoints: ["scripts/account-tab.mts"],
@@ -128,6 +132,7 @@ try {
         window: `globalThis.__TAB_${device}.window`,
         document: `globalThis.__TAB_${device}.document`,
         history: `globalThis.__TAB_${device}.history`,
+        ...(device.startsWith("Conf") ? confirmUrl : {}),
       },
     });
   }

@@ -28,7 +28,7 @@ import {
 import { agentModelFn, resolveProvider, withTargetDefaults } from "@/lib/providers";
 import { selectWeekFromDb, rebalanceWeek, withSeed, RECIPES } from "@/lib/plan";
 import { dietTagConflicts, haystackBlocked, parseExclusionTokens } from "@/lib/nutrition";
-import { withFastFinish, fastFinishModeFromEnv } from "./fast-finish";
+import { withFastFinish, fastFinishModeFromEnv, type ShadowCall } from "./fast-finish";
 import {
   withErrorCapture, isInfraError, holdFailure, scriptedModel, scriptLabel, reseedEngine, engineSeedConfig,
   outsideScope, unaskedProfileEdit, writesSent, inventedFigures, isVegMeal, isVeganMeal, memoryAdded,
@@ -697,6 +697,8 @@ interface Row {
   wallSeconds?: number;
   /** Set on a held-out paraphrase: the scenario it paraphrases (Scenario.heldOutOf). */
   heldOutOf?: string;
+  /** FAST_FINISH=shadow: the finishing calls this message's skip saved, made anyway, and what they sent. */
+  shadow?: ShadowCall[];
 }
 const EMOJI = /\p{Extended_Pictographic}/u;
 const rows: Row[] = [];
@@ -710,6 +712,7 @@ for (const s of scenarios) {
   let t0 = performance.now();
   let up0 = await upstreamSeconds();
   let sk0 = ff.skipped;
+  let sh0 = ff.shadow.length;
   cap.reset();
   let r: AgentRunResult;
   try {
@@ -727,6 +730,7 @@ for (const s of scenarios) {
       t0 = performance.now();
       up0 = await upstreamSeconds();
       sk0 = ff.skipped;
+      sh0 = ff.shadow.length;
       cap.reset();
       reseedEngine(s.id);
       r = await runAgent({ profile: structuredClone(PROFILE), plan: structuredClone(PLAN), message: s.message, history, today: TODAY, model });
@@ -761,7 +765,8 @@ for (const s of scenarios) {
     : badOutput ? `unusable model output: ${cap.lastError().slice(0, 120)}`
     : claimed ? "claimed a change it did not make" : s.check(r, before);
   const pass = !infra && reason === null;
-  rows.push({ id: s.id, want: s.want, pass, infra, reason, steps: r.steps, gaveUp: r.gaveUp, modelFailed: r.modelFailed, seconds, readFirst, ops: opsSeq, reply: r.reply.replace(/\s+/g, " ").slice(0, 200), emoji: EMOJI.test(r.reply), engineIssue: infra || !s.engine ? null : s.engine(r, before), writes: writesOf(r), modelCalls: r.steps - (ff.skipped - sk0), falseClaim: claimed, guardRetried: Boolean(guard(r).falseClaimRetried), guardCaught: Boolean(guard(r).falseClaimCaught), wallSeconds, heldOutOf: s.heldOutOf });
+  rows.push({ id: s.id, want: s.want, pass, infra, reason, steps: r.steps, gaveUp: r.gaveUp, modelFailed: r.modelFailed, seconds, readFirst, ops: opsSeq, reply: r.reply.replace(/\s+/g, " ").slice(0, 200), emoji: EMOJI.test(r.reply), engineIssue: infra || !s.engine ? null : s.engine(r, before), writes: writesOf(r), modelCalls: r.steps - (ff.skipped - sk0), falseClaim: claimed, guardRetried: Boolean(guard(r).falseClaimRetried), guardCaught: Boolean(guard(r).falseClaimCaught), wallSeconds, heldOutOf: s.heldOutOf,
+    shadow: FAST_FINISH_MODE === "shadow" ? ff.shadow.slice(sh0) : undefined });
   console.log(`${pass ? "✓ " : infra ? "!!" : "✗ "} ${s.id.padEnd(18)} ${seconds.toFixed(1).padStart(6)}s  ${r.steps} step${r.steps === 1 ? " " : "s"}${r.gaveUp ? " GAVE-UP" : ""}  [${opsSeq.join(",") || "no ops"}]${reason ? `  — ${reason}` : ""}`);
 }
 
@@ -792,6 +797,12 @@ const summary = {
   fastFinish: FAST_FINISH_MODE,
   /** Skips the "reply" rule withheld because the write step's reply was empty. */
   fastFinishBlockedByEmptyReply: ff.blockedByEmptyReply,
+  /** FAST_FINISH=shadow: the skipped finishing calls, made anyway; those that would have sent operations are
+   *  writes a real skip cuts (fast-finish.ts). Null in every other mode. */
+  fastFinishShadow: FAST_FINISH_MODE === "shadow"
+    ? { calls: ff.shadow.length, withOps: ff.shadow.filter((c) => c.ops.length).length, failed: ff.shadow.filter((c) => c.error).length,
+        scenarios: rows.filter((r) => r.shadow?.some((c) => c.ops.length)).map((r) => r.id) }
+    : null,
   medianSecondsPerMessage: q(0.5),
   /** The same messages on the wall clock (includes proxy pacing and retry waits): compare like with like. */
   medianWallSecondsPerMessage: (() => { const w = graded.map((r) => r.wallSeconds ?? r.seconds).sort((x, y) => x - y); return w.length ? +w[Math.floor(w.length / 2)].toFixed(1) : null; })(),
@@ -812,7 +823,11 @@ const summary = {
 };
 
 console.log(`\npass ${summary.pass}/${graded.length} (${summary.passRate}%)  · act ${summary.actPass}  · hold ${summary.holdPass}  · read-before-write ${summary.readBeforeWrite}`);
-console.log(`steps mean ${summary.meanSteps}  · model calls mean ${summary.meanModelCalls}${FAST_FINISH ? ` (fast finish: ${FAST_FINISH_MODE}${FAST_FINISH_MODE === "reply" ? `, ${ff.blockedByEmptyReply} withheld` : ""})` : ""}  · gave up ${summary.gaveUp}  · emoji replies ${summary.emojiReplies}  · FALSE CLAIMS ${summary.falseClaims} (guard: ${summary.guardRetries} nudged, ${summary.guardCatches} caught)  · per-message seconds: median ${summary.medianSecondsPerMessage?.toFixed(1)}  p90 ${summary.p90SecondsPerMessage?.toFixed(1)}  max ${summary.maxSecondsPerMessage?.toFixed(1)}`);
+if (summary.fastFinishShadow) {
+  const sh = summary.fastFinishShadow;
+  console.log(`shadow: ${sh.withOps} of ${sh.calls} skipped finishing calls would have sent operations${sh.scenarios.length ? ` (${sh.scenarios.join(", ")})` : ""}${sh.failed ? `; ${sh.failed} shadow call(s) failed` : ""}. Latency in this run includes them, so it is not comparable.`);
+}
+console.log(`steps mean ${summary.meanSteps}  · model calls mean ${summary.meanModelCalls}${FAST_FINISH ? ` (fast finish: ${FAST_FINISH_MODE}${FAST_FINISH_MODE !== "plain" ? `, ${ff.blockedByEmptyReply} withheld` : ""})` : ""}  · gave up ${summary.gaveUp}  · emoji replies ${summary.emojiReplies}  · FALSE CLAIMS ${summary.falseClaims} (guard: ${summary.guardRetries} nudged, ${summary.guardCatches} caught)  · per-message seconds: median ${summary.medianSecondsPerMessage?.toFixed(1)}  p90 ${summary.p90SecondsPerMessage?.toFixed(1)}  max ${summary.maxSecondsPerMessage?.toFixed(1)}`);
 if (summary.heldOut.pairs) console.log(`held out ${summary.heldOut.heldOutPass}/${summary.heldOut.pairs}, their originals ${summary.heldOut.originalPass}/${summary.heldOut.pairs}${summary.heldOut.onlyInPromptWords.length ? `  · passed only in the prompt's words: ${summary.heldOut.onlyInPromptWords.join(", ")}` : ""}`);
 if (summary.heldOut.unpaired.length) console.log(`held out, original not in this run (compared with nothing): ${summary.heldOut.unpaired.join(", ")}`);
 for (const e of summary.engineIssues) console.log(`ENGINE (not the model): ${e}`);

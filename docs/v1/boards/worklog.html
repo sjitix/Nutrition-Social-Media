@@ -170,8 +170,8 @@
       the schedule ahead.</p>
     <div class="stamp">
       <b><i>source</i> docs/worklog/</b>
-      <b><i>synced</i> 2026-10-21</b>
-      <b><i>commit</i> da023da+</b>
+      <b><i>synced</i> 2026-10-22</b>
+      <b><i>commit</i> b2b4285+</b>
     </div>
   </header>
 
@@ -189,10 +189,10 @@
 
   <section id="totals">
     <div class="stats">
-      <div class="stat"><div class="v">6</div><div class="l">days logged</div></div>
+      <div class="stat"><div class="v">7</div><div class="l">days logged</div></div>
       <div class="stat"><div class="v">10</div><div class="l">milestones done</div></div>
       <div class="stat"><div class="v">9</div><div class="l">days to V1</div></div>
-      <div class="stat"><div class="v">11</div><div class="l">open deferrals</div></div>
+      <div class="stat"><div class="v">10</div><div class="l">open deferrals</div></div>
     </div>
   </section>
 
@@ -202,6 +202,67 @@
     <p class="lede">Only days that actually happened, each with its date, appended at the end of every work-day.
       Nothing planned appears here — the schedule ahead is in its own collapsed block below.</p>
     <div class="tl" style="margin-top:20px">
+
+      <article class="entry" id="d-2026-10-22">
+        <div class="box">
+          <div class="ehead">
+            <span class="date">2026-10-22</span>
+            <span class="pill done">solved &middot; done</span>
+          </div>
+          <h3>Every food the allergy checker knows is now screened, and on Nemotron the assistant makes fewer model calls</h3>
+          <p class="sub">The last of the four follow-up commits, after four reviewers found four ways an allergen could still
+            reach a plate (all fixed). Then, in the evening, the fast finish, switched on only for the model it was measured on.</p>
+          <div class="blocks">
+            <div class="blk">
+              <h4>What moved</h4>
+              <ul>
+                <li><b>An allergy to cashews, scallops, crab or hazelnut is screened now</b>, however the assistant files
+                  it. All 182 foods the allergy checker knows count. &ldquo;Spring&rdquo; or &ldquo;cats&rdquo; still screen
+                  nothing.</li>
+                <li><b>&ldquo;Walnuts&rdquo;, when nuts are already in your allergies, is called already covered</b> rather
+                  than saved twice, but only when the allergy you have really blocks everything the new word would.</li>
+                <li><b>An imported recipe is always your recipe</b>, even when it shares a name with one of ours. It is
+                  not resized, pinned or explained as ours. A note about it says what it lists, in your words:
+                  &ldquo;lists coconut milk, which I screen out for your allergy to lactose&rdquo;.</li>
+                <li><b>More iron and a switch to meal-prep in one message</b> no longer leaves &ldquo;about 35 mg of iron a
+                  day&rdquo; over a week of 22 mg. What meal-prep mode cannot do is said once.</li>
+                <li><b>The check against false claims reads a question properly.</b> &ldquo;I&rsquo;ll rebuild your week
+                  around 1,800 kcal. Shall I go ahead?&rdquo; is honest, so it stands. &ldquo;Should I do that for
+                  Wednesday too?&rdquo; no longer excuses a claim about Tuesday.</li>
+                <li><b>On Nemotron, most changes now take one call to the model instead of two</b> (1.2 a message instead
+                  of 1.8, about 5.5 seconds a message against 7.1 when measured back to back). The second call only let
+                  the model say &ldquo;done&rdquo;, and its words were thrown away. It is switched on only for Nemotron with
+                  reasoning off: skipping that call would also cut a second change a model planned, and only Nemotron
+                  was measured never to split a request (0 of 275 messages).</li>
+                <li><b>Your two answers are carried out.</b> Nemotron is the model (decision 1, in the schedule and on
+                  its board). The lane stays one agent for now (decision 10).</li>
+              </ul>
+            </div>
+            <div class="blk found">
+              <h4>Found along the way</h4>
+              <ul>
+                <li><b>The first version of &ldquo;already covered&rdquo; was wrong.</b> With gluten in your allergies,
+                  &ldquo;I&rsquo;m allergic to tortillas&rdquo; was called covered, but the gluten check lets corn tortillas
+                  through, so 11 dishes would have stayed. Fixed before it shipped.</li>
+                <li><b>Two older holes, fixed as well.</b> An imported recipe listing &ldquo;cocoa&rdquo; then
+                  &ldquo;butter&rdquo; was read as cocoa butter, so the butter passed a dairy allergy (and &ldquo;rice&rdquo;
+                  then &ldquo;flour&rdquo; passed a wheat one). And a tortilla allergy still served corn tortillas.</li>
+                <li><b>Each fix was measured again against the code before it</b>, and three of the fixes turned out to
+                  block foods nobody named, such as &ldquo;corn&rdquo; taken from &ldquo;corn tortilla&rdquo;. Those were fixed
+                  too. Across 1,800 allergy situations, none is screened less than before.</li>
+                <li><b>One question for you:</b> an allergy typed as just &ldquo;flour&rdquo; still lets chickpea and oat
+                  flour through (5 dishes). It is the new row in decision 9 of
+                  <a href="https://claude.ai/code/artifact/a3290f96-fc25-43a6-932d-9982a46bb70f">your decisions doc</a>.</li>
+                <li><b>When the model fails partway through, the app can lose what it already said.</b> The
+                  &ldquo;assistant offline&rdquo; message can replace urgent-care advice the app had already written, and
+                  one malformed part of a reply can lose an allergy you just stated. Now that Nemotron runs the
+                  assistant, these are the first fixes next.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="gate">GATE &middot; engine 1167/0, then 1179/0 &middot; every new test that checks a change fails on the code before it</div>
+        </div>
+      </article>
 
       <article class="entry" id="d-2026-10-21">
         <div class="box">
@@ -226,6 +287,15 @@
                   and a peanut dish stayed in the week while the assistant said none would be planned.</li>
                 <li><b>Every allergy sentence is now checked against the finished week.</b> &ldquo;Nothing with it is
                   planned&rdquo; is said only when that is true.</li>
+                <li><b>The architecture work is finished.</b> The 28 old file addresses are gone, and the checks now fail
+                  one put back. Your ruling on the module map is fully carried out.</li>
+                <li><b>Cook time now means what you say.</b> &ldquo;15 minutes or less&rdquo; used to allow 20 without a
+                  word: in 12 test weeks, 68 of 252 meals ran over. Since tonight nothing runs over unless nothing quicker
+                  fits, and then the reply names the dish and its minutes. It costs some protein on strict
+                  diets, so it is decision 13 in <a href="https://claude.ai/code/artifact/a3290f96-fc25-43a6-932d-9982a46bb70f">your
+                  decisions doc</a>. Overrule it there if you would rather keep the grace.</li>
+                <li><b>The single-turn test set now has a reworded twin for each of the 9 cases the assistant&rsquo;s own
+                  instructions quote</b>, so passing it takes judgement, not memory. None of the twins is quoted itself.</li>
               </ul>
             </div>
             <div class="blk found">
@@ -234,13 +304,23 @@
                 <li><b>Asking for a &ldquo;veggie burger&rdquo; could blame dairy on a cheeseburger</b> you never asked
                   for. A refused dish is now named only when it is the one you asked for.</li>
                 <li><b>The check against false claims was replacing some honest replies</b>, such as a question that offered
-                  a change. It now judges a promise only in a reply that asks nothing.</li>
+                  a change. The first fix went too far: any question in a reply let every claim in it through. The
+                  corrected check reads sentence by sentence, and across all 1,045 stored replies it changes only the two
+                  real claims the review found. It shipped tonight.</li>
+                <li><b>A second review of the fixes found more</b>, every item reproduced before it was fixed. Among them:
+                  saying &ldquo;undo&rdquo; right after an allergy could take the allergy off; asking for more iron in the
+                  same message as a lower calorie target dropped the target; and imported plant-based recipes were taken out
+                  of a vegan week as &ldquo;not vegan (it has coconut milk)&rdquo;. All three fixes shipped tonight.</li>
+                <li><b>An allergy to cashews, scallops or crab could go unscreened.</b> When the assistant saved &ldquo;I&rsquo;m
+                  allergic to cashews&rdquo; without marking it as an allergy, nothing was screened for 93 of the 182 foods the
+                  allergy checker knows. The reply said so honestly, but the dish could stay. The fix is built and in its
+                  tests. Checked against all 126 allergy sentences on record, none of them is screened differently.</li>
                 <li><b>The laptop slept while the tests ran</b>, and they were stopped partway when it woke. Nothing was
                   lost: the work was simply run again.</li>
               </ul>
             </div>
           </div>
-          <div class="gate">GATE &middot; engine 1061/0 &middot; 51 new tests, 35 of which fail without the fix</div>
+          <div class="gate">GATE &middot; engine 1101/0 &middot; every new test shown failing on the code before its fix</div>
         </div>
       </article>
 
@@ -853,12 +933,11 @@
     <h2>Open deferrals</h2>
     <p class="lede">Every deferral names a destination and a reason. “Later” is not a destination.</p>
     <div class="defers" style="margin-top:16px">
-      <div class="defer"><div><b>A boost with a new calorie or protein target</b> &mdash; when the nutrient cannot go any higher, the new target is dropped too, and the old week comes back unchanged.</div><span class="to">after the cleanup</span></div>
-      <div class="defer"><div><b>A cooking-time limit can be quietly stretched</b> &mdash; a 15-minute cap can get a 20-minute dish with no word about it. Found by the models agent.</div><span class="to">after the cleanup</span></div>
+      <div class="defer"><div><b>What the assistant says when the model fails</b> &mdash; a failure partway through can replace urgent-care advice with &ldquo;offline&rdquo;, one malformed part of a reply can lose an allergy you stated, and a reply the model did send is called &ldquo;offline&rdquo; when it is malformed. Found by the next batch&rsquo;s mapping; first, because Nemotron now runs the assistant.</div><span class="to">next step</span></div>
+      <div class="defer"><div><b>The last smaller findings from the second review</b> &mdash; every note written from the finished week (one can still say &ldquo;nothing with peanuts is planned&rdquo; after an undo put one back), the undo naming a change it refused, and &ldquo;chick pea&rdquo;. The rest shipped on 2026-10-22; two wait for meal logging.</div><span class="to">next step</span></div>
+      <div class="defer"><div><b>A re-plan can erase what you logged</b> &mdash; asking for more iron removed a logged meal, a restaurant reservation and an imported recipe, with nothing said. The app cannot yet tell a logged meal from a planned one, so the fix comes with meal logging.</div><span class="to">day 7</span></div>
       <div class="defer"><div><b>The training examples invent calorie figures</b> for a meal eaten out or logged. Fixing it changes what those examples teach, so it is a training-data change of its own.</div><span class="to">with the next training data</span></div>
       <div class="defer"><div><b>Taking an allergy off</b> &mdash; chat has no way to do it, and an undo can drop one without saying so.</div><span class="to">your decision 12</span></div>
-      <div class="defer"><div><b>Allergy words the app does not know</b> &mdash; &ldquo;allergic to hazelnuts&rdquo; stops nothing unless labelled, yet a hazelnut dish exists. Blocking every unknown word would ban words like &ldquo;spring&rdquo; (from &ldquo;hay fever in spring&rdquo;), so it needs its own design.</div><span class="to">own design</span></div>
-      <div class="defer"><div><b>Remove the old file addresses</b> &mdash; the other two agents no longer use them; this lane&rsquo;s own test scripts still do. Then the architecture work is finished.</div><span class="to">after the allergy work</span></div>
       <div class="defer"><div><b>The fast finish</b> &mdash; a faster assistant reply, held until the models agent can measure it fairly, which needs your key file.</div><span class="to">when the key exists</span></div>
       <div class="defer"><div><b>An allergy said once and never saved</b> &mdash; only a scan of the person&rsquo;s own words could catch it, and that needs its own false-alarm tests first (&ldquo;my son is allergic to eggs&rdquo;).</div><span class="to">backlog</span></div>
       <div class="defer"><div><b>A real-phone pass on the sheet and the drag</b> — sub-500px is still unverified by the headless tool.</div><span class="to">day 12</span></div>

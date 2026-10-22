@@ -57,6 +57,11 @@ const ARMS = {
   convoA: { evalKind: "convo", what: "reasoning on", env: {} },
   convoB: { evalKind: "convo", what: "reasoning off", env: { LOCAL_AI_EXTRA_BODY: OFF } },
   convoC: { evalKind: "convo", what: "reasoning off + fast finish (reply rule)", env: { LOCAL_AI_EXTRA_BODY: OFF, FAST_FINISH: "reply" } },
+  // Shadow (v1's review, 2026-10-22): C's decisions, with each skipped finishing call made anyway and recorded.
+  // It measures what the skip cuts (writes the model would have sent). Its latency counts the extra calls: no
+  // speed comparison uses it.
+  S: { evalKind: "loop", what: "reasoning off + fast finish in shadow (skipped calls made and recorded)", env: { LOCAL_AI_EXTRA_BODY: OFF, FAST_FINISH: "shadow" } },
+  convoS: { evalKind: "convo", what: "reasoning off + fast finish in shadow (skipped calls made and recorded)", env: { LOCAL_AI_EXTRA_BODY: OFF, FAST_FINISH: "shadow" } },
 };
 
 const arms = flag("--arms", "A,B,C,convoA,convoC").split(",").map((a) => a.trim()).filter(Boolean);
@@ -168,10 +173,10 @@ const pick = (kind, s) =>
   kind === "loop"
     ? { pass: `${s.pass}/${s.scenarios}`, act: s.actPass, hold: s.holdPass, infra: s.infraFailures, unusable: s.unusableOutput,
         medianWall: r1(s.medianWallSecondsPerMessage), median: r1(s.medianSecondsPerMessage), p90: r1(s.p90SecondsPerMessage), calls: r1(s.meanModelCalls),
-        gaveUp: s.gaveUp, guardCaught: s.guardCatches, fastFinishBlocked: s.fastFinishBlockedByEmptyReply, heldOut: heldOutOf(s) }
+        gaveUp: s.gaveUp, guardCaught: s.guardCatches, fastFinishBlocked: s.fastFinishBlockedByEmptyReply, heldOut: heldOutOf(s), shadow: s.fastFinishShadow ?? null }
     : { pass: `${s.pass}/${s.conversations}`, turns: s.turnsPassed, infra: s.infraFailures, unusable: s.unusableOutput,
         medianWall: r1(s.medianWallSecondsPerTurn), median: r1(s.medianSecondsPerTurn), p90: r1(s.p90SecondsPerTurn), calls: r1(s.meanModelCallsPerTurn),
-        gaveUp: s.gaveUp, guardCaught: s.guardCatches, fastFinishBlocked: s.fastFinishBlockedByEmptyReply, heldOut: heldOutOf(s) };
+        gaveUp: s.gaveUp, guardCaught: s.guardCatches, fastFinishBlocked: s.fastFinishBlockedByEmptyReply, heldOut: heldOutOf(s), shadow: s.fastFinishShadow ?? null };
 
 const manifest = {
   kind: "fair-arms", ranAt: new Date().toISOString(), model, endpoint: url, clock: "wall clock, direct to the host (PACE_STATS cleared)",
@@ -233,6 +238,7 @@ for (const e of manifest.arms) {
       `${e.evidence ? "yes" : e.problem ? `NO (${e.problem})` : "NO (infra)"}`,
   );
   if (s.heldOut?.onlyInPromptWords.length) console.log(`         passed only in the prompt's words: ${s.heldOut.onlyInPromptWords.join(", ")}`);
+  if (s.shadow) console.log(`         shadow: ${s.shadow.withOps} of ${s.shadow.calls} skipped finishing calls would have sent operations${(s.shadow.scenarios ?? s.shadow.turns ?? []).length ? ` (${(s.shadow.scenarios ?? s.shadow.turns).join("; ")})` : ""}`);
 }
 if (repeat > 1) {
   for (const a of arms) {

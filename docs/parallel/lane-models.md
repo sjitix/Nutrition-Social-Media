@@ -16,7 +16,19 @@ lists the eval messages it quotes: 8 of 55 on main, all held out, so it exits 0.
 - The review also fixed checks that passed wrong answers, among them offering to do both halves of a clash.
   The details are in the day record.
 - On `da023da`: the three probes pass. Five controls flipped because v1's D works, and they are must-pass now.
-- Still no `.env.local`. With the key, the fair arms run first.
+- On `4bc9e47` (v1's follow-ups: undo as its own step, stated cook times met, "zero energy" as tiredness): 633/633
+  hold and the probes pass. Nothing flipped. find-then-place's day-constrain controls now fail as re-plans, not
+  as over-limit dishes. Next: v1's claim-guard batch (a "?" had excused every claim).
+- **The owner's preference (2026-10-22): make Nemotron-3-Ultra 550B work.** The goal is now making that model
+  fast and correct enough, not choosing one; other models are fallbacks (`docs/models/README.md`, decisions).
+- **The key is in (2026-10-22, the owner's `.env.local`, `NVIDIA_API_KEY`).** A smoke call worked (9.1 s, one
+  message, no infra errors). **The fair arms are done** (`cd2244b`).
+  - C (reasoning off plus fast finish) is the setting: 28/34 at 5.5 s median, p90 12.5.
+  - A (reasoning on): 27/34 at 15.3 s; B: 26/34 at 7.1 s.
+  - Convo: 12/15 both ways, 6.0 s per turn against 11.3.
+  The repeats held (26-28 of 34, `e8322f5`), though the laptop slept mid-run, so their latencies are not
+  quoted. The fast finish is cleared (v1, `AI_FAST_FINISH=1`), and decision 2 is written. Shadow mode is
+  `6344c77`. **In flight:** the no-model diagnosis of every failure.
 Day records: `docs/worklog/2026-10-20-models.md`, `2026-10-21-models.md`.
 
 **2026-10-20 — every check in both evals is fixed and proven: 524 controls hold across all 44 scenarios**
@@ -66,7 +78,7 @@ the key from the main `.env.local` itself (exit 3 without it), so the key never 
 Tested end to end against the stub: 10 runs, every arm exactly its definition, no key text in any output.
 
 **The held-out wording test is ready too.** `models-wording` is now main plus exactly its three prompt
-lines (`e078efd`), with a worktree at `../NutriFlow-models-wording`. The third line ("lighter on <days>"
+lines (`3591188`, main merged in 2026-10-21), with a worktree at `../NutriFlow-models-wording`. The third line ("lighter on <days>"
 = resize) had no held-out paraphrase, so `days-lighter-heldout` was added ("go easy on the portions
 thursday and friday"). The stub's new `script` mode is the positive control: all 6 scenarios of the
 test pass the answer they reward, and fail do-nothing. The bare day constrain fails both lighter checks.
@@ -178,6 +190,6 @@ Branches: `models` (ships my paths onto main). `models-exp` = main + merges, for
 | `627fe56` | 2026-10-18: resumed on the laptop; worktrees created; the NVIDIA runs blocked on a missing `.env.local` |
 | `be98c57` | barrels only; `stub-model.mjs` (two free passes found and closed, no past score changed); `probe-fixes.mts` (v1's `5c12c4c`: 1/4 before, 4/4 after) |
 | `07fad2b` · `77c9dc7` | the fair re-measurement re-runs arm A (old arm A is a different bundle); `fair-arms.mjs`, the fair comparison as one command |
-| `e078efd` (branch `models-wording`) | the wording branch merged with main: main + exactly its 3 prompt lines |
+| `3591188` (branch `models-wording`) | the wording branch merged with main again (2026-10-21; first `e078efd`): main + exactly its 3 prompt lines; probe-quotes exits 0 on it |
 | `0fdfba1` | `days-lighter-heldout` (the third line's held-out paraphrase); the stub's `script` mode, the positive control: all 6 held-out-test checks pass the answer they reward |
 | `49385e5` (branch `models-exp`) | the allergy-label patch for v1: a fact that says allergy binds the engine whatever its label (probe 7/12 → 12/12) |

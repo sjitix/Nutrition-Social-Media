@@ -14,7 +14,7 @@ import { redFlag } from "../nutrition";
 import { NUTRIENT_TABLE } from "../data";
 import { microsForIngredients, gramsFor, MICRO_KEYS, MICRO_LABEL, MICRO_UNIT, DAILY_REFERENCE, type MicroKey } from "../nutrition";
 import { type Recipe } from "../data";
-import { RECIPES, recipeMicros } from "./library";
+import { RECIPES, baseRecipeOf, recipeMicros } from "./library";
 import { blockedByExclusions, exclusionTokens, passesDiet } from "./rules";
 import { dayTargetMacros } from "./rebalance";
 
@@ -331,8 +331,14 @@ export function explainMealNote(plan: WeekPlan, p: UserProfile, day: DayPlan["da
     `${day}'s ${type} is ${meal.name}: ${meal.calories} kcal (${pctCal}% of your day) and ${meal.proteinGrams}g protein (${pctPro}% of your ${Math.round(t.protein)}g target).`,
   ];
 
+  // An imported recipe is the person's choice, never the engine's, even titled like a library dish: it was
+  // explained as picked "because it fits your 30-min limit at 25 min" while it takes 55 (review, 2026-10-21).
+  if (meal.sourceUrl) {
+    parts.push(`It's a recipe you imported, so I didn't pick it — I planned the rest of the day around it.`);
+    return parts.join(" ");
+  }
   // A reserved or logged meal has no recipe behind it — say that plainly rather than pretending.
-  const base = RECIPES.find((r) => r.name === meal.name);
+  const base = baseRecipeOf(meal);
   if (!base) {
     parts.push(`It isn't one of my recipes — it's a meal you told me about, so I planned the rest of the day around it.`);
     return parts.join(" ");

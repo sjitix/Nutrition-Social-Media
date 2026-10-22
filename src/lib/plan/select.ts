@@ -7,10 +7,10 @@
  * is internal to this folder, and check:boundaries fails anything outside the folder that imports it.
  */
 import { DAYS, type DayPlan, type Meal, type UserProfile, type WeekPlan } from "../core";
-import { microDensity, DAILY_REFERENCE, dietTagConflicts, haystackBlocked, parseExclusionTokens, type MicroKey } from "../nutrition";
+import { microDensity, DAILY_REFERENCE, haystackBlocked, mealHaystack, parseExclusionTokens, type MicroKey } from "../nutrition";
 import { type Cuisine, type Recipe } from "../data";
 import { RECIPES, baseRecipeOf, recipeMicros, scaleRecipeToTarget, toMeal } from "./library";
-import { type SlotSplit, bannedForUser, blockedByExclusions, budgetCap, exclusionTokens, localSplit, passesDiet, ratingMap } from "./rules";
+import { type SlotSplit, bannedForUser, blockedByExclusions, budgetCap, exclusionKey, exclusionTokens, localSplit, passesDiet, ratingMap } from "./rules";
 import { slotTargetMacros } from "./rebalance";
 
 // Find the library recipe that best matches a free-text dish request (e.g.
@@ -210,7 +210,8 @@ function newCtx(): WeekCtx {
  */
 export interface SelectionReport {
   droppedSlots: string[];
-  slowestOverLimit: number; // worst cook time placed above the user's limit (0 = none)
+  // (A dish over the cook-time limit is named from the operation's FINAL week, by overLimitNote: the
+  // selector's own count went stale when a rebalance swapped the slow pick for a quicker one.)
   relaxedBudget: boolean;
   // A slot where every remaining dish was one the user asked never to see again. We served one
   // anyway — and, per the disclosure rule, we say so.
@@ -223,11 +224,92 @@ export interface SelectionReport {
 export interface ReplacedImport { day?: string; type: string; name: string; breaks: ImportBreak }
 
 export const newReport = (): SelectionReport => ({
-  droppedSlots: [], slowestOverLimit: 0, relaxedBudget: false, servedBannedDish: false, replacedImports: [],
+  droppedSlots: [], relaxedBudget: false, servedBannedDish: false, replacedImports: [],
 });
 
+/* ------------------------------------------------------------------------- *
+ * Is an IMPORTED dish vegetarian or vegan? Its text is free (a recipe site's own words), so the library's
+ * tag lint (dietTagConflicts: raw substrings, whole-string exceptions written for the curated library) is
+ * the wrong tool for it. On imports it flagged plant milks and creams, butter beans, beefsteak tomatoes,
+ * veggie sausages and a "Cauliflower Steaks" title, removed all six imports of a vegetarian going vegan or a
+ * new vegetarian, and said each "isn't vegan (it has coconut milk)" (review, 2026-10-21); its one "veggie"
+ * veto let "Chicken & Veggie Stir Fry" stay on a vegan week. Here a hit is a word, and an exception clears
+ * only the hit it qualifies: a plant word before it ("coconut milk", "veggie sausage", "cauliflower steak",
+ * "chickpea tuna") or a plant word after it ("butter beans", "oyster mushrooms", "cream of tartar"). The
+ * title counts too: "Lamb Kofta Wraps" lists only "lean mince". Vegan hits are the vegetarian hits plus the
+ * animal products, so nothing passes vegan that fails vegetarian. Measured on the library: of 133 vegan and
+ * 301 vegetarian dishes, none is flagged; of 197 non-vegetarian dishes, none passes vegetarian.
+ * ------------------------------------------------------------------------- */
+const MEAT_WORDS = [
+  "chicken", "beef", "pork", "turkey", "salmon", "tuna", "cod", "shrimp", "prawn", "mackerel", "trout", "sausage", "steak",
+  "bacon", "anchovy", "gelatin", "gelatine", "chorizo", "pepperoni", "prosciutto", "salami", "pancetta", "venison", "lobster",
+  "calamari", "octopus", "mussel", "scallop", "fish", "sardine", "haddock", "pollock", "tilapia", "halibut", "herring",
+  "snapper", "seabass", "worcestershire", "ham", "lamb", "lard", "veal", "duck", "crab", "clam", "squid", "oyster", "brisket",
+  "mince", "meatball", "meat", "kofta", "belly", "thigh", "drumstick", "wing", "fillet", "liver", "jerky", "suet", "gravy",
+];
+const ANIMAL_WORDS = [
+  "milk", "cheese", "yogurt", "yoghurt", "butter", "cream", "feta", "mozzarella", "cheddar", "parmesan", "ricotta", "halloumi",
+  "honey", "egg", "ghee", "whey", "pesto", "mayonnaise", "mayo", "buttermilk", "paneer", "kefir", "skyr", "labneh", "custard",
+  "meringue", "aioli", "brie", "gouda", "mascarpone", "casein",
+];
+/** Foods of two or three words: bone broth and caesar dressing are not vegetarian; "protein powder" is whey unless a
+ *  plant word comes first, and a tikka masala SAUCE carries cream. */
+const MEAT_PHRASES = [["bone", "broth"], ["caesar", "dressing"]];
+const ANIMAL_PHRASES = [["protein", "powder"], ["tikka", "masala", "sauce"]];
+const PLANT_BEFORE = new Set([
+  "coconut", "oat", "almond", "soy", "soya", "rice", "cashew", "hemp", "pea", "nut", "seed", "plant", "plant-based", "vegan",
+  "dairy-free", "non-dairy", "veggie", "vegetarian", "meat-free", "meatless", "quorn", "mushroom", "tofu", "tempeh", "seitan",
+  "jackfruit", "chickpea", "lentil", "bean", "cauliflower", "celeriac", "portobello", "aubergine", "eggplant", "peanut", "cocoa",
+  "apple", "shea", "flax", "chia", "beyond", "impossible", "mock", "faux",
+]);
+const PLANT_AFTER: Record<string, string[]> = {
+  butter: ["bean", "lettuce", "squash"], oyster: ["mushroom", "sauce"], egg: ["replacer", "substitute"], cream: ["of"],
+  chicken: ["of"], duck: ["sauce"],
+};
+const dietWords = (s: string) => s.toLowerCase().replace(/[’']/g, "'").split(/[^a-z'-]+/).filter(Boolean);
+/** The forms a word may be listed under: "sausages" is "sausage", "anchovies" "anchovy", "dishes" "dish". */
+const dietForms = (w: string) => [w, w.replace(/'s$/, ""), w.replace(/s$/, ""), w.replace(/es$/, ""), w.replace(/ies$/, "y")];
+function dietHitsIn(phrase: string, vegan: boolean): string[] {
+  const ws = dietWords(phrase);
+  const plant = (w?: string) => !!w && dietForms(w).some((x) => PLANT_BEFORE.has(x));
+  const out: string[] = [];
+  ws.forEach((w, i) => {
+    const forms = dietForms(w);
+    const hit = [...MEAT_WORDS, ...(vegan ? ANIMAL_WORDS : [])].find((x) => forms.includes(x));
+    if (!hit || plant(ws[i - 1]) || dietForms(ws[i + 1] ?? "").some((x) => (PLANT_AFTER[hit] ?? []).includes(x))) return;
+    out.push(hit);
+  });
+  for (const ph of [...MEAT_PHRASES, ...(vegan ? ANIMAL_PHRASES : [])]) {
+    ws.forEach((_, i) => {
+      if (ph.every((p, k) => dietForms(ws[i + k] ?? "").includes(p)) && !plant(ws[i - 1])) out.push(ph.join(" "));
+    });
+  }
+  return out;
+}
+/** The words that make an imported dish not `diet`: the ingredient names that hold one, else the title's. */
+function importDietConflicts(diet: string, name: string, ingredientNames: string[]): { ingredients: string[]; title: string[] } {
+  if (diet !== "vegan" && diet !== "vegetarian") return { ingredients: [], title: [] };
+  const vegan = diet === "vegan";
+  return {
+    ingredients: ingredientNames.filter((n) => dietHitsIn(n, vegan).length > 0),
+    title: [...new Set(dietHitsIn(name, vegan))],
+  };
+}
+
 /** Which of the person's hard rules an imported dish breaks, judged on its own text. */
-export interface ImportBreak { allergies: string[]; avoided: string[]; diet: string[] }
+export interface ImportBreak {
+  allergies: string[];
+  /** For the note, one entry per allergy it breaks: the allergy as the person would name it, and the dish's
+   *  ingredient names the matcher flagged for that allergy (none when only the title or a step did). */
+  allergyHits?: { label: string; listed: string[] }[];
+  avoided: string[];
+  /** The ingredient names that break the new diet; `dietName` holds the title's words when none does. */
+  diet: string[];
+  dietName?: string[];
+  /** The diet it breaks, captured when judged: after an undo in the same call the profile's own diet is the
+   *  restored one, and the note read "isn't none" (review, 2026-10-21). */
+  brokenDiet?: string;
+}
 
 /**
  * Which hard rule an IMPORTED dish (it carries its source URL) breaks, judged on its OWN text, even when
@@ -245,28 +327,84 @@ export interface ImportBreak { allergies: string[]; avoided: string[]; diet: str
  */
 export function importBreaks(m: Meal, profile: UserProfile, before?: UserProfile): ImportBreak | null {
   if (!m.sourceUrl) return null;
-  const hay = `${m.name} ${m.ingredients.map((i) => i.name).join(" ")} ${m.steps.join(" ")}`;
+  const hay = mealHaystack(m.name, m.ingredients.map((i) => i.name), m.steps);
   const allergies = parseExclusionTokens(profile.allergies ?? "", "").filter((t) => haystackBlocked(hay, [t]));
   const had = before ? exclusionTokens(before) : null;
+  // Judged per food avoided: one the change introduced counts, one the person already avoided does not (the
+  // import was placed over it on purpose). It used to ask whether the import matched ANY old exclusion, so an
+  // onion dislike shielded a pork import from "no pork", and a peanut dish from "no peanuts" (review,
+  // 2026-10-21). A restatement ("onion", then "onions") is old: same key, or covered by an old token.
+  const oldKeys = new Set((had ?? []).map(exclusionKey));
   const avoided = had
-    ? parseExclusionTokens("", profile.dislikes ?? "").filter((t) => haystackBlocked(hay, [t]) && !allergies.includes(t) && !haystackBlocked(hay, had))
+    ? parseExclusionTokens("", profile.dislikes ?? "").filter((t) => !oldKeys.has(exclusionKey(t)) && !haystackBlocked(t, had) && !allergies.includes(t) && haystackBlocked(hay, [t]))
     : [];
-  const words = [m.name, ...m.ingredients.map((i) => i.name)];
-  const judged = (diet: string) => (diet === "vegan" || diet === "vegetarian" ? dietTagConflicts(diet, words) : []);
-  const diet = before && before.diet !== profile.diet && !judged(before.diet).length ? judged(profile.diet) : [];
-  return allergies.length || avoided.length || diet.length ? { allergies, avoided, diet } : null;
+  const judged = (diet: string) => importDietConflicts(diet, m.name, m.ingredients.map((i) => i.name));
+  const old = before && before.diet !== profile.diet ? judged(before.diet) : null;
+  const now = old && !old.ingredients.length && !old.title.length ? judged(profile.diet) : null;
+  const diet = now?.ingredients ?? [];
+  const dietName = now && !now.ingredients.length ? now.title : [];
+  if (!(allergies.length || avoided.length || diet.length || dietName.length)) return null;
+  // Each ingredient once, as a shopper reads it: "large shrimp, peeled and deveined" is "large shrimp".
+  const names = [...new Map(m.ingredients.map((i) => i.name.split(",")[0].trim()).filter(Boolean).map((n) => [n.toLowerCase(), n])).values()];
+  const allergyHits = allergyLabels(profile.allergies ?? "")
+    .filter((g) => g.tokens.some((t) => allergies.includes(t)))
+    .map((g) => ({ label: g.label, listed: names.filter((n) => haystackBlocked(n, g.tokens)) }));
+  return { allergies, allergyHits, avoided, diet, dietName, brokenDiet: profile.diet };
+}
+
+/**
+ * The stored allergies as the person would name them, one per allergy, with the matcher's tokens for each:
+ * "tree nuts", never also its mined "nuts"; "tortillas", never its kept "corn tortilla"; "shellfish" for an
+ * entry typed "I'm allergic to shellfish"; coeliac as gluten. The import note named the raw entry, and read
+ * "your allergy to I'm allergic to shellfish" or "to dairy-free" (review, 2026-10-21).
+ */
+function allergyLabels(stored: string): { label: string; tokens: string[] }[] {
+  const words = (s: string) => s.split(/\s+/).map((w) => w.replace(/(?:es|s)$/, ""));
+  const related = (a: string, b: string) => {
+    const A = words(a), B = words(b);
+    return A.every((w) => B.includes(w)) || B.every((w) => A.includes(w));
+  };
+  const shown = (t: string) => (/^c(?:o)?eli(?:ac|ak)s?$/.test(t) ? "gluten" : t);
+  const out: { label: string; tokens: string[] }[] = [];
+  for (const entry of stored.split(/[,;\n]+/)) {
+    const tokens = parseExclusionTokens(entry, "");
+    for (const t of tokens) {
+      const label = shown(tokens.find((u) => related(u, t)) ?? t);
+      let group = out.find((g) => g.label === label);
+      if (!group) out.push((group = { label, tokens: [] }));
+      if (!group.tokens.includes(t)) group.tokens.push(t);
+    }
+  }
+  return out;
 }
 
 const listWords = (items: string[]) => (items.length > 1 ? `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}` : items[0] ?? "");
 const manyOf = (items: string[]) => items.length > 1 || /[^siu]s$/.test(items[0] ?? "");
 
-/** Why an import was taken out, in the person's words: "contains shellfish, which is in your
- *  allergies", "contains mushrooms, which you avoid", "isn't vegetarian (it has chicken breast)". */
+/** Why an import was taken out, in the person's words: "lists shrimp, which I screen out for your allergy to
+ *  shellfish", "contains mushrooms, which you avoid", "isn't vegetarian (it has chicken breast)". An allergy
+ *  is worded as what the matcher flagged, never as a fact about the dish: it over-blocks on purpose, and
+ *  "contains lactose" was said of a coconut-milk curry and "contains dairy" of a butter-bean stew. Each
+ *  allergy is named once, with only the ingredients it flagged (review, 2026-10-21). */
 function importWhy(b: ImportBreak, profile: UserProfile): string {
   const parts: string[] = [];
-  if (b.allergies.length) parts.push(`contains ${listWords(b.allergies)}, which ${manyOf(b.allergies) ? "are" : "is"} in your allergies`);
+  if (b.allergies.length) {
+    const hits = b.allergyHits?.length ? b.allergyHits : b.allergies.map((t) => ({ label: t, listed: [] as string[] }));
+    parts.push(hits.map((h, i) => {
+      const shown = h.listed.length > 3 ? [...h.listed.slice(0, 2), `${h.listed.length - 2} more`] : h.listed;
+      // "lists" again after a "may contain": "may contain shellfish, which is in your allergies, and sour cream,
+      // which I screen out…" read as if the sour cream were only possible.
+      const lists = i === 0 || !hits[i - 1].listed.length ? "lists " : "";
+      return h.listed.length
+        ? `${lists}${listWords(shown)}, which I screen out for your allergy to ${h.label}`
+        : `may contain ${h.label}, which ${manyOf([h.label]) ? "are" : "is"} in your allergies`;
+    }).join(", and "));
+  }
   if (b.avoided.length) parts.push(`${parts.length ? "and" : "contains"} ${listWords(b.avoided)}, which you avoid`);
-  if (b.diet.length) parts.push(`${parts.length ? "and " : ""}isn't ${profile.diet} (it has ${listWords(b.diet)})`);
+  if (b.diet.length || b.dietName?.length) {
+    const what = b.diet.length ? `it has ${listWords(b.diet)}` : `its name says ${listWords(b.dietName ?? [])}`;
+    parts.push(`${parts.length ? "and " : ""}isn't ${b.brokenDiet ?? profile.diet} (${what})`);
+  }
   return parts.join(", ");
 }
 
@@ -278,16 +416,36 @@ function importWhy(b: ImportBreak, profile: UserProfile): string {
  * A pin back in the slot is named: it stays until the person unpins it.
  */
 export function importNotes(replaced: ReplacedImport[], plan: WeekPlan, profile: UserProfile): string[] {
+  const seen = new Set<string>();
   return replaced.flatMap((r) => {
+    // Once per slot: a boost's two re-solves can both record the same import.
+    const key = `${r.day}|${r.type}|${r.name}`;
+    if (seen.has(key)) return [];
+    seen.add(key);
     const now = plan.days.find((d) => d.day === r.day)?.meals.find((m) => m.type === r.type);
-    if (now?.name === r.name) return []; // it is back (a later step restored it): nothing was taken out
+    // It is back (a later step restored it): nothing was taken out. The import itself, not a library dish or a
+    // pin with its title: those used to hide the note (review, 2026-10-21).
+    if (now?.name === r.name && now.sourceUrl) return [];
     const where = r.day ? `${r.day}'s ${r.type}` : `your ${r.type}`;
     const head = `${r.name}, the recipe you imported for ${where}, ${importWhy(r.breaks, profile)}, so I`;
     const pinned = (profile.lockedMeals ?? []).some((l) => l.day === r.day && l.mealType === r.type && l.name === now?.name);
+    // An empty slot is "nothing fits" only while the plan still has that meal: the same request can drop to
+    // three meals a day and take the snack away (review, 2026-10-21).
+    if (!now && !localSplit(profile.mealsPerDay).some(([t]) => t === r.type)) return [`${head} took it out, and your plan no longer has a ${r.type}.`];
     if (!now) return [`${head} took it out, and nothing else fits that slot.`];
     if (pinned) return [`${head} took it out, and your pinned ${now.name} is back in that slot.`];
     return [`${head} replaced it.`];
   });
+}
+
+/** The imports in a week that break the hard rules, with their slots, for importNotes: a re-plan that picks
+ *  from scratch (a cuisine, a fiber or nutrient push, a mode switch) has no keep pass to record them, so one
+ *  removed for an allergy went unnamed (review, 2026-10-21). */
+export function brokenImports(plan: WeekPlan, profile: UserProfile, before?: UserProfile): ReplacedImport[] {
+  return plan.days.flatMap((d) => d.meals.flatMap((m) => {
+    const breaks = importBreaks(m, profile, before);
+    return breaks ? [{ day: d.day, type: m.type, name: m.name, breaks }] : [];
+  }));
 }
 
 /** Turn a report into honest, user-facing sentences. Empty when nothing was compromised. */
@@ -299,10 +457,6 @@ export function reportNotes(rep: SelectionReport, profile: UserProfile): string[
       `I couldn't find a ${uniq.join(" or ")} that fits your ${profile.diet !== "none" ? profile.diet + " " : ""}rules, so ${uniq.length > 1 ? "those meals are" : "that meal is"} missing from some days.`,
     );
   }
-  if (rep.slowestOverLimit > profile.maxCookTime + 5)
-    out.push(
-      `Heads up: you asked for meals under ${profile.maxCookTime} min, but the only options that fit your other rules take up to ${rep.slowestOverLimit} min.`,
-    );
   if (rep.relaxedBudget) out.push(`Some meals came out pricier than your budget setting — there wasn't a cheaper option that fit.`);
   if (rep.servedBannedDish)
     out.push(`I've had to reuse a dish you told me you didn't want — there's nothing else in that slot that fits your other rules. Rate a few more meals and I'll have more to work with.`);
@@ -332,12 +486,14 @@ function pickMealsForDay(
     // current portions), not re-cooked from base: rebalanceWeek runs afterward and re-scales it if a
     // target actually changed, so a no-op change (relaxing a diet, restating the current target)
     // reproduces the week exactly instead of jittering the portions. A meal we can't find in the
-    // library (a logged / eating-out entry) is likewise kept verbatim, never guessed at.
+    // library (a logged / eating-out entry, or an import that breaks no rule) is likewise kept verbatim,
+    // never guessed at.
     if (keep) {
       const existing = keep.meals.find((m) => m.type === type);
       if (existing) {
         // Looked up the way rebalanceWeek looks it up (case-insensitive), because it rebuilds any meal
-        // with a library dish's name as that dish.
+        // with a library dish's name as that dish. Never for an import, even titled like one: it was
+        // judged by the library dish's rules and re-picked with nothing said (review, 2026-10-21).
         const base = baseRecipeOf(existing);
         // An IMPORTED dish that breaks a hard rule (importBreaks, judged on its own text first) is a
         // planned plate like any library dish: binding "allergic to shellfish" took the library's shrimp
@@ -376,15 +532,21 @@ function pickMealsForDay(
     // ORDER MATTERS. Cook time is relaxed LAST: someone who says "nothing over 15 minutes"
     // usually cannot cook for 25, whereas price is elastic. Relaxing time to save money
     // (the earlier order) handed a 25-min meal to a user with a 15-min limit.
-    const fast = (r: Recipe) => r.timeMinutes <= profile.maxCookTime + 5;
+    //
+    // The limit is the person's number, met exactly while anything meets it. It used to carry a silent
+    // 5-minute grace at every stage, so "15 minutes or less" got a 20-minute dinner with no word said
+    // (models lane, 2026-10-21) while 13 dinners in the library take 15 or less. The grace is now a
+    // stage of its own, after the budget, and any dish over the limit is named (overLimitNote).
+    const within = (r: Recipe) => r.timeMinutes <= profile.maxCookTime;
     let candidates = hard.filter(
-      (r) => fast(r) && r.ingredients.length <= profile.maxIngredients + 1 && r.approxCost <= cap,
+      (r) => within(r) && r.ingredients.length <= profile.maxIngredients + 1 && r.approxCost <= cap,
     );
-    if (!candidates.length) candidates = hard.filter((r) => fast(r) && r.approxCost <= cap); // drop ingredient cap
+    if (!candidates.length) candidates = hard.filter((r) => within(r) && r.approxCost <= cap); // drop ingredient cap
     if (!candidates.length) {
-      candidates = hard.filter(fast); // drop budget, keep the time limit
+      candidates = hard.filter(within); // drop budget, keep the time limit
       if (candidates.length && report) report.relaxedBudget = true;
     }
+    if (!candidates.length) candidates = hard.filter((r) => r.timeMinutes <= profile.maxCookTime + 5);
     if (!candidates.length) candidates = hard.filter((r) => r.timeMinutes <= profile.maxCookTime + 15);
     if (!candidates.length) candidates = hard; // last resort: honour only the hard rules
     if (!hard.length && report) report.droppedSlots.push(type); // no recipe can satisfy the HARD rules
@@ -418,8 +580,6 @@ function pickMealsForDay(
     });
     if (!pick && hard.length && report) report.droppedSlots.push(type);
     if (pick) {
-      if (report && pick.timeMinutes > profile.maxCookTime + 5)
-        report.slowestOverLimit = Math.max(report.slowestOverLimit, pick.timeMinutes);
       ctx.usedIds.add(pick.id);
       ctx.usedNames.add(pick.name.toLowerCase());
       ctx.proteinDays[pick.mainProtein] = (ctx.proteinDays[pick.mainProtein] ?? 0) + 1;

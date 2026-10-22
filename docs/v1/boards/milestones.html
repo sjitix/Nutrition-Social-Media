@@ -168,8 +168,8 @@
       gate that has to be green before anything is pushed.</p>
     <div class="stamp">
       <b><i>source</i> docs/v1/01-dimensions-and-milestones.md</b>
-      <b><i>synced</i> 2026-10-21</b>
-      <b><i>commit</i> b2e77d6+</b>
+      <b><i>synced</i> 2026-10-22</b>
+      <b><i>commit</i> b1a11df+</b>
     </div>
   </header>
 
@@ -473,8 +473,12 @@
         <h3>Meal logging, end to end</h3>
         <p class="desc">A UI write path for <span class="mono">log_meal</span>. Today stops inferring “eaten” from the
           clock and reads the log instead; <span class="mono">SLOT_HOUR</span> becomes the fallback, not the truth.</p>
+        <p class="desc"><b>Added 2026-10-21: what you logged survives every re-plan.</b> Asking for more iron removed a
+          logged meal, a restaurant reservation and an imported recipe, with nothing said, in 9 of 9 test runs.
+          A logged meal gets a mark of its own, and every re-plan puts logged meals and reservations back, the
+          way pinned meals already come back.</p>
         <div class="meta">
-          <div><span class="k">Usable when</span>Today shows what you actually logged, and says so honestly when you have logged nothing.</div>
+          <div><span class="k">Usable when</span>Today shows what you actually logged, and says so honestly when you have logged nothing. No re-plan removes a logged meal or a reservation.</div>
           <div><span class="k">Depends on</span>D3 — the executor is its own module first</div>
           <div><span class="k">Gate</span><span class="mono">test:engine</span> + <span class="mono">test:api</span></div>
         </div>
@@ -638,10 +642,12 @@ everything ─► D4 release</pre>
           <tr>
             <td><b>Which model is behind the assistant in public</b> &mdash; settled on 2026-09-19 as
               <span class="mono">gpt-oss-20b</span>, then reopened by your direction on 2026-10-03: the biggest free model
-              with a fast reply. What it needs now is a key from you.</td>
+              with a fast reply. <b>Chosen by you on 2026-10-22: Nemotron-3-Ultra 550B</b> (&ldquo;i like nemotron, id be happy
+              if we could make it work&rdquo;). The key is in. Its first fair runs pass 28 of 34 at 5.5&nbsp;s a message with
+              reasoning off and the fast finish, against 27 of 34 at 15.3&nbsp;s with reasoning on.</td>
             <td class="mono">D6</td>
-            <td><span class="pill open">open</span></td>
-            <td>Create the Vercel AI Gateway key and a Groq key so both can be measured (decision 2 in the doc).</td>
+            <td><span class="pill settled">chosen</span></td>
+            <td>Nemotron with reasoning off and the fast finish, once the models lane&rsquo;s repeats confirm the numbers; other keys only as fallbacks (decision 2 in the doc).</td>
           </tr>
           <tr>
             <td><b>One app or two</b> — is <span class="mono">/plan</span> retired, frozen, or kept?</td>

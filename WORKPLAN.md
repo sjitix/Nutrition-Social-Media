@@ -1541,6 +1541,13 @@ Each of these was discovered by doing the work, and each earned its place.
     17 of 38, each named, with the other 21 accounted for, and a sentence that names both causes. **Count
     what the mutations require, never what they suggest.**
 
+    **And twice more, in the Site URL batch (2026-10-21).** The runner printed only CAUGHT, so a
+    mutation's unrequired FAILs were invisible. Under the allow-list mutation eight landings had gone
+    red on every run while the header explained them away as "never reached"; requiring them all
+    turned the explanation into a measurement. And a check that asserted two phrases stopped telling
+    its branch apart the day another sentence gained the same two. **Require every check a mutation
+    turns red, and assert what is unique to the branch a check names, not what it shares with others.**
+
 68. **The tool that commits for every lane needs the same proof as the code it commits, and the git
     flag that sounds safe can be safe in the wrong way.** `ship.mjs` v1 had one test, which was being
     used. An adversarial audit (2026-10-18) reproduced 45 ways it could:
@@ -1585,6 +1592,38 @@ Each of these was discovered by doing the work, and each earned its place.
     `git log origin/main` before sending anyone a sha.** The same night showed the other half: a
     background gate lives only as long as its session, and a sleeping laptop throttles one to nothing
     (146 seconds of CPU in seven and a half hours).
+
+71. **A change to a classifier is measured on everything it will ever read, not only on the rows written
+    for it.** The claim guard's per-sentence rewrite (2026-10-21) passed every row in the suite: 48 claims
+    caught, 37 honest lines left alone. It would still have shipped turning two honest stored replies into
+    "I haven't changed anything yet", because each promises a change and then asks what it needs ("…which
+    day is tomorrow on your plan?"). Running the old and the new guard over all 1,045 stored model replies
+    showed exactly four verdicts moving. Two were the claims the review had found; two were those
+    clarifications, and the rule was changed for them before it shipped.
+    **Before keeping a change to anything that classifies text, diff its verdicts over the whole stored
+    corpus, and read every one that moved.**
+
+72. **An allergen change is re-measured after every fix to it, against the parent, on everything it binds.**
+    F4 (2026-10-22) was built to close LC-08 and passed its whole suite, 1,132 rows. Its adversarial review then
+    found four ways it let an allergen through, each in a place its own rows did not look:
+    - an exception phrase: "tortillas" was called covered by "gluten", whose exceptions serve corn tortillas;
+    - a split phrase: "glass noodle" stored "noodle", whose exceptions serve glass noodles;
+    - a joined text: "cocoa" then "butter" read as cocoa butter;
+    - a protection the parent had by accident: an import titled like a library dish was judged by that dish.
+    Then the fixes made three new mistakes, and only re-running the full stored-allergy comparison (1,800 rows,
+    parent against branch) and the over-block probes caught them, not the rows written for the fixes:
+    - a kept compound was split into "corn" and "rice";
+    - a labelled sentence ("prefers a light dinner after a big lunch") was stored whole as an allergy;
+    - "tree nut" was stored as the wider "nuts".
+    **After every fix to a path that binds or blocks allergens, re-run the whole comparison against the parent
+    (losses must stay at 0) and read every changed note, before the gate and again after any later fix.**
+73. **A row that draws an unseeded week must hold for every week: run its fixture over many seeds before
+    trusting it.** The agent-loop section of `test-engine.mts` builds its week with no seed, so each run draws a new
+    one. A row from F1 (`4bc9e47`) picked its Tuesday dish from three names minus three it ruled out. In 5 of 60
+    weeks none was left, so the swap did nothing and the row failed on a correct engine. It passed the proof against
+    the parent, then failed F4's first gate, which cost a full gate run and an hour of the engine slot that another
+    lane was waiting on. **A fixture that picks from a fixed list after exclusions needs more candidates than
+    exclusions; run it over 100+ weeks built with `withSeed` before it ships.**
 
 ---
 

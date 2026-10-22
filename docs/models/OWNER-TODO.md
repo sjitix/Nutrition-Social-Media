@@ -8,9 +8,29 @@ Rewritten 2026-10-03 after a verified search of every free provider (`free-provi
 The honest headline: **no provider gives a big model, ~5 s calls, a free tier AND hundreds of calls a day
 all at once.** The keys below are ranked by what they unlock per minute of your time.
 
+## When you switch the app to Nemotron (measured 2026-10-22; decision 2)
+
+Set these in `.env.local` (locally) or as Vercel environment variables (deployed). Use reasoning off and the
+fast finish: about 2.8 times faster at no loss.
+
+```
+AI_PROVIDER=local
+LOCAL_AI_URL=https://integrate.api.nvidia.com/v1
+LOCAL_AI_MODEL=nvidia/nemotron-3-ultra-550b-a55b
+LOCAL_AI_API_KEY=<your NVIDIA key>
+LOCAL_AI_EXTRA_BODY={"chat_template_kwargs":{"enable_thinking":false}}
+AI_FAST_FINISH=1
+```
+
+`AI_FAST_FINISH=1` is only for this model with reasoning off: the skip it makes is measured safe there, and on
+gpt-oss-20b it would cut writes. The public URL deliberately has no AI key (demo mode); switching it is your
+call.
+
 ## Open — ranked
 
-- [ ] **0. The laptop has no `.env.local` (added 2026-10-18), so every model measurement is stopped
+- [x] **0. DONE 2026-10-22: the laptop's `.env.local` holds `NVIDIA_API_KEY`** (a smoke call to the 550B worked:
+  9.1 s for one message, no infra errors). The fair arms started the same hour. What the item said:
+  **The laptop has no `.env.local` (added 2026-10-18), so every model measurement is stopped
   here.** You already hold the NVIDIA key: it is the `LOCAL_AI_API_KEY=` line in the desktop's
   `.env.local`. On the laptop, create `.env.local` in the main folder (`Nutrition-Social-Media-main/`) and
   put that key in it as **`NVIDIA_API_KEY=...`**, under that name and not `LOCAL_AI_API_KEY`. The app reads

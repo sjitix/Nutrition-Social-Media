@@ -182,22 +182,29 @@ const LINK_ERRORS: Record<string, string> = {
 const LINK_ERROR_FALLBACK = "Sign-in didn't complete. Ask for a new link.";
 
 /**
- * The exchange refusing THIS browser's verifier (GoTrue's `bad_code_verifier`, a 400). GoTrue says only
- * that the verifier does not match, and there are two reasons it can happen:
+ * The exchange refusing THIS page's verifier (GoTrue's `bad_code_verifier`, a 400). GoTrue says only
+ * that the verifier does not match, and there are three reasons it can happen:
  *  - **The link was asked for in another browser**, and this one holds a pending sign-in of its own.
- *    With none held, the "different browser" sentence is shown before any exchange.
+ *    With none held, client.ts's "somewhere other than where it was asked for" sentence is shown
+ *    before any exchange. Shown against the real GoTrue by the live run (Max).
+ *  - **The link was asked for at another web address of the app**, and this page holds a pending
+ *    sign-in of its own. A return address the allow list refuses lands on the Site URL, a different
+ *    origin with storage of its own, which may still hold an earlier, unfinished request from this
+ *    very browser. Shown against the real GoTrue by the live run (Lee).
  *  - **A newer request took it over.** GoTrue issues a link's code for the person's MOST RECENT request,
  *    from whichever browser: verify.go -> pkce.go issueAuthCode -> FindFlowStateByUserID(...).Last(),
- *    ordered by created_at. For someone already signed up, or anyone while "Confirm email" is off (as
- *    the setup guide sets it), it even records a request it refuses as too soon, because magic_link.go
- *    writes the flow state before the rate limit. So a link opened in the very browser that asked fails
- *    once another browser or device has asked since. Shown against the real GoTrue by the live run.
+ *    ordered by created_at. For someone who has confirmed (opened a link once), or anyone while "Confirm
+ *    email" is off (as the setup guide sets it), it even records a request it refuses as too soon, as
+ *    magic_link.go writes the flow state before the rate limit. (Someone who has never opened a link,
+ *    with it on, goes through sign-up, whose refusal rolls the flow state back.) So a link opened where
+ *    it was asked for fails once another browser, device or web address has asked since. Shown against
+ *    the real GoTrue by the live run (Ivy and Jo; Pat for the sign-up path).
  *
- * Nothing in the link tells the two apart, so the sentence names both. The old one named only the first,
- * which blamed the person for the second.
+ * Nothing in the link tells them apart, so the sentence names all three. The first version named only
+ * the first, which blamed the person for the third; the second left out the web address.
  */
 const LINK_TAKEN_OVER =
-  "This link can't be finished in this browser: it was asked for in a different one, or a newer sign-in request took it over (one from another browser or device counts, even one refused as too soon). Ask for a new link here, and open it in this browser.";
+  "This sign-in link can't be finished here: it was asked for in a different browser or at a different web address, or a newer sign-in request took it over (one from another browser, device or web address counts, even one refused as too soon). Ask for a new link here, and open it in this browser.";
 
 /**
  * Read a landing URL. PKCE reports success as `?code=` and failure as `?error=…&error_code=…` (GoTrue
@@ -306,8 +313,9 @@ export async function freshSession(cfg: AccountConfig, s: Session, f: Fetch = fe
  */
 export async function signOutRemote(cfg: AccountConfig, s: Session, f: Fetch = fetch): Promise<boolean> {
   try {
-    // scope=local ends THIS browser's session only. Without it GoTrue defaults to global and signs the
-    // person out of every device, silently stopping sync on their phone because they left a laptop.
+    // scope=local ends THIS browser's session only. Without it GoTrue defaults to global and ends the
+    // person's every session, because they left a laptop. Their phone would keep syncing until its access
+    // token ran out (up to an hour), then stop, told only that its sign-in had expired.
     const res = await call(f, `${cfg.url}/auth/v1/logout?scope=local`, { method: "POST", headers: authed(cfg, s) });
     if (res.ok) return true;
     // Already ended on the server: another tab or device signed it out (session_not_found), or the

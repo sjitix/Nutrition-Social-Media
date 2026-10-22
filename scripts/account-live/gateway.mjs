@@ -4,6 +4,8 @@
 //
 //   :54321  /auth/v1/*  -> GoTrue     (prefix stripped)          the URL the app is given
 //           /rest/v1/*  -> PostgREST  (prefix stripped)
+//           /confirm/…  the same two, but /auth/v1/* goes to the second GoTrue ("Confirm email" on, :54331):
+//                       the URL four of the live run's browsers are given
 //           /__live/anon-key          the key the app sends as `apikey` (signed here, from the stack's secret),
 //                                     and this stack's id, so run.mjs knows it reached THIS gateway
 //           /__live/mail?to=…         the newest email sent to that address, with its sign-in link
@@ -29,6 +31,7 @@ if (!SECRET) throw new Error("LIVE_JWT_SECRET is not set");
 const STACK = process.env.LIVE_STACK_ID ?? "";
 const PORT = 54321;
 const AUTH = 54329;
+const AUTH_CONFIRM = 54331;
 const REST = 54330;
 const SMTP = 54325;
 
@@ -78,10 +81,12 @@ http
     }
     let upstream;
     let path;
-    if (u.pathname.startsWith("/auth/v1/")) [upstream, path] = [AUTH, u.pathname.slice("/auth/v1".length)];
-    else if (u.pathname.startsWith("/rest/v1/")) [upstream, path] = [REST, u.pathname.slice("/rest/v1".length)];
+    const confirm = u.pathname.startsWith("/confirm/");
+    const route = confirm ? u.pathname.slice("/confirm".length) : u.pathname;
+    if (route.startsWith("/auth/v1/")) [upstream, path] = [confirm ? AUTH_CONFIRM : AUTH, route.slice("/auth/v1".length)];
+    else if (route.startsWith("/rest/v1/")) [upstream, path] = [REST, route.slice("/rest/v1".length)];
     else return send(res, 404, { message: `no route ${u.pathname}` });
-    if (!OPEN.has(u.pathname) && req.headers.apikey !== ANON) return send(res, 401, { message: "Invalid API key" });
+    if (!OPEN.has(route) && req.headers.apikey !== ANON) return send(res, 401, { message: "Invalid API key" });
     const headers = { ...req.headers, host: `127.0.0.1:${upstream}` };
     if (upstream === REST && !headers.authorization) headers.authorization = `Bearer ${ANON}`;
     const entry = { n: requests.length + 1, method: req.method, path: u.pathname + u.search, status: 0, token: tokenTag(req.headers.authorization) };

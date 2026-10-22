@@ -3,5 +3,6 @@
 // the folder is private, and check:boundaries fails an import that reaches past this file.
 export { resolveProvider, generatePlan, agentModelFn, parseAssistantTurn, assistantTurnSystemPrompt, withTargetDefaults } from "./ai";
 export { localExtraBody } from "./extraBody";
+export { normalizeMealTypes } from "./turnShape";
 export { importRecipeFromUrl, parseRecipeHtml, isSafePublicUrl, importedToMeal, type ImportedRecipe } from "./import";
 export { importRecipeFromVideo, videoPlatform } from "./videoImport";

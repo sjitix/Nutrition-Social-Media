@@ -82,9 +82,10 @@ disabled) — good for showing the UI without any AI.
 `data/` (seeds, ingredient identity, the USDA table, symptoms, substitutions, conditions), `nutrition/`
 (units, nutrients, targets, exclusions, safety, grocery), `plan/` (the engine), `assistant/` (primitives,
 agentTools, agentLoop, reply, promptV2), `providers/` (ai, import, videoImport) and `presentation/` (feed,
-feedFilter, recipes, batchGrocery, streak). **The old flat paths are one-line re-exports**, so
-`@/lib/exclusions` still works; new code inside `src/lib` imports the real path. Since 2026-10-18
-`storage.ts` lives in `persistence/` and `savedStore.ts` in `account/` (re-exports at both old paths). A path below written flat (`src/lib/x.ts`) means
+feedFilter, recipes, batchGrocery, streak); `storage.ts` lives in `persistence/` and `savedStore.ts` in
+`account/`. **The old flat paths are gone** (since 2026-10-21, `5b6d874`): `@/lib/exclusions` no longer resolves,
+and a re-export put back at one fails `check:boundaries` (rule 0). `@/lib/recipeDb` stays, as a barrel over `plan/`.
+A path below written flat (`src/lib/x.ts`) means
 the module, wherever its folder is; `docs/v1/02-module-map.md` §2 is the exact map. **Import a folder through its
 barrel** — `@/lib/nutrition` (`index.ts`, the whole public surface) or, from a client component,
 `@/lib/nutrition/client` (the browser-safe subset; `core/` and `presentation/` have one too) — never a file inside it:
@@ -153,7 +154,11 @@ nothing (measured: without it, 3–7 kB per route) — a module that must run on
   `MAX_STEPS = 8` is a cap, not a target, and hitting it is reported rather than hidden. **The
   model is injected as a `ModelFn`**, which is what lets the whole loop be tested with a scripted
   provider and no model at all. Writes still go through `applyPrimitives` — the loop does no
-  arithmetic and cannot claim a change the engine did not make.
+  arithmetic and cannot claim a change the engine did not make. **The fast finish** (`fastFinish`, off
+  by default; the route turns it on with `AI_FAST_FINISH=1`): when a write changed something and the
+  engine's notes are the reply, the loop answers the finishing call itself rather than paying for a model
+  call whose words `composeReply` would discard. It also cuts any write the model would have sent next,
+  so it is safe only for a model measured to finish in one write turn (Nemotron-3-Ultra 550B, reasoning off).
 - `src/lib/types.ts` — zod schemas (WeekPlan, Meal, AssistantResponse) = the data contract.
 - `src/lib/persistence/storage.ts` — **the only place that knows a localStorage key name.** Every persisted
   thing (profile, plan, batchPlan, chat, imports, saved, grocery check-offs, visits) is a store in
@@ -189,10 +194,11 @@ nothing (measured: without it, 3–7 kB per route) — a module that must run on
   **And the whole thing runs live** by `node scripts/account-live/run.mjs`: the real `client.ts` against
   the real GoTrue, PostgREST and Postgres (user-level binaries in WSL, fetched once into
   `~/.cache/nutriflow-live` there, each checked against a pinned SHA-256; a small gateway and mail
-  catcher in `scripts/account-live/`). 38 checks. **`mutate-live.mjs` breaks 17 guards and requires
-  each one's named check to fail**, so 17 of the 38 are proven able to fail. The rest are platform facts
-  and follow-ons, listed in `supabase/README.md`. The first version's checks could not fail at all
-  (lesson 67). One run at a time: setup and the stack hold a lock.
+  catcher in `scripts/account-live/`; a second GoTrue with "Confirm email" on behind its `/confirm`
+  prefix). 50 checks. **`mutate-live.mjs` breaks 24 guards and requires each one's named checks to
+  fail**, so 35 of the 50 are proven able to fail. The other 15 are platform facts the run records
+  and follow-ons of the proven checks, listed in `supabase/README.md`. The first version's checks could
+  not fail at all (lesson 67). One run at a time: setup and the stack hold a lock.
 - `src/lib/account/savedStore.ts` — a three-method async interface (`list`/`add`/`remove`) over saved
   recipes, delegating to `storage.ts`. **Async on purpose even though localStorage is not**: a
   synchronous interface would have to change shape the moment a network sat behind it, and every
@@ -206,7 +212,8 @@ nothing (measured: without it, 3–7 kB per route) — a module that must run on
   `LOCAL_AI_MODEL`, `LOCAL_AI_API_KEY`, `LOCAL_AI_EXTRA_BODY` (a JSON object merged into the chat request
   body, e.g. `{"chat_template_kwargs":{"enable_thinking":false}}` to turn reasoning off on the 550B),
   `PLAN_ENGINE`. (An earlier version of this file documented
-  `LOCAL_AI_CONCURRENCY`; nothing reads it.)
+  `LOCAL_AI_CONCURRENCY`; nothing reads it.) The assistant route also reads `AI_FAST_FINISH` (`1` turns on
+  the fast finish; set it only for a model it was measured on).
 - `src/lib/import.ts` — deterministic recipe import from a URL via schema.org JSON-LD, SSRF-guarded.
   Never guesses macros: no nutrition block means zero plus an honest UI note.
 - `src/lib/videoImport.ts` — caption extraction for TikTok/IG/YouTube. The model reads it for
@@ -341,7 +348,7 @@ npm run check:recipes   # every ingredient priced, every dish plausible, Atwater
 npm run check:ingredients # every recipe ingredient resolves to a curated slug + USDA food (D5)
 npm run check:boundaries # the module map enforced: layers, entry points + old paths, storage keys, client
                          # payload (modules AND zod), cycles, emoji, unresolved imports, import-time effects
-                         # (~1.5 s; ship.mjs runs it on any src/ change; `-- --self-test` proves it fails, 44 cases)
+                         # (~1.5 s; ship.mjs runs it on any src/ change; `-- --self-test` proves it fails, 45 cases)
 npx tsc --noEmit -p tsconfig.scripts.json # types for src/ AND scripts/ (.mts) — ship.mjs runs it on every gated commit
 npm run test:ship       # ship.mjs's 43 scenarios in throwaway repos under the OS temp folder (~45 s); its own gate
 npm run check:data      # gates the training data
@@ -350,7 +357,7 @@ node scripts/test-account.mjs  # accounts: export file, sync, REST client, clien
 node scripts/mutate-account.mjs [--only "text"]  # accounts: removes each guard in turn and proves a test goes red
 node scripts/test-account-sql.mjs [--mutate]  # accounts: the migrations + RLS plan in real Postgres (PGlite; installs once to the OS temp dir)
 node scripts/account-live/run.mjs [--keep|--down]  # accounts: the LIVE run, real GoTrue + PostgREST + Postgres as user-level binaries in WSL (no Docker), driving the real client.ts (~80 s once cached); --keep holds the stack until Ctrl+C
-node scripts/account-live/mutate-live.mjs [--only "text"]  # accounts: breaks 17 live guards in turn (each RLS policy, the allow list, both renewal paths...) and requires each named check to fail (~25 min)
+node scripts/account-live/mutate-live.mjs [--only "text"]  # accounts: breaks 24 live guards in turn (each RLS policy, the allow list, both renewal paths, sign-out's scope, "Confirm email"...) and requires each named check to fail (~32 min)
 npm run export:recipes  # library -> NutriFlow-recipes.xls, incl. a coverage/gaps report
 npm run build:nutrients # regenerate the USDA table (needs --emit to write)
 ```

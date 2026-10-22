@@ -70,9 +70,10 @@ export class FakeSupabase {
    * Opening a link issues its code for this, not for the request that sent the link (verify.go ->
    * pkce.go issueAuthCode -> FindFlowStateByUserID(...).Last()). And it is written BEFORE the email
    * limit is applied (magic_link.go), so even a request refused as too soon moves it. That last part
-   * holds for someone already signed up, or anyone while "Confirm email" is off (the setup this app
-   * prescribes): with it on, a new person's refused request is rolled back with its email. This fake
-   * models the prescribed setup. The live run checks both sides against the real GoTrue.
+   * holds for anyone who has confirmed (opened a link once), and for everyone while "Confirm email" is
+   * off (the setup this app prescribes). With it on, someone who has never opened a link goes through
+   * GoTrue's sign-up path, which refuses inside its transaction, so the request's flow state is rolled
+   * back. This fake models the prescribed setup. The live run checks both against the real GoTrue.
    */
   private latestChallenge = new Map<string, string>();
   /**

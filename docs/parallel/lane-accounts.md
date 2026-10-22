@@ -7,16 +7,65 @@
 
 ## Now doing
 
-**2026-10-18: the LOCAL live run, then two reviews of it: 38/38 against the real servers, with 17 of
-the 38 checks proven able to fail by mutation (17/17).** The owner's Supabase project still does not exist, and fakes are what hid this
+**2026-10-21, later: "Confirm email" on, run live (`a915d12`). The live run is 50/50, and 35 of its 50
+checks are proven able to fail (24/24).** A second GoTrue on the same database has "Confirm email" on,
+a hosted project's default, behind the gateway's `/confirm` prefix. Four browsers are pointed at it.
+Against the real GoTrue, it shows:
+- a new person's first link is a confirmation link;
+- opened six minutes after the REQUEST, it is refused by the exchange (422) with the slow-first-link
+  sentence, while one opened at four minutes works. The run moves requests back in `auth.flow_state`
+  rather than wait; GoTrue's source gives 300 s and takes no less;
+- the magic link asked for next still works aged the same, because a magic link's five minutes run from
+  its opening;
+- a second request from someone who has not yet opened a link, refused as too soon, rolls back its own
+  flow state, because GoTrue's sign-up path refuses inside its transaction. So it takes nothing over.
+  The README's qualifier on the takeover rule now says confirmed versus not, which is the line GoTrue
+  draws.
+
+Two new mutations require it: "Confirm email" off on that server, and the app's 422 mapping removed.
+A review of the batch (one agent, 6 findings, none of which broke a check) is fixed in `2bd92e8`. It
+covers the mechanism above, a four-minute point to bracket the limit, a logged 422, GoTrue's 60 s
+message pinned, a magic-link path setting GoTrue never reads, and stale text. Two things this stack
+could still show are listed in `supabase/README.md`.
+
+**2026-10-21: the Site URL batch landed (`c284616`): the live run was then 45/45, with 31 of its 45
+checks proven able to fail by mutation (22/22).** It adds:
+- **Sign-out on one of two devices** ends only that one: Jo signs in on the tablet and the desk, signs
+  out on the desk, and the tablet still renews (`scope=local`).
+- **The Site URL fallback,** run for real. A preview the allow list refuses (Kai, then Lee) gets its
+  link sent to the Site URL's page, which has storage of its own:
+  - holding no request, the page says the link was asked for at a different web address;
+  - holding an earlier request of this browser's own, the takeover sentence names that cause too;
+  - asking again there signs the person in.
+- **The takeover sentence's three causes,** each shown against the real GoTrue: a different browser
+  (Max, new), a different web address (Lee), a newer request (Ivy).
+- **Two sentence fixes in the app:**
+  - the takeover sentence names the web address;
+  - the no-request sentence names cleared browser data as well ("Delete everything in this browser"
+    causes it). Both used to blame another browser for what was really another address of the app.
+- **A held request now counts for 25 h, not 24:** a day-long link can finish a request whose verifier
+  was reused an hour after it was made.
+
+Two reviews shaped it:
+- **The first (8 agents, 21 findings, 20 confirmed).** The runner's reason for the unproven landings
+  ("never reached once the first sign-in fails") was false: the first sign-in still succeeds under the
+  allow-list mutation, so all nine landings went red, and now all nine are required. The same-origin
+  rule was credited to a check that cannot see it, and the global sign-out was said to stop the other
+  device "unsaid" (it is told its sign-in expired, up to an hour later).
+- **A re-review of those fixes (14 findings),** its verifiers lost to a restart, so each was checked by
+  hand. K2 could not tell its branch from the takeover sentence. A "platform fact" (the tablet
+  finishing Jo's link) turns red every time the dropped-verifier mutation runs. And "the live run shows
+  all three causes" was true only once Max's check was added. All were fixed.
+
+**2026-10-18: the LOCAL live run, then two reviews of it.** The owner's Supabase project still does not exist, and fakes are what hid this
 lane's worst bugs (lesson 52). So `node scripts/account-live/run.mjs` runs the real thing locally:
 - **The servers:** real GoTrue v2.197.0, PostgREST 16.4 and Postgres 17.11, as user-level Linux
   binaries in WSL (no Docker, no sudo: neither is on this laptop). They are fetched once into
   `~/.cache/nutriflow-live` inside WSL, outside the repo, each checked against a pinned SHA-256.
 - **What stands in for Supabase:** a gateway, a mail catcher, and `db.mjs`'s copy of the platform's
   roles and grants. GoTrue is set up as the README's steps 3 and 4 say.
-- **The client:** the real `client.ts`, driven by six browsers through sign-in, sync, RLS, renewal,
-  sign-out and deletion. The full list is in `supabase/README.md`.
+- **The client:** the real `client.ts`, driven by seven browsers (one of them at two web addresses)
+  through sign-in, sync, RLS, renewal, sign-out and deletion. The full list is in `supabase/README.md`.
 
 The first version (`c2bd5a0`, 20/20) was then reviewed by ten agents: five lenses, each verified. They
 confirmed 35 findings:
@@ -47,7 +96,7 @@ platform fact nobody here knew:
   received, so that is what the checks now test (a dropped connection, through a gateway hook).
 
 **A second review, of that batch (6 agents), confirmed 16 more.** All are fixed (`4663a81`, 2026-10-20):
-- **"Every live check is proven by mutation" was itself an overclaim.** It is 17 of the 38 now: seven
+- **"Every live check is proven by mutation" was itself an overclaim.** It became 17 of the 38 then (35 of 50 now): seven
   more mutations, the select policy among them, and the other 21 are accounted for.
 - **The new sentence was wrong for the other cause.** GoTrue's `bad_code_verifier` also comes back
   when a link asked for in another browser is opened where a different sign-in is pending, so the
@@ -66,7 +115,27 @@ own module, which took 3.16 kB gz off "/" (`2d9e024`); and two script imports mo
 for v1's shim removal.
 
 **Next:** whatever the owner's decisions doc answers for #1 (the Supabase project) and #4 (the chat
-log).
+log). Until then, the three things only a hosted project can show stay listed in `supabase/README.md`.
+
+**Ready to build when the engine slot allows: "Try again" after a lost response.** "Try again" appears
+after a transient failure of the link's exchange (offline, 429, 5xx), with the code kept
+(`exchangeWith`, `retrySignIn`). Two cases differ on the real GoTrue:
+- **The request was lost** (GoTrue never saw it). The code is unused, so the retry finishes. The fake
+  covers this already.
+- **The response was lost** (GoTrue finished the exchange, then the connection dropped: a plausible case
+  on a phone). GoTrue destroyed the flow state on success (token.go), so the retry gets 404
+  `flow_state_not_found`. The app then shows its generic sentence: "expired, was already used, or was
+  opened in a different browser". That is not what happened, and nothing in it says the first try went
+  through.
+
+The plan:
+- a gateway hook that forwards the next request to a path and drops its response;
+- two live checks: after a lost request the retry signs in; after a lost response the retry is refused
+  with a sentence of its own ("the first try reached the server, so this link is used up: ask for a new
+  link"), and a new link then works;
+- the sentence in `exchangeCode`, used only for a retry's 404;
+- a mutation each.
+It touches `src/lib/account`, so its ship needs the engine slot.
 
 **2026-10-03: review 2 is fully fixed, and so is the review of that work (batch 6, `ea71ca6`).**
 Everything ran against fakes that behave like GoTrue and PostgREST, and against real Postgres (PGlite).
@@ -91,7 +160,9 @@ The history of that day is in `docs/worklog/2026-10-03-accounts.md`.
   `src/app/sage/account/**`, `scripts/test-account.*`, `scripts/test-account-tabs.mts`,
   `scripts/account-tab.mts`, `scripts/account-fakes.ts`, `scripts/test-account-sql.mjs`,
   `scripts/mutate-account.mjs`, `scripts/account-live/**`, `supabase/**`: all mine, nothing of yours.
-  The old paths `src/lib/storage.ts` and `src/lib/savedStore.ts` are now v1's one-line re-exports.
+  The old paths `src/lib/storage.ts` and `src/lib/savedStore.ts` were deleted with the other D5a shims
+  (v1, `5b6d874`, 2026-10-21); check:boundaries fails a re-export put back at one. None of this lane's
+  files used them.
 - **D5a's move landed as `2b7075d` (v1), and the hold for it is released.** Checked here: in this
   lane's files only import lines and the 21 path strings changed. The suites pass 333 + 43 on the
   moved tree, and v1 ran all 85 mutations, 85/85.
@@ -300,3 +371,8 @@ whose claims were each checked against the code (and corrected twice by the revi
 | `2d9e024` | `persistence/theme.ts`: the theme key in its own module, so "/", "/_not-found" and "/recipes" stop loading `storage.ts` (−3.16 kB gz each, both builds in one folder) — engine 943/0 |
 | `766e243` | the live run's review, all 35 findings: checks that can fail (RLS insert, unfiltered update and delete; renewal of really expired tokens before a push and after a 401; where every link lands; the newest-link rule; a re-signup's id; the audit table), with `mutate-live.mjs`; the stack hardened (lock, PID identity, socket-only Postgres, gateway on 127.0.0.1, SHA-256 pins, a locked `pg` client, `--keep`/`--down`); the README's phone advice fixed; the fake keeps one link per person. The first `mutate-live` run surfaced GoTrue's latest-request rule (a link's code goes to the person's most recent request, even a refused one): a takeover sentence, the fake modelling it, and the verifier tested through a lost request — 38/38 live, 10/10, 335 + 43, 87/87, lessons 66–67 |
 | `4663a81` | the second review of the live run (16 findings): 17 of the 38 checks proven able to fail (seven more mutations, the select policy among them), and the docs saying so instead of "every check"; the `bad_code_verifier` sentence names both causes (asked for elsewhere, or taken over), with a test for the first; GoTrue's ordering confirmed from `auth.flow_state` before the takeover checks; the stale socket lock cleared; `setup.sh` under the stack's lock; a CR-blind lockfile hash; the fake binds a code when it is first presented; the takeover rule qualified ("Confirm email" off); the Referer fallback documented; bundles and journals in the worktree's own `.cache/`. Shipped apart from its docs, which follow in the next commit (lesson 69) — 38/38 live, 17/17, 336 + 43, 87/87, engine 1010/0, test:ui 51/0 |
+| `bbf0f17` | the docs half of `4663a81`, shipped apart from it with `--no-gate`: "17 of 38" everywhere, lesson 67's wording, lesson 69 (shared docs in a commit of their own), the 2026-10-20 day file |
+| `c284616` | the Site URL batch: sign-out on one of two devices (`scope=local`), the Site URL fallback run for real (a refused preview's link lands on the Site URL's page; holding nothing, it names a different web address; holding a request of its own, the takeover sentence does), the takeover sentence's three causes each shown live (Max, Lee, Ivy), the no-request sentence naming cleared data, a held request counting for 25 h, all nine landings required under the allow-list mutation, the same-origin rule recorded through a `passes` requirement, the tablet finishing Jo's link required under the dropped-verifier mutation — 45/45 live, 22/22, 339 + 43, 91/91, engine 1061/0 |
+| `2410119` | the docs half of `c284616` (`--no-gate`): 45/45 and 31 of 45 everywhere, lesson 67 twice more, the 2026-10-21 day file, and the shims removal reflected |
+| `a915d12` | "Confirm email" on, run live: a second GoTrue with it on behind the gateway's `/confirm` prefix and four browsers pointed at it; a first link's five minutes from the request (the request aged in `auth.flow_state`), the magic link after it from its opening, and a not-yet-confirmed person's refused second request rolling back its own flow state; two mutations ("Confirm email" off on that server, the app's 422 mapping), and the allow list's tenth landing — 50/50 live, 24/24, 35 of 50 |
+| `2bd92e8` | the review of `a915d12` (one agent, 6 findings, none breaking a check): the rollback described as GoTrue does it (confirmed versus not; the sign-up path refuses inside its transaction), in the README's takeover qualifier, the fake's comment and the app's; a four-minute first link that still works, bracketing the limit; the slow link's code and logged 422 asserted; GoTrue's 60 s message pinned; the magic-link path line GoTrue never reads, dropped; "Try again" and the hourly cap back under "Not exercised"; step 4 on the hourly cap — 50/50 live, 24/24 |

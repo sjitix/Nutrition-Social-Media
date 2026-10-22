@@ -35,16 +35,29 @@ threads at session start, with the boards.
 
 #### PARALLEL LANE — accounts (written by the accounts agent only)
 
-**2026-10-18 — accounts are built up to the keys, adversarially reviewed three times, and run live
-against the real GoTrue, PostgREST and Postgres with no Supabase project: 38/38. The live run's own
-tooling was then reviewed twice (35, then 16 confirmed findings), and 17 of its 38 checks are proven
-able to fail by mutation, with the other 21 accounted for.**
+**Accounts are built up to the keys, adversarially reviewed three times, and run live against the real
+GoTrue, PostgREST and Postgres with no Supabase project: 50/50, including a second GoTrue with "Confirm
+email" on. The live run's own tooling has been through four review rounds (35, 16 and 20 confirmed
+findings, then 14 in a re-review of the last round's fixes), and 35 of its 50 checks are proven able
+to fail by mutation, with the other 15 accounted for.**
 
-**Where it stopped (2026-10-20):** the second review's fixes landed as `4663a81`, their docs in the
-commit after. Nothing of this lane's is running or uncommitted. Next is whatever the owner's decisions
-doc answers for #1 (the Supabase project) and #4 (the chat log); it had no comments at 23:05. This lane
-now ships the shared docs in a commit of their own, with `--no-gate` (lesson 69): a gated commit
-carrying them was stopped, green, by two other lanes' doc commits.
+**Where it stopped (2026-10-21):** two batches landed that day.
+- The Site URL batch (`c284616`, docs `2410119`): sign-out on one of two devices, the Site URL
+  fallback, the takeover sentence's three causes, and a 25 h limit on a held request.
+- The "Confirm email" batch (`a915d12`): a second GoTrue with it on, behind a `/confirm` gateway prefix.
+  Shown against the real GoTrue: a first link's limit counted from the request (still working at four
+  minutes, refused at six), the magic link after it counted from the open, and a not-yet-confirmed
+  person's refused request rolling back without taking anything over. A review of it (6 findings,
+  none breaking a check) is fixed in `2bd92e8`.
+
+Two things this stack could still show are listed in `supabase/README.md`: "Try again" after a failed
+exchange, and GoTrue's hourly email cap. Nothing of this lane's is running or uncommitted.
+Next: whatever the owner's decisions doc answers for #1 (the Supabase project) and #4 (the chat log).
+It had no comments on 2026-10-21.
+
+This lane ships the shared docs in a commit of their own, with `--no-gate` (lesson 69): a gated commit
+carrying them was stopped, green, by two other lanes' doc commits. Engine gates are taken in turn and
+announced to the other lanes.
 
 Live status, the plan and the asks: `docs/parallel/lane-accounts.md`. Design: **local-first, the
 account is a mirror** — `storage.ts`'s load/save API did not change, so no screen had to; underneath,
@@ -105,39 +118,55 @@ Supabase row per user under RLS.
   The account's sentences ("your account had newer data…", "this account was deleted…") now show on
   every `/sage` screen, as a small notice from `<AccountSync/>`, instead of only on the account page.
   And several guards the review showed no test could catch are now tested.
-- **The live run (2026-10-18): `node scripts/account-live/run.mjs`, 38/38.** It runs the real
+- **The live run (2026-10-18, extended 10-21): `node scripts/account-live/run.mjs`, 50/50.** It runs the real
   `client.ts` against the real GoTrue v2.197.0, PostgREST 16.4 and Postgres 17.11, as user-level
   binaries in WSL. No Docker or admin rights once WSL 2 has an x86-64 Ubuntu. Every download is checked
   against a pinned SHA-256, and nothing lands in the repo.
   - What stands in for Supabase: a gateway, a mail catcher, and `db.mjs`'s copy of the platform's
     roles and grants. GoTrue is set up as the guide's steps 3 and 4 say: the production Site URL with
-    localhost on the allow list, "Confirm email" off, audit logs out of the database.
-  - Six browsers. What it checks:
-    - where every link lands;
+    localhost on the allow list, "Confirm email" off, audit logs out of the database. A second GoTrue
+    on the same database has "Confirm email" on, a hosted project's default (port 54331, behind the
+    gateway's `/confirm` prefix).
+  - Eleven browsers. Seven use the first GoTrue, one of them seen at two web addresses (a preview the
+    allow list refuses, and the Site URL's page, each with storage of its own); four use the second.
+    What it checks:
+    - where every link lands, including a refused return address landing on the Site URL;
     - the 60 s limit, with neither a refused request nor a lost one losing the link already sent;
-    - the takeover rule below, from both sides;
+    - the takeover rule below, from both sides, and each of the takeover sentence's three causes (a
+      different browser, a different web address, a newer request);
+    - the no-request sentence where a link lands on another address of the app;
     - only the newest link working;
     - sync both ways, and `upsert_state`'s skip;
     - renewal of a token that has REALLY expired, both before a push and after PostgREST's 401, one
       rotation each;
     - RLS on read, insert, and unfiltered update and delete;
-    - sign-out, and a deletion as the other device sees it;
-    - a re-signup's new id, and an empty audit table.
-  - **`node scripts/account-live/mutate-live.mjs` shows 17 of the 38 checks able to fail** (17
-    mutations, each requiring its own named check to go red, ~25 min). The other 21 are platform facts
-    the run records, preconditions and follow-ons of proven checks, and six landings the run never
-    reaches once the first sign-in fails (README lists them). Say "17 of 38", never "every check": the
-    second review caught exactly that claim. The first version's checks could not fail at all: an RLS
-    write check satisfied by a primary-key collision, renewals that never sent an expired token, links
-    nobody followed. Lesson 67.
+    - sign-out, sign-out on one of two devices ending only that one (`scope=local`), and a deletion as
+      the other device sees it;
+    - a re-signup's new id, and an empty audit table;
+    - with "Confirm email" on: a first link is a confirmation link, still working four minutes after
+      the request and refused by the exchange (422) at six (the run moves requests back in
+      `auth.flow_state` rather than wait); the magic link asked for next still works aged the same; and
+      a not-yet-confirmed person's second request, refused as too soon, rolls back its own flow state,
+      taking nothing over.
+  - **`node scripts/account-live/mutate-live.mjs` shows 35 of the 50 checks able to fail** (24
+    mutations, ~32 min, 24/24). The other 15 are five platform facts the run records and ten
+    preconditions and follow-ons of proven checks (README lists them). One follow-on is also required
+    to PASS under the bare-domain Site URL, which is how the run records GoTrue's same-origin rule.
+    Say "35 of 50", never "every check": reviews have caught that kind of claim three times, the last
+    two in the Site URL batch (eight landings "never reached" that in fact went red unrequired, and a
+    "platform fact" one mutation turns red every time). The first version's checks could not fail at
+    all: an RLS write check satisfied by a primary-key collision, renewals that never sent an expired
+    token, links nobody followed. Lesson 67.
   - **A platform fact the mutations found:** GoTrue issues a link's code for the person's MOST
     RECENT request, whichever browser made it (verify.go -> pkce.go issueAuthCode ->
     FindFlowStateByUserID(...).Last(), by created_at). With "Confirm email" off, as the setup sets it,
     it records a request even when it refuses it as too soon (magic_link.go). So a second device
     asking moves the sign-in there. GoTrue's `bad_code_verifier` cannot say which cause applies:
-    asked for elsewhere, or taken over. So the app's sentence now names both, instead of only "opened
-    in a different browser". The fake models the rule, binding a code when it is first presented, as
-    GoTrue does when the link is opened.
+    asked for in another browser, at another web address of the app (a refused return address lands
+    on the Site URL, which keeps a request of its own), or taken over. So the app's sentence names all
+    three, and the page that holds no request names a different browser, a different web address, or
+    cleared data. The fake models the rule, binding a code when it is first presented, as GoTrue does
+    when the link is opened.
   - **A fact corrected:** GoTrue accepts the refresh token a renewal just replaced with no time
     limit while it is the current one's parent, and answers with the current one. The "about ten
     seconds" written earlier was neither measured nor GoTrue's rule.
@@ -145,17 +174,18 @@ Supabase row per user under RLS.
     For the two things that still rest on that clock, it checks rather than assumes: it reads
     GoTrue's `auth.flow_state` to confirm which request GoTrue holds as latest before a takeover
     check, and it retries a request GoTrue still counts as too soon after the wait.
-  - Not exercised: a first link with "Confirm email" on, `/logout` among several sessions, and the
-    Site URL fallback itself (see the README's list).
-- **Gate for this lane:** `node scripts/test-account.mjs` runs two suites: **336 checks** in one tab,
+  - Not exercised, though this stack could do it: "Try again" after a failed exchange (only the fake
+    covers the kept code), and GoTrue's hourly email cap, which v2.197.0 applies only while "Confirm
+    email" is on (`mail.go`).
+- **Gate for this lane:** `node scripts/test-account.mjs` runs two suites: **339 checks** in one tab,
   including the real `client.ts` end to end against an in-memory Supabase (RLS, PKCE, conditional
   writes, jsonb order, skewed clocks, token expiry, a deleted account), and **43 checks across tabs**
   of one browser (stale tabs, the write fence, a tab that hears late, races between tabs signing in
   and out) · `node scripts/test-account-sql.mjs --mutate` — **39 checks in real Postgres, 16/16
-  broken guards caught** · `node scripts/mutate-account.mjs` — **87/87** (`--only "text"` re-checks
-  one guard in seconds; an interrupted run is undone on the next start) · `node
-  scripts/account-live/run.mjs` — **38/38 live**, and `mutate-live.mjs` **17/17** (17 of the 38 checks
-  shown able to fail).
+  broken guards caught** · `node scripts/mutate-account.mjs` — **91/91** (`--only "text"` re-checks
+  one guard in seconds; an interrupted run is undone on the next start, as one was on 2026-10-21) ·
+  `node scripts/account-live/run.mjs` — **50/50 live**, and `mutate-live.mjs` **24/24** (35 of the 50
+  checks shown able to fail).
 - **Owner, to switch accounts on:** `supabase/README.md` — create a project, run **both** migrations,
   set the Site URL to the account page, turn off "Confirm email" and "Write audit logs to the
   database", **configure custom SMTP** (without it only your own organisation receives sign-in
@@ -169,8 +199,9 @@ Supabase row per user under RLS.
   **D5a's last move landed (v1, `2b7075d`):** `storage.ts` is `src/lib/persistence/storage.ts` (import
   `@/lib/persistence`), and `savedStore.ts` is `src/lib/account/savedStore.ts`. It sits in account/,
   not persistence/, because it value-imports `account/client`, and in the persistence barrel it would
-  close an import cycle. The old paths are one-line re-exports, so the write fence's state is still one
-  instance per tab. Checked: in this lane's files only import lines and the mutation runner's 21 path
+  close an import cycle. The old flat paths were one-line re-exports until v1 deleted all 28 (`5b6d874`,
+  2026-10-21); a re-export put back at one now fails check:boundaries. Every import names the real path,
+  so the write fence's state is one instance per tab. Checked: in this lane's files only import lines and the mutation runner's 21 path
   strings changed; the suites pass 333 + 43 on the moved tree, and v1 ran all 85 mutations, 85/85.
   **The theme key lives beside it, in `persistence/theme.ts`**, re-exported by `storage.ts`.
   ThemeSwitch is in the root layout, which every page loads. While the key sat in `storage.ts`, every
@@ -185,7 +216,7 @@ in the main folder (`2fd6f02`). Its WORKPLAN lesson was renumbered 38 → 48 bec
 #### PARALLEL LANE — models (written by the models agent only)
 
 **2026-10-21 (evening) — RESUME HERE. The held-outs and their checks were reviewed adversarially and fixed;
-633 controls hold on v1's `da023da`** (all 49 scenarios, 2 engine seeds; `node scripts/models/run-controls.mjs`).
+633 controls hold on main as of v1's `7624008`** (all 49 scenarios, 2 engine seeds; `node scripts/models/run-controls.mjs`).
 The do-nothing and hollow-claim fakes score 0 on both evals.
 - **Scorecards from before `b43873f` were graded on the lenient harness** and are not comparable with new runs.
 - **Every eval message the prompt quotes has a held-out paraphrase** that asks for exactly what its original
@@ -203,22 +234,35 @@ The do-nothing and hollow-claim fakes score 0 on both evals.
     - a treat or an unasked memory in find-then-place.
   Shipped in `6d1b978`. Details: `docs/worklog/2026-10-21-models.md`.
 - **v1's single-turn eval (`eval:hardcases`) is largely quoted by its own prompt:** 11 of its 45 cases are
-  near-quotes (`probe-quotes.mjs --hard-cases`). Treat it as a regression check, never as a ruler for choosing a
-  model; the loop and conversation evals are the rulers. v1 is told (`7b42059`).
-- **On `da023da` (v1's C-G):** probe-claims 15/15, probe-allergy-labels 28/28 (5 known-open rows), probe-fixes
-  4/4. Five controls flipped because D works (an answer op now finishes with its own reply; a question said
-  beside a memory-only step reaches the user). They are must-pass controls now, the answer-op one among them.
-- **Next, the moment `.env.local` exists** (OWNER-TODO item 0, `NVIDIA_API_KEY=`): the fair arms, then the
-  wording test (block below).
-- **Next, key-free: re-run the controls and probes when v1's next batch lands** (v1 messages the sha). Its changes:
-  - an undo sharing a step with other writes runs as its own step, so the change after it takes the undo slot;
-  - a second undo in a run answers NO_FURTHER_UNDO;
-  - a line said beside a remember-only step is kept even when the fact was stored already;
-  - planChanged and profileChanged are compared with the run's start;
-  - a stated cook-time limit is met exactly whenever a dish meets it;
-  - "zero energy" becomes a fatigue trigger.
-  Expect convo undo-flow and the hold-then-undo controls to move. Reclassify a flip only where the change makes
-  it right. find-then-place's constrain controls should still fail, but as re-plans.
+  near-quotes (`probe-quotes.mjs --hard-cases`). v1 gave each of the nine with no held-out a twin (`4575524`),
+  and the probe now exits 0 on the set. Until a run compares the twins with their originals, treat it as a
+  regression check, never as a ruler for choosing a model; the loop and conversation evals are the rulers.
+- **Re-run on each of v1's batches; the probes pass on all three** (claims 15/15, allergy labels 28/28 with
+  5 known-open rows, fixes 4/4):
+  - `da023da` (C-G): five controls flipped because D works (an answer op finishes with its own reply; a question
+    said beside a memory-only step reaches the user). They are must-pass now, the answer-op control among them.
+  - `4bc9e47` (undo as its own step, stated cook times met, "zero energy" as tiredness): nothing flipped.
+    find-then-place's day-constrain controls now fail as re-plans instead of over-limit dishes.
+  - `7624008` (claims judged sentence by sentence; an undo keeps what the run remembered): nothing flipped. The two
+    "I'll do both. Shall I go ahead?" controls are now caught by the guard rather than by the clash test.
+  - `ef71993` (imports' own diet matcher): nothing flipped, and no failure reason changed.
+- **The owner's preference (2026-10-22): make Nemotron-3-Ultra 550B work** ("i like nemotron, id be happy if we
+  could make it work"). The goal is now making that model fast and correct enough, through its settings, the
+  prompt's wording and fewer calls per message. Other models are fallbacks.
+- **The key is in (2026-10-22): the owner's `.env.local` holds `NVIDIA_API_KEY`.**
+- **The fair arms are done (`cd2244b`, Nemotron 550B on `affd3d7`, 0 infra):**
+  - A, reasoning on: 27/34, median 15.3 s per message, p90 44.1;
+  - B, reasoning off: 26/34, median 7.1 s, p90 20.8;
+  - C, off plus fast finish: 28/34, median 5.5 s, p90 12.5;
+  - convo A: 12/15 at 11.3 s per turn; convo C: 12/15 at 6.0 s.
+  **C is the setting.** Its repeats (`e8322f5`, on `cd2244b`) held: 26-28 of 34, convo 10-12 of 15. Their
+  latencies are not clean, because the laptop slept mid-run, so keep it awake for timed runs. v1 ships the fast
+  finish as `AI_FAST_FINISH=1`, gated to this model. Decision 2 in the owner's doc has the numbers and the
+  config. Shadow mode (`6344c77`) measures what the skip cuts.
+- **In flight:** a no-model diagnosis of every failure. **Next:** a clean latency range for C, then the wording
+  test on C (with v1's LOOP RULE 5 on the shadow arm).
+- **Next, key-free:** re-run the probes when v1's F3 (imports get their own diet matcher) lands; the evals
+  import no recipes, so the controls should not move.
 - The false-claim guard: `probe-claims.mts` 15/15 on main since v1's `c8ccfb0` (1/15 before). Day records:
   `docs/worklog/2026-10-20-models.md` and `2026-10-21-models.md`.
 
@@ -273,7 +317,7 @@ Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Ro
      `.env.local` itself and exits 3 without it, so the key never goes on a command line. These runs
      double as the real-model re-run of v1's two fixes, since they run on `5c12c4c` or later.
   2. **Held-out wording test**, main vs `models-wording` (rate, reserve, "lighter on <days>" = resize).
-     The branch is main plus exactly those three prompt lines (`e078efd`, merged today), and its
+     The branch is main plus exactly those three prompt lines (`3591188`, main merged in 2026-10-21), and its
      worktree is `../NutriFlow-models-wording`. **If main has moved, merge it into the branch again
      first**, and check that `git diff --stat origin/main models-wording` shows only `promptV2.ts`. Then run
      `node scripts/models/fair-arms.mjs --arms C --repeat 3 --only '^(rate|eat-out-future|weekend-lighter|rate-heldout|eat-out-heldout|days-lighter-heldout)$'`
@@ -305,7 +349,75 @@ Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Ro
 - **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`,
   `docs/worklog/*-models.md`, this block, the lane file. Does not edit v1's files; asks v1 first.
 
-### >>> V1 LANE — 2026-10-21: the review fixes landed (C–G, `da023da`); a second review of them, then the D5a shims <<<
+### >>> V1 LANE — 2026-10-22: the review's follow-ups landed (F1 `4bc9e47`, F2 `7624008`, F3 `ef71993`, F4 `afa7f89`); the fast finish `b2b4285`; F5 being mapped <<<
+
+**2026-10-21 and 22: the second review's follow-ups, one commit at a time.** The review of `da023da` (workflow
+`wf_cf2e22d0-cc3`; four lenses, a skeptic per serious finding; result saved in the session's scratchpad) confirmed 5
+majors, left 6 unverified (the skeptic cap), and listed 20 minors. Each commit is proven against its parent the same way:
+the whole new suite run against the parent's code, every row that tests a change failing there.
+- **F1, landed `4bc9e47` (test:engine 1081/0; 21 of 23 new rows fail on the parent, 2 guards pass on both):**
+  - the loop: an undo sharing a step, a line beside a restated fact, an in-run undo keeping unrelated answers, a second
+    undo, and run flags compared with the start;
+  - cook time met exactly (below);
+  - E4 and the review of E: the boost's old week comes back only in the form the rest of the request allows, never
+    whole for a new target or cuisine, never thrown out whole for one breaking dish;
+  - "zero energy".
+- **F2, landed `7624008` (test:engine 1094/0; 8 of 13 new rows fail on the parent, 5 guards pass on both):**
+  - the claim guard's two regressions from `da023da`: a "?" anywhere excused every claim, and bare removed/excluded
+    were narrowed away. Now judged per sentence; over all 1,045 stored replies, only two stored claims change verdict;
+  - an undo never takes back what the same run remembered (an I2 hole across loop steps);
+  - E7: a boost measured with the pins in place;
+  - E2: library dishes judged on the rules the request introduced;
+  - imports judged per food avoided (an onion dislike no longer shields a pork import from "no pork").
+- **F3, landed `ef71993` (test:engine 1101/0; the 6 new rows that test it fail on the parent, the I2 guard passes on
+  both):** an import diet matcher of its own. The library's tag lint flagged plant milks, butter beans and "Cauliflower
+  Steaks", a regression from `da023da`'s C. The new matcher agrees with the library's own tags exactly: none of 133
+  vegan or 301 vegetarian dishes flagged, none of 362 non-vegan or 197 non-vegetarian passed. On the review's probe it
+  keeps all six plant-based imports the parent removes.
+- **F4, landed `afa7f89` (test:engine 1167/0; of 66 new rows, the 45 that test a change fail on the parent and the 21
+  guards pass on both):** the review's minors that need no schema change, LC-08, and the fixes from F4's own
+  adversarial review (workflow `wf_cbcccd36-161`, four lenses, a skeptic per serious finding).
+  - **LC-08:** an unlabelled allergy fact binds any of the matcher's 182 allergen words; 93 bound nothing (cashews,
+    scallops, crab, hazelnut…). A whole token is judged by `namesFood`; splitting a phrase keeps the narrower `isFood`.
+    Against the parent: 0 of 126 stored `remember` facts bind differently, and under three stored allergies 1,800
+    rows: 237 block more, 124 change only the note, 0 block less.
+  - **The covered rule** (LC-16 widened): a food a stored allergy already blocks entirely is named as covered and not
+    stored, judged by `exclusionCovers` in the matcher, exception phrases included. The undo's "took X off" uses it (#19).
+  - **The matcher:** a tortilla, noodle or cracker allergy keeps blocking what the gluten words except (corn
+    tortillas, rice and glass noodles). `mealHaystack` keeps a dish's parts apart, so "cocoa" then "butter" is no
+    longer cocoa butter (I2, pre-existing since C). Flour is decision 9's new row.
+  - **Imports** are the import everywhere (#6: `baseRecipeOf`, pin, explain, resize, the eating-out floor). The note
+    names what the matcher flagged, per allergy, in the person's words (#7). An undo clears import notes (#8). A
+    removed slot is not "nothing fits" (#9). A re-theme or a switch to meal-prep names the imports it dropped (#10).
+  - **Boosts:** the iron figure is read off the final week, and what meal-prep cannot apply is said once, judged on
+    the mode the call ends in (#13). An unset mode is fresh. #12 never reproduced (0 of 540 switches).
+  - **The assistant:** confirm-before-act excuses a promise only for the same change and with no "done" elsewhere
+    (1,801 stored replies: 2 verdicts move, both intended). Sentences end inside quotes and bold. "Your allergies
+    haven't changed" is taken back when the reply moved them, in one call and across loop steps (#15, live path).
+    A scope that names no meal reads as the whole day; one it cannot read is refused (#11; `providers/turnShape.ts`).
+  - **What the review caught in F4 itself, before it shipped:** the covered rule ignored exceptions ("tortillas"
+    under "gluten"), "glass noodle" stored "noodle", and the strict scope refused `{slot: null}`. Re-measuring
+    then caught three of the fixes' own over-blocks ("corn" from a kept compound, a labelled sentence, "tree nut" as
+    "nuts"). Lesson 72.
+  - **A flaky row from F1, fixed in F4:** the first gate failed on "loop undo: [swap Mon], then [undo, swap Tue]",
+    whose fixture ran out of dishes in 5 of 60 unseeded weeks (on main too). Its pool has five names now, and 0 of 200
+    weeks fail. Lesson 73.
+- **Open of the minors after F4:** #4 the undo label can name a refused write; #14 notes rendered from the final
+  week for every note, not only allergies; #5/#18 wait for D7's logged mark. Recorded from F4's review: a schema
+  failure reported as "offline"; rating an import titled like a library dish; "chick pea"; a re-theme dropping
+  imports that break no rule without naming them (with D7's records).
+
+**2026-10-21, evening: Track A is done.** `5b6d874` deleted the 28 D5a shims once nothing imported them
+(test:engine 1061/0, the same count). `check:boundaries` lost their layer entries with them, so a re-export put back
+at an old path fails rule 0 (self-test 45/0).
+**Cook time, decided by this lane (the models lane left it to v1), landed in F1:** a stated limit is met exactly while
+any dish meets it. The 5-minute grace is a stage of its own after the budget, and every dish over the limit is named,
+read off the final week. Measured on 12 seeded weeks each, main vs the change:
+- "15 minutes or less" for the week: 68 of 252 meals over 15 min on main, none mentioned; 0 after.
+- Vegan at 20 min: 71 over, silent; 0 after. Vegetarian with a dairy allergy at 15: 85 over, silent; 0 after.
+- The default 30-minute profile: 0 over either way, and no new notes.
+- The cost: restrictive diets reach less protein (vegan at 20: 9.2% short of target on average, now 14.6%). The
+  achievement note already says the shortfall. Recorded in the decisions doc, for the owner to overrule.
 
 **2026-10-21.** Landed **`da023da`**, one commit for one gate (test:engine 1061/0):
 - **C:** an imported dish answers to the hard rules. An allergy always counts. A new diet, or a newly avoided food,
@@ -367,27 +479,75 @@ the prompts.
   `scripts/test-ship.mjs` holds 43 scenarios (v1 fails 34), and CI runs it. **Every lane: `docs/parallel/README.md` §3.**
 
 **Worktrees of this lane:**
-- `../NutriFlow-allergy-c`: the C–G batch as shipped. The second review reads it.
-- `../NutriFlow-allergy-review`: the baseline (`c8ccfb0`, detached). The second review reads it too.
-Remove both once that review finishes, taking each node_modules junction out first
-(`cmd //c "rmdir <wt>\\node_modules"`).
+- `../NutriFlow-followups` (branch `followups`): F4 landed from it. It stays, read-only, while F5's mapping workflow
+  (`wf_65b5adc7-a11`) reads F4's code there, and is removed when that finishes. `../NutriFlow-f2` is removed.
+  `../NutriFlow-ff` is removed (the fast finish landed from it).
+Remove a worktree when its batch lands, taking the node_modules junction out first. In Git Bash, spell the path out:
+`cmd //c "rmdir C:\\…\\<wt>\\node_modules"`. A `$wt` inside that string is passed literally and removes nothing.
+
+**2026-10-22, evening: the fast finish landed, `b2b4285` (test:engine 1179/0), set per model.** After a write whose
+engine notes are the reply, the loop answers the finishing call itself (an empty turn, as the models lane's eval
+wrapper measured it), so Nemotron-3-Ultra 550B with reasoning off makes 1.2 model calls a message instead of 1.8.
+- **Why it is set per model.** Its adversarial review (`wf_1102bd6e-d4e`) found no major issue, but it showed the
+  safety is the model's, not the rule's. The skip also cuts any write the model would have sent next: a scripted
+  second-step allergy is lost, and the peanut dishes stay.
+  - The 550B never splits: 0 of 275 recorded write messages sent more, and 0 of 23 in the fair run.
+  - gpt-oss-20b did, in 7 of 49.
+  - The reply rule withheld 1 skip in 84.
+  - So `runAgent` takes `fastFinish` (off by default), and the route reads `AI_FAST_FINISH=1`, a deployment setting
+    for the 550B.
+- **The models lane's side.** Its repeats (`e8322f5`): the pass range holds (26 to 28 of 34) and calls hold at 1.2.
+  Their seconds are contaminated, because the laptop slept, so this morning's set (5.5 s against 7.1 s) stays the
+  clean speed figure. It wrote decision 2's recommended config with `AI_FAST_FINISH=1` (doc rev 25, `41d2af2`), and
+  built `FAST_FINISH=shadow` (`6344c77`): the skipped call is made anyway, to count what the skip would cut, before
+  the setting goes to any other model.
+- **Pending:** a prompt rule ("leave reply empty if more changes follow"), drafted for the models lane's wording
+  test. It is not to land before their shadow numbers on a model that splits writes. The models lane re-ran its 633
+  controls on F4 (`afa7f89`) under two seeds: all hold.
 
 **Next, in order:**
-1. **The second review's confirmed findings**, as one commit. Its gate waits for the accounts lane's gate: they
-   hold a reviewed batch, and only one test:engine runs at a time on this machine.
-2. **Remove the D5a shims.** Only `scripts/test-engine.mts` is left on them, and the migration is mechanical: each
-   import goes to its shim's own target, since scripts may import deep. Delete the 28 shims, then update
-   check-boundaries' shim lists and the module map with its board. Then Track A is done.
-3. **The deferred:**
-   - E4: a boost that comes with a new calorie or protein target drops the target when the nutrient cannot rise;
-   - the cook-time grace is silent (a 15-minute cap can get a 20-minute dish with no note);
-   - the training generator teaches invented calorie figures for reserves and logs.
-4. V1 Day 6's rest, then D7 meal logging.
+1. **F5, the rest of the follow-ups:** #14 (every note rendered from the run's final week and profile, not each
+   step's: a denial step then an undo step leaves "still include peanuts, so nothing with them is planned" over a
+   week with peanut dishes), #4 (the undo label naming a refused write), and the matcher's "chick pea". Each proven
+   against its parent, and re-measured on the stored-allergy comparison after every fix (lesson 72). **Being mapped
+   (2026-10-22, workflow `wf_65b5adc7-a11`).** Its agents run as foreground requests, so every interruption of this
+   session's turn killed them, and the workflow restarted them from scratch. Spelling has had 6 attempts, stale-ops
+   5 and undo-label 4. Three lenses are in, and they reshape F5:
+   - **Model failures, first to fix now that Nemotron is the model:**
+     - MF-1: the 503 "offline" path throws away what the engine already said, including the symptom tool's
+       urgent-care reply;
+     - MF-2: a stated allergy is dropped with the whole turn when any other op in it fails the schema;
+     - MF-3: a schema failure, cut-off JSON or empty content is reported as "offline".
+   - **#14:** 101 note writers, 82 of which can go stale. Across loop steps, seven major classes (AS-1 to AS-7): the
+     #14 denial-then-undo case; the fold-in's own re-solve never shown; boost, day and week figures, reserves and
+     logged meals surviving a later step.
+   - **Side finds:** `log` records a fuzzy library match and discards the calories the person stated (AS-12), and a
+     denial with four or more words between the negation and the cue binds the allergy it denies (AS-13).
+   - Still running: spelling, stale-ops and undo-label, then the three #14 designs and a judge, then a critic.
+   **Not now (owner, 2026-10-22):** splitting the v1 lane. A screens lane fits better than a library lane, but only
+   while the usage limit has headroom (decision 10).
+2. **The deferred:**
+   - the review's minors left after F4 (above);
+   - the training generator teaches invented calorie figures for reserves and logs;
+   - `data/hard-cases.json` **has its held-outs** (`4575524`): each of the 9 cases the prompt quotes has a paraphrase
+     beside it (`heldOutOf`, same bucket and expected behaviour, 54 cases), and the models lane's probe counts them
+     (`97e0f11`): `probe-quotes.mjs --hard-cases` exits 0.
+3. V1 Day 6's rest, then D7 meal logging (which now includes keeping records through every re-plan).
 
 **Open, recorded:**
-- **LC-08:** "allergic to hazelnuts" binds nothing unlabelled, while a hazelnut dish exists. Binding every unknown
-  word brings back over-blocks ("spring" from "hay fever allergy in spring"), so it needs its own design.
-- **LC-02/03/10** (removing an allergy; undo dropping one) wait on owner decision 12.
+- **A re-plan drops the person's records with nothing said** (found 2026-10-21 while building F4). On `ef71993`, a
+  nutrient boost removed a logged meal ("Logged by you."), an eating-out reservation and an import in 9 of 9 runs
+  (seeds 1–3; iron, B12, calcium). Two routes: `upgradeForNutrient` reads a meal with no recipe behind it as 0 of
+  the nutrient and swaps it first, and the boost's fresh week, which usually wins, never had them. Every re-theme
+  (a cuisine, a fiber push, a fridge clear-out) and `regenerate_week` select from scratch the same way. Making the
+  upgrade loop skip such meals alone changed 0 of the 9, so it was not shipped. **The fix belongs to D7:** a
+  logged library dish carries the library's description today (review #18), so only D7's logged mark can tell a
+  record from a plan. Then every re-plan puts records back in their slots, the way pins are re-imposed. Probe:
+  `boostkeep.mts` in the session scratchpad.
+- **LC-02/03/10** (removing an allergy; undo dropping one) wait on owner decision 12. **Whichever control removes an
+  allergy must check the foods the person named under it:** since F4, "allergic to walnuts" while "nuts" is stored
+  is named as covered and not stored again (the memory keeps the sentence). Removing "nuts" would otherwise drop
+  the walnut protection with it.
 - An allergy stated only in an earlier message and never stored is missed by the 550B in 4 of 6 runs. Only a
   raw-words pre-scan (like `redFlag`) could catch it, and that needs its own false-positive probe set first.
 - Lanes' gates used to share `node_modules/.cache` through the junctions. Fixed for npm scripts in `6509cdb`; the
@@ -396,8 +556,10 @@ Remove both once that review finishes, taking each node_modules junction out fir
   matcher in the browser bundle, which is a module-map change.
 - The adversarial attack on `ship.mjs` v2 died on the usage limit, so v2 rests on its own 43 scenarios.
 
-**Owner:** the decisions doc. `.env.local` with `NVIDIA_API_KEY` (the first line of decision 2) unblocks the
-models lane.
+**Owner:** the decisions doc. The first line of decision 2 is done: `.env.local` holds `NVIDIA_API_KEY` (2026-10-22),
+and the models lane's five fair arms are running on it (`bb9021f`). The fast finish (`de1a102`) is decided on their
+numbers. The owner wants Nemotron-3-Ultra 550B to run the assistant ("i like nemotron, id be happy if we could make it
+work", `7634ddb`), so the models lane is making that one fast and correct enough, with other models as fallbacks.
 
 
 **D5a — DONE** (`c50d58d` the move, `cc38524` two contracts to `core/`, `1dff171` the barrels; test:engine 924/0).

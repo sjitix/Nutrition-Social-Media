@@ -26,7 +26,7 @@
  * remains the only thing allowed to claim that something changed.
  */
 import { runReadTool, isReadTool, type AgentContext } from "./agentTools";
-import { applyPrimitives, expandConstrain, noOpConstrain, verbToOperations, type ConstrainOp, type PrimitiveOp, type VerbOp } from "./primitives";
+import { applyPrimitives, expandConstrain, noOpConstrain, sameAllergies, verbToOperations, withoutUnchangedClaims, type ConstrainOp, type PrimitiveOp, type VerbOp } from "./primitives";
 import { claimsChange, composeReply, joinPhrases, operationPhrases } from "./reply";
 import type { Operation, PlanSnapshot, UserProfile, WeekPlan } from "../core";
 
@@ -58,6 +58,12 @@ const canon = (x: unknown): unknown =>
   : x && typeof x === "object" ? Object.fromEntries(Object.keys(x as object).sort().map((k) => [k, canon((x as Record<string, unknown>)[k])]))
   : x;
 const same = (a: unknown, b: unknown) => JSON.stringify(canon(a)) === JSON.stringify(canon(b));
+/** Two weeks hold the same meals, ignoring the ingredient slugs a re-solve may add (the engine's own
+ *  sameContent rule in execute.ts). */
+const samePlan = (a: WeekPlan, b: WeekPlan) => {
+  const dropSlug = (k: string, v: unknown) => (k === "slug" ? undefined : v);
+  return JSON.stringify(canon(a), dropSlug) === JSON.stringify(canon(b), dropSlug);
+};
 /** Did the profile change in a way a claim could be about — anything but the memory? */
 const editedApartFromMemory = (a: UserProfile, b: UserProfile) => {
   const { memory: _a, ...restA } = a;
@@ -116,9 +122,63 @@ export interface AgentRunResult {
   falseClaimRetried: boolean;
   /** …and still claimed it, so the reply was replaced with an honest one (reply.ts NOTHING_CHANGED_REPLY). */
   falseClaimCaught: boolean;
+  /** The finishing call was not made: the loop answered it itself (see `fastFinishable`). */
+  fastFinished: boolean;
 }
 
 const isRead = (o: PrimitiveOp): boolean => isReadTool(String((o as { op?: string }).op ?? ""));
+
+/**
+ * FAST FINISH: the model call that only "finishes" is skipped. After a write the loop calls the model
+ * once more so it can say it is done, but when the engine wrote notes, `composeReply` returns those notes
+ * and discards whatever that call says. On "make Tuesday vegetarian" it cost a full model call for
+ * nothing the person reads. Skipped when the step that just ran changed something and the engine wrote
+ * notes, its turn made no lookups, and that turn carried a reply of its own. A refusal (nothing changed),
+ * a lookup, a nudge and an empty reply still go back to the model.
+ *
+ * This is the rule the models lane measured with its eval wrapper (`scripts/models/fast-finish.ts`, mode
+ * "reply"), moved into the loop unchanged and answered the same way: a turn with no operations and no
+ * reply, so every rule after it runs exactly as it did when measured.
+ *
+ * What makes it safe is the MODEL, not the reply rule. The skip also cuts any write the model would have
+ * sent next: a scripted run that adds a snack in one step and remembers a peanut allergy in the next
+ * keeps the peanut dishes. Nemotron-3-Ultra 550B with reasoning off finishes in one write turn: of the 24
+ * messages the skip ended early in its fair run (`cd2244b`), the same messages in the run without it sent
+ * nothing more after the write (0 of 23; one failed at its first step), and across every recorded 550B run
+ * with the skip off, 0 of 275 write messages sent anything new after a write (3 at most, if the ambiguous
+ * ones count). The reply rule, meant to spare a model planning across steps, withheld 1 skip in 84, because
+ * the 550B writes a reply beside nearly every write. gpt-oss-20b did send more after a write, in 7 of
+ * 49 messages. So the route turns it on only where it was measured (AI_FAST_FINISH).
+ */
+function fastFinishable(t: TranscriptEntry[]): boolean {
+  const last = t[t.length - 1];
+  if (!last || last.role !== "tool" || last.name !== "apply") return false;
+  const r = last.result as { notes?: string[]; planChanged?: boolean; profileChanged?: boolean };
+  if (!(r.planChanged || r.profileChanged) || !r.notes?.length) return false;
+  for (let i = t.length - 1; i >= 0; i--) {
+    const e = t[i];
+    if (e.role !== "assistant") continue;
+    // Read the way the loop reads it: a reply that is not text is no reply (and must not throw here, outside
+    // the model call's try, where the wrapper's own TypeError used to count as a model failure).
+    const said = e.turn.reply;
+    return !e.turn.operations.some(isRead) && typeof said === "string" && said.trim() !== "";
+  }
+  return false;
+}
+/** What the loop answers a skipped finishing call with: done, nothing to add. A new one each time, so no
+ *  two transcripts share its operations array. */
+const finishTurn = (): AgentTurn => ({ thinking: "(fast finish: no model call; the engine's notes are the reply)", reply: "", operations: [] });
+const opName = (o: PrimitiveOp) => String((o as { op?: string }).op ?? (o as { tool?: string }).tool ?? "");
+const isUndo = (o: PrimitiveOp) => opName(o) === "undo";
+const isRemember = (o: PrimitiveOp) => opName(o) === "remember";
+/** A step whose words describe the week as it then stood: undone with the change it described. */
+const PLAN_DESCRIBING = new Set(["report", "weekly_report", "explain", "explain_meal", "substitute", "substitute_ingredient"]);
+
+/** A second undo in one run, once the one level there is has been used: said by the loop, because the
+ *  engine's own answer ("I haven't changed anything yet") is false right after "I've put things back". */
+export const NO_FURTHER_UNDO = "That's as far back as I can go: I can undo one change.";
+/** An undo in a run that has only remembered something, with no earlier change to take back. */
+export const NOTHING_EARLIER_TO_UNDO = "There's no earlier change for me to undo, and what you've just told me stays noted.";
 
 /**
  * What `undo` says it reversed: "…before I noted what you told me and swapped Monday's dinner." A
@@ -154,6 +214,10 @@ export async function runAgent(args: {
   previous?: PlanSnapshot;
   model: ModelFn;
   maxSteps?: number;
+  /** Skip the finishing call when the engine's notes are the reply (`fastFinishable`). Off unless asked:
+   *  the route asks only for a model it was measured on, and an eval gets it only by asking (or through
+   *  the models lane's wrapper; not both, or the wrapper's counts are wrong). */
+  fastFinish?: boolean;
 }): Promise<AgentRunResult> {
   const maxSteps = args.maxSteps ?? MAX_STEPS;
   const transcript: TranscriptEntry[] = [
@@ -164,7 +228,6 @@ export async function runAgent(args: {
   let profile = args.profile;
   let plan = args.plan;
   let planChanged = false;
-  let profileChanged = false;
   let replyOverride: string | undefined;
   let undone = false;
   const notes: string[] = [];
@@ -174,9 +237,13 @@ export async function runAgent(args: {
   // restore the state it was already in and throw away the change before it (models lane audit,
   // 2026-10-20: an explain after a change took the slot).
   let snapshot: PlanSnapshot | undefined;
-  // Every write that changed something, so the snapshot's label names all of what an undo reverses, not
-  // only the first step's. Only the wording grows: what is restored is still the state before the first.
+  // The writes of every step that changed something, so the snapshot's label names all of what an undo
+  // reverses, not only the first step's. Only the wording grows: what is restored is still the state
+  // before the first. A step is judged as a whole, so a refused write that shares a step with a real
+  // change is named too (open, recorded: telling them apart means applying a step's writes one by one).
   const written: PrimitiveOp[] = [];
+  // Every remember this run applied: an undo in the same run must not take them back (G, run level).
+  const remembered: PrimitiveOp[] = [];
 
   let steps = 0;
   let lastReply = "";
@@ -187,12 +254,15 @@ export async function runAgent(args: {
   let spoken = "";
   // Set when this run undid the PREVIOUS turn's change: there is one level of undo, so it is then spent.
   let undoneArgs = false;
-  // How many notes there were when this run's snapshot was taken, so an undo of the run's own change can
-  // drop the notes of the steps it reverted.
-  let notesAtSnapshot = 0;
+  // The notes, since this run's snapshot, that an undo of the run's own change makes untrue: those of
+  // every step that changed something or described the week as it then stood. A step that changed
+  // nothing and answered something else (hydration, a symptom, a refused swap) keeps its words: an
+  // in-run undo used to drop every note after the snapshot, the water answer with them (review, 2026-10-21).
+  let stale: [number, number][] = [];
   let gaveUp = false;
   let modelFailed = false;
   let falseClaimRetried = false;
+  let fastFinished = false;
   // What can back a claim the model makes in its own words: a plan change, the engine's notes, a crisis
   // override, or a real edit to the profile. A memory saved cannot — see FALSE_CLAIM_NUDGE_MEMORY.
   const profileEdited = () => editedApartFromMemory(args.profile, profile);
@@ -202,12 +272,17 @@ export async function runAgent(args: {
     steps++;
 
     let turn: AgentTurn;
-    try {
-      turn = await args.model(transcript, steps, { profile, plan });
-    } catch {
-      // The model itself failed. Stop honestly rather than pretending a turn happened.
-      modelFailed = true;
-      break;
+    if (args.fastFinish && fastFinishable(transcript)) {
+      turn = finishTurn();
+      fastFinished = true;
+    } else {
+      try {
+        turn = await args.model(transcript, steps, { profile, plan });
+      } catch {
+        // The model itself failed. Stop honestly rather than pretending a turn happened.
+        modelFailed = true;
+        break;
+      }
     }
 
     // A model that emits nothing usable is treated as a plain reply rather than an error: the
@@ -253,38 +328,75 @@ export async function runAgent(args: {
     // 2) Writes, through the engine, exactly as before. It stays the only thing that may claim a
     //    change, and its notes are fed BACK so the model can see what it actually did — including
     //    a refusal or a relaxed constraint it should now respond to.
-    if (writes.length) {
+    // An undo that shares a step with other writes runs as a step of its own, first. applyPrimitives
+    // already runs it first (G), but it returns one merged result marked undone, so the change made on
+    // top of the undo never got a snapshot: [swap, undo] left the swap with nothing to undo it, and
+    // [undo, swap Tuesday] made the next "undo" revert Tuesday AND the earlier turn (review, 2026-10-21).
+    const undos = writes.filter(isUndo);
+    const groups = undos.length && undos.length < writes.length ? [[undos[0]], writes.filter((o) => !isUndo(o))] : [writes];
+    for (const group of groups) {
+      if (!group.length) continue;
+      // The one level of undo is spent: say so, rather than pass a second undo to the engine.
+      if (group.every(isUndo) && undoneArgs && !snapshot) {
+        notes.push(NO_FURTHER_UNDO);
+        transcript.push({ role: "tool", name: "apply", result: { notes: [NO_FURTHER_UNDO], planChanged: false, profileChanged: false } });
+        continue;
+      }
+      // G at the level of the run: an undo never takes back what this run remembered. A run that has only
+      // remembered means the change BEFORE it ("I'm allergic to peanuts, and undo that swap", sent as two
+      // steps), so its undo goes to the previous turn. Either way, this run's remembers are folded into the
+      // state the undo restores, so the engine never takes them off (and says nothing false about them),
+      // and a restored week that still serves a bound allergen is re-solved by the remember itself. Sent as
+      // [remember], [undo], the allergy used to be unbound and the peanut dish left on the plate (I2;
+      // review, 2026-10-21).
+      const undoing = group.every(isUndo);
+      const remembersOnly = undoing && written.length > 0 && written.every(isRemember);
+      if (remembersOnly && (undoneArgs || !args.previous)) {
+        notes.push(NOTHING_EARLIER_TO_UNDO);
+        transcript.push({ role: "tool", name: "apply", result: { notes: [NOTHING_EARLIER_TO_UNDO], planChanged: false, profileChanged: false } });
+        continue;
+      }
+      let target = remembersOnly ? args.previous : snapshot ?? (undoneArgs ? undefined : args.previous);
+      if (undoing && target && remembered.length) {
+        const kept = applyPrimitives(target.profile, target.plan, remembered, args.today);
+        target = { ...target, plan: kept.plan, profile: kept.profile };
+      }
       const before = { plan, profile };
       // An undo inside the run reverts THIS run's changes first (to the state before its first change);
       // it used to restore the previous turn's snapshot, reverting the person's earlier change as well.
-      const res = applyPrimitives(profile, plan, writes, args.today, snapshot ?? (undoneArgs ? undefined : args.previous));
+      const res = applyPrimitives(profile, plan, group, args.today, target);
       // Compared, not flagged: a profile write that leaves the profile as it was (a repeated remember, a
       // weight that was already stored) is no change, and must not take the undo slot.
       const stepChanged = res.planChanged || !same(before.profile, res.profile);
+      if (!undoing) remembered.push(...group.filter(isRemember));
       if (res.undone) {
-        if (!snapshot) undoneArgs = true;
+        if (!snapshot || remembersOnly) undoneArgs = true;
         // Undoing this run's own change: what its steps said ("Monday now has …") is no longer true.
-        else notes.length = notesAtSnapshot;
+        else for (const [from, to] of [...stale].reverse()) notes.splice(from, to - from);
+        stale = [];
         snapshot = undefined;
         written.length = 0;
       } else if (stepChanged) {
-        written.push(...writes);
-        if (!snapshot) notesAtSnapshot = notes.length;
+        written.push(...group);
         snapshot = { plan: snapshot?.plan ?? before.plan, profile: snapshot?.profile ?? before.profile, label: labelOps(written) };
       }
       // A line written beside writes was written BEFORE the engine ran, so it may describe a change that
-      // never came ("I've made Tuesday vegetarian" over a budget constrain). Only a step that changed
-      // nothing but the memory keeps it (D's case: a decline said beside a remember); any other change
-      // clears it, so the engine's result, not the earlier line, is what an empty finishing turn shows.
-      const memoryOnly = !res.planChanged && !editedApartFromMemory(before.profile, res.profile);
-      if (stepChanged) spoken = memoryOnly && !reads.length ? lastReply : "";
+      // never came ("I've made Tuesday vegetarian" over a budget constrain). Any change beyond the memory
+      // clears it, so the engine's result, not the earlier line, is what an empty finishing turn shows. A
+      // step of remembers alone keeps its line (a decline said beside a remember) whether or not the fact
+      // was new: a restated fact changes nothing, and its line used to be lost, so the person read "Happy
+      // to help." and a claim beside it was never retried (review, 2026-10-21). An empty line never
+      // replaces a kept one.
+      if (res.planChanged || editedApartFromMemory(before.profile, res.profile)) spoken = "";
+      else if (group.every(isRemember) && !reads.length && lastReply.trim()) spoken = lastReply;
       plan = res.plan;
       profile = res.profile;
       planChanged = planChanged || res.planChanged;
-      profileChanged = profileChanged || res.profileChanged;
       undone = undone || Boolean(res.undone);
       if (res.replyOverride) replyOverride = res.replyOverride;
+      const from = notes.length;
       notes.push(...res.notes);
+      if (snapshot && !res.undone && (stepChanged || group.some((o) => PLAN_DESCRIBING.has(opName(o))))) stale.push([from, notes.length]);
       transcript.push({
         role: "tool",
         name: "apply",
@@ -311,14 +423,21 @@ export async function runAgent(args: {
 
   // An empty finishing turn does not erase what the model already said beside a change or an answer.
   const said = lastReply.trim() ? lastReply : spoken;
+  // What the run did, compared with where it started: a change and its undo in the same run cancel out,
+  // and "Plan updated." under a week that did not change would be false (review, 2026-10-21). The
+  // flags OR-ed step by step stay for the decisions inside the run.
+  const planDiffers = !samePlan(args.plan, plan);
+  // "Your allergies haven't changed" is true of one step at most: the run runs an undo as a step of its own,
+  // so a denial's step could not see that the undo's step took an allergy off (review, 2026-10-21).
+  if (!sameAllergies(args.profile.allergies, profile.allergies)) notes.splice(0, notes.length, ...withoutUnchangedClaims(notes));
   // profileChanged here is "changed in a way a claim could be about": a saved memory is not (above).
-  const reply = composeReply({ modelReply: said, notes, replyOverride, planChanged, profileChanged: profileEdited(), memorySaved: memorySaved() });
+  const reply = composeReply({ modelReply: said, notes, replyOverride, planChanged: planDiffers, profileChanged: profileEdited(), memorySaved: memorySaved() });
   return {
     reply,
     plan,
     profile,
-    planChanged,
-    profileChanged,
+    planChanged: planDiffers,
+    profileChanged: !same(args.profile, profile),
     // One level of undo: after an undo there is nothing further back.
     previous: snapshot ?? (undoneArgs ? undefined : args.previous),
     transcript,
@@ -328,5 +447,6 @@ export async function runAgent(args: {
     notes,
     falseClaimRetried,
     falseClaimCaught: reply !== said.trim() && notes.length === 0 && replyOverride === undefined && claimsChange(said),
+    fastFinished,
   };
 }

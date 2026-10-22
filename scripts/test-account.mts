@@ -910,13 +910,16 @@ await (async () => {
   const s = await exchangeCode(cfg, "CODE123", pair.verifier, ex.f, 1000);
   check("exchange: POSTs the code and the verifier to grant_type=pkce", json(ex.calls[0].body) === json({ auth_code: "CODE123", code_verifier: pair.verifier }));
   check("exchange: returns the session", s.userId === "user-1" && s.email === "sam@example.com" && s.refreshToken === "R1" && s.expiresAt === 4600);
-  // GoTrue's bad_code_verifier has two causes the link cannot tell apart: it was asked for in another
-  // browser (which holds a pending sign-in of its own), or a newer request took it over (GoTrue issues a
-  // link's code for the person's latest request, wherever it came from; the live run shows it).
+  // GoTrue's bad_code_verifier has three causes the link cannot tell apart: it was asked for in another
+  // browser, or at another web address of the app (a refused return address lands on the Site URL, which
+  // may hold a request of its own), or a newer request took it over (GoTrue issues a link's code for the
+  // person's latest request, wherever it came from). The live run shows each on the real GoTrue (Max,
+  // Lee, and Ivy), and the sign-in section below shows the first here too (pia and quin).
   const wrong = fakeFetch(() => ({ status: 400, body: { error_code: "bad_code_verifier" } }));
   try { await exchangeCode(cfg, "CODE123", "nope", wrong.f); msg = ""; } catch (e) { msg = (e as Error).message; }
-  check("exchange: a refused verifier (bad_code_verifier) names both causes: another browser, or a newer request",
-    msg.includes("asked for in a different one") && msg.includes("newer sign-in request took it over") && !msg.includes("expired, was already used"), msg);
+  check("exchange: a refused verifier (bad_code_verifier) names all three causes: another browser, another web address, or a newer request",
+    msg.includes("asked for in a different browser") && msg.includes("at a different web address") &&
+      msg.includes("newer sign-in request took it over") && !msg.includes("expired, was already used"), msg);
   const otherBad = fakeFetch(() => ({ status: 400, body: { error_code: "validation_failed" } }));
   try { await exchangeCode(cfg, "CODE123", pair.verifier, otherBad.f); msg = ""; } catch (e) { msg = (e as Error).message; }
   check("exchange: any other refusal keeps the general sentence", msg.includes("expired, was already used"), msg);
@@ -1121,6 +1124,12 @@ await (async () => {
   let csrf = "";
   try { await completeSignInFromUrl(); } catch (e) { csrf = (e as Error).message; }
   check("login CSRF: a code from someone else's browser is refused here", csrf.includes("different browser") && currentSession() === null);
+  // The same page also sees a link from this very browser that landed at another of the app's web
+  // addresses (GoTrue sends a return address its allow list refuses to the Site URL, another origin with
+  // storage of its own), and one opened after this browser's data was cleared. So the sentence names all
+  // three, and never claims as fact that another browser was used.
+  check("no request held here: the sentence names a different browser, a different web address, and cleared data",
+    csrf.includes("in a different browser") && csrf.includes("at a different web address") && csrf.includes("data was cleared"), csrf);
   check("login CSRF: …and nothing of the victim's reached Mallory's account", sb.table("uid-mallory").size === 0);
   fakeWindow.location.search = "?error=server_error&error_description=Your+account+is+suspended";
   let spoofed = "";
@@ -1588,7 +1597,7 @@ await (async () => {
   let foreign = "";
   try { await completeSignInFromUrl(); } catch (e) { foreign = (e as Error).message; }
   check("sign-in: a link asked for in another browser, opened where a different sign-in is pending, says it was asked for elsewhere",
-    quinElsewhere.status === 200 && foreign.includes("asked for in a different one") && currentSession() === null,
+    quinElsewhere.status === 200 && foreign.includes("asked for in a different browser") && currentSession() === null,
     json({ quinElsewhere: quinElsewhere.status, foreign }));
 
   // A mistyped address never touches the pending sign-in.
@@ -1601,6 +1610,28 @@ await (async () => {
   check("sign-in: a mistyped address is refused before anything is stored, and the real link still works",
     typo.includes("email address") && afterTypo?.userId === "uid-oz", json({ typo, user: afterTypo?.userId ?? null }));
   await signOut();
+
+  // How long a held request counts. GoTrue's default link life is a day, and a repeat request reuses the
+  // verifier for an hour without restamping it, so a link that still works can finish a request up to
+  // 25 h old. At 24 h (the old limit) one opened late on its last day got the no-request sentence, every
+  // cause of which was then false. Older than 25 h, what is held is treated as gone.
+  fakeWindow.localStorage = new MemoryStorage();
+  await sendSignInLink("tia@example.com");
+  storage.savePendingSignIn({ ...storage.loadPendingSignIn()!, at: Date.now() - 24.5 * 3600_000 });
+  fakeWindow.location.search = `?code=${sb.lastCode.get("tia@example.com")}`;
+  const tiaLate = await mayThrow(completeSignInFromUrl());
+  check("sign-in: a request held 24.5 h (a reused verifier behind a day-long link) still finishes its link",
+    !(tiaLate instanceof Error) && tiaLate?.userId === "uid-tia",
+    json(tiaLate instanceof Error ? tiaLate.message : tiaLate?.userId ?? null));
+  await signOut();
+  fakeWindow.localStorage = new MemoryStorage();
+  await sendSignInLink("tia@example.com");
+  storage.savePendingSignIn({ ...storage.loadPendingSignIn()!, at: Date.now() - 26 * 3600_000 });
+  fakeWindow.location.search = `?code=${sb.lastCode.get("tia@example.com")}`;
+  let tiaGone = "";
+  try { await completeSignInFromUrl(); } catch (e) { tiaGone = (e as Error).message; }
+  check("sign-in: …but one held more than 25 h is treated as gone, with the no-request sentence",
+    tiaGone.includes("data was cleared") && currentSession() === null && storage.loadPendingSignIn() === null, tiaGone);
 
   // A new request made while an earlier link's exchange is in flight keeps ITS verifier.
   fakeWindow.localStorage = new MemoryStorage();

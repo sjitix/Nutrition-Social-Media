@@ -10,11 +10,11 @@
 import { DAYS, type DayPlan, type Meal, type Operation, type UserProfile, type WeekPlan, type LockedMeal, type MealRating, type PlanSnapshot } from "../core";
 import { computeTargets, explainTargets, hydrationTarget, explainHydration, CALORIE_FLOOR, DEFAULT_CALORIE_FLOOR, BODY_LIMITS, bodyStatProblems, bodyStatMessage, isRealBody, referenceWeightKg } from "../nutrition/client";
 import { type Recipe } from "../data";
-import { expandExclusion, haystackBlocked, parseExclusionTokens, wordMatches } from "../nutrition";
+import { MICRO_LABEL, exclusionCovers, haystackBlocked, mealHaystack, parseExclusionTokens, wordMatches, type MicroKey } from "../nutrition";
 import { RECIPES, baseRecipeOf, scaleRecipeToTarget, toMeal } from "./library";
-import { bannedForUser, blockedByExclusions, budgetCap, exclusionTokens, fiberOn, keepMacros, localSplit, mergeDislikes, normalizeCuisine, passesDiet } from "./rules";
+import { bannedForUser, blockedByExclusions, budgetCap, exclusionKey, exclusionTokens, fiberOn, keepMacros, localSplit, mergeDislikes, normalizeCuisine, passesDiet } from "./rules";
 import { SCALE_LO, clampScale, dayTargetMacros, macroDistance, rebalanceDay, rebalanceWeek, recipeMacros, scaleRecipeByFactor, scaleToTargets, slotShare, slotTargetMacros, slotsUpTo } from "./rebalance";
-import { importNotes, newReport, reportNotes, selectDay, selectWeekFromDb, withSeed, type ReplacedImport } from "./select";
+import { brokenImports, importNotes, newReport, reportNotes, selectDay, selectWeekFromDb, withSeed, type ReplacedImport } from "./select";
 import { buildWeek } from "./batch";
 import { PROTEIN_MISS, achievementNote, dayTotals, dayTotalsFull, explainMealNote, listPhrase, microNote, rateMealNote, resolveRatedDish, substituteNote, symptomNote, weekAveragesFull, weeklyReportNote } from "./report";
 import { guaranteeBoost } from "./boost";
@@ -89,11 +89,16 @@ function findRecipeForSwap(
  * cleared, only to explain. What it finds is named in a note and NEVER placed.
  * ------------------------------------------------------------------------- */
 
-/** Two tokens are the same exclusion when the matcher expands them to the same foods (egg / eggs). */
-const exclusionKey = (t: string) => [...new Set(expandExclusion(t))].sort().join("|");
+/** The tokens as the person would name them: one per key, and none another in the list already covers, so a
+ *  compound the matcher keeps for an allergy is never named beside it ("Tofu Pad Thai contains noodles and rice
+ *  noodle", "That also took tortilla and corn tortilla off your allergies"; review, 2026-10-22). Of two that
+ *  cover each other, the first stays. */
 const uniqueByKey = (tokens: string[]) => {
   const seen = new Set<string>();
-  return tokens.filter((t) => !seen.has(exclusionKey(t)) && Boolean(seen.add(exclusionKey(t))));
+  const once = tokens.filter((t) => !seen.has(exclusionKey(t)) && Boolean(seen.add(exclusionKey(t))));
+  // Judged on the words: does the other one, read as an allergy (with the compounds it keeps), block this one?
+  const covers = (u: string, t: string) => haystackBlocked(t, parseExclusionTokens(u, ""));
+  return once.filter((t, i) => !once.some((u, j) => j !== i && covers(u, t) && (!covers(t, u) || j < i)));
 };
 const pluralList = (items: string[]) => items.length > 1 || /[^siu]s$/.test(items[0] ?? "");
 /** A typed "coeliac" blocks gluten, and the dish contains gluten, not "coeliac". */
@@ -102,7 +107,7 @@ const shownToken = (t: string) => (/^c(?:o)?eli(?:ac|ak)s?$/.test(t) ? "gluten" 
 /** "shellfish, which is in your allergies" / "mushrooms, which you avoid" — or null when neither the
  *  allergies nor the dislikes block this recipe. */
 function exclusionReason(r: Recipe, p: UserProfile): string | null {
-  const hay = `${r.name} ${r.ingredients.map((i) => i.name).join(" ")} ${r.steps.join(" ")}`;
+  const hay = mealHaystack(r.name, r.ingredients.map((i) => i.name), r.steps);
   const hits = (tokens: string[]) => uniqueByKey(tokens.filter((t) => haystackBlocked(hay, [t]))).map(shownToken);
   const allergy = [...new Set(hits(parseExclusionTokens(p.allergies ?? "", "")))];
   const avoid = [...new Set(hits(parseExclusionTokens("", p.dislikes ?? "")))].filter((t) => !allergy.includes(t));
@@ -142,11 +147,17 @@ function refusedForExclusions(
   }
   const free = findRecipeForSwap(query, type, { ...p, allergies: "", dislikes: "" }, respectSoft);
   if (!free || free.name === placed?.name) return null;
-  // It must match EVERY word asked for: "veggie burger" is not a cheeseburger, even when "burger" is the
-  // only word anything in the library matches.
+  // It must match EVERY word asked for, in its NAME: "veggie burger" is not a cheeseburger, even when
+  // "burger" is the only word anything in the library matches. Words found only in a dish's ingredients or
+  // description used to count, so the note still named a dish nobody asked for (review, 2026-10-21).
   const words = askedWords(query);
-  const hits = keywordHits(words, free);
-  if (hits < words.length || hits <= (placed ? keywordHits(words, placed) : 0)) return null;
+  const nameHits = (r: Recipe) => {
+    const name = r.name.toLowerCase();
+    const nameWords = name.split(/[^a-z]+/).filter((h) => h.length >= 3);
+    return words.filter((w) => name.includes(w) || nameWords.some((h) => wordMatches(w, h))).length;
+  };
+  const hits = nameHits(free);
+  if (hits < words.length || hits <= (placed ? nameHits(placed) : 0)) return null;
   const reason = exclusionReason(free, p);
   return reason ? { dish: free, why: `contains ${reason}` } : null;
 }
@@ -170,6 +181,46 @@ function lockKey(day: string, mealType: string): string {
 
 function lockedSlotsFor(p: UserProfile, day: DayPlan["day"]): Set<Meal["type"]> {
   return new Set((p.lockedMeals ?? []).filter((l) => l.day === day).map((l) => l.mealType));
+}
+
+/** A boost asked in meal-prep mode: the batches are built without it, and the reply says so. It was dropped
+ *  with nothing said (E6, review 2026-10-21). */
+const batchBoostNote = (key: MicroKey) =>
+  `In meal-prep mode I can't favour ${MICRO_LABEL[key]} yet, so your batches are planned as usual.`;
+
+/**
+ * Every dish a re-plan left over the person's cook-time limit, named, read off the operation's FINAL
+ * week. The selector meets the limit exactly while anything fits, so a dish over it means nothing
+ * quicker fits the rest of the rules for that slot. Named: the dishes this operation placed, or, when the
+ * operation set the limit itself, every dish in reach. Not named: a pinned dish (the person's own
+ * choice), an imported one (placed on purpose), and one `skip` says another note already explains (a
+ * use-up dish: guaranteeFridge says why it runs long). The selector's own count went stale whenever a
+ * rebalance swapped its slow pick for a quicker one, and it said nothing about a dish up to 5 minutes
+ * over, so "15 minutes or less" got a 20-minute dinner with no word (models lane, 2026-10-21).
+ */
+function overLimitNote(
+  prev: WeekPlan,
+  plan: WeekPlan,
+  p: UserProfile,
+  opts: { limitSet: boolean; days?: ReadonlySet<string>; skip?: (m: Meal) => boolean },
+): string[] {
+  const over: string[] = [];
+  for (const d of plan.days) {
+    if (opts.days && !opts.days.has(d.day)) continue;
+    const pinned = lockedSlotsFor(p, d.day);
+    const before = prev.days.find((x) => x.day === d.day);
+    for (const m of d.meals) {
+      if (m.sourceUrl || pinned.has(m.type) || opts.skip?.(m)) continue;
+      const base = baseRecipeOf(m);
+      if (!base || base.timeMinutes <= p.maxCookTime) continue;
+      if (!opts.limitSet && before?.meals.find((x) => x.type === m.type)?.name === m.name) continue;
+      over.push(`${base.name} (${d.day}'s ${m.type}, ${base.timeMinutes} min)`);
+    }
+  }
+  if (!over.length) return [];
+  if (over.length === 1) return [`Nothing quicker fits your other rules there, so ${over[0]} runs over your ${p.maxCookTime}-min limit.`];
+  const shown = over.length > 4 ? [...over.slice(0, 3), `${over.length - 3} more`] : over;
+  return [`Nothing quicker fits your other rules for these, so ${over.length} dishes run over your ${p.maxCookTime}-min limit: ${listPhrase(shown)}.`];
 }
 
 /**
@@ -240,7 +291,14 @@ function reimposeLocks(
  * an allergy, and a pinned meal is never displaced to make room. When an ingredient cannot be
  * used, the engine says so instead of quietly ignoring it.
  * ------------------------------------------------------------------------- */
-function guaranteeFridge(p: UserProfile, plan: WeekPlan, wanted: string[], notes: string[]): WeekPlan {
+function guaranteeFridge(
+  p: UserProfile,
+  plan: WeekPlan,
+  wanted: string[],
+  notes: string[],
+  /** Collects the dishes placed over the cook-time limit, which this function's own note explains. */
+  explained?: Set<string>,
+): WeekPlan {
   const want = wanted.map((x) => x.trim().toLowerCase()).filter(Boolean);
   if (!want.length) return plan;
 
@@ -304,6 +362,7 @@ function guaranteeFridge(p: UserProfile, plan: WeekPlan, wanted: string[], notes
       return { ...d, meals: rebalanceDay(meals, p, fixed, namesOnOtherDays(cur, d.day, p)) };
     });
     cur = { ...cur, days };
+    if (relaxed.includes(ing)) explained?.add(pick.name);
   }
 
   if (relaxed.length)
@@ -391,8 +450,10 @@ function eatingOut(
   const restFloor = rest.reduce((sum, m) => {
     // A meal with no library recipe behind it (a logged meal, an earlier reserve) CANNOT be
     // rescaled — scaleToTargets skips it. Flooring it at 0.6x understated the day and silently
-    // suppressed the "you'll be over target" warning on exactly the days that needed it.
-    const base = RECIPES.find((r) => r.name === m.name);
+    // suppressed the "you'll be over target" warning on exactly the days that needed it. Looked up the way
+    // rebalanceDay looks it up: an import titled like a library dish is held fixed there, so flooring it at
+    // the library dish's portion hid the warning (review, 2026-10-21).
+    const base = baseRecipeOf(m);
     return sum + (base ? base.calories * SCALE_LO : m.calories);
   }, 0);
 
@@ -400,9 +461,14 @@ function eatingOut(
   const meals = rebalanceDay(withReserve, p, new Set([mealType, ...lockedSlotsFor(p, day)]), namesOnOtherDays(plan, day, p));
   const total = meals.reduce((sum, m) => sum + m.calories, 0);
   const pct = Math.round((reserve / p.targetCalories) * 100);
+  // "Made the other meals lighter" only when they did: with an imported dish held fixed, the reserve can already
+  // fill the day, and the protein term then grew breakfast from 587 to 657 kcal under that claim (review,
+  // 2026-10-21).
+  const othersKcal = (ms: Meal[]) => ms.filter((m) => m.type !== mealType).reduce((sum, m) => sum + m.calories, 0);
+  const lighter = othersKcal(meals) < othersKcal(origDay.meals) - 1;
 
   notes.push(
-    `I've set aside ${reserve} kcal for ${day} ${mealType} — about ${pct}% of your day — and made the other meals lighter.`,
+    `I've set aside ${reserve} kcal for ${day} ${mealType} — about ${pct}% of your day${lighter ? " — and made the other meals lighter" : ""}.`,
   );
   if (!estimated)
     notes.push(
@@ -498,6 +564,11 @@ function scalePortions(
     (!day || d.day === day) && (!mealType || m.type === mealType);
 
   const unscalable = new Set<string>();
+  // An imported recipe keeps the portions its site gives: "isn't a recipe of mine, so there's nothing to
+  // scale" was written for a reserve or a logged meal, and an import lists quantities (review, 2026-10-21).
+  const imported = new Set<string>();
+  const importedNote = () =>
+    `${listPhrase([...imported])} ${imported.size > 1 ? "are recipes" : "is a recipe"} you imported, so I keep ${imported.size > 1 ? "their" : "its"} portions as the site gives them.`;
   let atLimit = 0;
   let changed = 0; // meals actually rescaled — so we never CLAIM a change that didn't happen
   const blockedByFloor: string[] = [];
@@ -509,7 +580,7 @@ function scalePortions(
       if (!inScope(d, m)) return m;
       const base = baseRecipeOf(m);
       if (!base) {
-        unscalable.add(m.name);
+        (m.sourceUrl ? imported : unscalable).add(m.name);
         return m;
       }
       const current = m.calories / base.calories;
@@ -551,9 +622,11 @@ function scalePortions(
   if (changed === 0) {
     if (atLimit)
       notes.push(`${scope[0].toUpperCase() + scope.slice(1)} ${atLimit === 1 ? "is" : "are"} already as ${down ? "small" : "big"} as a sensible portion goes — I've left ${atLimit === 1 ? "it" : "them"} be.`);
-    else if (unscalable.size)
-      notes.push(`I can't resize ${listPhrase([...unscalable])} — ${unscalable.size > 1 ? "they aren't recipes" : "that isn't a recipe"} of mine, so there's nothing to scale there.`);
-    else
+    else if (unscalable.size || imported.size) {
+      if (unscalable.size)
+        notes.push(`I can't resize ${listPhrase([...unscalable])} — ${unscalable.size > 1 ? "they aren't recipes" : "that isn't a recipe"} of mine, so there's nothing to scale there.`);
+      if (imported.size) notes.push(importedNote());
+    } else
       notes.push(`There's nothing to resize on ${scope} — I couldn't find a meal there.`);
     return plan;
   }
@@ -580,6 +653,7 @@ function scalePortions(
     note += ` ${atLimit === 1 ? "One meal was" : `${atLimit} meals were`} already as ${down ? "small" : "big"} as a sensible portion goes, so ${atLimit === 1 ? "it" : "they"} didn't move.`;
   if (unscalable.size)
     note += ` I couldn't resize ${listPhrase([...unscalable])} — ${unscalable.size > 1 ? "they aren't recipes" : "that isn't a recipe"} of mine.`;
+  if (imported.size) note += ` ${importedNote()}`;
   if (!day)
     note += ` If this is how you want to eat from now on, it belongs in your targets rather than your portions — say "work out my macros" and I'll set them properly.`;
 
@@ -666,8 +740,21 @@ export function applyOperations(
   // these so the assistant reports honestly what the engine did.
   const notes: string[] = [];
   const replacedImports: ReplacedImport[] = [];
+  // What a meal-prep week cannot take (a boost, a cuisine, more fiber, a fridge clear-out), and where the
+  // boost lines sit: both settled once the call's final week and mode are known (the end). `level` is the
+  // "about 35mg of iron a day" line; the other is the boost's verdict against the week before it.
+  const prepAsked = { boosts: new Set<MicroKey>(), themes: new Set<string>() };
+  const boostNotes: { at: number; key: MicroKey; level: boolean; op: number }[] = [];
+  let lastChangeOp = -1;
+  const noteAsks = (op: Operation) => {
+    if (op.boostNutrient) prepAsked.boosts.add(op.boostNutrient);
+    if (op.cuisine) prepAsked.themes.add(`${op.cuisine.charAt(0).toUpperCase()}${op.cuisine.slice(1).toLowerCase()} food`);
+    if (fiberOn(op)) prepAsked.themes.add("more fiber");
+    if (op.useIngredients?.length) prepAsked.themes.add(`using up ${listPhrase(op.useIngredients)}`);
+  };
 
-  for (const op of operations) {
+  for (const [opIndex, op] of operations.entries()) {
+    const planBefore = curPlan;
     switch (op.tool) {
       case "update_profile": {
         // The profile before this op changes it: an imported dish that breaks a diet or an exclusion this
@@ -684,11 +771,14 @@ export function applyOperations(
         if (op.excludeFoods?.length) p.dislikes = mergeDislikes(p.dislikes, op.excludeFoods);
         // A planning-mode switch (fresh <-> meal-prep). A mode CHANGE must rebuild from scratch in the
         // new mode, never keep-path the old mode's dishes (fix H3: batch->fresh keeping the batch's
-        // repeats instead of 21 distinct dishes) — so capture it BEFORE applying the new mode.
-        const modeChanged = !!op.planMode && op.planMode !== p.planMode;
+        // repeats instead of 21 distinct dishes) — so capture it BEFORE applying the new mode. An unset mode
+        // is fresh (withPlanDefaults): a restated "fresh" on an onboarded profile, which saves no mode, counted
+        // as a switch and rebuilt the week from scratch (review, 2026-10-21).
+        const modeChanged = !!op.planMode && op.planMode !== (p.planMode ?? "fresh");
         if (op.planMode) p.planMode = op.planMode;
         if (op.batchCadence) p.batchCadence = op.batchCadence;
         profileChanged = true;
+        noteAsks(op);
         // Re-solve every day onto the macro targets so the base plan actually hits
         // protein/calories, not just each meal's calorie share. This re-solve PRESERVES the plan the
         // user built: keep every dish that still satisfies the CHANGED rules and only re-pick the
@@ -700,6 +790,9 @@ export function applyOperations(
           // selectBatchWeek + rebalanceBatchWeek). The fresh keep/cuisine/boost path below is left
           // UNTOUCHED (fix H2 — the one-arg gate is used ONLY for the batch branch, never over fresh's args).
           if (p.planMode === "batch") {
+            // Leaving a fresh week: its imports that break a rule are named, as on a re-theme. A meal-prep
+            // week holds none, so the switch took them all with nothing said (review, 2026-10-21).
+            if (modeChanged) replacedImports.push(...brokenImports(curPlan, p, was));
             curPlan = buildWeek(p);
             if (curPlan.notes?.length) notes.push(...curPlan.notes);
             applyLocks();
@@ -714,7 +807,9 @@ export function applyOperations(
             passesDiet(r, p.diet) &&
             !blockedByExclusions(r, tokNew) &&
             (op.budget ? r.approxCost <= capNew : true) &&
-            (op.maxCookTime && op.maxCookTime > 0 ? r.timeMinutes <= p.maxCookTime + 5 : true);
+            // Met exactly, like the selector (no silent 5-minute grace): a kept dish over a limit just set
+            // is re-picked, and if nothing quicker fits, overLimitNote names what stays over.
+            (op.maxCookTime && op.maxCookTime > 0 ? r.timeMinutes <= p.maxCookTime : true);
           // A re-THEME request (a cuisine, a fiber/nutrient push, or a fridge clear-out) is the user
           // asking for DIFFERENT dishes — those preferences only take effect during SELECTION, so a
           // "keep everything" pass would silently ignore them. Preserve edits only for FILTER and
@@ -724,19 +819,48 @@ export function applyOperations(
           curPlan = keepMacros(op) ? rebalanceWeek(built, p) : built;
           notes.push(...reportNotes(rep, p));
           replacedImports.push(...rep.replacedImports);
+          // Picked from scratch, with no keep pass to record them: the old week's imports that break a rule
+          // are named all the same. "Make it Italian" beside "I'm allergic to peanuts" took a peanut import out
+          // with nothing said (review, 2026-10-21; a boost names it through its own keep pass, since F1).
+          if (reTheme || modeChanged) replacedImports.push(...brokenImports(prev, p, was));
           if (op.boostNutrient) {
-            const g = guaranteeBoost(p, prev, curPlan, op.boostNutrient, was);
+            // The old week as the rest of this request lets it stay (E4, and the review of E): as it was
+            // when nothing else was asked; else re-solved through the keep path, so only its dishes that
+            // break the rules as they are now are re-picked and its portions follow new targets; not at all
+            // for a cuisine, a fiber push, a different number of meals, or a switch out of meal-prep (whose
+            // repeated batches the fresh week must not inherit: E5, review 2026-10-21). An import the re-solve
+            // takes out is named from the final week (importNotes).
+            // "Nothing else asked" reads an unset mode as fresh too: a restated "fresh" on an onboarded profile
+            // counted as another change, re-solved the old week and blamed "the other changes you asked for".
+            const sameAsked = (q: UserProfile) => ({ ...q, planMode: q.planMode ?? "fresh", memory: undefined });
+            const keep = op.cuisine || fiberOn(op) || was.mealsPerDay !== p.mealsPerDay || modeChanged ? null : {
+              unchanged: sameContent(sameAsked(was), sameAsked(p)),
+              resolve: () => {
+                const repKeep = newReport();
+                const fixed = rebalanceWeek(selectWeekFromDb(p, undefined, false, undefined, undefined, repKeep, { plan: prev, keepIf, before: was }), p);
+                replacedImports.push(...repKeep.replacedImports);
+                return fixed;
+              },
+            };
+            // Measured with the pins back in place, as the person will see the week (E7).
+            const g = guaranteeBoost(p, prev, curPlan, op.boostNutrient, was, keep, (pl) => reimposeLocks(p, pl).plan);
             curPlan = g.plan;
-            if (g.note) notes.push(g.note);
+            if (g.note) { boostNotes.push({ at: notes.length, key: op.boostNutrient, level: false, op: opIndex }); notes.push(g.note); }
           }
           applyLocks();
-          if (op.useIngredients?.length) curPlan = guaranteeFridge(p, curPlan, op.useIngredients, notes);
+          const explained = new Set<string>();
+          if (op.useIngredients?.length) curPlan = guaranteeFridge(p, curPlan, op.useIngredients, notes, explained);
+          notes.push(...overLimitNote(prev, curPlan, p, { limitSet: !!(op.maxCookTime && op.maxCookTime > 0), skip: (m) => explained.has(m.name) }));
           if (keepMacros(op)) notes.push(achievementNote("Your week now averages", weekAveragesFull(curPlan), p));
-          if (op.boostNutrient) notes.push(microNote(curPlan, op.boostNutrient));
+          if (op.boostNutrient) {
+            boostNotes.push({ at: notes.length, key: op.boostNutrient, level: true, op: opIndex });
+            notes.push(microNote(curPlan, op.boostNutrient));
+          }
         }
         break;
       }
       case "regenerate_week": {
+        noteAsks(op);
         {
           // Batch mode regenerates the meal-prep week deterministically; the fresh path is unchanged.
           if (p.planMode === "batch") {
@@ -752,14 +876,26 @@ export function applyOperations(
           curPlan = keepMacros(op) ? rebalanceWeek(built, p) : built;
           notes.push(...reportNotes(rep, p));
           if (op.boostNutrient) {
-            const g = guaranteeBoost(p, prev, curPlan, op.boostNutrient);
+            // A cuisine or a fiber push asked with the boost would be dropped if the old week came back (E4).
+            // A week that breaks the rules is re-solved through the keep path, not thrown out whole.
+            const tokNow = exclusionTokens(p);
+            const g = guaranteeBoost(p, prev, curPlan, op.boostNutrient, undefined, op.cuisine || fiberOn(op) ? null : {
+              unchanged: true,
+              resolve: () => rebalanceWeek(selectWeekFromDb(p, undefined, false, undefined, undefined, newReport(),
+                { plan: prev, keepIf: (r) => passesDiet(r, p.diet) && !blockedByExclusions(r, tokNow) }), p),
+            }, (pl) => reimposeLocks(p, pl).plan);
             curPlan = g.plan;
-            if (g.note) notes.push(g.note);
+            if (g.note) { boostNotes.push({ at: notes.length, key: op.boostNutrient, level: false, op: opIndex }); notes.push(g.note); }
           }
           applyLocks();
-          if (op.useIngredients?.length) curPlan = guaranteeFridge(p, curPlan, op.useIngredients, notes);
+          const explained = new Set<string>();
+          if (op.useIngredients?.length) curPlan = guaranteeFridge(p, curPlan, op.useIngredients, notes, explained);
+          notes.push(...overLimitNote(prev, curPlan, p, { limitSet: false, skip: (m) => explained.has(m.name) }));
           if (keepMacros(op)) notes.push(achievementNote("Your week now averages", weekAveragesFull(curPlan), p));
-          if (op.boostNutrient) notes.push(microNote(curPlan, op.boostNutrient));
+          if (op.boostNutrient) {
+            boostNotes.push({ at: notes.length, key: op.boostNutrient, level: true, op: opIndex });
+            notes.push(microNote(curPlan, op.boostNutrient));
+          }
         }
         break;
       }
@@ -782,6 +918,7 @@ export function applyOperations(
         if (op.maxCookTime && op.maxCookTime > 0) tp.maxCookTime = op.maxCookTime;
         if (op.budget) tp.budget = op.budget;
         const rep = newReport();
+        const prevWeek = curPlan;
         const newDay = selectDay(tp, op.day, curPlan, normalizeCuisine(op.cuisine ?? null), fiberOn(op), op.useIngredients, op.boostNutrient ?? undefined, rep);
         notes.push(...reportNotes(rep, tp));
         const meals = keepMacros(op)
@@ -789,6 +926,7 @@ export function applyOperations(
           : newDay.meals;
         curPlan = { ...curPlan, days: curPlan.days.map((d) => (d.day === op.day ? { ...newDay, meals } : d)) };
         applyLocks(new Set([op.day]), tp);
+        notes.push(...overLimitNote(prevWeek, curPlan, tp, { limitSet: !!(op.maxCookTime && op.maxCookTime > 0), days: new Set([op.day]) }));
         const finalDay = curPlan.days.find((d) => d.day === op.day);
         // Always, not only when macros were kept: a re-plan with preserveMacros false wrote NO note, so
         // the model's prose ("the weekend has been scaled down") was the whole reply and could be false.
@@ -1084,6 +1222,7 @@ export function applyOperations(
         };
         profileChanged = true;
         const rep = newReport();
+        const before = curPlan;
         if (p.planMode === "batch") {
           // Batch mode: rebuild the meal-prep week onto the new targets (deterministic).
           curPlan = buildWeek(p);
@@ -1104,6 +1243,7 @@ export function applyOperations(
         );
         notes.push(...reportNotes(rep, p));
         replacedImports.push(...rep.replacedImports);
+        if (p.planMode !== "batch") notes.push(...overLimitNote(before, curPlan, p, { limitSet: false }));
         notes.push(achievementNote("Your week now averages", weekAveragesFull(curPlan), p));
         break;
       }
@@ -1201,7 +1341,13 @@ export function applyOperations(
           break;
         }
         // Pins are stored by name and re-cooked from the library on every rebuild, so a meal we
-        // can't rebuild (a restaurant reserve, something the user logged) cannot be pinned.
+        // can't rebuild (a restaurant reserve, something the user logged) cannot be pinned. Nor can an
+        // imported recipe, even titled like a library dish: its pin came back as the library's dish, and the
+        // person's own recipe was gone with nothing said (review, 2026-10-21).
+        if (meal.sourceUrl) {
+          notes.push(`${meal.name} is a recipe you imported, and I can only pin my own recipes for now, so I can't pin it.`);
+          break;
+        }
         if (!RECIPES.some((r) => r.name === meal.name)) {
           notes.push(`${meal.name} isn't one of my recipes — it's something you told me about, so I can't pin it.`);
           break;
@@ -1236,15 +1382,20 @@ export function applyOperations(
         }
         // An allergy leaving the profile (or coming back) is never silent: the undo of a remembered
         // allergy read only "put things back", while eggs left the allergies (LC-12). Compared by what
-        // each token blocks, so "peanut" against "peanuts" is no difference. Wording only: what is
-        // restored below is unchanged.
+        // each token blocks, so "peanut" against "peanuts" is no difference, and neither is "walnut"
+        // against "walnuts": "That also took walnut off your allergies" was said while all 14 walnut
+        // recipes stayed blocked (review, 2026-10-21). Wording only: what is restored below is unchanged.
         const nowAllergies = parseExclusionTokens(p.allergies ?? "", "");
         const thenAllergies = parseExclusionTokens(previous.profile.allergies ?? "", "");
         const nowKeys = new Set(nowAllergies.map(exclusionKey));
         const thenKeys = new Set(thenAllergies.map(exclusionKey));
-        const takenOff = uniqueByKey(nowAllergies.filter((t) => !thenKeys.has(exclusionKey(t))));
-        const putBack = uniqueByKey(thenAllergies.filter((t) => !nowKeys.has(exclusionKey(t))));
+        const takenOff = uniqueByKey(nowAllergies.filter((t) => !thenKeys.has(exclusionKey(t)) && !exclusionCovers(thenAllergies, t)));
+        const putBack = uniqueByKey(thenAllergies.filter((t) => !nowKeys.has(exclusionKey(t)) && !exclusionCovers(nowAllergies, t)));
         curPlan = previous.plan;
+        // The restored week replaces everything before it in this call, so an import a re-solve took out
+        // earlier in the call is not named: the undo took it out by restoring a week without it, and the
+        // note read "contains shrimp, which you avoid" with no dislike left (review, 2026-10-21).
+        replacedImports.length = 0;
         // Replace the working profile wholesale. Assigning field-by-field would leave anything the
         // last turn ADDED (a pin, a rating, a stored body weight) sitting on the restored profile.
         for (const k of Object.keys(p)) delete (p as unknown as Record<string, unknown>)[k];
@@ -1390,6 +1541,25 @@ export function applyOperations(
       case "answer":
         break;
     }
+    if (curPlan !== planBefore) lastChangeOp = opIndex;
+  }
+
+  // A boost's lines are about the week it built. A later op in the same call that changed the week left
+  // "about 35mg of iron a day" over a final week of 21.9 mg: after a switch to meal-prep, and as much after
+  // a cuisine, a calorie target, a cook-time limit or a diet (review, 2026-10-21). So the level is read off
+  // the FINAL week, and the verdict against the week before ("less than before", "couldn't put more in")
+  // is dropped once a later op moved the week. In a call that ends in meal-prep, both go: the batches
+  // ignore the boost, which the meal-prep line says, judged on the mode the call ends in (a boost asked in
+  // meal-prep and then a switch to fresh was blamed on meal-prep).
+  const endsInPrep = p.planMode === "batch";
+  for (const b of [...boostNotes].reverse()) {
+    if (endsInPrep || (!b.level && lastChangeOp > b.op)) notes.splice(b.at, 1);
+    else if (b.level && lastChangeOp > b.op) notes[b.at] = microNote(curPlan, b.key);
+  }
+  if (endsInPrep) {
+    for (const key of prepAsked.boosts) notes.push(batchBoostNote(key));
+    if (prepAsked.themes.size)
+      notes.push(`In meal-prep mode I can't plan your batches around ${listPhrase([...prepAsked.themes])} yet, so they're planned as usual.`);
   }
 
   // Compared, not inferred. `planWasChanged(operations)` asks which tools were NAMED; this asks

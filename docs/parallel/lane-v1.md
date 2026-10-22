@@ -7,6 +7,63 @@
 
 ## Now doing
 
+**2026-10-22, evening — the fast finish landed `b2b4285` (1179/0), set per model; F5 is being mapped.**
+- **The fast finish.** `runAgent` takes `fastFinish` (off by default) and returns `fastFinished`. The assistant-v2
+  route turns it on only with `AI_FAST_FINISH=1`, a deployment setting for Nemotron-3-Ultra 550B with reasoning off.
+  The skip also cuts any write a model would have sent next, and only the 550B was measured never to split (0 of 275).
+- **Models lane:**
+  - your evals are unaffected unless they pass `fastFinish`;
+  - keep the wrapper (`FAST_FINISH=reply` / `shadow`) or the native option, never both;
+  - the "leave reply empty" prompt rule waits on your shadow numbers from a model that splits writes.
+- **F5 (workflow `wf_65b5adc7-a11`, three of six lenses in).** The model-failure findings come first:
+  - an urgent-care reply is thrown away when a later model call fails (MF-1);
+  - a stated allergy is lost with its turn when another op fails the schema (MF-2);
+  - a schema failure is called "offline" (MF-3).
+  They change what your evals see when Nemotron misbehaves. I'll send the sha and the list when they land.
+
+**2026-10-22 — F4 landed `afa7f89` (1167/0), the last of the second review's follow-ups.**
+- **What it holds:**
+  - LC-08: an unlabelled allergy fact binds any of the matcher's 182 allergen words;
+  - the covered rule, judged with the matcher's exception phrases;
+  - `mealHaystack`, which keeps a dish's parts apart for the matcher;
+  - tortilla, noodle and cracker allergies keeping what gluten excepts;
+  - imports judged as the import everywhere;
+  - boost and meal-prep notes describing the final week;
+  - the claim guard's confirm-before-act rules;
+  - the scope read the way the schema reads it (`providers/turnShape.ts`).
+  F4's own review found four allergen holes before it shipped, and each is fixed with its row. Against the parent,
+  0 of 1,800 stored-allergy rows block less.
+- **Models lane: what changes in your controls.**
+  - A confirm-before-act question excuses the promise before it only when it asks about the same change, and only
+    when no sentence says the change is done (`CONFIRM`, `OTHER_CHANGE`, `DONE_ALREADY` in `reply.ts`).
+  - A sentence ends inside a closing quote, bracket or bold.
+  - A scope naming no meal (`null`, `""`, `"all"`) reads as the whole day. One it cannot read is refused.
+  - An unlabelled `remember` binds every matcher allergen word.
+  - A food a stored allergy already blocks is named as covered, not stored.
+- **Next: F5** — #14 (every note from the final week), #4 (the undo label), "chick pea". Then D7.
+
+**2026-10-21, night — the second review's follow-ups, one commit at a time.**
+- **F1 landed `4bc9e47` (1081/0):** the loop fixes, cook time met exactly (decision 13, open to overrule), the
+  boost keeping the rest of the request, and "zero energy".
+- **F2 landed `7624008` (1094/0):**
+  - the claim guard judged per sentence (two regressions from `da023da`);
+  - an undo never taking back what the same run remembered (I2);
+  - a boost measured with the pins in place;
+  - library dishes judged on the rules the request introduced;
+  - imports judged per food avoided.
+- **F3 landed `ef71993` (1101/0):** imports get a diet matcher of their own (going vegan keeps the plant-milk dishes,
+  and a meat dish named only in its title still goes).
+- **F4 was built here and landed the next day (above):** the review's minors that need no schema change, and LC-08.
+  An unlabelled allergy fact binds any of the matcher's own 182 allergen words; 93 of them (cashews, scallops,
+  crab…) bound nothing.
+- **Models lane:** F1 and F2 both move your loop and claim controls. Each sha is sent as it lands, with what changed.
+  F4 will change three things your controls read: a "Shall I go ahead?" after a promise excuses it, a scope with a
+  malformed slot is refused, and what an unlabelled `remember` binds.
+
+**2026-10-21, evening — Track A is done: `5b6d874` deleted the 28 D5a shims** (test:engine 1061/0, the same
+count). Every old flat path (`@/lib/primitives`, `@/lib/storage`…) is gone, and a re-export put back at one fails
+`check:boundaries` rule 0. Both lanes have confirmed nothing of theirs used them.
+
 **2026-10-21 — the review fixes landed as one commit (`da023da`, test:engine 1061/0).** Sessions since the
 restart: v1 `-e0`, accounts `-39`, models `-b5`.
 - **What it holds:**
@@ -25,10 +82,8 @@ restart: v1 `-e0`, accounts `-39`, models `-b5`.
   the probes on it.
 - **Accounts lane:** no stored or synced shape changed. One thing writes less: restating a stored fact now leaves
   the profile exactly as it was. It used to move the fact to the end with a new stamp.
-- **Next:**
-  1. the second review's confirmed findings, in one commit, gated after the accounts lane's gate;
-  2. the D5a shims;
-  3. the deferred: E4, the silent cook-time grace, genV2's invented calories.
+- **Next (as written that afternoon; the shims have since landed):** the second review's confirmed findings, the
+  D5a shims, then the deferred.
 
 **2026-10-20 — B2 landed (`c8ccfb0`): every allergy remark gets a true note.** `6509cdb`: npm script bundles go
 to each worktree's own `.cache/`.
@@ -269,6 +324,9 @@ Shipped this session, so free again: `scripts/test-engine.mts`, `scripts/test-ui
 | `56a321b`, `6fb9a28`, `6509cdb` | the allergen review doc and probe; seven scripts off the shims; bundles per worktree |
 | `c8ccfb0` | B2, the allergen notes (1010/0) |
 | `da023da` | C–G and B2's follow-ups, after a second adversarial review (1061/0) |
+| `5b6d874` | D5a finished: the 28 shims deleted, a re-export put back fails rule 0 (1061/0, self-test 45/0) |
+| `4bc9e47` | F1 of the second review: the loop, cook time met exactly, the boost keeps the rest of the request (1081/0) |
+| `7624008` | F2: the claim guard per sentence, an undo keeps what the run remembered, the boost under pins (1094/0) |
 
 ## Known issues in v1's files (found by other lanes, queued)
 

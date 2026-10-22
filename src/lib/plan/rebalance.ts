@@ -276,7 +276,9 @@ export function rebalanceDay(
           // the current meal, `best` stays null and the meal stays — no slot can be emptied here.
           bannedForUser(profile, r.name) ||
           r.approxCost > cap ||
-          r.timeMinutes > profile.maxCookTime + 5 ||
+          // The limit met exactly, as the selector meets it: a protein upgrade is never a reason to
+          // run over it (a 5-minute grace here put a 20-minute dish on a "15 minutes or less" day).
+          r.timeMinutes > profile.maxCookTime ||
           r.ingredients.length > profile.maxIngredients + 1 ||
           usedElsewhere.has(r.name.toLowerCase())
         )

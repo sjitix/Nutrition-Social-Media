@@ -7,7 +7,7 @@
  * is internal to this folder, and check:boundaries fails anything outside the folder that imports it.
  */
 import { type Operation, type UserProfile } from "../core";
-import { haystackBlocked, parseExclusionTokens } from "../nutrition";
+import { expandExclusion, haystackBlocked, mealHaystack, parseExclusionTokens } from "../nutrition";
 import { type Cuisine, type Recipe } from "../data";
 
 // --- Selection engine ------------------------------------------------------
@@ -55,8 +55,7 @@ export function blockedByExclusions(r: Recipe, tokens: string[]): boolean {
   // Include steps so method exclusions work too ("no oven" → drop bake/roast recipes).
   // Matching is word-aware and expands categories: "nuts" must block almonds (a raw substring
   // test did not), while "egg" must NOT block eggplant. Allergies are a hard rule.
-  const hay = `${r.name} ${r.ingredients.map((i) => i.name).join(" ")} ${r.steps.join(" ")}`;
-  return haystackBlocked(hay, tokens);
+  return haystackBlocked(mealHaystack(r.name, r.ingredients.map((i) => i.name), r.steps), tokens);
 }
 
 /** The user's ratings as the selector wants them: lowercased name -> 1..5. */
@@ -79,6 +78,10 @@ export function bannedForUser(profile: UserProfile, name: string): boolean {
   const lower = name.toLowerCase();
   return list.some((r) => r.rating === 1 && r.name.toLowerCase() === lower);
 }
+
+/** Two tokens are the same exclusion when the matcher expands them to the same foods (egg / eggs). Shared by
+ *  the executor's notes and the import judge (select.ts), which cannot import each other. */
+export const exclusionKey = (t: string) => [...new Set(expandExclusion(t))].sort().join("|");
 
 export function exclusionTokens(profile: UserProfile): string[] {
   return parseExclusionTokens(profile.allergies, profile.dislikes);
