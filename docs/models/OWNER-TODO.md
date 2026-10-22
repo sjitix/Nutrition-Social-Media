@@ -8,10 +8,19 @@ Rewritten 2026-10-03 after a verified search of every free provider (`free-provi
 The honest headline: **no provider gives a big model, ~5 s calls, a free tier AND hundreds of calls a day
 all at once.** The keys below are ranked by what they unlock per minute of your time.
 
-## When you switch the app to Nemotron (measured 2026-10-22; decision 2)
+## Trying the app on Nemotron (measured 2026-10-22; decision 2)
 
-Set these in `.env.local` (locally) or as Vercel environment variables (deployed). Use reasoning off and the
-fast finish: about 2.8 times faster at no loss.
+**Local testing only.** NVIDIA's free endpoint is a trial. Its [API Trial Terms of
+Service](https://assets.ngc.nvidia.com/products/api-catalog/legal/NVIDIA%20API%20Trial%20Terms%20of%20Service.pdf):
+- allow "internal testing and evaluation purposes, not in production" (section 1.4);
+- forbid uploading health or personal information (4.3);
+- let NVIDIA use prompts and outputs to improve its models (3.3).
+
+So never set this on Vercel for real users. Launch needs a paid host of the same model (decision 2, question 1:
+DeepInfra, BaseTen or Venice through OpenRouter). Re-measure there first, because those hosts serve it at FP4 or
+FP8.
+
+In `.env.local`, with reasoning off and the fast finish (about 2.8 times faster at no loss):
 
 ```
 AI_PROVIDER=local
@@ -23,8 +32,8 @@ AI_FAST_FINISH=1
 ```
 
 `AI_FAST_FINISH=1` is only for this model with reasoning off: the skip it makes is measured safe there, and on
-gpt-oss-20b it would cut writes. The public URL deliberately has no AI key (demo mode); switching it is your
-call.
+gpt-oss-20b it would cut writes. The public URL deliberately has no AI key (demo mode), and on this endpoint it
+must stay that way.
 
 ## Open — ranked
 
@@ -38,25 +47,34 @@ call.
   `NVIDIA_API_KEY`, so it changes nothing else. **Unlocks:** the fair speed comparison and the wording
   test, ready as one command each (`node scripts/models/fair-arms.mjs`).
 
-- [ ] **1. Vercel AI Gateway key** (your existing Vercel team, the one that deploys ntrux) — Vercel
+- [ ] **1. NEW 2026-10-22, first: an OpenRouter key with about $10 of credit** — openrouter.ai → Keys → Create,
+  then Credits. Add `OPENROUTER_API_KEY=...` to the main folder's `.env.local`.
+  - **Why it comes first:** NVIDIA's free endpoint is for testing only (above), so the app would launch on a
+    paid host of Nemotron. OpenRouter sells the same model through DeepInfra, BaseTen and Venice, at FP4 or
+    FP8. A different precision can change behaviour, so the launch numbers have to come from that host.
+  - **Cost:** a full run of both evals is about 64 messages at roughly a third of a cent each, so about $0.25.
+    Three repeats of the prompt candidate against main cost about $1.50; $10 covers the whole plan.
+  - **Unlocks:** the speed range, the wording test and the go/no-go run on the host that would serve users
+    (`fair-arms.mjs --url https://openrouter.ai/api/v1 --key-var OPENROUTER_API_KEY`). The same key also
+    reaches the `:free` big models (old item 4).
+- [ ] **2. Vercel AI Gateway key** (your existing Vercel team, the one that deploys ntrux) — Vercel
   dashboard → AI Gateway → API keys → Create. Add `AI_GATEWAY_API_KEY=...`. **Do not buy credits**:
   any purchase ends the monthly free credit for good. Vercel may ask for a card to verify the team.
   **Unlocks:** `inclusionai/ling-3.1-flash` at **$0**: 560B total / 25B active, reasoning switchable to
   "none", ~8 s per call (estimate from Vercel's public metrics). It is the biggest free model with no
   token cap we found. The free rate limit is unpublished, so the first eval finds it.
-- [ ] **2. Mistral key** — console.mistral.ai → sign up (the official quickstart says no card) → API keys.
+- [ ] **3. Mistral key** — console.mistral.ai → sign up (the official quickstart says no card) → API keys.
   Add `MISTRAL_API_KEY=...`. If there is a setting to opt out of training on your data, use it.
   **Unlocks:** **Mistral Large 3** (675B / 41B active, schema-enforced JSON, ~6 s per call). The free
   plan is $10/month of credit, ~90 of our calls a day: enough to EVALUATE it, not to run a beta on.
-- [ ] **3. Groq key** — console.groq.com → API Keys → Create (no card). Add `GROQ_API_KEY=...`
+- [ ] **4. Groq key** — console.groq.com → API Keys → Create (no card). Add `GROQ_API_KEY=...`
   **Unlocks:** `gpt-oss-120b` at ~500 tok/s (~1.5–3 s per call). The free tier is 8K tokens/min and
   200K/day, which is ~25–40 of our calls a day: evals only, not a beta (corrected from the "1,000/day"
   this file said before).
-- [ ] **4. OpenRouter key** — openrouter.ai → Keys → Create. Add `OPENROUTER_API_KEY=...`
-  **Unlocks:** the `:free` big models (dots-3-note-preview 280B with JSON schema, Inkling 975B) at 50
-  requests/day across ALL free models. **Optional one-time $10 credit** (not a subscription) raises
-  that to 1,000/day at 20/min. That is the cheapest way to a beta-sized free quota.
-- [ ] **5. OVHcloud Public Cloud project** — needs a payment method. New projects get **$200 free
+- ~~**OpenRouter key for the free models**~~ — folded into item 1. The same key reaches the `:free` big models
+  (dots-3-note-preview 280B with JSON schema, Inkling 975B), at 50 requests/day across all free models, or
+  1,000/day at 20/min once $10 of credit was ever bought.
+- [ ] **5. OVHcloud Public Cloud project** (a fallback model, not Nemotron) — needs a payment method. New projects get **$200 free
   credit** (OVH's AI Endpoints page). Then AI Endpoints → API keys; add `OVH_AI_KEY=...`.
   **Unlocks:** `gpt-oss-120b` (measured **3.4 s per call**, JSON schema) and Qwen3.5-397B at 400
   requests/min. gpt-oss-120b costs ~EUR 0.0007 per call, so the credit covers a long beta. This is the

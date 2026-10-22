@@ -81,6 +81,27 @@ export function reseedEngine(id: string): number | null {
 export const engineSeedConfig = () =>
   (globalThis as { __models_reseed?: unknown }).__models_reseed ? Number(process.env.ENGINE_SEED ?? 1) : null;
 
+/**
+ * A message timed across a sleep of the machine is not latency. On 2026-10-22 the laptop slept during the
+ * repeats, and three messages were timed at 1,854, 4,314 and 266 s. Timers do not fire while the machine is
+ * suspended, and performance.now() keeps counting through it (those figures are its readings), so a tick that
+ * comes far later than scheduled means the machine slept; nothing in the engine blocks the event loop for
+ * anything near that long. Read `total()` before and after a message: a difference above zero means it spanned
+ * a sleep, and its seconds stay out of the latency figures (not out of the pass rate: the model still answered).
+ */
+export function sleepWatch(tickMs = 5_000, gapMs = 30_000) {
+  let last = performance.now();
+  let slept = 0;
+  const check = () => {
+    const now = performance.now();
+    if (now - last > gapMs) slept += (now - last - tickMs) / 1000;
+    last = now;
+  };
+  setInterval(check, tickMs).unref();
+  // Checked on read too, so a sleep that ended moments ago counts before its overdue tick has fired.
+  return { total: () => { check(); return slept; } };
+}
+
 /** The scorecard's model name for a scripted run. */
 export const scriptLabel = (path: string) => `script-${basename(path).replace(/\.json$/i, "")}`;
 

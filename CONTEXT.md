@@ -215,7 +215,45 @@ in the main folder (`2fd6f02`). Its WORKPLAN lesson was renumbered 38 → 48 bec
 
 #### PARALLEL LANE — models (written by the models agent only)
 
-**2026-10-21 (evening) — RESUME HERE. The held-outs and their checks were reviewed adversarially and fixed;
+**2026-10-22 (evening) — RESUME HERE. Nemotron-3-Ultra 550B is the model (the owner's choice). Its setting is
+reasoning off plus the fast finish, which v1 landed as `b2b4285` (`AI_FAST_FINISH=1`). 633 controls hold on
+`b2b4285`** (2 engine seeds, every must-fail control for the same reason as on `afa7f89`).
+- **The evals run the app's own fast finish (`0327c45`):** `AI_FAST_FINISH=1` reaches `runAgent` from both evals, as arms
+  N and convoN in `fair-arms.mjs`. Quote the app's speed from those arms. On every control, the native skip and
+  the eval's wrapper give byte-identical rows (verdict, reason, reply, writes, steps, model calls; 453 finishing
+  calls skipped by each), and no control changes verdict between the skip off and on. The evals refuse both
+  switches at once.
+- **Sleep can no longer spoil a timed run.** A message the machine slept through is left out of the seconds,
+  and named. fair-arms holds a Windows machine awake for the whole run, and the lock exits by itself when the
+  run ends. **The battery is the other limit:** 34% to 22% in 25 minutes of control runs, so a timed run waits
+  for the charger.
+- **NVIDIA's free endpoint is for testing only:** its API Trial Terms of Service allow internal testing and
+  evaluation, not production (1.2, 1.4), and forbid health or personal information (4.3). Launch needs a paid host
+  of the same model (OpenRouter: DeepInfra, BaseTen or Venice, at FP4 or FP8), re-measured there; OWNER-TODO item 1
+  asks for an OpenRouter key with about $10. Decision 2 (doc rev 31) has the question; v1 updated its files (`dc1433c`).
+- **The diagnosis of every Nemotron failure is done:** `docs/models/nemotron-diagnosis.md` (the data in
+  `nemotron-diagnosis-2026-10-22.json`). 42 failures in 196 rows of arm C, nine causes, none needing another
+  model.
+  - Three safety habits need code, and v1 took them, in this order: F5a-1 (typed model failures), F6 (an
+    `{op:"crisis"}`, on a branch this lane measures with `--code` first), the history allergy (its design to
+    this lane first; decision 12(b) covers "my daughter is allergic"), then numbers only from the user's words.
+  - The rest are prompt lines for this lane, plus harness corrections that come first.
+  - The owner's eight questions: 2, 7 and 8 go under decision 2 (this lane), after v1 says it is out of the
+    doc; v1 files 1 under decision 8 and 3-6 as a new decision 14. v1 landed rate-recur's held-out twin
+    (`964e6cc`), so the rate line is no longer blocked by the hard cases.
+- **Next:**
+  1. The harness corrections (the diagnosis's list), each with its controls.
+  2. The clean speed range: `node scripts/models/fair-arms.mjs --arms B,N,convoN --repeat 3`, laptop charging.
+  3. The prompt candidate on `models-wording`, merged with main, against main on the native arms three times.
+  4. Decision 2 gets the range and the owner's three questions.
+- **v1's F5a-1 (typed model failures; an unreadable turn gets one retry) changes what the evals see.** It is in
+  review. When it lands:
+  - record `unreadableRetried` and `modelFailure.kind` per row;
+  - classify infra by kind, keeping the message regex as the fallback;
+  - make `scriptedModel` throw `ModelFailure("unreadable", msg, { raw, issues })` from `@/lib/assistant`.
+  No control keys on the old behaviour (checked).
+
+**2026-10-21 (evening). The held-outs and their checks were reviewed adversarially and fixed;
 633 controls hold on main as of v1's `7624008`** (all 49 scenarios, 2 engine seeds; `node scripts/models/run-controls.mjs`).
 The do-nothing and hollow-claim fakes score 0 on both evals.
 - **Scorecards from before `b43873f` were graded on the lenient harness** and are not comparable with new runs.
@@ -256,13 +294,10 @@ The do-nothing and hollow-claim fakes score 0 on both evals.
   - C, off plus fast finish: 28/34, median 5.5 s, p90 12.5;
   - convo A: 12/15 at 11.3 s per turn; convo C: 12/15 at 6.0 s.
   **C is the setting.** Its repeats (`e8322f5`, on `cd2244b`) held: 26-28 of 34, convo 10-12 of 15. Their
-  latencies are not clean, because the laptop slept mid-run, so keep it awake for timed runs. v1 ships the fast
-  finish as `AI_FAST_FINISH=1`, gated to this model. Decision 2 in the owner's doc has the numbers and the
-  config. Shadow mode (`6344c77`) measures what the skip cuts.
-- **In flight:** a no-model diagnosis of every failure. **Next:** a clean latency range for C, then the wording
-  test on C (with v1's LOOP RULE 5 on the shadow arm).
-- **Next, key-free:** re-run the probes when v1's F3 (imports get their own diet matcher) lands; the evals
-  import no recipes, so the controls should not move.
+  latencies are not clean, because the laptop slept mid-run. v1 shipped the fast finish as `AI_FAST_FINISH=1`
+  (`b2b4285`), gated to this model. Decision 2 in the owner's doc has the numbers and the config. Shadow mode
+  (`6344c77`) measures what the skip cuts, and v1's LOOP RULE 5 draft waits on it, from a model that splits
+  writes.
 - The false-claim guard: `probe-claims.mts` 15/15 on main since v1's `c8ccfb0` (1/15 before). Day records:
   `docs/worklog/2026-10-20-models.md` and `2026-10-21-models.md`.
 
@@ -494,8 +529,9 @@ wrapper measured it), so Nemotron-3-Ultra 550B with reasoning off makes 1.2 mode
   - The 550B never splits: 0 of 275 recorded write messages sent more, and 0 of 23 in the fair run.
   - gpt-oss-20b did, in 7 of 49.
   - The reply rule withheld 1 skip in 84.
-  - So `runAgent` takes `fastFinish` (off by default), and the route reads `AI_FAST_FINISH=1`, a deployment setting
-    for the 550B.
+  - So `runAgent` takes `fastFinish` (off by default), and the route reads `AI_FAST_FINISH=1`, a setting for the
+    550B with reasoning off. It was measured on NVIDIA's free endpoint, which is for testing only (below), so it is
+    measured again on whichever paid host the app launches on.
 - **The models lane's side.** Its repeats (`e8322f5`): the pass range holds (26 to 28 of 34) and calls hold at 1.2.
   Their seconds are contaminated, because the laptop slept, so this morning's set (5.5 s against 7.1 s) stays the
   clean speed figure. It wrote decision 2's recommended config with `AI_FAST_FINISH=1` (doc rev 25, `41d2af2`), and
@@ -505,7 +541,35 @@ wrapper measured it), so Nemotron-3-Ultra 550B with reasoning off makes 1.2 mode
   test. It is not to land before their shadow numbers on a model that splits writes. The models lane re-ran its 633
   controls on F4 (`afa7f89`) under two seeds: all hold.
 
-**Next, in order:**
+**Next, in order (set 2026-10-22, night, after the models lane's diagnosis of every Nemotron failure):**
+- **F5a-1, built in `../NutriFlow-f5a` (uncommitted), its adversarial review `wf_b85e0ca1-6ce` running.**
+  - MF-1: an urgent reply ends the run, and the route's 503 needs nothing changed AND nothing said
+    (`engineSpoke`).
+  - MF-2: an unreadable turn keeps its remembers and gets one nudge-and-retry.
+  - A typed `ModelFailure` (`assistant/modelFailure.ts`).
+  - 11 rows: on the parent the 10 that test it fail, and they show the losses (the urgent reply ends "model
+    failed"; the refused turn leaves the peanut bowl and no allergy).
+- **F6, the crisis op (the diagnosis's step 1, safety).** With reasoning off, Nemotron sends crisis words to the
+  symptom tool (6 of 8). Verified on `2c7181e`: "i wish i was dead" gets the fatigue note, and "i do not want to
+  live", "i dont wanna live" and "i don't wanna be here anymore" all slip the pre-scan.
+  - `{op:"crisis"}`: `CRISIS_REPLY` as an override, applying nothing else from the turn (it runs before any undo
+    group), the run ends, and no log line.
+  - The prompt's two lines, verbatim, in the same commit.
+  - `redFlag` folds "do not" and "wanna".
+  - On a branch for the models lane's `--code` run before it lands.
+- **The history allergy (step 2, I2)**, with the skeptic's strict extractor. It has to agree with decision 12(b)
+  ("anyone you mention is protected") on "my daughter is allergic to peanuts but i'm not". The design goes to the
+  models lane before it is built.
+- **Numbers only from the person's words (step 4)**, together with AS-12: a surviving figure is always the person's,
+  so it can win over a library match (decision 14, row 4).
+- **F5a-2:** the failure wording (MF-3, MF-5 and the rest), a 60 s fetch timeout and a run deadline, and the raw text
+  of an unreadable answer kept for the log (step 14).
+- Then step 11 (lookups know "seafood"; `find_recipes` drops what the allergies block), step 16 (a reserve's note
+  names what it replaced), and the rest of F5 below.
+The diagnosis's prompt lines are the models lane's to measure; v1 lands each one that holds. A durable copy ships as
+`docs/models/nemotron-diagnosis.md`. `rate-recur` got its held-out twin (`964e6cc`), so the rating line can be
+measured. The decisions doc (rev 26) records decision 8's new finding and a new decision 14 (four product calls).
+
 1. **F5, the rest of the follow-ups:** #14 (every note rendered from the run's final week and profile, not each
    step's: a denial step then an undo step leaves "still include peanuts, so nothing with them is planned" over a
    week with peanut dishes), #4 (the undo label naming a refused write), and the matcher's "chick pea". Each proven
@@ -560,6 +624,14 @@ wrapper measured it), so Nemotron-3-Ultra 550B with reasoning off makes 1.2 mode
 and the models lane's five fair arms are running on it (`bb9021f`). The fast finish (`de1a102`) is decided on their
 numbers. The owner wants Nemotron-3-Ultra 550B to run the assistant ("i like nemotron, id be happy if we could make it
 work", `7634ddb`), so the models lane is making that one fast and correct enough, with other models as fallbacks.
+**NVIDIA's free endpoint may not serve real users (found by the models lane, 2026-10-22).** Its trial terms say:
+- trial use only, never in production (1.2, 1.4);
+- no health information about an identifiable person (4.3);
+- NVIDIA keeps what is sent, to improve its models (3.3).
+So it is for testing with made-up messages. The live app needs a paid host for the same model: OpenRouter lists
+DeepInfra, BaseTen and Venice, about a third of a cent a message. The evals are re-run there before launch, because
+the builds differ in precision, and that host's reasoning-off switch is not chosen yet. Decision 2 in the doc (rev
+31), the schedule's §5 row 1, `.env.local.example` and CLAUDE.md all say so.
 
 
 **D5a — DONE** (`c50d58d` the move, `cc38524` two contracts to `core/`, `1dff171` the barrels; test:engine 924/0).

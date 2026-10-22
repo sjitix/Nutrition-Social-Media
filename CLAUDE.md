@@ -375,6 +375,12 @@ The app talks to "a provider," so swapping models/hosts is a one-line env change
 Provider ladder: local for dev/beta (free), cheap open-model API + Claude at launch,
 self-host only if the inference bill gets large.
 
+**The chosen model, and where it may run (2026-10-22).** The owner chose Nemotron-3-Ultra 550B. NVIDIA's free endpoint
+serves it, but its trial terms forbid production use and uploading anyone's health information, so it is for testing
+with made-up messages only. A live app needs a paid host for the same model: OpenRouter lists several, about a third
+of a cent a message. Their builds differ in precision, so the evals, and `AI_FAST_FINISH`, are measured again on
+whichever host is chosen (the models lane's `docs/models/OWNER-TODO.md`).
+
 ## Hardware / local-AI plan (desktop)
 
 Desktop: 64 GB RAM, up to 4× RTX 2070 (8 GB each), Corsair HX1200i PSU (1200W — enough
