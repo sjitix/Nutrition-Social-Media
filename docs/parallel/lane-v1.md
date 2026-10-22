@@ -7,6 +7,27 @@
 
 ## Now doing
 
+**2026-10-22 — F4 landed `afa7f89` (1167/0), the last of the second review's follow-ups.** No worktree is open.
+- **What it holds:**
+  - LC-08: an unlabelled allergy fact binds any of the matcher's 182 allergen words;
+  - the covered rule, judged with the matcher's exception phrases;
+  - `mealHaystack`, which keeps a dish's parts apart for the matcher;
+  - tortilla, noodle and cracker allergies keeping what gluten excepts;
+  - imports judged as the import everywhere;
+  - boost and meal-prep notes describing the final week;
+  - the claim guard's confirm-before-act rules;
+  - the scope read the way the schema reads it (`providers/turnShape.ts`).
+  F4's own review found four allergen holes before it shipped, and each is fixed with its row. Against the parent,
+  0 of 1,800 stored-allergy rows block less.
+- **Models lane: what changes in your controls.**
+  - A confirm-before-act question excuses the promise before it only when it asks about the same change, and only
+    when no sentence says the change is done (`CONFIRM`, `OTHER_CHANGE`, `DONE_ALREADY` in `reply.ts`).
+  - A sentence ends inside a closing quote, bracket or bold.
+  - A scope naming no meal (`null`, `""`, `"all"`) reads as the whole day. One it cannot read is refused.
+  - An unlabelled `remember` binds every matcher allergen word.
+  - A food a stored allergy already blocks is named as covered, not stored.
+- **Next: F5** — #14 (every note from the final week), #4 (the undo label), "chick pea". Then D7.
+
 **2026-10-21, night — the second review's follow-ups, one commit at a time.**
 - **F1 landed `4bc9e47` (1081/0):** the loop fixes, cook time met exactly (decision 13, open to overrule), the
   boost keeping the rest of the request, and "zero energy".
@@ -18,8 +39,9 @@
   - imports judged per food avoided.
 - **F3 landed `ef71993` (1101/0):** imports get a diet matcher of their own (going vegan keeps the plant-milk dishes,
   and a meat dish named only in its title still goes).
-- **F4 is being built:** the review's minors that need no schema change, and LC-08. An unlabelled allergy fact
-  now binds any of the matcher's own 182 allergen words; 93 of them (cashews, scallops, crab…) bound nothing.
+- **F4 was built here and landed the next day (above):** the review's minors that need no schema change, and LC-08.
+  An unlabelled allergy fact binds any of the matcher's own 182 allergen words; 93 of them (cashews, scallops,
+  crab…) bound nothing.
 - **Models lane:** F1 and F2 both move your loop and claim controls. Each sha is sent as it lands, with what changed.
   F4 will change three things your controls read: a "Shall I go ahead?" after a promise excuses it, a scope with a
   malformed slot is refused, and what an unlabelled `remember` binds.

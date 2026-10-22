@@ -170,8 +170,8 @@
       the schedule ahead.</p>
     <div class="stamp">
       <b><i>source</i> docs/worklog/</b>
-      <b><i>synced</i> 2026-10-21</b>
-      <b><i>commit</i> ef71993+</b>
+      <b><i>synced</i> 2026-10-22</b>
+      <b><i>commit</i> afa7f89+</b>
     </div>
   </header>
 
@@ -189,10 +189,10 @@
 
   <section id="totals">
     <div class="stats">
-      <div class="stat"><div class="v">6</div><div class="l">days logged</div></div>
+      <div class="stat"><div class="v">7</div><div class="l">days logged</div></div>
       <div class="stat"><div class="v">10</div><div class="l">milestones done</div></div>
       <div class="stat"><div class="v">9</div><div class="l">days to V1</div></div>
-      <div class="stat"><div class="v">10</div><div class="l">open deferrals</div></div>
+      <div class="stat"><div class="v">9</div><div class="l">open deferrals</div></div>
     </div>
   </section>
 
@@ -202,6 +202,56 @@
     <p class="lede">Only days that actually happened, each with its date, appended at the end of every work-day.
       Nothing planned appears here — the schedule ahead is in its own collapsed block below.</p>
     <div class="tl" style="margin-top:20px">
+
+      <article class="entry" id="d-2026-10-22">
+        <div class="box">
+          <div class="ehead">
+            <span class="date">2026-10-22</span>
+            <span class="pill done">solved &middot; done</span>
+          </div>
+          <h3>Every food the allergy checker knows is now screened, and imported recipes are read as written</h3>
+          <p class="sub">The last of the four follow-up commits. Four reviewers tried to break it before it shipped and found
+            four ways an allergen could still reach a plate. All four are fixed in it.</p>
+          <div class="blocks">
+            <div class="blk">
+              <h4>What moved</h4>
+              <ul>
+                <li><b>An allergy to cashews, scallops, crab or hazelnut is screened now</b>, however the assistant files
+                  it. All 182 foods the allergy checker knows count. &ldquo;Spring&rdquo; or &ldquo;cats&rdquo; still screen
+                  nothing.</li>
+                <li><b>&ldquo;Walnuts&rdquo;, when nuts are already in your allergies, is called already covered</b> rather
+                  than saved twice, but only when the allergy you have really blocks everything the new word would.</li>
+                <li><b>An imported recipe is always your recipe</b>, even when it shares a name with one of ours. It is
+                  not resized, pinned or explained as ours. A note about it says what it lists, in your words:
+                  &ldquo;lists coconut milk, which I screen out for your allergy to lactose&rdquo;.</li>
+                <li><b>More iron and a switch to meal-prep in one message</b> no longer leaves &ldquo;about 35 mg of iron a
+                  day&rdquo; over a week of 22 mg. What meal-prep mode cannot do is said once.</li>
+                <li><b>The check against false claims reads a question properly.</b> &ldquo;I&rsquo;ll rebuild your week
+                  around 1,800 kcal. Shall I go ahead?&rdquo; is honest, so it stands. &ldquo;Should I do that for
+                  Wednesday too?&rdquo; no longer excuses a claim about Tuesday.</li>
+              </ul>
+            </div>
+            <div class="blk found">
+              <h4>Found along the way</h4>
+              <ul>
+                <li><b>The first version of &ldquo;already covered&rdquo; was wrong.</b> With gluten in your allergies,
+                  &ldquo;I&rsquo;m allergic to tortillas&rdquo; was called covered, but the gluten check lets corn tortillas
+                  through, so 11 dishes would have stayed. Fixed before it shipped.</li>
+                <li><b>Two older holes, fixed as well.</b> An imported recipe listing &ldquo;cocoa&rdquo; then
+                  &ldquo;butter&rdquo; was read as cocoa butter, so the butter passed a dairy allergy (and &ldquo;rice&rdquo;
+                  then &ldquo;flour&rdquo; passed a wheat one). And a tortilla allergy still served corn tortillas.</li>
+                <li><b>Each fix was measured again against the code before it</b>, and three of the fixes turned out to
+                  block foods nobody named, such as &ldquo;corn&rdquo; taken from &ldquo;corn tortilla&rdquo;. Those were fixed
+                  too. Across 1,800 allergy situations, none is screened less than before.</li>
+                <li><b>One question for you:</b> an allergy typed as just &ldquo;flour&rdquo; still lets chickpea and oat
+                  flour through (5 dishes). It is the new row in decision 9 of
+                  <a href="https://claude.ai/code/artifact/a3290f96-fc25-43a6-932d-9982a46bb70f">your decisions doc</a>.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="gate">GATE &middot; engine 1167/0 &middot; the 45 new tests that check a change all fail on the code before it</div>
+        </div>
+      </article>
 
       <article class="entry" id="d-2026-10-21">
         <div class="box">
@@ -872,11 +922,10 @@
     <h2>Open deferrals</h2>
     <p class="lede">Every deferral names a destination and a reason. “Later” is not a destination.</p>
     <div class="defers" style="margin-top:16px">
-      <div class="defer"><div><b>Twenty smaller findings from the second review</b> &mdash; mostly wording and edge cases. Three are fixed, most of the rest are built and in their tests, two wait for meal logging, and two are recorded.</div><span class="to">next step</span></div>
+      <div class="defer"><div><b>The last smaller findings from the second review</b> &mdash; every note written from the finished week (one can still say &ldquo;nothing with peanuts is planned&rdquo; after an undo put one back), the undo naming a change it refused, and &ldquo;chick pea&rdquo;. The rest shipped on 2026-10-22; two wait for meal logging.</div><span class="to">next step</span></div>
       <div class="defer"><div><b>A re-plan can erase what you logged</b> &mdash; asking for more iron removed a logged meal, a restaurant reservation and an imported recipe, with nothing said. The app cannot yet tell a logged meal from a planned one, so the fix comes with meal logging.</div><span class="to">day 7</span></div>
       <div class="defer"><div><b>The training examples invent calorie figures</b> for a meal eaten out or logged. Fixing it changes what those examples teach, so it is a training-data change of its own.</div><span class="to">with the next training data</span></div>
       <div class="defer"><div><b>Taking an allergy off</b> &mdash; chat has no way to do it, and an undo can drop one without saying so.</div><span class="to">your decision 12</span></div>
-      <div class="defer"><div><b>Allergy words the app does not know</b> &mdash; &ldquo;allergic to hazelnuts&rdquo; stopped nothing unless labelled, and 93 of the 182 foods the allergy checker knows were like that. The fix uses the checker&rsquo;s own list of foods, so &ldquo;spring&rdquo; and &ldquo;cats&rdquo; still block nothing. Built and in its tests.</div><span class="to">next step</span></div>
       <div class="defer"><div><b>The fast finish</b> &mdash; a faster assistant reply, held until the models agent can measure it fairly, which needs your key file.</div><span class="to">when the key exists</span></div>
       <div class="defer"><div><b>An allergy said once and never saved</b> &mdash; only a scan of the person&rsquo;s own words could catch it, and that needs its own false-alarm tests first (&ldquo;my son is allergic to eggs&rdquo;).</div><span class="to">backlog</span></div>
       <div class="defer"><div><b>A real-phone pass on the sheet and the drag</b> — sub-500px is still unverified by the headless tool.</div><span class="to">day 12</span></div>

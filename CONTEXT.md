@@ -340,9 +340,9 @@ Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Ro
 - **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`,
   `docs/worklog/*-models.md`, this block, the lane file. Does not edit v1's files; asks v1 first.
 
-### >>> V1 LANE — 2026-10-21: Track A done; the second review's follow-ups: F1 `4bc9e47`, F2 `7624008`, F3 `ef71993`, F4 being built <<<
+### >>> V1 LANE — 2026-10-22: the second review's follow-ups landed: F1 `4bc9e47`, F2 `7624008`, F3 `ef71993`, F4 `afa7f89` <<<
 
-**2026-10-21, night: the second review's follow-ups, one commit at a time.** The review of `da023da` (workflow
+**2026-10-21 and 22: the second review's follow-ups, one commit at a time.** The review of `da023da` (workflow
 `wf_cf2e22d0-cc3`; four lenses, a skeptic per serious finding; result saved in the session's scratchpad) confirmed 5
 majors, left 6 unverified (the skeptic cap), and listed 20 minors. Each commit is proven against its parent the same way:
 the whole new suite run against the parent's code, every row that tests a change failing there.
@@ -365,36 +365,38 @@ the whole new suite run against the parent's code, every row that tests a change
   Steaks", a regression from `da023da`'s C. The new matcher agrees with the library's own tags exactly: none of 133
   vegan or 301 vegetarian dishes flagged, none of 362 non-vegan or 197 non-vegetarian passed. On the review's probe it
   keeps all six plant-based imports the parent removes.
-- **F4, built in `../NutriFlow-followups` on `ef71993` (uncommitted; 31 new rows, 24 of them fail on the parent and
-  the 7 guards pass on both, run alone; the full parent proof waits for the accounts lane's gate):** the minors that
-  need no schema change, and LC-08.
-  - A confirm-before-act question ("I'll rebuild your week. Shall I go ahead?") excuses the promise before it
-    (models lane; 0 of 1,045 stored verdicts change). A malformed slot scope is refused rather than read as whole
-    days (#11). The same fact under another label takes no undo slot (#16). A denial beside an undo that took the
-    allergy off no longer says "haven't changed" (#15). A refused dish is named only when every asked word is in its
-    NAME (#17). "allergic to walnut" binds like "walnuts" (#20). A boost in meal-prep mode says it was not applied
-    (#13).
-  - Imports: one titled like a library dish is never treated as it (#6; `baseRecipeOf` is undefined for a meal with
-    a source URL, which also keeps the rebalance from rebuilding it). The allergy note says what the matcher
-    flagged ("lists coconut milk, which I screen out for your allergy to lactose", not "contains lactose"), naming
-    each allergy once as stored (#7). An undo in the same call clears the import notes (#8). A slot the request
-    removed is not "nothing else fits" (#9). A re-theme names a rule-breaking import it dropped (#10; a boost
-    already did, since F1).
-  - #12 (leaving meal-prep with a boost keeps nothing of the batch week) did not reproduce on `ef71993`; its
-    change is under test.
-  - **LC-08, fixed by a vocabulary:** an unlabelled allergy fact binds any of the matcher's own 182 allergen words.
-    93 of them bound nothing (cashews, scallops, crab, hazelnuts, sardines…). 0 of the 126 stored `remember` facts
-    bind differently. On 64 over-block probes the only new over-blocks are a food word before a non-food ("crab
-    grass", as "rye grass" already did on main) and allowance clauses (OVER-3's open class); "spring", "skin" and
-    pet, drug and seasonal allergies still bind nothing.
-  - **The covered rule:** a food a stored allergy already blocks entirely ("walnuts" under "nuts"), labelled or not,
-    is named as covered and not stored again (LC-16, from the same foods to fewer). 788 covered pairs over the
-    library and every allergen word as a dish of its own: 0 block less. The undo's "took X off" uses the same
-    test (#19), through one shared `exclusionCovers` in the matcher (a module-map change, in the same commit).
-  - **Found while building it:** a nutrient boost removes a logged meal, an eating-out reservation and an import
-    with nothing said (9 of 9 runs on `ef71993`: three seeds, iron, B12 and calcium). See "Open, recorded".
-- **Open of the minors after F4:** #4 the undo label can name a refused write; #14 allergy notes rechecked at the
-  end of a run; #5/#18 wait for D7's logged mark.
+- **F4, landed `afa7f89` (test:engine 1167/0; of 66 new rows, the 45 that test a change fail on the parent and the 21
+  guards pass on both):** the review's minors that need no schema change, LC-08, and the fixes from F4's own
+  adversarial review (workflow `wf_cbcccd36-161`, four lenses, a skeptic per serious finding).
+  - **LC-08:** an unlabelled allergy fact binds any of the matcher's 182 allergen words; 93 bound nothing (cashews,
+    scallops, crab, hazelnut…). A whole token is judged by `namesFood`; splitting a phrase keeps the narrower `isFood`.
+    Against the parent: 0 of 126 stored `remember` facts bind differently, and under three stored allergies 1,800
+    rows: 237 block more, 124 change only the note, 0 block less.
+  - **The covered rule** (LC-16 widened): a food a stored allergy already blocks entirely is named as covered and not
+    stored, judged by `exclusionCovers` in the matcher, exception phrases included. The undo's "took X off" uses it (#19).
+  - **The matcher:** a tortilla, noodle or cracker allergy keeps blocking what the gluten words except (corn
+    tortillas, rice and glass noodles). `mealHaystack` keeps a dish's parts apart, so "cocoa" then "butter" is no
+    longer cocoa butter (I2, pre-existing since C). Flour is decision 9's new row.
+  - **Imports** are the import everywhere (#6: `baseRecipeOf`, pin, explain, resize, the eating-out floor). The note
+    names what the matcher flagged, per allergy, in the person's words (#7). An undo clears import notes (#8). A
+    removed slot is not "nothing fits" (#9). A re-theme or a switch to meal-prep names the imports it dropped (#10).
+  - **Boosts:** the iron figure is read off the final week, and what meal-prep cannot apply is said once, judged on
+    the mode the call ends in (#13). An unset mode is fresh. #12 never reproduced (0 of 540 switches).
+  - **The assistant:** confirm-before-act excuses a promise only for the same change and with no "done" elsewhere
+    (1,801 stored replies: 2 verdicts move, both intended). Sentences end inside quotes and bold. "Your allergies
+    haven't changed" is taken back when the reply moved them, in one call and across loop steps (#15, live path).
+    A scope that names no meal reads as the whole day; one it cannot read is refused (#11; `providers/turnShape.ts`).
+  - **What the review caught in F4 itself, before it shipped:** the covered rule ignored exceptions ("tortillas"
+    under "gluten"), "glass noodle" stored "noodle", and the strict scope refused `{slot: null}`. Re-measuring
+    then caught three of the fixes' own over-blocks ("corn" from a kept compound, a labelled sentence, "tree nut" as
+    "nuts"). Lesson 72.
+  - **A flaky row from F1, fixed in F4:** the first gate failed on "loop undo: [swap Mon], then [undo, swap Tue]",
+    whose fixture ran out of dishes in 5 of 60 unseeded weeks (on main too). Its pool has five names now, and 0 of 200
+    weeks fail. Lesson 73.
+- **Open of the minors after F4:** #4 the undo label can name a refused write; #14 notes rendered from the final
+  week for every note, not only allergies; #5/#18 wait for D7's logged mark. Recorded from F4's review: a schema
+  failure reported as "offline"; rating an import titled like a library dish; "chick pea"; a re-theme dropping
+  imports that break no rule without naming them (with D7's records).
 
 **2026-10-21, evening: Track A is done.** `5b6d874` deleted the 28 D5a shims once nothing imported them
 (test:engine 1061/0, the same count). `check:boundaries` lost their layer entries with them, so a re-export put back
@@ -468,28 +470,31 @@ the prompts.
   `scripts/test-ship.mjs` holds 43 scenarios (v1 fails 34), and CI runs it. **Every lane: `docs/parallel/README.md` §3.**
 
 **Worktrees of this lane:**
-- `../NutriFlow-followups` (branch `followups`): F4, uncommitted (`primitives.ts`, `reply.ts`, `execute.ts`, `ai.ts`).
+- `../NutriFlow-followups` (branch `followups`): F4 landed from it. It stays, read-only, while F5's mapping workflow
+  (`wf_65b5adc7-a11`) reads F4's code there, and is removed when that finishes. `../NutriFlow-f2` is removed.
 Remove a worktree when its batch lands, taking the node_modules junction out first. In Git Bash, spell the path out:
 `cmd //c "rmdir C:\\…\\<wt>\\node_modules"`. A `$wt` inside that string is passed literally and removes nothing.
 
 **Next, in order:**
-1. **F4:** settle #12, then the full parent proof and the gate, after the accounts lane's gate. If the
-   worktree is lost, the LC-08 design is above: the matcher's own allergen words count as food in `isFood`, the
-   unlabelled gate also reads a whole phrase ("sea bass"), and `exclusionCovers` in `nutrition/exclusions.ts` (a
-   token's whole expansion blocked by the stored allergies) reports covered. Keeping two-word matcher foods
-   whole in `knownPhrase` was tried and reverted: "tikka masala" then stored neither "tikka" nor "masala", and
-   blocked 13 dishes fewer than main.
+1. **F5, the rest of the follow-ups:** #14 (every note rendered from the run's final week and profile, not each
+   step's: a denial step then an undo step leaves "still include peanuts, so nothing with them is planned" over a
+   week with peanut dishes), #4 (the undo label naming a refused write), and the matcher's "chick pea". Each proven
+   against its parent, and re-measured on the stored-allergy comparison after every fix (lesson 72). **Being mapped
+   (2026-10-22, workflow `wf_65b5adc7-a11`):** an inventory of every note writer, stale notes within one call and
+   across loop steps, three designs for #14 and a judge, the undo label, a whole-vocabulary sweep of spelling
+   variants, and what the person is told when the model fails. The last one matters more now that the owner wants
+   Nemotron to run the assistant. The F4 review found a schema failure reported as "offline".
+   **Not now (owner, 2026-10-22):** splitting the v1 lane. A screens lane fits better than a library lane, but only
+   while the usage limit has headroom (decision 10).
 2. **The deferred:**
    - the review's minors left after F4 (above);
    - the training generator teaches invented calorie figures for reserves and logs;
-   - `data/hard-cases.json` **has its held-outs (2026-10-21):** the probe found 9 of its cases quoted by the
-     prompt that day, and each now has a paraphrase beside it (`heldOutOf`, same bucket and expected behaviour,
-     54 cases). None of the 9 is itself a near-quote. The probe still exits 9 until it reads `heldOutOf` from
-     this file, a one-line change to the models lane's `probe-quotes.mjs` that lane was asked for.
+   - `data/hard-cases.json` **has its held-outs** (`4575524`): each of the 9 cases the prompt quotes has a paraphrase
+     beside it (`heldOutOf`, same bucket and expected behaviour, 54 cases), and the models lane's probe counts them
+     (`97e0f11`): `probe-quotes.mjs --hard-cases` exits 0.
 3. V1 Day 6's rest, then D7 meal logging (which now includes keeping records through every re-plan).
 
 **Open, recorded:**
-- **LC-08** is fixed in F4 (above), not yet landed.
 - **A re-plan drops the person's records with nothing said** (found 2026-10-21 while building F4). On `ef71993`, a
   nutrient boost removed a logged meal ("Logged by you."), an eating-out reservation and an import in 9 of 9 runs
   (seeds 1–3; iron, B12, calcium). Two routes: `upgradeForNutrient` reads a meal with no recipe behind it as 0 of
@@ -511,8 +516,10 @@ Remove a worktree when its batch lands, taking the node_modules junction out fir
   matcher in the browser bundle, which is a module-map change.
 - The adversarial attack on `ship.mjs` v2 died on the usage limit, so v2 rests on its own 43 scenarios.
 
-**Owner:** the decisions doc. `.env.local` with `NVIDIA_API_KEY` (the first line of decision 2) unblocks the
-models lane.
+**Owner:** the decisions doc. The first line of decision 2 is done: `.env.local` holds `NVIDIA_API_KEY` (2026-10-22),
+and the models lane's five fair arms are running on it (`bb9021f`). The fast finish (`de1a102`) is decided on their
+numbers. The owner wants Nemotron-3-Ultra 550B to run the assistant ("i like nemotron, id be happy if we could make it
+work", `7634ddb`), so the models lane is making that one fast and correct enough, with other models as fallbacks.
 
 
 **D5a — DONE** (`c50d58d` the move, `cc38524` two contracts to `core/`, `1dff171` the barrels; test:engine 924/0).
