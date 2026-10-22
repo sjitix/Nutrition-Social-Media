@@ -246,6 +246,9 @@ The do-nothing and hollow-claim fakes score 0 on both evals.
   - `7624008` (claims judged sentence by sentence; an undo keeps what the run remembered): nothing flipped. The two
     "I'll do both. Shall I go ahead?" controls are now caught by the guard rather than by the clash test.
   - `ef71993` (imports' own diet matcher): nothing flipped, and no failure reason changed.
+- **The owner's preference (2026-10-22): make Nemotron-3-Ultra 550B work** ("i like nemotron, id be happy if we
+  could make it work"). The goal is now making that model fast and correct enough, through its settings, the
+  prompt's wording and fewer calls per message. Other models are fallbacks.
 - **The key is in (2026-10-22): the owner's `.env.local` holds `NVIDIA_API_KEY`.** A smoke call to the 550B
   worked. **In flight since ~13:01: the five fair arms** (A B C convoA convoC on `affd3d7`, one at a time). Then
   the wording test (block below). If no fair-arms manifest for 2026-10-22 is committed, nothing of it landed.

@@ -19,6 +19,8 @@ lists the eval messages it quotes: 8 of 55 on main, all held out, so it exits 0.
 - On `4bc9e47` (v1's follow-ups: undo as its own step, stated cook times met, "zero energy" as tiredness): 633/633
   hold and the probes pass. Nothing flipped. find-then-place's day-constrain controls now fail as re-plans, not
   as over-limit dishes. Next: v1's claim-guard batch (a "?" had excused every claim).
+- **The owner's preference (2026-10-22): make Nemotron-3-Ultra 550B work.** The goal is now making that model
+  fast and correct enough, not choosing one; other models are fallbacks (`docs/models/README.md`, decisions).
 - **The key is in (2026-10-22, the owner's `.env.local`, `NVIDIA_API_KEY`).** A smoke call worked (9.1 s, one
   message, no infra errors). **In flight since ~13:01: the five fair arms** (`node scripts/models/fair-arms.mjs`,
   A B C convoA convoC on `affd3d7`, one at a time, 60 s apart; scorecards to `data/eval-runs/`). If this session

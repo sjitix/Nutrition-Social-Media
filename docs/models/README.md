@@ -60,6 +60,13 @@ message (8 at worst), so **per-call latency × steps** is the number a user feel
 
 ## Decisions on record
 
+- **2026-10-22 — the owner's preference: make Nemotron-3-Ultra 550B work.** In the owner's words, "i like
+  nemotron, id be happy if we could make it work". So the lane's main line is no longer choosing a model. It is
+  making `nvidia/nemotron-3-ultra-550b-a55b` fast and correct enough to run the assistant, through:
+  - its settings (the fair arms: reasoning on or off, the fast finish);
+  - the prompt's wording for its known misses (the wording test);
+  - fewer model calls per message.
+  Other models (OWNER-TODO keys) are fallbacks to measure against, not the plan.
 - **2026-10-03 — the owner's direction: a BIG hosted model first.** Find the biggest free model with an
   optimal response time (100B+); stop investing in training or tuning 20–30B models. 20B models are run
   only as a regression check for the model production serves today.
