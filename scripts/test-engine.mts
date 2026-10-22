@@ -12,6 +12,8 @@
  * (diet, allergies, exclusions, cook time) are rules, not suggestions — a violation
  * is a bug, and this file is where we find it before a user does.
  */
+// FIRST, before any engine module captures Math.random: a pass-through a test can seed (see the module).
+import { reseed } from "./seeded-random";
 import { selectWeekFromDb, rebalanceWeek, applyOperations, RECIPES, recipeMicros, newReport, reportNotes, selectConditionAwareWeek, buildWeek, selectBatchWeek, rebalanceBatchWeek, withSeed, keepDays, freezesWell, previewOperations, swapCandidates } from "@/lib/recipeDb";
 import { conditionBoosts } from "@/lib/data/conditions";
 import type { UserProfile, Operation, DayPlan, WeekPlan, Meal } from "@/lib/core/types";
@@ -5881,6 +5883,136 @@ if (violations.size === 0) {
     check("memory: composeReply uses the 'noted' line only when a memory was saved",
       composeReply({ modelReply: CLAIM, notes: [], planChanged: false, profileChanged: false, memorySaved: true }) === NOTED_NOTHING_CHANGED_REPLY &&
       composeReply({ modelReply: CLAIM, notes: [], planChanged: false, profileChanged: false }) === NOTHING_CHANGED_REPLY);
+  }
+
+  // FAST FINISH (the models lane's change 2, with v1's reply rule; landed 2026-10-22 on its fair numbers,
+  // cd2244b). The finishing call is answered by the loop when it could not change what the person reads:
+  // the step changed something, the engine wrote notes (which ARE the reply), the turn made no lookups and
+  // carried a reply of its own. Answered with an empty turn, exactly as the eval wrapper measured it.
+  {
+    const veg = { op: "constrain", diet: "vegetarian" } as unknown as PrimitiveOp;
+    const notesReply = (r: { notes: string[] }) => [...new Set(r.notes.map((n) => n.trim()).filter(Boolean))].join(" ");
+    {
+      const p = scripted([turn("Making your week vegetarian.", [veg]), turn("THE FINISHING CALL WAS MADE")]);
+      const r = await runAgent({ ...base, model: p.fn, fastFinish: true });
+      check("fast finish: a write that changed the plan, with a reply, makes ONE model call",
+        p.calls() === 1 && r.fastFinished === true && r.steps === 2, `steps ${r.steps}, calls ${p.calls()}`);
+      check("fast finish: ...the reply is the engine's notes, as the finishing call would have left it",
+        r.planChanged && r.notes.length > 0 && r.reply === notesReply(r), r.reply.slice(0, 80));
+      check("fast finish: ...and it is a finish, not a give-up", !r.gaveUp && !r.modelFailed);
+    }
+    {
+      const p = scripted([turn("Making your week vegetarian.", [veg]), turn("Your week is vegetarian.")]);
+      const r = await runAgent({ ...base, model: p.fn });
+      check("fast finish: off unless asked, so an eval comparing runs with and without it gets it only by asking",
+        p.calls() === 2 && !r.fastFinished, `${p.calls()} calls`);
+    }
+    {
+      const p = scripted([turn("", [veg]), turn("Your week is vegetarian.")]);
+      const r = await runAgent({ ...base, model: p.fn, fastFinish: true });
+      check("fast finish: an EMPTY reply beside the write (the model may be mid-plan) still gets its finishing call",
+        p.calls() === 2 && !r.fastFinished && r.planChanged, `${p.calls()} calls`);
+    }
+    {
+      const nothing = { op: "swap", dish: "Zzq Imaginary Dish That Does Not Exist", slot: "dinner", days: ["Monday"] } as unknown as PrimitiveOp;
+      const p = scripted([turn("Swapping that in.", [nothing]), turn("I couldn't find that dish. Want something close?")]);
+      const r = await runAgent({ ...base, model: p.fn, fastFinish: true });
+      check("fast finish: a refusal (nothing changed) goes back to the model, which can answer it",
+        r.planChanged === false && p.calls() === 2 && !r.fastFinished, `planChanged ${r.planChanged}, ${p.calls()} calls`);
+    }
+    {
+      const look = { op: "find_recipes", diet: "vegetarian", limit: 3 } as unknown as PrimitiveOp;
+      const p = scripted([turn("Here you go.", [look, veg]), turn("Your week is vegetarian.")]);
+      const r = await runAgent({ ...base, model: p.fn, fastFinish: true });
+      check("fast finish: a step with a lookup keeps its finishing call (the model has results to read)",
+        p.calls() === 2 && !r.fastFinished, `${p.calls()} calls`);
+    }
+    {
+      const p = scripted([turn("Done. I've made your week vegetarian."), turn("Nothing has changed yet.")]);
+      const r = await runAgent({ ...base, model: p.fn, fastFinish: true });
+      check("fast finish: the nudge after a false claim is not a change, so the model still answers it",
+        r.falseClaimRetried && p.calls() === 2 && !r.fastFinished, `${p.calls()} calls`);
+    }
+    {
+      const pin = { op: "pin", day: "Sunday", slot: "dinner" } as unknown as PrimitiveOp;
+      const p = scripted([turn("", [pin]), turn("Making your week vegetarian.", [veg]), turn("THE FINISHING CALL WAS MADE")]);
+      const r = await runAgent({ ...base, model: p.fn, fastFinish: true });
+      check("fast finish: judged on the newest step: a mid-plan write goes on, the next write with a reply finishes",
+        p.calls() === 2 && r.fastFinished === true && r.steps === 3, `steps ${r.steps}, calls ${p.calls()}`);
+    }
+    {
+      const p = scripted([turn("Making your week vegetarian.", [veg])]);
+      const r = await runAgent({ ...base, model: p.fn, fastFinish: true, maxSteps: 1 });
+      check("fast finish: a write on the last allowed step still reports the step cap, as when it was measured",
+        r.gaveUp && p.calls() === 1 && !r.fastFinished, `gaveUp ${r.gaveUp}, ${p.calls()} calls`);
+    }
+    {
+      // A reply that is not text is no reply. It was read outside the model call's try, so it threw (review,
+      // 2026-10-22); the measured wrapper had turned the same TypeError into a model failure.
+      const p = scripted([turn(42 as unknown as string, [{ op: "pin", day: "Sunday", slot: "dinner" } as unknown as PrimitiveOp]), turn("")]);
+      let threw = "";
+      let r: Awaited<ReturnType<typeof runAgent>> | undefined;
+      try { r = await runAgent({ ...base, model: p.fn, fastFinish: true }); } catch (e) { threw = String(e); }
+      check("fast finish: a reply that is not text, beside a write, is no reply: no skip, and the run never throws",
+        !threw && p.calls() === 2 && r !== undefined && !r.fastFinished, threw || `${p.calls()} calls`);
+    }
+    {
+      // The skip must leave exactly what an empty finishing turn leaves, on every path a write can take. The
+      // engine's tie-break is random, so each run is seeded across its awaits (scripts/seeded-random.ts) and the
+      // run without the skip is made twice, to prove the seeding holds.
+      const prior = { plan: withSeed(5, () => freshWeek(BASE)), profile: BASE, label: "rebuilt your week" };
+      const op = (o: object) => o as unknown as PrimitiveOp;
+      const undo = op({ op: "undo" });
+      const cases: { name: string; turns: AgentTurn[]; previous?: typeof prior; maxSteps?: number }[] = [
+        { name: "rate", turns: [turn("Noted, you loved it.", [op({ op: "rate", rating: 5, day: "Monday", slot: "breakfast" })])] },
+        { name: "pin", turns: [turn("Pinned.", [op({ op: "pin", day: "Sunday", slot: "dinner" })])] },
+        { name: "hydration", turns: [turn("About 2.8 litres a day.", [op({ op: "hydration", weightKg: 80 })])] },
+        { name: "resize", turns: [turn("Making Monday bigger.", [op({ op: "resize", direction: "bigger", day: "Monday" })])] },
+        { name: "undo", turns: [turn("Putting it back.", [undo])], previous: prior },
+        { name: "context", turns: [turn("Noted.", [op({ op: "remember", fact: "cooks for a partner", kind: "context" })])] },
+        { name: "preference", turns: [turn("Noted.", [op({ op: "remember", fact: "likes spicy food", kind: "preference" })])] },
+        { name: "pin, then rate", turns: [turn("", [op({ op: "pin", day: "Sunday", slot: "dinner" })]),
+          turn("Pinned and rated.", [op({ op: "rate", rating: 4, day: "Monday", slot: "dinner" })])] },
+        { name: "vegetarian", turns: [turn("Making your week vegetarian.", [veg])] },
+        { name: "low budget", turns: [turn("Cheaper week coming up.", [op({ op: "constrain", budget: "low", preserveMacros: false })])] },
+        { name: "Tuesday vegetarian", turns: [turn("Tuesday goes vegetarian.", [op({ op: "constrain", scope: { days: ["Tuesday"] }, diet: "vegetarian" })])] },
+        { name: "named swap", turns: [turn("Swapped.", [op({ op: "swap", dish: "Turkey & Bean Chilli", slot: "dinner", days: ["Monday"] })])] },
+        { name: "swap substituted", turns: [turn("Swapped.", [op({ op: "swap", dish: "unicorn stew", slot: "breakfast", days: ["Monday"] })])] },
+        { name: "undo and swap in one turn", turns: [turn("Done.", [undo, op({ op: "swap", dish: "Turkey & Bean Chilli", slot: "dinner", days: ["Tuesday"] })])], previous: prior },
+        { name: "swap, then an undo of it", turns: [turn("", [op({ op: "swap", dish: "Turkey & Bean Chilli", slot: "dinner", days: ["Monday"] })]),
+          turn("Put back.", [undo])], previous: prior },
+        { name: "allergy that re-solves", turns: [turn("No eggs from now on.", [op({ op: "remember", fact: "I'm allergic to eggs", kind: "allergy" })])] },
+        { name: "write on the step cap", turns: [turn("", [op({ op: "pin", day: "Sunday", slot: "dinner" })]),
+          turn("Done.", [op({ op: "rate", rating: 4, day: "Monday", slot: "dinner" })])], maxSteps: 2 },
+      ];
+      const view = (r: Awaited<ReturnType<typeof runAgent>>) => JSON.stringify({
+        reply: r.reply, plan: r.plan, profile: r.profile, planChanged: r.planChanged, profileChanged: r.profileChanged,
+        previous: r.previous, notes: r.notes, steps: r.steps, gaveUp: r.gaveUp, modelFailed: r.modelFailed,
+        falseClaimRetried: r.falseClaimRetried, falseClaimCaught: r.falseClaimCaught,
+      });
+      const run = (c: (typeof cases)[number], seed: number, fastFinish: boolean) => {
+        reseed(seed);
+        return runAgent({ ...base, previous: c.previous, maxSteps: c.maxSteps, model: scripted([...c.turns, turn("")]).fn, fastFinish });
+      };
+      const unstable: string[] = [];
+      const differ: string[] = [];
+      const skips: string[] = [];
+      try {
+        for (const [i, c] of cases.entries()) {
+          const a1 = await run(c, 7000 + i, false);
+          const a2 = await run(c, 7000 + i, false);
+          const b = await run(c, 7000 + i, true);
+          if (view(a1) !== view(a2)) unstable.push(c.name);
+          else if (view(a1) !== view(b)) differ.push(c.name);
+          if (b.fastFinished) skips.push(c.name);
+        }
+      } finally {
+        reseed(null);
+      }
+      check(`fast finish: over ${cases.length} writes (re-plans, swaps, undos, an allergy, the step cap), a skipped finishing call leaves exactly what an empty one would (reply, week, profile, notes, undo slot, steps), and it skips in 12 or more`,
+        unstable.length === 0 && differ.length === 0 && skips.length >= 12,
+        `skipped ${skips.length} [${skips.join(", ")}]; differ [${differ.join(", ")}]; not reproducible [${unstable.join(", ")}]`);
+    }
   }
 
   // The models lane's gaps from the 550B reasoning-off run (2026-10-03): passive claims slipped past

@@ -154,7 +154,11 @@ nothing (measured: without it, 3–7 kB per route) — a module that must run on
   `MAX_STEPS = 8` is a cap, not a target, and hitting it is reported rather than hidden. **The
   model is injected as a `ModelFn`**, which is what lets the whole loop be tested with a scripted
   provider and no model at all. Writes still go through `applyPrimitives` — the loop does no
-  arithmetic and cannot claim a change the engine did not make.
+  arithmetic and cannot claim a change the engine did not make. **The fast finish** (`fastFinish`, off
+  by default; the route turns it on with `AI_FAST_FINISH=1`): when a write changed something and the
+  engine's notes are the reply, the loop answers the finishing call itself rather than paying for a model
+  call whose words `composeReply` would discard. It also cuts any write the model would have sent next,
+  so it is safe only for a model measured to finish in one write turn (Nemotron-3-Ultra 550B, reasoning off).
 - `src/lib/types.ts` — zod schemas (WeekPlan, Meal, AssistantResponse) = the data contract.
 - `src/lib/persistence/storage.ts` — **the only place that knows a localStorage key name.** Every persisted
   thing (profile, plan, batchPlan, chat, imports, saved, grocery check-offs, visits) is a store in
@@ -208,7 +212,8 @@ nothing (measured: without it, 3–7 kB per route) — a module that must run on
   `LOCAL_AI_MODEL`, `LOCAL_AI_API_KEY`, `LOCAL_AI_EXTRA_BODY` (a JSON object merged into the chat request
   body, e.g. `{"chat_template_kwargs":{"enable_thinking":false}}` to turn reasoning off on the 550B),
   `PLAN_ENGINE`. (An earlier version of this file documented
-  `LOCAL_AI_CONCURRENCY`; nothing reads it.)
+  `LOCAL_AI_CONCURRENCY`; nothing reads it.) The assistant route also reads `AI_FAST_FINISH` (`1` turns on
+  the fast finish; set it only for a model it was measured on).
 - `src/lib/import.ts` — deterministic recipe import from a URL via schema.org JSON-LD, SSRF-guarded.
   Never guesses macros: no nutrition block means zero plus an honest UI note.
 - `src/lib/videoImport.ts` — caption extraction for TikTok/IG/YouTube. The model reads it for

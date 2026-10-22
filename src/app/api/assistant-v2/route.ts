@@ -121,12 +121,19 @@ export async function POST(request: Request) {
       today,
       previous: body.previous,
       model: agentModelFn({ today }),
+      // The finishing call is skipped when the engine's notes are the reply (agentLoop.ts, fastFinishable),
+      // but only where it was measured: AI_FAST_FINISH=1 is for Nemotron-3-Ultra 550B with reasoning off
+      // (1.2 model calls a message against 1.8). A model that splits its writes across steps would have the
+      // later ones cut, so it stays off for any model nobody has measured it on.
+      fastFinish: process.env.AI_FAST_FINISH === "1",
     });
 
     await logRun({
       message,
       steps: result.steps,
       gaveUp: result.gaveUp,
+      // Its last assistant turn was written by the loop, not a model: training data must not learn from it.
+      fastFinished: result.fastFinished,
       transcript: result.transcript,
       planChanged: result.planChanged,
     });

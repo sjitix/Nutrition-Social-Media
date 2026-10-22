@@ -122,9 +122,52 @@ export interface AgentRunResult {
   falseClaimRetried: boolean;
   /** …and still claimed it, so the reply was replaced with an honest one (reply.ts NOTHING_CHANGED_REPLY). */
   falseClaimCaught: boolean;
+  /** The finishing call was not made: the loop answered it itself (see `fastFinishable`). */
+  fastFinished: boolean;
 }
 
 const isRead = (o: PrimitiveOp): boolean => isReadTool(String((o as { op?: string }).op ?? ""));
+
+/**
+ * FAST FINISH: the model call that only "finishes" is skipped. After a write the loop calls the model
+ * once more so it can say it is done, but when the engine wrote notes, `composeReply` returns those notes
+ * and discards whatever that call says. On "make Tuesday vegetarian" it cost a full model call for
+ * nothing the person reads. Skipped when the step that just ran changed something and the engine wrote
+ * notes, its turn made no lookups, and that turn carried a reply of its own. A refusal (nothing changed),
+ * a lookup, a nudge and an empty reply still go back to the model.
+ *
+ * This is the rule the models lane measured with its eval wrapper (`scripts/models/fast-finish.ts`, mode
+ * "reply"), moved into the loop unchanged and answered the same way: a turn with no operations and no
+ * reply, so every rule after it runs exactly as it did when measured.
+ *
+ * What makes it safe is the MODEL, not the reply rule. The skip also cuts any write the model would have
+ * sent next: a scripted run that adds a snack in one step and remembers a peanut allergy in the next
+ * keeps the peanut dishes. Nemotron-3-Ultra 550B with reasoning off finishes in one write turn: of the 24
+ * messages the skip ended early in its fair run (`cd2244b`), the same messages in the run without it sent
+ * nothing more after the write (0 of 23; one failed at its first step), and across every recorded 550B run
+ * with the skip off, 0 of 275 write messages sent anything new after a write (3 at most, if the ambiguous
+ * ones count). The reply rule, meant to spare a model planning across steps, withheld 1 skip in 84, because
+ * the 550B writes a reply beside nearly every write. gpt-oss-20b did send more after a write, in 7 of
+ * 49 messages. So the route turns it on only where it was measured (AI_FAST_FINISH).
+ */
+function fastFinishable(t: TranscriptEntry[]): boolean {
+  const last = t[t.length - 1];
+  if (!last || last.role !== "tool" || last.name !== "apply") return false;
+  const r = last.result as { notes?: string[]; planChanged?: boolean; profileChanged?: boolean };
+  if (!(r.planChanged || r.profileChanged) || !r.notes?.length) return false;
+  for (let i = t.length - 1; i >= 0; i--) {
+    const e = t[i];
+    if (e.role !== "assistant") continue;
+    // Read the way the loop reads it: a reply that is not text is no reply (and must not throw here, outside
+    // the model call's try, where the wrapper's own TypeError used to count as a model failure).
+    const said = e.turn.reply;
+    return !e.turn.operations.some(isRead) && typeof said === "string" && said.trim() !== "";
+  }
+  return false;
+}
+/** What the loop answers a skipped finishing call with: done, nothing to add. A new one each time, so no
+ *  two transcripts share its operations array. */
+const finishTurn = (): AgentTurn => ({ thinking: "(fast finish: no model call; the engine's notes are the reply)", reply: "", operations: [] });
 const opName = (o: PrimitiveOp) => String((o as { op?: string }).op ?? (o as { tool?: string }).tool ?? "");
 const isUndo = (o: PrimitiveOp) => opName(o) === "undo";
 const isRemember = (o: PrimitiveOp) => opName(o) === "remember";
@@ -171,6 +214,10 @@ export async function runAgent(args: {
   previous?: PlanSnapshot;
   model: ModelFn;
   maxSteps?: number;
+  /** Skip the finishing call when the engine's notes are the reply (`fastFinishable`). Off unless asked:
+   *  the route asks only for a model it was measured on, and an eval gets it only by asking (or through
+   *  the models lane's wrapper; not both, or the wrapper's counts are wrong). */
+  fastFinish?: boolean;
 }): Promise<AgentRunResult> {
   const maxSteps = args.maxSteps ?? MAX_STEPS;
   const transcript: TranscriptEntry[] = [
@@ -215,6 +262,7 @@ export async function runAgent(args: {
   let gaveUp = false;
   let modelFailed = false;
   let falseClaimRetried = false;
+  let fastFinished = false;
   // What can back a claim the model makes in its own words: a plan change, the engine's notes, a crisis
   // override, or a real edit to the profile. A memory saved cannot — see FALSE_CLAIM_NUDGE_MEMORY.
   const profileEdited = () => editedApartFromMemory(args.profile, profile);
@@ -224,12 +272,17 @@ export async function runAgent(args: {
     steps++;
 
     let turn: AgentTurn;
-    try {
-      turn = await args.model(transcript, steps, { profile, plan });
-    } catch {
-      // The model itself failed. Stop honestly rather than pretending a turn happened.
-      modelFailed = true;
-      break;
+    if (args.fastFinish && fastFinishable(transcript)) {
+      turn = finishTurn();
+      fastFinished = true;
+    } else {
+      try {
+        turn = await args.model(transcript, steps, { profile, plan });
+      } catch {
+        // The model itself failed. Stop honestly rather than pretending a turn happened.
+        modelFailed = true;
+        break;
+      }
     }
 
     // A model that emits nothing usable is treated as a plain reply rather than an error: the
@@ -394,5 +447,6 @@ export async function runAgent(args: {
     notes,
     falseClaimRetried,
     falseClaimCaught: reply !== said.trim() && notes.length === 0 && replyOverride === undefined && claimsChange(said),
+    fastFinished,
   };
 }
