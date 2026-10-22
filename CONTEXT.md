@@ -215,7 +215,45 @@ in the main folder (`2fd6f02`). Its WORKPLAN lesson was renumbered 38 → 48 bec
 
 #### PARALLEL LANE — models (written by the models agent only)
 
-**2026-10-21 (evening) — RESUME HERE. The held-outs and their checks were reviewed adversarially and fixed;
+**2026-10-22 (evening) — RESUME HERE. Nemotron-3-Ultra 550B is the model (the owner's choice). Its setting is
+reasoning off plus the fast finish, which v1 landed as `b2b4285` (`AI_FAST_FINISH=1`). 633 controls hold on
+`b2b4285`** (2 engine seeds, every must-fail control for the same reason as on `afa7f89`).
+- **The evals run the app's own fast finish (`0327c45`):** `AI_FAST_FINISH=1` reaches `runAgent` from both evals, as arms
+  N and convoN in `fair-arms.mjs`. Quote the app's speed from those arms. On every control, the native skip and
+  the eval's wrapper give byte-identical rows (verdict, reason, reply, writes, steps, model calls; 453 finishing
+  calls skipped by each), and no control changes verdict between the skip off and on. The evals refuse both
+  switches at once.
+- **Sleep can no longer spoil a timed run.** A message the machine slept through is left out of the seconds,
+  and named. fair-arms holds a Windows machine awake for the whole run, and the lock exits by itself when the
+  run ends. **The battery is the other limit:** 34% to 22% in 25 minutes of control runs, so a timed run waits
+  for the charger.
+- **NVIDIA's free endpoint is for testing only:** its API Trial Terms of Service allow internal testing and
+  evaluation, not production (1.2, 1.4), and forbid health or personal information (4.3). Launch needs a paid host
+  of the same model (OpenRouter: DeepInfra, BaseTen or Venice, at FP4 or FP8), re-measured there; OWNER-TODO item 1
+  asks for an OpenRouter key with about $10. Decision 2 (doc rev 31) has the question; v1 updated its files (`dc1433c`).
+- **The diagnosis of every Nemotron failure is done:** `docs/models/nemotron-diagnosis.md` (the data in
+  `nemotron-diagnosis-2026-10-22.json`). 42 failures in 196 rows of arm C, nine causes, none needing another
+  model.
+  - Three safety habits need code, and v1 took them, in this order: F5a-1 (typed model failures), F6 (an
+    `{op:"crisis"}`, on a branch this lane measures with `--code` first), the history allergy (its design to
+    this lane first; decision 12(b) covers "my daughter is allergic"), then numbers only from the user's words.
+  - The rest are prompt lines for this lane, plus harness corrections that come first.
+  - The owner's eight questions: 2, 7 and 8 go under decision 2 (this lane), after v1 says it is out of the
+    doc; v1 files 1 under decision 8 and 3-6 as a new decision 14. v1 landed rate-recur's held-out twin
+    (`964e6cc`), so the rate line is no longer blocked by the hard cases.
+- **Next:**
+  1. The harness corrections (the diagnosis's list), each with its controls.
+  2. The clean speed range: `node scripts/models/fair-arms.mjs --arms B,N,convoN --repeat 3`, laptop charging.
+  3. The prompt candidate on `models-wording`, merged with main, against main on the native arms three times.
+  4. Decision 2 gets the range and the owner's three questions.
+- **v1's F5a-1 (typed model failures; an unreadable turn gets one retry) changes what the evals see.** It is in
+  review. When it lands:
+  - record `unreadableRetried` and `modelFailure.kind` per row;
+  - classify infra by kind, keeping the message regex as the fallback;
+  - make `scriptedModel` throw `ModelFailure("unreadable", msg, { raw, issues })` from `@/lib/assistant`.
+  No control keys on the old behaviour (checked).
+
+**2026-10-21 (evening). The held-outs and their checks were reviewed adversarially and fixed;
 633 controls hold on main as of v1's `7624008`** (all 49 scenarios, 2 engine seeds; `node scripts/models/run-controls.mjs`).
 The do-nothing and hollow-claim fakes score 0 on both evals.
 - **Scorecards from before `b43873f` were graded on the lenient harness** and are not comparable with new runs.
@@ -256,13 +294,10 @@ The do-nothing and hollow-claim fakes score 0 on both evals.
   - C, off plus fast finish: 28/34, median 5.5 s, p90 12.5;
   - convo A: 12/15 at 11.3 s per turn; convo C: 12/15 at 6.0 s.
   **C is the setting.** Its repeats (`e8322f5`, on `cd2244b`) held: 26-28 of 34, convo 10-12 of 15. Their
-  latencies are not clean, because the laptop slept mid-run, so keep it awake for timed runs. v1 ships the fast
-  finish as `AI_FAST_FINISH=1`, gated to this model. Decision 2 in the owner's doc has the numbers and the
-  config. Shadow mode (`6344c77`) measures what the skip cuts.
-- **In flight:** a no-model diagnosis of every failure. **Next:** a clean latency range for C, then the wording
-  test on C (with v1's LOOP RULE 5 on the shadow arm).
-- **Next, key-free:** re-run the probes when v1's F3 (imports get their own diet matcher) lands; the evals
-  import no recipes, so the controls should not move.
+  latencies are not clean, because the laptop slept mid-run. v1 shipped the fast finish as `AI_FAST_FINISH=1`
+  (`b2b4285`), gated to this model. Decision 2 in the owner's doc has the numbers and the config. Shadow mode
+  (`6344c77`) measures what the skip cuts, and v1's LOOP RULE 5 draft waits on it, from a model that splits
+  writes.
 - The false-claim guard: `probe-claims.mts` 15/15 on main since v1's `c8ccfb0` (1/15 before). Day records:
   `docs/worklog/2026-10-20-models.md` and `2026-10-21-models.md`.
 
