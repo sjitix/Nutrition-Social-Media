@@ -505,7 +505,35 @@ wrapper measured it), so Nemotron-3-Ultra 550B with reasoning off makes 1.2 mode
   test. It is not to land before their shadow numbers on a model that splits writes. The models lane re-ran its 633
   controls on F4 (`afa7f89`) under two seeds: all hold.
 
-**Next, in order:**
+**Next, in order (set 2026-10-22, night, after the models lane's diagnosis of every Nemotron failure):**
+- **F5a-1, built in `../NutriFlow-f5a` (uncommitted), its adversarial review `wf_b85e0ca1-6ce` running.**
+  - MF-1: an urgent reply ends the run, and the route's 503 needs nothing changed AND nothing said
+    (`engineSpoke`).
+  - MF-2: an unreadable turn keeps its remembers and gets one nudge-and-retry.
+  - A typed `ModelFailure` (`assistant/modelFailure.ts`).
+  - 11 rows: on the parent the 10 that test it fail, and they show the losses (the urgent reply ends "model
+    failed"; the refused turn leaves the peanut bowl and no allergy).
+- **F6, the crisis op (the diagnosis's step 1, safety).** With reasoning off, Nemotron sends crisis words to the
+  symptom tool (6 of 8). Verified on `2c7181e`: "i wish i was dead" gets the fatigue note, and "i do not want to
+  live", "i dont wanna live" and "i don't wanna be here anymore" all slip the pre-scan.
+  - `{op:"crisis"}`: `CRISIS_REPLY` as an override, applying nothing else from the turn (it runs before any undo
+    group), the run ends, and no log line.
+  - The prompt's two lines, verbatim, in the same commit.
+  - `redFlag` folds "do not" and "wanna".
+  - On a branch for the models lane's `--code` run before it lands.
+- **The history allergy (step 2, I2)**, with the skeptic's strict extractor. It has to agree with decision 12(b)
+  ("anyone you mention is protected") on "my daughter is allergic to peanuts but i'm not". The design goes to the
+  models lane before it is built.
+- **Numbers only from the person's words (step 4)**, together with AS-12: a surviving figure is always the person's,
+  so it can win over a library match (decision 14, row 4).
+- **F5a-2:** the failure wording (MF-3, MF-5 and the rest), a 60 s fetch timeout and a run deadline, and the raw text
+  of an unreadable answer kept for the log (step 14).
+- Then step 11 (lookups know "seafood"; `find_recipes` drops what the allergies block), step 16 (a reserve's note
+  names what it replaced), and the rest of F5 below.
+The diagnosis's prompt lines are the models lane's to measure; v1 lands each one that holds. A durable copy ships as
+`docs/models/nemotron-diagnosis.md`. `rate-recur` got its held-out twin (`964e6cc`), so the rating line can be
+measured. The decisions doc (rev 26) records decision 8's new finding and a new decision 14 (four product calls).
+
 1. **F5, the rest of the follow-ups:** #14 (every note rendered from the run's final week and profile, not each
    step's: a denial step then an undo step leaves "still include peanuts, so nothing with them is planned" over a
    week with peanut dishes), #4 (the undo label naming a refused write), and the matcher's "chick pea". Each proven
