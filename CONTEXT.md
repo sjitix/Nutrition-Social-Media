@@ -249,9 +249,14 @@ The do-nothing and hollow-claim fakes score 0 on both evals.
 - **The owner's preference (2026-10-22): make Nemotron-3-Ultra 550B work** ("i like nemotron, id be happy if we
   could make it work"). The goal is now making that model fast and correct enough, through its settings, the
   prompt's wording and fewer calls per message. Other models are fallbacks.
-- **The key is in (2026-10-22): the owner's `.env.local` holds `NVIDIA_API_KEY`.** A smoke call to the 550B
-  worked. **In flight since ~13:01: the five fair arms** (A B C convoA convoC on `affd3d7`, one at a time). Then
-  the wording test (block below). If no fair-arms manifest for 2026-10-22 is committed, nothing of it landed.
+- **The key is in (2026-10-22): the owner's `.env.local` holds `NVIDIA_API_KEY`.**
+- **The fair arms are done (`cd2244b`, Nemotron 550B on `affd3d7`, 0 infra):**
+  - A, reasoning on: 27/34, median 15.3 s per message, p90 44.1;
+  - B, reasoning off: 26/34, median 7.1 s, p90 20.8;
+  - C, off plus fast finish: 28/34, median 5.5 s, p90 12.5;
+  - convo A: 12/15 at 11.3 s per turn; convo C: 12/15 at 6.0 s.
+  C is the setting. **In flight:** repeats of C and convo C, 3 each, on `cd2244b`, for a range (v1 ships the fast
+  finish when they hold); and a no-model diagnosis of every failure. Then the wording test, on C.
 - **Next, key-free:** re-run the probes when v1's F3 (imports get their own diet matcher) lands; the evals
   import no recipes, so the controls should not move.
 - The false-claim guard: `probe-claims.mts` 15/15 on main since v1's `c8ccfb0` (1/15 before). Day records:

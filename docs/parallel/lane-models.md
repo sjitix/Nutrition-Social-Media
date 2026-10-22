@@ -22,9 +22,11 @@ lists the eval messages it quotes: 8 of 55 on main, all held out, so it exits 0.
 - **The owner's preference (2026-10-22): make Nemotron-3-Ultra 550B work.** The goal is now making that model
   fast and correct enough, not choosing one; other models are fallbacks (`docs/models/README.md`, decisions).
 - **The key is in (2026-10-22, the owner's `.env.local`, `NVIDIA_API_KEY`).** A smoke call worked (9.1 s, one
-  message, no infra errors). **In flight since ~13:01: the five fair arms** (`node scripts/models/fair-arms.mjs`,
-  A B C convoA convoC on `affd3d7`, one at a time, 60 s apart; scorecards to `data/eval-runs/`). If this session
-  is gone and no fair-arms manifest for 2026-10-22 is committed, nothing of it landed: run it again.
+  message, no infra errors). **The fair arms are done** (`cd2244b`).
+  - C (reasoning off plus fast finish) is the setting: 28/34 at 5.5 s median, p90 12.5.
+  - A (reasoning on): 27/34 at 15.3 s; B: 26/34 at 7.1 s.
+  - Convo: 12/15 both ways, 6.0 s per turn against 11.3.
+  **In flight:** repeats of C and convo C (3 each, on `cd2244b`), and a no-model diagnosis of every failure.
 Day records: `docs/worklog/2026-10-20-models.md`, `2026-10-21-models.md`.
 
 **2026-10-20 — every check in both evals is fixed and proven: 524 controls hold across all 44 scenarios**
