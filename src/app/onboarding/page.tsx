@@ -140,11 +140,19 @@ export default function OnboardingPage() {
             sex: sex as "male" | "female", activity: activity as Activity,
           }
         : undefined;
+    // An allergy taken off here is recorded, so the assistant never puts it back from an old chat message
+    // (primitives.ts, earlierAllergyFacts); one written back in here is no longer a removal.
+    const entries = (s: string) => s.split(/[,;\n]+/).map((x) => x.trim().toLowerCase()).filter(Boolean);
+    const before = loadProfile();
+    const now = entries(allergies);
+    const removedAllergies = [...new Set([...(before?.removedAllergies ?? []), ...entries(before?.allergies ?? "")])]
+      .filter((a) => !now.includes(a.toLowerCase()));
     const profile: UserProfile = {
       ...(name.trim() ? { name: name.trim() } : {}),
       goal,
       diet,
       allergies,
+      ...(removedAllergies.length ? { removedAllergies } : {}),
       dislikes,
       budget,
       mealsPerDay,

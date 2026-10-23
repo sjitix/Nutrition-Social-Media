@@ -209,6 +209,40 @@ reply = composeReply(turn.reply, engine notes)
   - if that step fails too, the run stops as a model failure, with what was kept still kept;
   - if nothing at all could be read and the retry brings only words, the run is still the failure:
     "Noted." never stands over an allergy that was never saved.
+- **An allergy stated in an earlier message binds even if its own turn failed** (the history allergy,
+  2026-10-23). It used to be lost for good when that turn's model failed or never sent the `remember`,
+  because nothing read the transcript again. Before the first model call, the loop reads the earlier user
+  messages (`earlierAllergyFacts` in `primitives.ts`):
+  - **which messages:** one whose turn got no answer (the chat sends no reply for a failed turn, or the
+    reply holds the failure or step-cap line) is read for statements. One that WAS answered binds only what
+    its reply promised to keep out ("Noted — I'll keep peanuts out of everything", with nothing bound), or
+    what the speaker stated as their own in so many words ("i'm allergic to peanuts, can you add more
+    chicken and rice?", answered by a run that did only the swap). The rest of an answered message is left
+    to the model that answered it;
+  - **one clause per cue word**, cut at punctuation, a contrast word or a new request, each through the same
+    gate a `remember` goes through. Fed whole, "i'm allergic to peanuts, can you add more chicken and rice?"
+    bound chicken and rice;
+  - **statements only**: a clause that asks ("is this safe for a coeliac?"), wonders ("what if I was…",
+    "we thought…"), is about people in general ("for people with gluten intolerance", "asking for a friend")
+    or someone the person does not feed (a coworker, a cousin abroad, a dog: unless the sentence says they
+    are coming to eat), is past or dismisses itself ("…but it was a false positive"), or jokes ("allergic to
+    vegetables lol") binds nothing, and nor does a whole food group. A laugh alone is no joke ("im alergic to
+    shrimp lol"), and a bare "he's allergic" takes the food said just before it;
+  - **measured on four sets written blind by other agents** (lesson 71), each used once. The keyword test
+    does not generalize far: untuned, it bound something for 8 of 50 messages that state no allergy. On the
+    fourth set, for the speaker's own words that state no allergy, it bound 9 of 45 in a turn that failed
+    and 4 of 45 in an answered one. For the speaker's own allergies it bound 34 and 32 of 35. That is why
+    an answered message binds so little. Whether to bind with a note or ask first is owner decision 15;
+  - **a later denial that names the food wins**, the current message's too. One that names nothing ("I
+    don't have any allergies") cancels nothing, because it may be about the speaker and the earlier clause
+    about their son;
+  - **nothing the person removed by hand comes back** (`profile.removedAllergies`, written by the profile
+    form; a new statement in chat binds it again and clears it).
+
+  What it binds is the run's starting state, not one of its changes. It takes no undo slot, and no undo
+  takes it back, in this run or the next: the same holds for any allergy the conversation states that is
+  already bound. Every claim check is judged from the state after it. Its note comes first, opening "Going
+  by what you said earlier," (`EARLIER_LEAD`), unless a crisis or urgent reply is the whole answer.
 - **An empty answer is the host's failure, not the model's.** The provider retries it, and the loop
   neither nudges the model nor writes a turn for it.
 - **A reply may not claim a change the engine did not make** (2026-10-03, the models lane's proposal).

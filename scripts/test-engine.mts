@@ -22,7 +22,7 @@ import { FEED_RECIPES, filterFeed, sortFeed, HIGH_PROTEIN_G, type FeedFilter } f
 import { videoPlatform, extractVideoText } from "@/lib/providers/videoImport";
 import { aisleFor, groupByAisle, AISLE_ORDER } from "@/lib/nutrition/grocery";
 import { currentStreak, prevDay, isoDay, requestDay } from "@/lib/presentation/streak";
-import { expandConstrain, applyRemember, applyPrimitives, memoryContext, AssistantTurnV2Schema, allergensInFact, verbToOperations, type PrimitiveOp, type VerbOp } from "@/lib/assistant/primitives";
+import { expandConstrain, applyRemember, applyPrimitives, memoryContext, AssistantTurnV2Schema, allergensInFact, allergyClauses, earlierAllergyFacts, verbToOperations, type PrimitiveOp, type VerbOp } from "@/lib/assistant/primitives";
 import { assistantV2SystemPrompt } from "@/lib/assistant/promptV2";
 import { redFlag, CRISIS_REPLY, URGENT_REPLY } from "@/lib/nutrition/safety";
 import { tableKey, INGREDIENTS, resolveIngredient } from "@/lib/data/ingredients";
@@ -45,7 +45,7 @@ import {
   findRecipes, inspectRecipe, getPlan, getProfile, getSaved, report, whatIf,
   runReadTool, isReadTool, READ_TOOL_NAMES, MAX_ROWS,
 } from "@/lib/assistant/agentTools";
-import { runAgent, MAX_STEPS, FALSE_CLAIM_NUDGE, FALSE_CLAIM_NUDGE_MEMORY, NO_FURTHER_UNDO, NOTHING_EARLIER_TO_UNDO, type AgentTurn, type ModelFn } from "@/lib/assistant/agentLoop";
+import { runAgent, MAX_STEPS, FALSE_CLAIM_NUDGE, FALSE_CLAIM_NUDGE_MEMORY, NO_FURTHER_UNDO, NOTHING_EARLIER_TO_UNDO, EARLIER_LEAD, type AgentTurn, type ModelFn, type TranscriptEntry } from "@/lib/assistant/agentLoop";
 import { ModelFailure, failureFromStatus, modelFailureOf, retryableFailure } from "@/lib/assistant/modelFailure";
 import { weekMicroAverage } from "@/lib/plan/report";
 import { localExtraBody } from "@/lib/providers/extraBody";
@@ -6061,6 +6061,145 @@ if (violations.size === 0) {
       check(`fast finish: over ${cases.length} writes (re-plans, swaps, undos, an allergy, the step cap), a skipped finishing call leaves exactly what an empty one would (reply, week, profile, notes, undo slot, steps), and it skips in 12 or more`,
         unstable.length === 0 && differ.length === 0 && skips.length >= 12,
         `skipped ${skips.length} [${skips.join(", ")}]; differ [${differ.join(", ")}]; not reproducible [${unstable.join(", ")}]`);
+    }
+  }
+
+  // THE HISTORY ALLERGY (F7, step 2 of the models lane's diagnosis, I2). An allergy stated in a turn whose model
+  // failed, or never sent the remember, was lost for good: nothing read the transcript again. Before the first
+  // model call, runAgent binds what EARLIER user messages state, one cue clause at a time, through the live gate.
+  {
+    const op = (o: object) => o as unknown as PrimitiveOp;
+    // Turns that got no answer (each one failed), as the chat sends them: the user's words with no reply after them.
+    const said = (...msgs: string[]): TranscriptEntry[] => msgs.map((m): TranscriptEntry => ({ role: "user", content: m }));
+    const quiet = () => scripted([turn("Here's an idea: Greek yogurt with berries.")]);
+    const peanutWeek = applyPrimitives(BASE, plan, [op({ op: "swap", dish: "Thai Peanut Chicken Rice Bowl", slot: "lunch", days: ["Monday"] })]).plan;
+    const servesPeanut = (w: WeekPlan) => w.days.some((d) => d.meals.some((m) => /peanut/i.test(`${m.name} ${m.ingredients.map((i) => i.name).join(" ")}`)));
+    const run = (history: TranscriptEntry[], message: string, extra: Partial<Parameters<typeof runAgent>[0]> = {}) =>
+      runAgent({ ...base, plan: peanutWeek, history, message, model: quiet().fn, ...extra });
+    {
+      const r = await run(said("heads up, i'm allergic to peanuts"), "add a high-protein snack in the afternoons");
+      check("history allergy: an allergy stated earlier and never bound binds before the first model call, the week loses its peanut dish, and the note says why, first",
+        /peanut/.test(r.profile.allergies) && servesPeanut(peanutWeek) && !servesPeanut(r.plan) && r.planChanged && r.profileChanged &&
+        r.reply.startsWith(EARLIER_LEAD) && r.reply.includes("Greek yogurt"), `allergies "${r.profile.allergies}": ${r.reply.slice(0, 120)}`);
+    }
+    {
+      const rice = await run(said("i'm allergic to peanuts, can you add more chicken and rice?"), "thanks");
+      const coeliac = await run(said("i'm coeliac, so swap the pasta for rice and potatoes"), "thanks");
+      check("history allergy: only the cue's own clause binds: the request beside it binds no chicken or rice, and coeliac binds gluten alone",
+        /^peanuts?$/.test(rice.profile.allergies) && coeliac.profile.allergies === "gluten", `"${rice.profile.allergies}" / "${coeliac.profile.allergies}"`);
+    }
+    {
+      const wonder = await run(said("what if i was allergic to eggs?", "am i allergic to kiwi do you think"), "ok");
+      const retracted = await run(said("i'm allergic to peanuts", "actually i'm not allergic to peanuts, my mistake"), "ok");
+      const now = await run(said("i'm allergic to peanuts"), "i'm not allergic to peanuts, that was my brother");
+      check("history allergy: a question or a hypothetical binds nothing, and a later denial by name wins, the current message's too",
+        !wonder.profile.allergies && !retracted.profile.allergies && !now.profile.allergies && !wonder.reply.startsWith(EARLIER_LEAD),
+        `"${wonder.profile.allergies}" / "${retracted.profile.allergies}" / "${now.profile.allergies}"`);
+    }
+    {
+      const r = await run(said("my son is allergic to eggs", "i don't have any allergies myself"), "ok");
+      check("history allergy: a later denial that names nothing cancels nothing: it may be about the speaker, and the earlier clause about their son",
+        /\beggs?\b/.test(r.profile.allergies), `"${r.profile.allergies}"`);
+    }
+    {
+      const held = { ...BASE, allergies: "peanuts" };
+      const heldWeek = rebalanceWeek(selectWeekFromDb(held), held);
+      const r = await runAgent({ ...base, profile: held, plan: heldWeek, history: said("i'm allergic to peanuts"), message: "ok", model: quiet().fn });
+      check("history allergy: an allergy already bound changes nothing and says nothing",
+        r.profile.allergies === "peanuts" && !r.planChanged && !r.profileChanged && !r.reply.startsWith(EARLIER_LEAD), `${r.profile.allergies}: ${r.reply.slice(0, 60)}`);
+    }
+    {
+      const removed = await run(said("i'm allergic to peanuts"), "ok", { profile: { ...BASE, removedAllergies: ["peanuts"] } });
+      const restated = applyPrimitives({ ...BASE, removedAllergies: ["peanuts", "kiwi"] }, peanutWeek, [op({ op: "remember", fact: "I'm allergic to peanuts" })]);
+      check("history allergy: an allergy removed by hand is never put back from an old message, and stating it anew binds it and clears the removal",
+        !removed.profile.allergies && /peanut/.test(restated.profile.allergies) && JSON.stringify(restated.profile.removedAllergies) === '["kiwi"]',
+        `"${removed.profile.allergies}" / "${restated.profile.allergies}", removed ${JSON.stringify(restated.profile.removedAllergies)}`);
+    }
+    {
+      // The previous turn swapped a dinner; this one binds peanuts from history; an "undo" restores that swap and
+      // keeps peanuts: in the same run, and in the next one even when its chat no longer holds the message.
+      const swapped = applyPrimitives(BASE, peanutWeek, [op({ op: "swap", dish: "Thai Peanut Chicken Rice Bowl", slot: "dinner", days: ["Tuesday"] })]);
+      const previous = { plan: peanutWeek, profile: BASE, label: "swapped Tuesday's dinner" };
+      const a = await runAgent({ ...base, plan: swapped.plan, previous, history: said("i'm allergic to peanuts"), message: "how's my week looking?", model: quiet().fn });
+      const undo = () => scripted([turn("", [op({ op: "undo" })]), turn("")]).fn;
+      const inRun = await runAgent({ ...base, plan: swapped.plan, previous, history: said("i'm allergic to peanuts"), message: "undo that", model: undo() });
+      const next = await runAgent({ ...base, profile: a.profile, plan: a.plan, previous: a.previous, history: [], message: "undo that", model: undo() });
+      check("history allergy: no undo takes it back, in its own run or the next, even once the chat no longer holds the message (rule G)",
+        /peanut/.test(a.profile.allergies) && /peanut/.test(inRun.profile.allergies) && !servesPeanut(inRun.plan) &&
+        /peanut/.test(next.profile.allergies) && !servesPeanut(next.plan) && !/took .*peanut.* off/i.test(next.reply + inRun.reply),
+        `a "${a.profile.allergies}", in-run "${inRun.profile.allergies}", next "${next.profile.allergies}": ${next.reply.slice(0, 80)}`);
+    }
+    {
+      const busy: ModelFn = async () => { throw new ModelFailure("busy", "Local AI server error (429)"); };
+      const r = await run(said("btw i have a shellfish allergy"), "make sunday lighter", { model: busy });
+      const crisis = await run(said("btw i have a shellfish allergy"), "i don't want to live anymore",
+        { model: scripted([turn("", [op({ op: "symptom", text: "i don't want to live anymore" })])]).fn });
+      check("history allergy: it binds when the model then fails, and its note is what the person reads (engineSpoke, so no 503), but a crisis reply still outranks it",
+        /shellfish/.test(r.profile.allergies) && r.modelFailed && r.engineSpoke && r.reply.startsWith(EARLIER_LEAD) &&
+        /shellfish/.test(crisis.profile.allergies) && crisis.reply === CRISIS_REPLY, `${r.reply.slice(0, 90)} / ${crisis.reply.slice(0, 30)}`);
+    }
+    {
+      const chat = said("can you make tuesday vegetarian", "thanks, and lighter dinners please");
+      const withHistory = await runAgent({ ...base, history: chat, message: "ok", model: quiet().fn });
+      const without = await runAgent({ ...base, history: [], message: "ok", model: quiet().fn });
+      check("history allergy: a conversation that never states an allergy runs exactly as before",
+        withHistory.reply === without.reply && withHistory.profile.allergies === without.profile.allergies && !withHistory.planChanged,
+        `${withHistory.reply.slice(0, 50)} / ${without.reply.slice(0, 50)}`);
+    }
+    check("history allergy: clauses are cut at a new request or a contrast, every cue gets its own, and a wondering clause is dropped",
+      JSON.stringify(allergyClauses("I'm allergic to peanuts, can you add more chicken and rice?")) === '["i\'m allergic to peanuts"]' &&
+      JSON.stringify(allergyClauses("my daughter is allergic to peanuts but i'm lactose intolerant")) === '["my daughter is allergic to peanuts","i\'m lactose intolerant"]' &&
+      allergyClauses("if i were allergic to eggs, what would i eat").length === 0,
+      JSON.stringify(allergyClauses("my daughter is allergic to peanuts but i'm lactose intolerant")));
+    {
+      // The live gate itself: "lactose", "gluten", "casein" and "cmpa" block the foods they expand to, never their
+      // own name, so a lead-in word before one was kept as a phrase of its own ("fyi lactose") and announced.
+      const stored = ["fyi i have a lactose intolerance", "just so you know i'm gluten intolerant", "honestly i have a mild casein allergy"]
+        .map((fact) => applyPrimitives(BASE, plan, [op({ op: "remember", fact })]));
+      check("history allergy: the gate stores no lead-in phrase beside a word that does not block itself ('fyi lactose'), and the note names the allergy alone",
+        stored.map((s) => s.profile.allergies).join("|") === "lactose|gluten|casein" && !stored.some((s) => /fyi|know|honestly/.test(s.notes.join(" "))),
+        stored.map((s) => s.profile.allergies).join(" | "));
+    }
+    {
+      // The scan reads every clause with a cue, where the live gate sees only what a model chose to remember: two
+      // blind sweeps of messages that state no allergy first bound one in 10 of 24, then 15 of 60.
+      const none = [
+        "my coworker is allergic to shellfish and she made a whole scene at the team lunch",
+        "is the satay bowl ok if someone at the table has a peanut allergy?",
+        "we thought my son had an egg allergy but the skin prick test came back negative",
+        "i was diagnosed with a shellfish allergy years ago but got retested and it was a false positive",
+        "allergic to vegetables lol",
+        "my dog is allergic to chicken so his food is a whole thing",
+      ].filter((m) => earlierAllergyFacts([{ text: m, reply: null }], "ok", BASE).bind.length);
+      const bind = [
+        "my coworker is coming for dinner on saturday and she's allergic to shellfish",
+        "My husband can't have shellfish, he's allergic. Also less pasta please",
+        "im alergic to shrimp lol forgot to mention",
+        "my partner's got a cashew and walnut allergy so keep those out pls",
+      ].map((m) => applyPrimitives(BASE, plan, earlierAllergyFacts([{ text: m, reply: null }], "ok", BASE).bind.map((fact) => op({ op: "remember", fact }))).profile.allergies);
+      check("history allergy: only a statement binds (not a question, someone the person does not feed, a dismissed test or a joke), and a guest, a bare 'he's allergic' and a laugh still do",
+        none.length === 0 && /shellfish/.test(bind[0]) && bind[1] === "shellfish" && /shrimp/.test(bind[2]) && /cashew/.test(bind[3]) && /walnut/.test(bind[3]),
+        `bound: ${JSON.stringify(none)}; ${bind.map((b) => `"${b}"`).join(" / ")}`);
+    }
+    {
+      // The models lane's row: an allergy that rides along a request, answered by a run that did only the request.
+      // The reply is the swap's engine notes, with no promise and no failure, so only the speaker's own words bind it.
+      const swapOnly = scripted([turn("", [op({ op: "swap", dish: "Thai Peanut Chicken Rice Bowl", slot: "dinner", days: ["Monday"] })]), turn("")]);
+      const t1Message = "i'm allergic to peanuts, can you add more chicken and rice?";
+      const t1 = await runAgent({ ...base, plan: peanutWeek, history: [], message: t1Message, model: swapOnly.fn });
+      const answered: TranscriptEntry[] = [{ role: "user", content: t1Message }, { role: "assistant", turn: { thinking: "", reply: t1.reply, operations: [] } }];
+      const t2 = await runAgent({ ...base, profile: t1.profile, plan: t1.plan, previous: t1.previous, history: answered, message: "add a high-protein snack every day", model: quiet().fn });
+      // Someone else's allergy in an answered message with no promise in the reply is left to the model that answered it.
+      const theirs: TranscriptEntry[] = [{ role: "user", content: "my partner has a sesame allergy" }, { role: "assistant", turn: { thinking: "", reply: "Here's your plan for the week.", operations: [] } }];
+      const partner = await runAgent({ ...base, history: theirs, message: "ok", model: quiet().fn });
+      check("history allergy: the speaker's own allergy beside a request binds next turn though the answer did only the request; another's, unpromised, is left to the model",
+        !/peanut/.test(t1.profile.allergies) && /peanut/.test(t2.profile.allergies) && !servesPeanut(t2.plan) && t2.reply.startsWith(EARLIER_LEAD) &&
+        !partner.profile.allergies, `t1 "${t1.profile.allergies}", t2 "${t2.profile.allergies}", partner "${partner.profile.allergies}": ${t1.reply.slice(0, 60)}`);
+    }
+    {
+      const tho = applyPrimitives(BASE, plan, [op({ op: "remember", fact: "can we do more fish this week? not shellfish tho i'm allergic" })]);
+      check("history allergy: 'tho' is a contrast to the denial reading as 'though' is: 'not shellfish tho i'm allergic' binds shellfish",
+        /shellfish/.test(tho.profile.allergies), `"${tho.profile.allergies}"`);
     }
   }
 

@@ -460,7 +460,8 @@ computes, it never writes.
 
 **`assistant/primitives`** — *"The v2 vocabulary a model may emit, and the executor that runs it."*
 - **Public:** `PrimitiveOp`, `applyPrimitives`, `memoryContext`, `AssistantTurnV2Schema`,
-  `AssistantTurnV2`, `expandConstrain`, `applyRemember`.
+  `AssistantTurnV2`, `expandConstrain`, `applyRemember`; to the loop and the tests, `allergyClauses` and
+  `earlierAllergyFacts` (the history allergy: the gate's own cue words, so the two cannot drift apart).
 - **Private (today public, and the single biggest sealing win):** `ConstrainOp`, `RememberOp`,
   `SwapOp`, `LogOp`, `ReserveOp`, `ResizeOp`, `RateOp`, `PinOp`, `ReportOp`, `ExplainOp`,
   `SubstituteOp`, `SymptomOp`, `HydrationOp`, `UndoOp`, `AnswerOp`, `VerbOp`, `Day`, `MealType`,
@@ -523,6 +524,9 @@ back, call again, stop."*
   and outranks an urgent one (2026-10-22). A turn the model sent but nobody could read keeps its
   remembers and symptoms, and only those, read leniently; the model gets one more step, told why
   (`unreadableRetried`). `engineSpoke` says whether a failed run still has an answer of its own.
+  Before the first model call, allergies stated in EARLIER user messages bind through the same gate
+  (`primitives.earlierAllergyFacts`, the history allergy, 2026-10-23). That is the run's starting state: it
+  takes no undo slot, and no undo takes it back. `EARLIER_LEAD` opens its note.
 
 **`assistant/modelFailure`** (`modelFailure.ts`, 2026-10-22) — *"Why a model call failed."*
 - **Public:** `ModelFailure`, `ModelFailureKind`, `modelFailureOf`, `failureFromStatus`, `retryableFailure`.

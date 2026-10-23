@@ -91,8 +91,9 @@ const NOT_ALONE = new Set([
  * used to store lactose.
  */
 const CUE_AT = new RegExp(String.raw`\b(?:${CUE_WORDS}|anaphyla\w*)\b`, "g");
-/** Up to three plain words, never across punctuation or a contrast or connective word. */
-const RUN = String.raw`(?:(?!(?:but|though|although|yet|however|and|or|so|because|as|since|while)\b)[a-z']+\s+){0,3}$`;
+/** Up to three plain words, never across punctuation or a contrast or connective word ("tho" as typed: "not
+ *  shellfish tho i'm allergic" was read as a denial; the history allergy's blind sweep, 2026-10-23). */
+const RUN = String.raw`(?:(?!(?:but|though|tho|although|altho|yet|however|and|or|so|because|as|since|while)\b)[a-z']+\s+){0,3}$`;
 /** A negation that governs the cue after it: "not lactose intolerant", "no known food allergies",
  *  "doesn't have a nut allergy", "tested negative for coeliac", "ruled out a peanut allergy". */
 const NEG_BEFORE = new RegExp(String.raw`(?:\b(?:no|not|never)|n't|\bnegative for|\bruled out)\s+(?!(?:just|only|merely|simply|even|so)\b)` + RUN);
@@ -198,8 +199,12 @@ export function allergensInFact(fact: string): string[] {
     if (foods.length) {
       foods.forEach((f) => out.add(f));
       // The phrase too, when its food words do not block it: an exception keeps a "rice noodle" out of
-      // "noodle", so storing the word alone would serve the very food the person named.
-      if (!haystackBlocked(t, foods)) out.add(t);
+      // "noodle", so storing the word alone would serve the very food the person named. Only a word that
+      // blocks itself can be escaped that way: "lactose", "gluten", "casein" and "cmpa" block the foods
+      // they expand to, never their own name, so "fyi i have a lactose intolerance" stored "fyi lactose"
+      // beside "lactose", a phrase that blocks nothing and was announced as an allergy.
+      const escapable = foods.filter((f) => haystackBlocked(f, [f]));
+      if (escapable.length && !haystackBlocked(t, escapable)) out.add(t);
       // An unknown multi-word allergen the user named after a cue: keep it whole. With no cue, only a phrase that
       // is itself one of the matcher's foods ("sea bass"): one that merely holds a food word was a sentence,
       // and "prefers a light dinner after a big lunch" was stored as an allergy.
@@ -216,6 +221,178 @@ export function allergensInFact(fact: string): string[] {
  * although nothing new was excluded (review of 49385e5, LC-16).
  */
 const allergyKey = (t: string) => [...new Set(expandExclusion(t))].sort().join("|");
+
+/** Whether `t` is one of these allergies, or one of them covers it ("walnuts" under "nuts"). */
+const amongAllergies = (t: string, list: string[]) =>
+  list.some((s) => allergyKey(s) === allergyKey(t)) || exclusionCovers(list, t);
+
+/**
+ * The clause around each cue word of a message. Fed a whole message, the gate reads every food in it: "I'm
+ * allergic to peanuts, can you add more chicken and rice?" bound chicken and rice, because a cue anywhere sends
+ * the whole fact to the parser. So a clause runs from the last break before its cue to the first break after it:
+ * punctuation, a bracket, a contrast word ("tho" too), a new subject ("…this week hes allergic to tomatoes") or a
+ * new request. "and" breaks only before a new subject or request ("…and i'm allergic", "…and can you"), never
+ * inside a list ("a cashew and pistachio allergy"); "except" is no break ("no allergies except shellfish" is one
+ * statement), and nor is a colon straight after the cue ("allergies: peanuts, sesame"). A cue with nothing of its
+ * own around it ("he's allergic", "properly intolerant") takes the words just before it: "My husband can't have
+ * shellfish, he's allergic". `own` is the clause without those words, which is what the statement test reads.
+ */
+const CUE_ANY = new RegExp(String.raw`\b(?:${CUE_WORDS})\b|\banaphyla\w*`, "g");
+const CLAUSE_END = /[.;:!?()]|\s[—–-]\s|\s(?:but|so|because|though|tho|although|while|whereas)\s|,\s*(?:can|could|would|will|please|also|then|now|give|add|swap|put|make|use|keep|get|want|need|show|find|let's|lets|anyway|the|we|i|i'm|i'd|i'll|it|it's|that|this|which|and\s+(?:can|could|please|i|i'd|give|add|swap|put|make|use))\b|\s+and\s+(?:also|then|can|could|please|i|i'd|i'll|give|add|swap|put|make|use|hate|love|like|want|our|we|we're|it)\b/;
+const CLAUSE_START = /[,(]|\s(?:but|so|because|though|tho|although|while|whereas)\s|\sand\s(?=(?:i|i'm|im|i've|my|he|he's|she|she's|we|they|also|then|can|could|please|add|make|swap|give)\b)|\s(?=(?:i'm|im|i am|i've|ive|he's|hes|he is|she's|shes|she is|they're|theyre|we're)\s)/g;
+/** Nothing but a subject and filler before the cue, and nothing after it: the allergen was said just before. */
+const BARE_BEFORE = /^(?:(?:oh|also|and|plus|btw|fyi|so|tho|though|but|i'm|im|i|am|he's|hes|he|she's|shes|she|is|they're|theyre|they|are|we're|we|very|really|severely|super|seriously|quite|badly|proper|properly|mildly|extremely|deathly|highly|just|actually|totally|definitely|too|both|all|each)\s+)*$/;
+interface CueClause { clause: string; own: string; sentence: string; rest: string; next: string }
+function cueClauses(message: string): CueClause[] {
+  const out: CueClause[] = [];
+  // An age in brackets is no break: "theo (6) is allergic to egg and sesame".
+  const t = message.toLowerCase().replace(/[‘’]/g, "'").replace(/\s*\(\s*\d+\s*\)/g, "");
+  let said = ""; // the message up to the current sentence, for a bare cue
+  const sentences = t.split(/(?<=[.;!?])\s+|\n+/);
+  for (const [si, sentence] of sentences.entries()) {
+    let consumed = 0;
+    for (const m of sentence.matchAll(CUE_ANY)) {
+      const i = m.index ?? 0;
+      if (i < consumed) continue; // already inside the clause of the cue before it
+      const before = sentence.slice(consumed, i);
+      let start = 0;
+      for (const b of before.matchAll(CLAUSE_START)) start = (b.index ?? 0) + b[0].length;
+      const after = sentence.slice(i + m[0].length);
+      const colon = after.match(/^\s*:/)?.[0].length ?? 0;
+      const end = after.slice(colon).search(CLAUSE_END);
+      const tail = end < 0 ? after : after.slice(0, colon + end);
+      const head = before.slice(start);
+      const own = `${head}${m[0]}${tail}`.trim();
+      const bare = BARE_BEFORE.test(head.trim() ? `${head.trim()} ` : "") && !tail.trim();
+      const lead = bare ? (sentence.slice(0, consumed + start).replace(/[,(]\s*$/, "").trim() || said.trim().split(/(?<=[.;!?])\s+/).pop() || "") : "";
+      const clause = lead ? `${lead} ${own}` : own;
+      if (!out.some((c) => c.clause === clause)) out.push({ clause, own, sentence, rest: after.slice(tail.length), next: sentences[si + 1] ?? "" });
+      consumed = i + m[0].length + tail.length;
+    }
+    said += ` ${sentence}`;
+  }
+  return out;
+}
+
+/**
+ * The clauses that STATE an allergy to plan around. Unlike the live gate, which sees only what a model chose to
+ * remember, the history scan reads every clause with a cue in it. Three sets of messages that state none, each
+ * written blind by another agent and each used once to find what generalizes, first bound one in 10 of 24, 15 of
+ * 60 and 14 of 50. So a clause is skipped when it:
+ * - asks, wonders or doubts: "is this safe for a coeliac?", "what if I was…", "we thought my son had…", "my
+ *   housemate thinks he has…", "getting tested for coeliac, no result yet";
+ * - is about people in general, or someone the person does not feed: "dinner for people with gluten intolerance",
+ *   "everyone's gluten intolerant these days", a coworker, a client, a cousin abroad, a dog. The same person
+ *   coming to eat ("…is coming for dinner") binds, as every person mentioned does on the live path (decision 12);
+ * - is about allergies as a subject: an article, a documentary, rates, a story's character, revision notes;
+ * - is past or dismissed, there or in the words after it that name no food: "as a baby", "long gone", "a
+ *   myth", "the test came back negative", "…but it was a false positive";
+ * - uses the word as an adjective: "a coeliac-friendly bake sale", "allergy-free";
+ * - jokes: "allergic to vegetables lol", "jk". A laugh alone does not make a joke: "im alergic to shrimp lol
+ *   forgot to mention" is an allergy. It takes a laugh over a whole food group, or a plain "kidding".
+ */
+const WONDERS = /\bwhat if\b|\bif (?:i|you|he|she|they|we)(?: was| were| had| am|'m|'d)\b|\bif i (?:type|say|write|put|tell you)\b|\bsuppose\b|\bimagine\b|\bpretend\b|\bhypothetic|\bthought\b|\bthinks\b|\bclaims?\b|\b(?:am i|could i be|might i be|do i have|how (?:do|would|can) i (?:know|tell))\b|\bwonder(?:ing)? (?:if|whether)\b|\btest(?:ed|ing|s)? for\b|\brule out\b|\bno results? yet\b|\buntil we know\b/;
+const ASKS = /^(?:do|does|did|is|are|was|were|can(?!'t)|could(?!n't)|would(?!n't)|will|should|shall|what|what's|whats|which|how|why|where|who|whose)\b/;
+const NOBODY_IN_PARTICULAR = /\b(?:someone|somebody|anyone|anybody|everyone|everyone's|everybody|nobody|no one|people|a person|those|asking for)\b/;
+const NOT_OURS = /\b(?:co-?workers?|colleagues?|teammates?|boss|manager|clients?|customers?|regulars?|patients?|cousins?|neighbou?rs?|teachers?|classmates?|celebrit\w*|guy|girl|woman|man|lady|dude|stranger|waiter|waitress|dogs?|cats?|pets?|puppy|kitten|ex|old (?:room+ate|flatmate|housemate)|friend'?s (?:kid|son|daughter|child|baby|boy|girl))\b/;
+const COMES_TO_EAT = /\b(?:coming|visiting|visit|staying|stay|over for|for dinner|for lunch|cooking for|cook for|feeding|hosting|sleepover|moving in|moved in)\b/;
+const A_SUBJECT = /\b(?:article|documentary|video|podcast|study|studies|news|research|rates?|statistics?|read (?:that|about|an?)|revising|studying|exams?|lecture|essay|story|novel|character|series|book)\b/;
+const PAST_OR_DISMISSED = /\bnegative\b|\bmyth\b|\bfalse positive\b|\bmisdiagnos\w*|\bcleared up\b|\bruled out\b|\bturned out\b|\bnot actually\b|\ball clear\b|\bas a (?:baby|kid|child|teen|teenager|toddler)\b|\bused to\b|\bgrew out\b|\boutgr\w*|\blong gone\b|\bwent away\b|\bno longer\b|\bnot any ?more\b/;
+const AS_ADJECTIVE = /(?:co?eliac|allerg(?:y|en|ies)|intolerance)[- ](?:friendly|free|safe|aware)\b/;
+const KIDDING = /\b(?:jk|j\/k|kidding|joking)\b/;
+const LAUGHS = /\b(?:lol|lmao|rofl|haha\w*)\b/;
+const FOOD_GROUP = /\b(?:vegetables?|veggies|veg|greens|salads?|fruits?|healthy|food|everything|carbs)\b/;
+const jokes = (own: string) => KIDDING.test(own) || (LAUGHS.test(own) && FOOD_GROUP.test(own));
+/** Taken back in the next words, naming no food of their own: "my husband is allergic to vegetables (he's not, he's
+ *  just 5)", "…they're not." ("I'm not allergic to eggs" after a peanut allergy names eggs, so takes nothing back.) */
+const TAKEN_BACK = /^\W*(?:i'm|im|i am|he's|hes|he is|she's|shes|she is|they're|theyre|they are|we're|we are) not\b|^\W*not really\b/;
+function statements(message: string): CueClause[] {
+  return cueClauses(message).filter(({ own, sentence, rest, next }) =>
+    ![WONDERS, ASKS, NOBODY_IN_PARTICULAR, A_SUBJECT, PAST_OR_DISMISSED, AS_ADJECTIVE].some((rx) => rx.test(own)) && !jokes(own) &&
+    ![rest, next].some((w) => TAKEN_BACK.test(w) && !allergensInFact(w).length) &&
+    // Someone the person does not feed, unless the sentence says they are coming to eat.
+    !(NOT_OURS.test(own) && !COMES_TO_EAT.test(sentence)) &&
+    // "…but it was a false positive": a dismissal after it in the sentence that names no food of its own.
+    !(PAST_OR_DISMISSED.test(rest) && !allergensInFact(rest).length),
+  );
+}
+export function allergyClauses(message: string): string[] {
+  return statements(message).map((c) => c.clause);
+}
+
+/**
+ * The speaker stating their own allergy in so many words: "i'm allergic to peanuts", "I have a severe nut allergy",
+ * "my peanut allergy", "im coeliac", "lactose intolerant here". Never someone else's ("my son's egg allergy").
+ */
+const LEAD_IN = String.raw`(?:(?:oh|also|and|plus|btw|fyi|ps|so|ok|okay|yeah|heads up|just so you know|by the way|forgot to say|forgot to mention)\W+)*`;
+const FIRST_PERSON = new RegExp(String.raw`^${LEAD_IN}(?:i'm|im|i am|i've got|ive got|i have|i've|ive|i got)\b|\bmy\s+(?![a-z]+'s\b)(?:[a-z-]+\s+){0,2}(?:al+erg|intol+eran)|^${LEAD_IN}(?:[a-z-]+\s+){1,3}(?:al+erg(?:ic|y)|intol+er[ae]nt|co?eli[ac]+k?)\s+(?:here|me)\b`);
+
+const WHOLE_GROUP = /^(?:vegetables?|veggies|veg|fruits?|greens|salads?)$/;
+
+/** An earlier user message, and the assistant's reply to it: null when it got none (its turn failed). */
+export interface EarlierMessage { text: string; reply: string | null }
+/** A reply that says it will keep a food out: "Noted — I'll keep peanuts out of everything." */
+const KEEPS_OUT = /\ballerg|\bintoleran|\bco?eliac|\bkeep\b[^.]*\bout\b|\bleave\b[^.]*\bout\b|\bavoid|\bnoted\b|\bwon'?t (?:include|use|add|put|serve|plan)|\bwithout\b|-free\b|\bfree of\b|\bsteer clear|\bno more\b/;
+const mentions = (reply: string, t: string) =>
+  haystackBlocked(reply, [t]) || new RegExp(String.raw`\b${t.replace(/(?:ies|es|s)$/, "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`).test(reply);
+
+/**
+ * THE HISTORY ALLERGY: the allergies the person stated in EARLIER messages that are not bound, as remember
+ * facts for the gate. An allergy said in a turn the model failed (it never answered, or its turn could not be
+ * read) was lost for good: the next message's model saw only the transcript, and nothing bound it.
+ *
+ * WHICH messages: one whose turn got no answer is read for statements (`allergyClauses`). One that was answered
+ * binds what the reply said it would keep out ("Noted — I'll keep peanuts out of everything", with nothing bound:
+ * the models lane's memory-allergy case), and what the speaker stated as their own in so many words
+ * (FIRST_PERSON): "i'm allergic to peanuts, can you add more chicken and rice?", answered by a run that only did
+ * the swap, is the reasoning-off pattern the models lane measured (history allergies carried 2 in 9). Anything
+ * else of an answered message is left to the model that answered it: the statement test is a keyword test, and
+ * on the blind sets above it still bound one in four of the messages that state no allergy.
+ *
+ * Each clause goes through the same gate the live path uses, so it binds exactly what that gate binds (another
+ * person's allergy too, as today; decision 12). Skipped: a clause that adds nothing, any food a LATER message,
+ * or the current one, denies by name ("actually I'm not allergic to peanuts"), and any food the person removed
+ * by hand (`removedAllergies`), which no old message may put back. A clause that names some of those and others
+ * is reduced to the others. A denial that names nothing ("I don't have any allergies") cancels nothing: it may
+ * be about the speaker while the earlier clause was about their son, and on the live path no denial ever took a
+ * bound allergy off.
+ *
+ * `bind` is what binds now. `held` is what the conversation states that is already bound: an undo in this run
+ * keeps both (rule G), or an undo would take off an allergy the next message's scan puts straight back.
+ */
+export function earlierAllergyFacts(earlier: EarlierMessage[], current: string, profile: UserProfile): { bind: string[]; held: string[] } {
+  const removed = (profile.removedAllergies ?? []).flatMap((r) => parseExclusionTokens(r, ""));
+  // The foods each message denies by name, and so every message after it: only a denial at least as broad as
+  // the food counts ("not allergic to dairy" covers "lactose"), never a narrower one ("not allergic to peanuts"
+  // leaves "nuts").
+  const denies = [...earlier.map((e) => e.text), current].map((m) =>
+    cueClauses(m).map((c) => c.clause).filter(everyCueDenied).flatMap(allergensInFact).flatMap((d) => parseExclusionTokens(d, "")));
+  const bind: string[] = [];
+  const held: string[] = [];
+  let p = profile;
+  earlier.forEach(({ text, reply }, i) => {
+    const denied = denies.slice(i + 1).flat();
+    const said = reply?.toLowerCase().replace(/[‘’]/g, "'");
+    for (const { clause, own } of statements(text)) {
+      // Never a whole food group from an old message: "I'm basically allergic to vegetables (I just don't like them)"
+      // would empty the week, and nobody states a real allergy that way.
+      const named = allergensInFact(clause).filter((t) => !WHOLE_GROUP.test(t));
+      const theirs = FIRST_PERSON.test(own);
+      const keep = named.filter((t) =>
+        !amongAllergies(t, removed) &&
+        !denied.some((d) => allergyKey(d) === allergyKey(t) || haystackBlocked(t, [d])) &&
+        (said === undefined || theirs || (KEEPS_OUT.test(said) && mentions(said, t))));
+      if (!keep.length) continue;
+      const fact = keep.length === named.length ? clause : `allergic to ${keep.join(", ")}`;
+      const out = allergyOutcome(fact, false, p);
+      if (out.add.length) {
+        bind.push(fact);
+        p = { ...p, allergies: [p.allergies, ...out.add].filter((s) => s && s.trim()).join(", ") };
+      } else if (out.already.length || out.covered.length) held.push(fact);
+    }
+  });
+  return { bind, held };
+}
 
 /** "eggs", "tree nuts" and "peanuts" read as plural; "shellfish", "hummus" and "lactose" as one thing. */
 const plural = (items: string[]) => items.length > 1 || /[^siu]s$/.test(items[0] ?? "");
@@ -685,6 +862,12 @@ export function applyPrimitives(
         const out = allergyOutcome(o.fact, labelled, p);
         if (out.add.length) {
           p = { ...p, allergies: [p.allergies, ...out.add].filter((s) => s && s.trim()).join(", ") };
+          // Said again, so no longer a hand removal: a removed allergy the person states anew is theirs again.
+          if (p.removedAllergies?.length) {
+            const left = p.removedAllergies.filter((r) => !parseExclusionTokens(r, "").some((t) => amongAllergies(t, out.add)));
+            const { removedAllergies: _gone, ...rest } = p;
+            p = left.length ? { ...p, removedAllergies: left } : rest;
+          }
           flat.push({ tool: "update_profile" } as Operation);
         } else if (servedWith([...out.already, ...out.covered, ...(out.denied ?? [])], plan).length && !flat.some((f) => f.tool === "update_profile")) {
           // Mentioned (restated, or even denied) while a dish the week serves still holds a BOUND allergy

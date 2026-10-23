@@ -256,6 +256,11 @@ export interface UserProfile {
   goal: "lose_weight" | "maintain" | "build_muscle";
   diet: "none" | "vegetarian" | "vegan" | "keto" | "mediterranean";
   allergies: string;
+  // The allergies the person took off by hand (on the profile form), as they were written. The assistant
+  // binds allergies stated in earlier chat messages that never bound (primitives.ts, earlierAllergyFacts);
+  // without this record it would put a removed allergy straight back from an old message. A new statement
+  // of the allergy in chat binds it again and clears it from here. Optional: older profiles have none.
+  removedAllergies?: string[];
   dislikes: string;
   budget: "low" | "medium" | "high";
   mealsPerDay: 3 | 4;

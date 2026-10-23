@@ -26,8 +26,8 @@
  * remains the only thing allowed to claim that something changed.
  */
 import { runReadTool, isReadTool, type AgentContext } from "./agentTools";
-import { applyPrimitives, expandConstrain, noOpConstrain, sameAllergies, verbToOperations, withoutUnchangedClaims, type ConstrainOp, type PrimitiveOp, type VerbOp } from "./primitives";
-import { claimsChange, composeReply, joinPhrases, operationPhrases } from "./reply";
+import { applyPrimitives, earlierAllergyFacts, expandConstrain, type EarlierMessage, noOpConstrain, sameAllergies, verbToOperations, withoutUnchangedClaims, type ConstrainOp, type PrimitiveOp, type VerbOp } from "./primitives";
+import { claimsChange, composeReply, joinPhrases, NOTED_NOTHING_CHANGED_REPLY, NOTHING_CHANGED_REPLY, operationPhrases } from "./reply";
 import { modelFailureOf, type ModelFailure, type ModelFailureKind } from "./modelFailure";
 import { CRISIS_REPLY } from "../nutrition";
 import type { Operation, PlanSnapshot, UserProfile, WeekPlan } from "../core";
@@ -255,6 +255,14 @@ function labelOps(ops: PrimitiveOp[]): string {
   return joinPhrases([...new Set(phrases)]) || "made that change";
 }
 
+/** The line a run that lost its model ends with, and the words of the one a run at the step cap ends with. A turn whose
+ *  reply holds either did not finish, so the history allergy reads its message as unanswered. */
+const MODEL_FAILED_LINE = "I couldn't reach the assistant to finish that.";
+const GAVE_UP_LINE = "without finishing that";
+
+/** What the history allergy's first note opens with, so the person knows why an allergy arrived now. */
+export const EARLIER_LEAD = "Going by what you said earlier, ";
+
 /**
  * Run one user message to completion.
  *
@@ -283,8 +291,39 @@ export async function runAgent(args: {
     { role: "user", content: args.message },
   ];
 
-  let profile = args.profile;
-  let plan = args.plan;
+  // THE HISTORY ALLERGY (I2): an allergy stated in an EARLIER message that never bound (its turn's model failed,
+  // or never sent the remember) binds now, before the first model call, through the same gate the live path
+  // uses (primitives.ts, earlierAllergyFacts). It is the run's starting state, not one of its changes: it takes
+  // no undo slot, an undo never takes it back, nor any allergy the conversation states that is already bound
+  // (both join `remembered`, and are folded into the `previous` this run returns), and every claim check below is
+  // judged against the state after it. Its note is said first. A message whose turn ended in the failure line, or
+  // stopped at the step cap, counts as unanswered, as one with no reply at all does (the chat sends none for a
+  // turn that failed outright).
+  const history = args.history ?? [];
+  const earlier = earlierAllergyFacts(
+    history.flatMap((e, i): EarlierMessage[] => {
+      if (e.role !== "user") return [];
+      const next = history[i + 1];
+      const reply = next?.role === "assistant" && typeof next.turn.reply === "string" ? next.turn.reply : null;
+      return [{ text: e.content, reply: reply === null || reply.includes(MODEL_FAILED_LINE) || reply.includes(GAVE_UP_LINE) ? null : reply }];
+    }),
+    args.message,
+    args.profile,
+  );
+  const asRemember = (fact: string) => ({ op: "remember", fact }) as PrimitiveOp;
+  const earlierOps = earlier.bind.map(asRemember);
+  const statedOps = [...earlierOps, ...earlier.held.map(asRemember)];
+  const start = { profile: args.profile, plan: args.plan };
+  const earlierNotes: string[] = [];
+  if (earlierOps.length) {
+    const res = applyPrimitives(args.profile, args.plan, earlierOps, args.today);
+    start.profile = res.profile;
+    start.plan = res.plan;
+    earlierNotes.push(...res.notes.map((n, i) => (i === 0 ? EARLIER_LEAD + n : n)));
+  }
+
+  let profile = start.profile;
+  let plan = start.plan;
   let planChanged = false;
   let replyOverride: string | undefined;
   let undone = false;
@@ -301,7 +340,13 @@ export async function runAgent(args: {
   // change is named too (open, recorded: telling them apart means applying a step's writes one by one).
   const written: PrimitiveOp[] = [];
   // Every remember this run applied: an undo in the same run must not take them back (G, run level).
-  const remembered: PrimitiveOp[] = [];
+  const remembered: PrimitiveOp[] = [...statedOps];
+
+  const withEarlier = (prev: PlanSnapshot | undefined): PlanSnapshot | undefined => {
+    if (!prev || !statedOps.length) return prev;
+    const kept = applyPrimitives(prev.profile, prev.plan, statedOps, args.today);
+    return { ...prev, plan: kept.plan, profile: kept.profile };
+  };
 
   let steps = 0;
   let lastReply = "";
@@ -333,8 +378,8 @@ export async function runAgent(args: {
   let blindRetry: ModelFailure | undefined;
   // What can back a claim the model makes in its own words: a plan change, the engine's notes, a crisis
   // override, or a real edit to the profile. A memory saved cannot — see FALSE_CLAIM_NUDGE_MEMORY.
-  const profileEdited = () => editedApartFromMemory(args.profile, profile);
-  const memorySaved = () => !same(args.profile.memory ?? [], profile.memory ?? []);
+  const profileEdited = () => editedApartFromMemory(start.profile, profile);
+  const memorySaved = () => !same(start.profile.memory ?? [], profile.memory ?? []);
 
   while (steps < maxSteps) {
     steps++;
@@ -524,20 +569,20 @@ export async function runAgent(args: {
 
   // A retry after a turn nothing could be read from, which brought nothing the engine vouches for: still that
   // failure. The model's words alone ("Noted.") would stand over an allergy that was never saved.
-  if (blindRetry && !modelFailed && notes.length === 0 && replyOverride === undefined && !planChanged && same(args.profile, profile)) {
+  if (blindRetry && !modelFailed && notes.length === 0 && replyOverride === undefined && !planChanged && same(start.profile, profile)) {
     modelFailure = blindRetry;
     modelFailed = true;
   }
 
   // Said before any failure line is added: whether the run has an answer of its own to give.
-  const engineSpoke = notes.length > 0 || replyOverride !== undefined;
+  const engineSpoke = earlierNotes.length > 0 || notes.length > 0 || replyOverride !== undefined;
   if (modelFailed) {
-    notes.push("I couldn't reach the assistant to finish that.");
+    notes.push(MODEL_FAILED_LINE);
   } else if (gaveUp) {
     // Say so. Handing back a half-finished change without mentioning it is the silent-failure mode
     // this project keeps writing rules against.
     notes.push(
-      `I worked through ${maxSteps} steps without finishing that — here's where I got to. Tell me if you want me to keep going.`,
+      `I worked through ${maxSteps} steps ${GAVE_UP_LINE} — here's where I got to. Tell me if you want me to keep going.`,
     );
   }
 
@@ -546,20 +591,28 @@ export async function runAgent(args: {
   // What the run did, compared with where it started: a change and its undo in the same run cancel out,
   // and "Plan updated." under a week that did not change would be false (review, 2026-10-21). The
   // flags OR-ed step by step stay for the decisions inside the run.
-  const planDiffers = !samePlan(args.plan, plan);
+  const planDiffers = !samePlan(start.plan, plan);
   // "Your allergies haven't changed" is true of one step at most: the run runs an undo as a step of its own,
   // so a denial's step could not see that the undo's step took an allergy off (review, 2026-10-21).
   if (!sameAllergies(args.profile.allergies, profile.allergies)) notes.splice(0, notes.length, ...withoutUnchangedClaims(notes));
   // profileChanged here is "changed in a way a claim could be about": a saved memory is not (above).
-  const reply = composeReply({ modelReply: said, notes, replyOverride, planChanged: planDiffers, profileChanged: profileEdited(), memorySaved: memorySaved() });
+  const body = composeReply({ modelReply: said, notes, replyOverride, planChanged: planDiffers, profileChanged: profileEdited(), memorySaved: memorySaved() });
+  // The history allergy's note goes first, unless an urgent or crisis reply is the whole answer. When the rest of
+  // the run has nothing of its own to say (an empty finishing turn, or a claim caught as unbacked, which the
+  // allergy just bound would make false), the note is the reply.
+  const bodyEmpty = (!said.trim() && notes.length === 0 && !planDiffers) || body === NOTHING_CHANGED_REPLY || body === NOTED_NOTHING_CHANGED_REPLY;
+  const reply = replyOverride !== undefined || !earlierNotes.length ? body
+    : bodyEmpty ? earlierNotes.join(" ")
+    : `${earlierNotes.join(" ")} ${body}`;
   return {
     reply,
     plan,
     profile,
-    planChanged: planDiffers,
+    planChanged: !samePlan(args.plan, plan),
     profileChanged: !same(args.profile, profile),
-    // One level of undo: after an undo there is nothing further back.
-    previous: snapshot ?? (undoneArgs ? undefined : args.previous),
+    // One level of undo: after an undo there is nothing further back. The previous turn's state, when that is
+    // where an undo goes, carries the history allergy too, so the next "undo" cannot take it off.
+    previous: snapshot ?? (undoneArgs ? undefined : withEarlier(args.previous)),
     transcript,
     steps,
     gaveUp,
@@ -568,9 +621,9 @@ export async function runAgent(args: {
       ? { kind: modelFailure.kind, ...(modelFailure.detail.retryAfterS !== undefined ? { retryAfterS: modelFailure.detail.retryAfterS } : {}) }
       : undefined,
     engineSpoke,
-    notes,
+    notes: [...earlierNotes, ...notes],
     falseClaimRetried,
-    falseClaimCaught: reply !== said.trim() && notes.length === 0 && replyOverride === undefined && claimsChange(said),
+    falseClaimCaught: body !== said.trim() && notes.length === 0 && replyOverride === undefined && claimsChange(said),
     fastFinished,
     unreadableRetried,
   };

@@ -379,7 +379,7 @@
       <h3>assistant/primitives — the biggest sealing win</h3>
       <p class="promise">“The vocabulary a model may emit, and the executor that runs it.”</p>
       <div class="rows">
-        <div class="row2"><span class="k">Public</span><span class="pub mono">PrimitiveOp · applyPrimitives · memoryContext · AssistantTurnV2Schema · expandConstrain · applyRemember</span></div>
+        <div class="row2"><span class="k">Public</span><span class="pub mono">PrimitiveOp · applyPrimitives · memoryContext · AssistantTurnV2Schema · expandConstrain · applyRemember · allergyClauses · earlierAllergyFacts</span></div>
         <div class="row2"><span class="k">Seal</span><span class="priv"><b>22 names</b> — <span class="mono">ConstrainOp</span>, <span class="mono">SwapOp</span>, <span class="mono">LogOp</span> and the other 15 per-op interfaces, plus <span class="mono">verbToOperation</span> and <span class="mono">PrimitiveOpSchema</span>. None is imported anywhere. They are the shape of the implementation, published as API.</span></div>
         <div class="row2"><span class="k">Invariant</span><span>Every write reaches the engine through <span class="mono">applyOperations</span>. This module adds no arithmetic of its own.</span></div>
       </div>
@@ -390,7 +390,7 @@
       <p class="promise">“Call the model, execute what it asked for, feed the result back, call again, stop.”</p>
       <div class="rows">
         <div class="row2"><span class="k">Public</span><span class="pub mono">runAgent · ModelFn · TranscriptEntry · AgentTurn · MAX_STEPS</span></div>
-        <div class="row2"><span class="k">Invariants</span><span><b>The model is injected as a <span class="mono">ModelFn</span></b> — the line that makes the loop testable with no model at all. <span class="mono">MAX_STEPS = 8</span> is a cap, not a target; hitting it sets <span class="mono">gaveUp</span> and the user is told. One undo snapshot per user turn, taken before the first write.</span></div>
+        <div class="row2"><span class="k">Invariants</span><span><b>The model is injected as a <span class="mono">ModelFn</span></b> — the line that makes the loop testable with no model at all. <span class="mono">MAX_STEPS = 8</span> is a cap, not a target; hitting it sets <span class="mono">gaveUp</span> and the user is told. One undo snapshot per user turn, taken before the first write. <b>Before the first model call, allergies stated in earlier messages bind</b> through the same gate (<span class="mono">earlierAllergyFacts</span>, 2026-10-23): the run's starting state, which takes no undo slot and which no undo takes back.</span></div>
       </div>
     </div>
 

@@ -84,11 +84,17 @@ stored allergies block.
 | LC-26 | an allergy to tortilla, noodle or cracker inherited the gluten category's exceptions: "I have a tortilla allergy" served corn tortillas | pre-existing; fixed, F4 `afa7f89` for those three. A bare "flour" allergy still lets chickpea and oat flour through (5 dishes): decision 9's new row |
 | LC-27 | "I'm allergic to peanuts. Also make Wednesday's lunch and dinner vegetarian.": the model's turn [remember, a constrain whose scope the schema refuses] was refused whole, so the allergy was never stored and the peanut dish stayed (F5's mapping, MF-2) | fixed, F5a-1 `950d243`: an unreadable turn's remember and symptom ops are kept, read leniently, on every unreadable turn; a cut-off answer's ops are found in its text. Open on the Claude path, whose SDK keeps no text (F5a-2) |
 | LC-28 | F5a-1's first version: its override break cut a remember the model's NEXT step would have sent after an urgent reply, and its salvage dropped a remember labelled "Allergy" or null | found by its review before it landed, fixed in it: only a crisis ends the run, and the salvage reads labels leniently |
-| LC-29 | an allergy stated in an earlier message that the turn never stored (a failed request, a pre-scan answer, a "noted" with no op; the models lane's memory-allergy, 1 of 4 at reasoning off) | open: the history scan is designed and agreed (CONTEXT, v1 block) |
+| LC-29 | an allergy stated in an earlier message that the turn never stored (a failed request, a pre-scan answer, a "noted" with no op; the models lane's memory-allergy, 1 of 4 at reasoning off) | fixed, F7: the history allergy. A message whose turn got no answer is read for statements; an answered one binds what its reply promised to keep out, or what the speaker stated as their own. Bind with a note or ask first: decision 15 |
+| LC-30 | "fyi i have a lactose intolerance" stored "lactose, fyi lactose", and the note announced both: "lactose", "gluten", "casein" and "cmpa" never block their own name, so a lead-in word before one was kept as a phrase of its own | pre-existing in the live gate; fixed, F7. The comparison: 390 rows change only their stored text or note, 0 block less |
+| LC-31 | "can we do more fish this week? not shellfish tho i'm allergic" read as a denial: the denial reading broke on "though" but not on "tho" | pre-existing; fixed, F7 ("tho", "altho"). 12 rows now block more, each a "tho" statement; every "tho" denial still binds nothing |
+| LC-32 | the history scan, a keyword test, over-binds messages that state no allergy: a joke ("severely allergic to beetroot. Not medically"), a past one ("cleared up years ago"), someone not fed ("my friend tom is allergic to shrimp but he can't make the barbecue") | measured on four blind phrasing sets, not fixable by keywords alone: on the fourth, 9 of 45 in a failed turn, 4 of 45 in an answered one. Kept small by trusting it only where nothing else read the message; decision 15 |
 
 LC-17 to LC-26 came after the 36. LC-17 is from the models lane's audit of its evals. LC-18 to LC-20 are from the
 adversarial review of B2 and of the C–F batch (2026-10-20: four reviewers, a skeptic per serious finding). LC-21 and
 LC-22 are from the second review, of `da023da` (2026-10-21). LC-23 to LC-26 are from F4's own review (2026-10-22).
+LC-27 to LC-29 are from F5's mapping and the F5a review (2026-10-22). LC-30 to LC-32 were found while building the
+history allergy (F7, 2026-10-23): LC-30 by an over-bind sweep of its own, LC-31 and LC-32 by blind phrasing sets
+written by other agents.
 
 ## Rejected fixes, and why (do not repeat these)
 
@@ -113,6 +119,14 @@ LC-22 are from the second review, of `da023da` (2026-10-21). LC-23 to LC-26 are 
   allergy). Removal belongs to a deterministic control: decision 12.
 - **Reaction phrases as cues** ("sensitive to", "reacts badly", "can't have"; U2). They over-block, and a
   labelled fact already binds.
+- **Reading every earlier message with the statement filters** (F7's first version). Tuned on one phrasing set, the
+  filters bound something for 15 of 60, then 14 of 50, then 8 of 50 messages from the next blind set that stated no
+  allergy: each set found new phrasings (a dog, a documentary, a cousin abroad, "a myth"). So an ANSWERED message
+  binds only what its reply promised or what the speaker stated as their own; the filters read only a message
+  nothing else read.
+- **Feeding the history scan whole messages.** The gate reads every food in its fact once a cue is present: "i'm
+  allergic to peanuts, can you add more chicken and rice?" bound chicken and rice, and "what if i was allergic to
+  eggs?" bound eggs. The scan cuts one clause per cue.
 
 ## Where the evidence lives
 
