@@ -6191,6 +6191,42 @@ if (violations.size === 0) {
       modelFailureOf("plain").kind === "unreachable");
   }
 
+  // THE CRISIS OP (F6, the models lane's Nemotron diagnosis, 2026-10-22). With reasoning off, the model sent crisis
+  // words to the symptom tool, where a phrasing the pre-scan misses got a nutrition note: "honestly i wish i was
+  // dead" got one about iron and fatigue. The model can now flag a crisis itself, answered with the reviewed
+  // CRISIS_REPLY; no new crisis wording is written anywhere.
+  {
+    const crisisOp = { op: "crisis" } as unknown as PrimitiveOp;
+    {
+      const p = scripted([turn("", [crisisOp]), turn("never reached", [{ op: "pin", day: "Sunday", slot: "dinner" } as unknown as PrimitiveOp])]);
+      const r = await runAgent({ ...base, model: p.fn });
+      check("crisis op: the reviewed crisis reply is the whole answer, nothing changes, and the run ends with no further model call",
+        r.reply === CRISIS_REPLY && p.calls() === 1 && !r.planChanged && !r.profileChanged && !r.modelFailed, `${p.calls()} calls: ${r.reply.slice(0, 40)}`);
+    }
+    {
+      const prior = { plan: withSeed(11, () => freshWeek(BASE)), profile: BASE, label: "rebuilt your week" };
+      const beside = [{ op: "undo" }, { op: "pin", day: "Sunday", slot: "dinner" }, { op: "remember", fact: "I'm allergic to peanuts", kind: "allergy" }, { op: "crisis" }] as unknown as PrimitiveOp[];
+      const r = await runAgent({ ...base, previous: prior, model: scripted([turn("", beside), turn("")]).fn });
+      check("crisis op: sent beside writes, an undo included, nothing else of the turn is applied, and the undo slot stays",
+        r.reply === CRISIS_REPLY && JSON.stringify(r.plan) === JSON.stringify(plan) && JSON.stringify(r.profile) === JSON.stringify(BASE) && r.previous === prior,
+        `planChanged ${r.planChanged}, allergies "${r.profile.allergies}", previous kept ${r.previous === prior}`);
+    }
+    {
+      const res = applyPrimitives(BASE, plan, [{ op: "swap", dish: "Turkey & Bean Chilli", slot: "dinner", days: ["Monday"] } as unknown as PrimitiveOp, crisisOp]);
+      check("crisis op: applyPrimitives answers it alone, whatever else the call holds, so every route that applies a turn gets it",
+        res.replyOverride === CRISIS_REPLY && res.plan === plan && !res.planChanged && res.notes.join() === CRISIS_REPLY);
+    }
+    check("crisis op: the schema takes it with no fields, and the prompt teaches it as the first rule, in the same commit",
+      AssistantTurnV2Schema.safeParse({ thinking: "", reply: "", operations: [{ op: "crisis" }] }).success &&
+      /HOW TO DECIDE[^\n]*\n- Any sign they may not be safe[^\n]*\{"op":"crisis"\}/.test(assistantV2SystemPrompt(BASE, plan)));
+    {
+      const respelled = ["i do not want to live", "i dont wanna live", "i don't wanna be here anymore", "honestly some days i do not want to be here anymore"];
+      const missed = respelled.filter((t) => redFlag(t)?.kind !== "crisis");
+      check("pre-scan: a respelling of a listed phrase ('do not', 'wanna') is the same phrase, and 'wanna' alone raises nothing",
+        missed.length === 0 && redFlag("i wanna cook more at home") === null, `missed: ${missed.join(" | ")}`);
+    }
+  }
+
   // The models lane's gaps from the 550B reasoning-off run (2026-10-03): passive claims slipped past
   // claimsChange, and an EMPTY day-scoped constrain re-rolled the weekend silently, so the model's
   // "Saturday and Sunday have been scaled down" was the whole reply. Their strings, verbatim.

@@ -36,7 +36,11 @@ export interface RedFlag {
 export function redFlag(message: string): RedFlag | null {
   // Phone keyboards type a CURLY apostrophe ("don’t"). The word split below keeps only straight ones,
   // so without this "don’t want to be here" became "don" + "t" and matched nothing.
-  const said = message.replace(/[‘’ʼ]/g, "'").trim().toLowerCase();
+  // Respellings of phrases already on the lists are the same phrases: "i do not want to live", "i dont wanna live"
+  // and "i don't wanna be here anymore" all matched nothing (the models lane's diagnosis, 2026-10-22). Folded
+  // here, before matching; no phrase is added.
+  const said = message.replace(/[‘’ʼ]/g, "'").trim().toLowerCase()
+    .replace(/\bdo not\b/g, "don't").replace(/\bwanna\b/g, "want to");
   if (!said) return null;
   const words = said.split(/[^a-z']+/).filter(Boolean);
   const same = (w: string, t: string) => w === t || wordMatches(w, t) || wordMatches(t, w);

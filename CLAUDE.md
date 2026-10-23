@@ -126,7 +126,9 @@ nothing (measured: without it, 3–7 kB per route) — a module that must run on
   return its reply as the whole answer (no model call, no plan change, no edit-log line); the `symptom`
   tool calls the same function. Do not move this check behind a model: the old guard fired only when
   a model chose the `symptom` tool AND quoted the user verbatim, and both failed on a measured crisis
-  message. Which way it errs is owner decision #8 (`docs/v1/01-…md` §5).
+  message. Which way it errs is owner decision #8 (`docs/v1/01-…md` §5). Behind it, as a second net
+  rather than a replacement, the model can flag a crisis itself (`{op:"crisis"}`, 2026-10-22), answered with
+  the same reviewed `CRISIS_REPLY`. `redFlag` reads "do not" as "don't" and "wanna" as "want to".
 - `src/lib/targets.ts` — Mifflin-St Jeor, hydration. `src/lib/substitutions.ts`,
   `src/lib/symptoms.ts` — curated data for those tools.
 - `src/lib/units.ts` + `unitGrams.generated.ts` — `gramsFor` and the unit weights, **kept apart from

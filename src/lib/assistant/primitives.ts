@@ -12,7 +12,7 @@ import { z } from "zod";
 import type { Meal, Operation, UserProfile, UserFact, WeekPlan, PlanSnapshot } from "../core";
 import { DAYS, MEAL_TYPES } from "../core";
 import { applyOperations } from "../recipeDb";
-import { parseExclusionTokens, EXCLUSION_CATEGORIES, expandExclusion, exclusionCovers, haystackBlocked, mealHaystack } from "../nutrition";
+import { CRISIS_REPLY, parseExclusionTokens, EXCLUSION_CATEGORIES, expandExclusion, exclusionCovers, haystackBlocked, mealHaystack } from "../nutrition";
 import { INGREDIENTS } from "../data";
 
 /** What counts as a FOOD word below: an allergen category, or any word of a curated ingredient. */
@@ -557,10 +557,12 @@ export interface SymptomOp { op: "symptom"; text: string }
 export interface HydrationOp { op: "hydration"; weightKg?: number; activity?: string }
 export interface UndoOp { op: "undo" }
 export interface AnswerOp { op: "answer" }
+/** The model's flag that someone may not be safe (applyPrimitives answers it before anything else). */
+export interface CrisisOp { op: "crisis" }
 
 export type VerbOp =
   | SwapOp | LogOp | ReserveOp | ResizeOp | RateOp | PinOp | ReportOp
-  | ExplainOp | SubstituteOp | SymptomOp | HydrationOp | UndoOp | AnswerOp;
+  | ExplainOp | SubstituteOp | SymptomOp | HydrationOp | UndoOp | AnswerOp | CrisisOp;
 
 /**
  * A uniform `op` verb → the existing engine Operation(s). `answer` maps to nothing (pure reply).
@@ -601,6 +603,8 @@ function verbToOperation(o: Exclude<VerbOp, SwapOp>): Operation | null {
     case "hydration": return { tool: "hydration", weightKg: o.weightKg ?? null, activity: (o.activity ?? null) as Operation["activity"] } as Operation;
     case "undo": return { tool: "undo" } as Operation;
     case "answer": return null;
+    // Never reaches the engine: applyPrimitives answers a crisis before mapping anything.
+    case "crisis": return null;
     default: return null;
   }
 }
@@ -624,6 +628,13 @@ export function applyPrimitives(
   today?: string,
   previous?: PlanSnapshot,
 ): ReturnType<typeof applyOperations> {
+  // A crisis the model flagged is the whole answer: the reviewed crisis reply, the same one the pre-scan gives,
+  // and nothing else from the turn applied, not even an undo. With reasoning off, Nemotron sent crisis words to
+  // the symptom tool (6 of 8), where a phrasing the pre-scan misses got a nutrition note: "honestly i wish i was
+  // dead" got one about iron and fatigue (the models lane's diagnosis, 2026-10-22). No new crisis wording here.
+  if (ops.some((o) => (o as { op?: string }).op === "crisis")) {
+    return { plan, profile, notes: [CRISIS_REPLY], replyOverride: CRISIS_REPLY, planChanged: false, profileChanged: false, undone: false };
+  }
   // An UNDO restores the whole state before the last change. In one pass with the turn's other ops it
   // ran after them, so "I'm allergic to peanuts — and undo that swap" bound peanuts and then restored the
   // profile from before: no allergy, a peanut dish left in the week, and the note "nothing containing
@@ -771,6 +782,9 @@ export const PrimitiveOpSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("explain"), day: dayEnum, slot: slotEnum }),
   z.object({ op: z.literal("substitute"), ingredient: z.string(), day: dayEnum.optional(), slot: slotEnum.optional() }),
   z.object({ op: z.literal("symptom"), text: z.string() }),
+  // The model's own flag that someone may not be safe. No fields: the app answers with its reviewed crisis
+  // reply, and applies nothing else from the turn (applyPrimitives).
+  z.object({ op: z.literal("crisis") }),
   z.object({ op: z.literal("hydration"), weightKg: z.number().optional(), activity: z.enum(["sedentary", "light", "moderate", "active", "very_active"]).optional() }),
   z.object({ op: z.literal("undo") }),
   z.object({ op: z.literal("answer") }),

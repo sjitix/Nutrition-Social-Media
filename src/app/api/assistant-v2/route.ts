@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { agentModelFn, resolveProvider, withTargetDefaults } from "@/lib/providers";
 import { runAgent, MAX_STEPS, type TranscriptEntry } from "@/lib/assistant";
 import { DEMO_ASSISTANT_REPLY } from "@/lib/demo";
-import { redFlag } from "@/lib/nutrition";
+import { CRISIS_REPLY, redFlag } from "@/lib/nutrition";
 import { requestDay } from "@/lib/presentation/client";
 import type { ChatMessage, PlanSnapshot, UserProfile, WeekPlan } from "@/lib/core";
 
@@ -128,7 +128,9 @@ export async function POST(request: Request) {
       fastFinish: process.env.AI_FAST_FINISH === "1",
     });
 
-    await logRun({
+    // A run that ends on the crisis reply is never logged, as a pre-scan crisis never is: someone's crisis
+    // message is not training data.
+    if (result.reply !== CRISIS_REPLY) await logRun({
       message,
       steps: result.steps,
       gaveUp: result.gaveUp,

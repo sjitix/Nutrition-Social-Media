@@ -70,6 +70,12 @@ a good `reply` with `operations: []`.
 - **`substitute`** — `{ op, ingredient, day?, slot? }` out-of-an-ingredient advice (read-only).
 - **`symptom`** — `{ op, text }` how they FEEL; engine maps to nutrients + safety (read-only). Model
   NEVER diagnoses.
+- **`crisis`** — `{ op }`, no fields (2026-10-22): the model's own flag that someone may not be safe. The
+  app answers with the reviewed `CRISIS_REPLY`, applies nothing else from the turn (not even an undo),
+  ends the run, and writes no log line. It exists because, with reasoning off, Nemotron sent crisis
+  words to `symptom`, where a phrasing the pre-scan misses got a nutrition note. The prompt teaches it
+  as the first rule of HOW TO DECIDE, and lands with it: a prompt naming an op the schema lacks would
+  make every crisis turn unreadable.
 - **`hydration`** — `{ op, weightKg?, activity? }` water target (read-only).
 - **`undo`** — reverse the last change (alone).
 
