@@ -170,8 +170,8 @@
       the schedule ahead.</p>
     <div class="stamp">
       <b><i>source</i> docs/worklog/</b>
-      <b><i>synced</i> 2026-10-23</b>
-      <b><i>commit</i> 950d243+</b>
+      <b><i>synced</i> 2026-10-24</b>
+      <b><i>commit</i> 42b6e51+</b>
     </div>
   </header>
 
@@ -202,6 +202,45 @@
     <p class="lede">Only days that actually happened, each with its date, appended at the end of every work-day.
       Nothing planned appears here — the schedule ahead is in its own collapsed block below.</p>
     <div class="tl" style="margin-top:20px">
+
+      <article class="entry" id="d-2026-10-24">
+        <div class="box">
+          <div class="ehead">
+            <span class="date">2026-10-24</span>
+            <span class="pill done">solved &middot; done</span>
+          </div>
+          <h3>An allergy you mentioned earlier is no longer forgotten, and &ldquo;seafood&rdquo; finally means fish and shrimp</h3>
+          <p class="sub">Two more of the fixes from the study of where Nemotron went wrong, each measured on Nemotron before it
+            shipped. A third, about numbers you never said, is built and waiting on its measurement.</p>
+          <div class="blocks">
+            <div class="blk">
+              <h4>What moved</h4>
+              <ul>
+                <li><b>An allergy you mentioned in an earlier message is kept.</b> If the assistant failed on that message, or
+                  answered the rest and forgot the allergy, your next message adds it, with a line saying why. Measured on
+                  Nemotron: a peanut allergy from earlier in the chat was kept 3 times in 3, against 0 in 3 before.</li>
+                <li><b>&ldquo;Some seafood for Friday&rdquo; works.</b> It used to answer &ldquo;I don&rsquo;t have anything like
+                  seafood&rdquo;, because no dish is called that. If you are allergic to shellfish, you get a fish dish and are
+                  told shellfish was kept out.</li>
+                <li><b>The assistant never looks at dishes your allergies rule out.</b> Asked about shrimp by someone allergic to
+                  shellfish, its search used to list 12 shrimp dishes.</li>
+              </ul>
+            </div>
+            <div class="blk found">
+              <h4>Found along the way</h4>
+              <ul>
+                <li><b>Reading your old messages with fixed rules makes mistakes.</b> On test messages written by another AI
+                  to be hard, it added an &ldquo;allergy&rdquo; from words like &ldquo;severely allergic to beetroot. Not
+                  medically&rdquo; 4 times in 45. So it reads only what the assistant missed, and asks you a question in the
+                  decisions doc: add with a note, or ask you first (decision 15).</li>
+                <li><b>Logging a meal can record the wrong dish.</b> &ldquo;Office birthday cake&rdquo; is logged as cottage
+                  cheese pancakes, because they share one word. Noted for the matching rewrite.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="gate">GATE &middot; engine 1209/0, then 1223/0 &middot; 5 of 6 and 11 of 14 new tests fail on the code before each fix</div>
+        </div>
+      </article>
 
       <article class="entry" id="d-2026-10-23">
         <div class="box">

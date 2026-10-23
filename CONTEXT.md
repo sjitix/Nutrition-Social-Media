@@ -395,7 +395,7 @@ Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Ro
 - **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`,
   `docs/worklog/*-models.md`, this block, the lane file. Does not edit v1's files; asks v1 first.
 
-### >>> V1 LANE — 2026-10-23: model failures part 1 `950d243`; F6, the crisis op, landed `8c2519a` (1203/0); the history allergy (F7) built, being measured <<<
+### >>> V1 LANE — 2026-10-24: F9 "seafood" `876e37f` and F7 the history allergy `42b6e51` landed (1223/0); F8 numbers-from-your-words waits on the models lane's run <<<
 
 **2026-10-21 and 22: the second review's follow-ups, one commit at a time.** The review of `da023da` (workflow
 `wf_cf2e22d0-cc3`; four lenses, a skeptic per serious finding; result saved in the session's scratchpad) confirmed 5
@@ -572,39 +572,51 @@ engine already did or said.**
   `modelFailure.kind` and records `unreadableRetried` (its next commit).
 
 **Next, in order:**
-- **F6, the crisis op, landed `8c2519a` (1203/0).** It is the diagnosis's step 1. With reasoning off,
-  Nemotron sent crisis words to the symptom tool (6 of 8), and a phrasing the pre-scan misses got a nutrition note
-  (verified on `2c7181e`: "i wish i was dead" got the fatigue note).
-  - `{op:"crisis"}`: `CRISIS_REPLY` as an override, nothing else of the turn applied (not even an undo), the run
-    ends, and no log line.
-  - The prompt's two lines, verbatim.
-  - `redFlag` folds "do not" and "wanna": that moves none of the 37 listed phrasings, and catches the four
-    respellings.
-  - 5 rows, all failing on main. tsc and boundaries are clean, and `probe-quotes --code` finds 0 near-quotes without
-    a held-out.
-  - **Measured by the models lane before it landed** (`803ac71`): 12 of 12 crisis lines against 6 of 12 on main, and
-    all 15 over-firing guard turns sent symptom, never crisis.
-- **The history allergy (step 2, I2), design agreed with the models lane.** Before the first model call, bind
-  allergies stated in EARLIER user messages:
-  - per sentence, the cue's own clause through the same remember gate the live path uses (so other people's
-    allergies bind as decision 12(b) has it today);
-  - hypotheticals skipped, and a later or current denial wins;
-  - kept from undo (rule G), its note first;
-  - a hand removal is recorded on the profile (`removedAllergies`, optional) and skipped. The accounts lane adds
-    its shape check in `validate.ts` when the field is final.
-  - Measured on the live gate, fed whole sentences: "…add more chicken and rice?" binds chicken and rice, and
-    "what if i was allergic to eggs?" binds eggs. That is why the scan cuts clauses.
-  - The models lane renames its 5 memory-allergy must-fail controls when it lands.
-- **Numbers only from the person's words (step 4)**, together with AS-12: a surviving figure is always the person's,
-  so it can win over a library match (decision 14, row 4).
+- **F6, the crisis op, landed `8c2519a` (1203/0).** It is the diagnosis's step 1. `{op:"crisis"}` answers with the
+  reviewed `CRISIS_REPLY`, applies nothing else and ends the run; `redFlag` folds "do not" and "wanna". Measured by
+  the models lane before it landed (`803ac71`): 12 of 12 crisis lines against 6 of 12 on main, no over-firing.
+- **F9, step 11, landed `876e37f`.** "seafood" in a swap or a `find_recipes` query is the fish and shrimp dishes
+  (`plan/rules` `wantsSeafood`, unless the request rules it out); `find_recipes` never offers a dish the allergies
+  or dislikes block (a shellfish allergy's "shrimp" search: 0 rows, was 12); a seafood swap under a shellfish
+  allergy places fish and says "I used <dish>, and kept shellfish out: it's in your allergies." The models lane:
+  allergy-carry turn 2 and its twin pass with a plain seafood swap on it, fail on main.
+- **F7, the history allergy (step 2, I2), landed `42b6e51` (1223/0).** Measured by the models lane before it
+  landed: memory-allergy 3 of 3 against 0 of 3 on main, conversations no worse (14, 15, 13 of 18 against 13, 13,
+  15), and with no model 690 of 695 controls hold, the 5 that move being the memory-allergy must-fail controls.
+  - Before the first model call, earlier user messages bind through the live remember gate, one clause per cue.
+    A message whose turn got no answer is read for statements; an answered one binds only what its reply promised
+    to keep out, or what the speaker stated as their own ("i'm allergic to peanuts, can you add…", the models
+    lane's case).
+  - Why so narrow (lesson 76): four phrasing sets written blind by other agents. The keyword test bound something
+    for 15/60, 14/50, 8/50 (untuned) messages that state no allergy; on the fourth, the speaker's own non-allergy
+    words 9/45 in a failed turn and 4/45 in an answered one, against 34 and 32 of 35 real statements bound.
+    Bind-with-a-note or ask-first is **owner decision 15** (decisions doc rev 32).
+  - No undo takes it back (it, and any allergy the conversation states, join `remembered` and fold into the
+    returned `previous`); a later denial by name wins, a nameless one cancels nothing; `removedAllergies` (the
+    profile form records a hand removal; the accounts lane's shape check landed `3b1e483`). Today the form also
+    clears the chat, so that record guards two open tabs and future editors.
+  - Two gate fixes on the way, re-measured on 3,702 stored-allergy rows (0 block less): "fyi lactose" junk
+    phrases (LC-30) and "tho" as a contrast (LC-31).
+  - 14 rows, 11 failing on the parent.
+- **F8, step 4 (numbers only from the person's words), in `../NutriFlow-f8` on `42b6e51`, waiting on the models
+  lane's `--code` run** (bar: no invented figure or target reaches the engine, both log rows 3 of 3). New
+  `assistant/figures.ts`: unsaid calories/protein are dropped from log and reserve (the model told in the step's
+  result); a constrain with an unsaid target is refused whole with one nudge, never stripped and run; a library
+  miss that then leaves only "roughly how many calories was it?" ends the run; `figuresDropped` and
+  `targetsRefused` on the result and in the log. 6 rows, 4 failing on the parent. Their must-fail invented-figure
+  controls then pass by design.
+- **AS-12 (the person's number wins over a library match) waits on decision 14 row 4**, unanswered. Found while
+  building F8: the log's library match is far too loose ("office birthday cake" logs as Cottage Cheese Pancakes,
+  "a plate of nachos at the pub" as Egg Fried Rice: one shared word, filler included). That is D6's fuzzy-match
+  rewrite, and it should come before AS-12.
 - **F5a-2:** the failure wording (MF-3, MF-5 and the rest), a 60 s fetch timeout and a run deadline, the raw text
   of an unreadable answer kept for the log (step 14), and the Claude path's text.
-- Then step 11 (lookups know "seafood"; `find_recipes` drops what the allergies block), step 16 (a reserve's note
-  names what it replaced), and the rest of F5 below. F5's mapping workflow stopped with the session (three of six
-  lenses in). Its partial results are in that session's scratchpad, and are not relaunched while ultracode is off.
+- Then step 16 (a reserve's note names what it replaced), and the rest of F5 below. F5's mapping workflow stopped
+  with the session (three of six lenses in). Its partial results are in that session's scratchpad, and are not
+  relaunched while ultracode is off.
 The diagnosis's prompt lines are the models lane's to measure; v1 lands each one that holds. A durable copy ships as
 `docs/models/nemotron-diagnosis.md`. `rate-recur` got its held-out twin (`964e6cc`), so the rating line can be
-measured. The decisions doc (rev 26) records decision 8's new finding and a new decision 14 (four product calls).
+measured. The decisions doc (rev 32) holds decision 14 (four product calls) and decision 15 (the history allergy).
 
 1. **F5, the rest of the follow-ups:** #14 (every note rendered from the run's final week and profile, not each
    step's: a denial step then an undo step leaves "still include peanuts, so nothing with them is planned" over a

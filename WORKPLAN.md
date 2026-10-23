@@ -1644,6 +1644,23 @@ Each of these was discovered by doing the work, and each earned its place.
     around the run's times answers it in seconds. **Before debugging a slow or broken long run, read the power log.
     Rerun what died with the laptop awake, and do not count a guard that "survived" a run that slept: no check
     was run against it.** Lesson 70 is the other half: a background gate throttled to nothing by a sleep.
+76. **A keyword test passes the set it was tuned on and fails the next one: measure it on blind sets, each used
+    once.** F7's history scan (2026-10-23) decides from words alone whether an earlier message STATES an
+    allergy. Tuned on 24 phrasings it bound nothing it should not. Then four sets were written by other agents
+    that never saw the code. Before each round's fixes, messages that state no allergy bound something in 15 of
+    60, 14 of 50, 8 of 50, and on a fourth set built to stress the speaker's own words, 9 of 45. Every set found a
+    new class: a coworker, a dog, a documentary, "a myth", "a false positive", "Not medically, I just hate it".
+    So the design changed, not just the keywords: an answered message binds only what its reply promised or the
+    speaker stated as their own, and the keyword test reads only a message nothing else read. **For any rule that
+    classifies free text, have a fresh agent write the evaluation set without seeing the code, use each set once,
+    and report the number from the set you did not tune on.**
+77. **On this machine, never write a regex or an escape through a shell heredoc or `node -e`: use the Edit tool.**
+    Two F9 regexes (2026-10-23) were written by a node script fed through Git Bash. `\bsea\s+food` arrived in the
+    file as a raw backspace character (0x08), then "sea", then "s+food": the `\b` was read as JavaScript's backspace
+    escape, and the shell ate the `\s`. tsc and the boundary check passed, because both were valid regexes, and only
+    a probe whose seafood lookups returned 0 rows showed it. The same route once turned a `\n` into a real line break.
+    **Write any line that holds a backslash with the Edit or Write tool, and after a scripted edit scan the changed
+    files for control characters (`/[\x00-\x08\x0B\x0C\x0E-\x1F]/`).**
 
 ---
 

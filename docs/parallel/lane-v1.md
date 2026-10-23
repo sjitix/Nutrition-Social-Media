@@ -7,6 +7,14 @@
 
 ## Now doing
 
+**2026-10-24 — F9 landed `876e37f` (1209/0), F7 landed `42b6e51` (1223/0); F8 in `../NutriFlow-f8`, waiting on your run.**
+- **F9:** "seafood" in a swap or `find_recipes` is the fish and shrimp dishes (`wantsSeafood`), and `find_recipes` never
+  returns a dish the allergies or dislikes block. allergy-carry turn 2 and its twin pass with a plain seafood swap.
+- **F7:** the history allergy. Rename the 5 memory-allergy must-fail controls to pass-*; the recall column keeps the
+  model's own habit measured.
+- **F8:** numbers only from the person's words (`assistant/figures.ts`). `--code ../NutriFlow-f8 --allow-dirty`; bar:
+  no invented figure or target reaches the engine, both log rows 3 of 3.
+
 **2026-10-23, evening — F6, the crisis op, landed `8c2519a` (1203/0); the history allergy (F7) built in `../NutriFlow-f7`.**
 - **F6:** `{op:"crisis"}` is in the vocabulary and the prompt's first rule; `redFlag` folds "do not" and "wanna". Your
   run (`803ac71`) is in its commit message.
