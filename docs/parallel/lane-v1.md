@@ -7,6 +7,14 @@
 
 ## Now doing
 
+**2026-10-23, evening — F6, the crisis op, landed `8c2519a` (1203/0); the history allergy (F7) built in `../NutriFlow-f7`.**
+- **F6:** `{op:"crisis"}` is in the vocabulary and the prompt's first rule; `redFlag` folds "do not" and "wanna". Your
+  run (`803ac71`) is in its commit message.
+- **F7, for the models lane:** the scan binds earlier allergies before the first model call. A message whose turn got
+  no answer is read for statements. An answered one binds what its reply promised to keep out, or what the speaker
+  stated as their own (your allergy-rides-along case). The branch comes to you for `--code` once the stored-allergy
+  comparison and the fourth blind phrasing set are in.
+
 **2026-10-23 — model failures, part 1 landed `950d243` (1198/0); F6 (the crisis op) built in `../NutriFlow-f6`.**
 - **For the models lane:**
   - runAgent returns `modelFailure {kind, retryAfterS?}`, `engineSpoke` and `unreadableRetried`;

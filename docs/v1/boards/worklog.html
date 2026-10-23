@@ -211,7 +211,7 @@
           </div>
           <h3>When the model fails partway, nothing the app already said or saved is lost</h3>
           <p class="sub">The first fixes from mapping how the assistant behaves when the model misbehaves, before Nemotron
-            meets real people. Then the crisis fix, built and waiting on its measurement.</p>
+            meets real people. Then the crisis fix, measured on Nemotron and shipped.</p>
           <div class="blocks">
             <div class="blk">
               <h4>What moved</h4>
@@ -221,9 +221,10 @@
                 <li><b>An allergy you state is kept even when the model&rsquo;s reply is malformed.</b> Before, one broken part of
                   its reply threw the whole thing away, the allergy with it, and the peanut dish stayed in your week.</li>
                 <li><b>A crisis always comes first.</b> If a message is both urgent and a crisis, you get the crisis reply.</li>
-                <li><b>Built, not yet live: the model can flag a crisis itself.</b> It is answered with the same reviewed
-                  crisis reply the app already uses, and the check now also catches &ldquo;i do not want to live&rdquo; and
-                  &ldquo;i dont wanna live&rdquo;. It ships once the models agent has measured it on Nemotron.</li>
+                <li><b>The model can now flag a crisis itself.</b> It is answered with the same reviewed crisis reply the app
+                  already uses, and the check now also catches &ldquo;i do not want to live&rdquo; and &ldquo;i dont wanna
+                  live&rdquo;. Measured before it shipped: on messages the app&rsquo;s own check misses, the crisis reply came
+                  12 times in 12, against 6 in 12 before, and it never fired on an ordinary symptom or a bad day.</li>
               </ul>
             </div>
             <div class="blk found">
@@ -237,7 +238,7 @@
               </ul>
             </div>
           </div>
-          <div class="gate">GATE &middot; engine 1198/0 &middot; 16 of the new tests fail on the code before the fix</div>
+          <div class="gate">GATE &middot; engine 1198/0, then 1203/0 with the crisis fix &middot; 16 of the first fix's 19 new tests, and all 5 of the crisis fix's, fail on the code before them</div>
         </div>
       </article>
 

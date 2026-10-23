@@ -387,7 +387,7 @@ Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Ro
 - **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`,
   `docs/worklog/*-models.md`, this block, the lane file. Does not edit v1's files; asks v1 first.
 
-### >>> V1 LANE — 2026-10-23: model failures part 1 `950d243`; F6 (the crisis op) built, waiting on the models lane's run; then the history allergy <<<
+### >>> V1 LANE — 2026-10-23: model failures part 1 `950d243`; F6, the crisis op, landed `8c2519a` (1203/0); the history allergy (F7) built, being measured <<<
 
 **2026-10-21 and 22: the second review's follow-ups, one commit at a time.** The review of `da023da` (workflow
 `wf_cf2e22d0-cc3`; four lenses, a skeptic per serious finding; result saved in the session's scratchpad) confirmed 5
@@ -564,7 +564,7 @@ engine already did or said.**
   `modelFailure.kind` and records `unreadableRetried` (its next commit).
 
 **Next, in order:**
-- **F6, the crisis op, built in `../NutriFlow-f6`**, uncommitted. It is the diagnosis's step 1. With reasoning off,
+- **F6, the crisis op, landed `8c2519a` (1203/0).** It is the diagnosis's step 1. With reasoning off,
   Nemotron sent crisis words to the symptom tool (6 of 8), and a phrasing the pre-scan misses got a nutrition note
   (verified on `2c7181e`: "i wish i was dead" got the fatigue note).
   - `{op:"crisis"}`: `CRISIS_REPLY` as an override, nothing else of the turn applied (not even an undo), the run
@@ -574,8 +574,8 @@ engine already did or said.**
     respellings.
   - 5 rows, all failing on main. tsc and boundaries are clean, and `probe-quotes --code` finds 0 near-quotes without
     a held-out.
-  - **Waiting on the models lane's `--code` run** (crisis rows graded on what the person reads, plus the over-firing
-    guards) before it ships.
+  - **Measured by the models lane before it landed** (`803ac71`): 12 of 12 crisis lines against 6 of 12 on main, and
+    all 15 over-firing guard turns sent symptom, never crisis.
 - **The history allergy (step 2, I2), design agreed with the models lane.** Before the first model call, bind
   allergies stated in EARLIER user messages:
   - per sentence, the cue's own clause through the same remember gate the live path uses (so other people's
