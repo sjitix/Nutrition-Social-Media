@@ -384,7 +384,7 @@ Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Ro
 - **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`,
   `docs/worklog/*-models.md`, this block, the lane file. Does not edit v1's files; asks v1 first.
 
-### >>> V1 LANE — 2026-10-22: the review's follow-ups landed (F1 `4bc9e47`, F2 `7624008`, F3 `ef71993`, F4 `afa7f89`); the fast finish `b2b4285`; F5 being mapped <<<
+### >>> V1 LANE — 2026-10-23: model failures part 1 `950d243`; F6 (the crisis op) built, waiting on the models lane's run; then the history allergy <<<
 
 **2026-10-21 and 22: the second review's follow-ups, one commit at a time.** The review of `da023da` (workflow
 `wf_cf2e22d0-cc3`; four lenses, a skeptic per serious finding; result saved in the session's scratchpad) confirmed 5
@@ -514,9 +514,8 @@ the prompts.
   `scripts/test-ship.mjs` holds 43 scenarios (v1 fails 34), and CI runs it. **Every lane: `docs/parallel/README.md` §3.**
 
 **Worktrees of this lane:**
-- `../NutriFlow-followups` (branch `followups`): F4 landed from it. It stays, read-only, while F5's mapping workflow
-  (`wf_65b5adc7-a11`) reads F4's code there, and is removed when that finishes. `../NutriFlow-f2` is removed.
-  `../NutriFlow-ff` is removed (the fast finish landed from it).
+- `../NutriFlow-f6` (branch `f6`, on `950d243`): **F6, the crisis op, built and uncommitted**, waiting on the models
+  lane's `--code` run (see Next). `../NutriFlow-followups`, `../NutriFlow-ff` and `../NutriFlow-f5a` are removed.
 Remove a worktree when its batch lands, taking the node_modules junction out first. In Git Bash, spell the path out:
 `cmd //c "rmdir C:\\…\\<wt>\\node_modules"`. A `$wt` inside that string is passed literally and removes nothing.
 
@@ -541,31 +540,57 @@ wrapper measured it), so Nemotron-3-Ultra 550B with reasoning off makes 1.2 mode
   test. It is not to land before their shadow numbers on a model that splits writes. The models lane re-ran its 633
   controls on F4 (`afa7f89`) under two seeds: all hold.
 
-**Next, in order (set 2026-10-22, night, after the models lane's diagnosis of every Nemotron failure):**
-- **F5a-1, built in `../NutriFlow-f5a` (uncommitted), its adversarial review `wf_b85e0ca1-6ce` running.**
-  - MF-1: an urgent reply ends the run, and the route's 503 needs nothing changed AND nothing said
-    (`engineSpoke`).
-  - MF-2: an unreadable turn keeps its remembers and gets one nudge-and-retry.
-  - A typed `ModelFailure` (`assistant/modelFailure.ts`).
-  - 11 rows: on the parent the 10 that test it fail, and they show the losses (the urgent reply ends "model
-    failed"; the refused turn leaves the peanut bowl and no allergy).
-- **F6, the crisis op (the diagnosis's step 1, safety).** With reasoning off, Nemotron sends crisis words to the
-  symptom tool (6 of 8). Verified on `2c7181e`: "i wish i was dead" gets the fatigue note, and "i do not want to
-  live", "i dont wanna live" and "i don't wanna be here anymore" all slip the pre-scan.
-  - `{op:"crisis"}`: `CRISIS_REPLY` as an override, applying nothing else from the turn (it runs before any undo
-    group), the run ends, and no log line.
-  - The prompt's two lines, verbatim, in the same commit.
-  - `redFlag` folds "do not" and "wanna".
-  - On a branch for the models lane's `--code` run before it lands.
-- **The history allergy (step 2, I2)**, with the skeptic's strict extractor. It has to agree with decision 12(b)
-  ("anyone you mention is protected") on "my daughter is allergic to peanuts but i'm not". The design goes to the
-  models lane before it is built.
+**2026-10-23: F5a-1 landed, `950d243` (test:engine 1198/0): the model's failures never cost the person what the
+engine already did or said.**
+- MF-1: an engine answer, an urgent reply included, survives a later model failure: the route's 503 needs nothing
+  changed AND nothing said (`engineSpoke`). A crisis outranks an urgent reply, and a crisis ends the run.
+- MF-2: a turn that could not be read keeps its remember and symptom ops, read leniently, on every unreadable
+  turn (the cap step and a second failure too). The model gets one nudge-and-retry. Text that is not one JSON object
+  is scanned (`turnShape`: `turnIn`, `opsIn`). A blind retry that brings only words is still the failure.
+- A typed `ModelFailure` (`assistant/modelFailure.ts`). "empty" is the host's failure (the provider retries it).
+  The Claude path classifies by the SDK's error classes. The route logs the kind and `unreadableRetried`.
+- **Its review** (`wf_b85e0ca1-6ce`; three lenses, 10 majors). The skeptics died with the session restart, so every
+  major was checked by a probe of mine before it was fixed. The first version had:
+  - ended the run on any urgent reply, which cut an allergy the next step would bind;
+  - salvaged only strict-parsed remembers, and only within the retry;
+  - nudged on an empty answer;
+  - lost a cut-off answer entirely;
+  - filed Claude's parse failures as unreachable.
+- **Open:** the Claude path keeps no text, so a twice-refused Claude turn still loses its allergy (F5a-2 can call
+  `messages.create` and parse it as the local path does). The models lane classifies a failed run by
+  `modelFailure.kind` and records `unreadableRetried` (its next commit).
+
+**Next, in order:**
+- **F6, the crisis op, built in `../NutriFlow-f6`**, uncommitted. It is the diagnosis's step 1. With reasoning off,
+  Nemotron sent crisis words to the symptom tool (6 of 8), and a phrasing the pre-scan misses got a nutrition note
+  (verified on `2c7181e`: "i wish i was dead" got the fatigue note).
+  - `{op:"crisis"}`: `CRISIS_REPLY` as an override, nothing else of the turn applied (not even an undo), the run
+    ends, and no log line.
+  - The prompt's two lines, verbatim.
+  - `redFlag` folds "do not" and "wanna": that moves none of the 37 listed phrasings, and catches the four
+    respellings.
+  - 5 rows, all failing on main. tsc and boundaries are clean, and `probe-quotes --code` finds 0 near-quotes without
+    a held-out.
+  - **Waiting on the models lane's `--code` run** (crisis rows graded on what the person reads, plus the over-firing
+    guards) before it ships.
+- **The history allergy (step 2, I2), design agreed with the models lane.** Before the first model call, bind
+  allergies stated in EARLIER user messages:
+  - per sentence, the cue's own clause through the same remember gate the live path uses (so other people's
+    allergies bind as decision 12(b) has it today);
+  - hypotheticals skipped, and a later or current denial wins;
+  - kept from undo (rule G), its note first;
+  - a hand removal is recorded on the profile (`removedAllergies`, optional) and skipped. The accounts lane adds
+    its shape check in `validate.ts` when the field is final.
+  - Measured on the live gate, fed whole sentences: "…add more chicken and rice?" binds chicken and rice, and
+    "what if i was allergic to eggs?" binds eggs. That is why the scan cuts clauses.
+  - The models lane renames its 5 memory-allergy must-fail controls when it lands.
 - **Numbers only from the person's words (step 4)**, together with AS-12: a surviving figure is always the person's,
   so it can win over a library match (decision 14, row 4).
-- **F5a-2:** the failure wording (MF-3, MF-5 and the rest), a 60 s fetch timeout and a run deadline, and the raw text
-  of an unreadable answer kept for the log (step 14).
+- **F5a-2:** the failure wording (MF-3, MF-5 and the rest), a 60 s fetch timeout and a run deadline, the raw text
+  of an unreadable answer kept for the log (step 14), and the Claude path's text.
 - Then step 11 (lookups know "seafood"; `find_recipes` drops what the allergies block), step 16 (a reserve's note
-  names what it replaced), and the rest of F5 below.
+  names what it replaced), and the rest of F5 below. F5's mapping workflow stopped with the session (three of six
+  lenses in). Its partial results are in that session's scratchpad, and are not relaunched while ultracode is off.
 The diagnosis's prompt lines are the models lane's to measure; v1 lands each one that holds. A durable copy ships as
 `docs/models/nemotron-diagnosis.md`. `rate-recur` got its held-out twin (`964e6cc`), so the rating line can be
 measured. The decisions doc (rev 26) records decision 8's new finding and a new decision 14 (four product calls).

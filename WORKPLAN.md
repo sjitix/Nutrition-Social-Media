@@ -1624,6 +1624,14 @@ Each of these was discovered by doing the work, and each earned its place.
     the parent, then failed F4's first gate, which cost a full gate run and an hour of the engine slot that another
     lane was waiting on. **A fixture that picks from a fixed list after exclusions needs more candidates than
     exclusions; run it over 100+ weeks built with `withSeed` before it ships.**
+74. **A workflow's agents live only as long as the session's turn: a long lens needs a quiet session, or it never
+    finishes.** F5's mapping workflow (2026-10-22) ran six lenses. Its agents are foreground requests, so every time
+    the session's turn was interrupted (a message arriving mid-turn), the running agents died with "[Request
+    interrupted by user]" and the workflow restarted them from scratch. The short lenses finished; the long ones
+    did not: spelling was started 6 times, stale-ops 5 and undo-label 4, over more than seven hours, and then the
+    session restart stopped the workflow for good. **Before launching a long workflow, expect interruptions: split
+    long lenses into short agents, check the journal's `started` counts when results are slow, and treat the
+    journal's finished results as the work done, not the run.**
 
 ---
 

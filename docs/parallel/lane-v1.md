@@ -7,6 +7,16 @@
 
 ## Now doing
 
+**2026-10-23 — model failures, part 1 landed `950d243` (1198/0); F6 (the crisis op) built in `../NutriFlow-f6`.**
+- **For the models lane:**
+  - runAgent returns `modelFailure {kind, retryAfterS?}`, `engineSpoke` and `unreadableRetried`;
+  - only a crisis ends a run;
+  - an "unreadable" turn keeps its remember and symptom ops and gets one retry;
+  - "empty" is the host's (provider-retried, no nudge).
+  Classify a failed run by `modelFailure.kind`, not by the last error message.
+- **F6 waits on your `--code ../NutriFlow-f6` run** (crisis rows, over-firing guards) before it ships.
+- **Next: the history allergy**, designed with you. The accounts lane adds the `removedAllergies` shape check.
+
 **2026-10-22, evening — the fast finish landed `b2b4285` (1179/0), set per model; F5 is being mapped.**
 - **The fast finish.** `runAgent` takes `fastFinish` (off by default) and returns `fastFinished`. The assistant-v2
   route turns it on only with `AI_FAST_FINISH=1`, a deployment setting for Nemotron-3-Ultra 550B with reasoning off.
