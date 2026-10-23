@@ -251,9 +251,10 @@ model on a paid host. 690 controls hold under 2 engine seeds.**
 - **Next:**
   1. On the charger: `node scripts/models/fair-arms.mjs --arms B,N,convoN --repeat 3` (the NVIDIA reference range,
      and the lock's first real test), then the candidate against main on N/convoN three times.
-  2. **RUNNING (2026-10-23 evening):** v1's F6 (the crisis operation, uncommitted in `../NutriFlow-f6`), its crisis
-     rows and over-firing guards on N/convoN ×3, main then `--code ../NutriFlow-f6 --allow-dirty`; logs in the session
-     scratchpad (`f6-main.log`, `f6-f6.log`), manifests in `data/eval-runs/`. v1 ships F6 on the result. When the history allergy lands: rename the 5 memory-allergy must-fail controls to pass-* and add a recall column.
+  2. **Done (`803ac71`): v1's F6 measured before landing.** Crisis rows 12 of 12 on a crisis line ({op:"crisis"}),
+     against 6 of 12 on main, where both held-outs the pre-scan misses failed every run; 0 crisis ops on 15 guard
+     turns. v1 ships it. Then merge it into `models-wording` and run the candidate against main, full evals ×3.
+     When the history allergy lands: rename the 5 memory-allergy must-fail controls to pass-* and add a recall column.
 
 **2026-10-21 (evening). The held-outs and their checks were reviewed adversarially and fixed;
 633 controls hold on main as of v1's `7624008`** (all 49 scenarios, 2 engine seeds; `node scripts/models/run-controls.mjs`).
