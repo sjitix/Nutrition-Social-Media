@@ -1,0 +1,2 @@
+{ "allergic to shellfish": [ { "thinking": "Bind the allergy.", "reply": "", "operations": [ { "op": "remember", "fact": "allergic to shellfish", "kind": "allergy" } ] }, { "reply": "", "operations": [] } ],
+  "something from the sea": [ { "thinking": "Seafood the allergy allows, on Friday dinner only: the engine reads seafood as fish or shrimp and keeps shellfish out.", "reply": "", "operations": [ { "op": "swap", "dish": "seafood", "days": ["Friday"], "slot": "dinner" } ] }, { "reply": "", "operations": [] } ] }
