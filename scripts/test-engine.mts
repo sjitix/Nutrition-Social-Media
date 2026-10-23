@@ -5311,6 +5311,33 @@ if (violations.size === 0) {
   }
 }
 
+// ---------------------------------------------------------------- "SEAFOOD" IN A SWAP
+// The models lane's diagnosis, step 11: no dish is named seafood, so "put some seafood in for friday dinner"
+// answered "I don't have anything like "seafood"" even with no allergy, and Nemotron then asked rather than acted.
+{
+  console.log("\n--- SEAFOOD IN A SWAP (fish and shrimp, by main protein) ---");
+  const mainOf = new Map(RECIPES.map((r) => [r.name, r.mainProtein]));
+  const swapFriday = (allergies: string, dish: string) => {
+    const p = { ...BASE, allergies };
+    const r = applyOperations(p, freshWeek(p), [{ tool: "swap_meal", day: "Friday", mealType: "dinner", dish } as Operation]);
+    const meal = r.plan.days.find((d) => d.day === "Friday")!.meals.find((m) => m.type === "dinner")!;
+    return { main: mainOf.get(meal.name), notes: r.notes.join(" "), changed: r.planChanged };
+  };
+  const plain = ["seafood", "some seafood", "a seafood dinner", "sea food"].map((d) => swapFriday("", d));
+  check("seafood: a swap of seafood places a fish or shrimp dish, and says no 'I didn't have'",
+    plain.every((s) => (s.main === "fish" || s.main === "shrimp") && !/didn't have|don't have/.test(s.notes)),
+    plain.map((s) => `${s.main}: ${s.notes.slice(0, 50)}`).join(" / "));
+  const shell = swapFriday("shellfish", "put some seafood in");
+  check("seafood: under a shellfish allergy it places a fish dish, names it, and says what it kept out",
+    shell.main === "fish" && /I used [^,]+, and kept shellfish out: it's in your allergies\./.test(shell.notes), `${shell.main}: ${shell.notes.slice(0, 90)}`);
+  const both = swapFriday("fish, shellfish", "seafood");
+  check("seafood: with fish and shellfish both allergies, the dinner stays and the note says both were kept out",
+    !both.changed && /I kept .*shellfish.* out|I kept .*fish.* out/.test(both.notes) && /left Friday as it is/.test(both.notes), both.notes.slice(0, 120));
+  const notSea = ["fish-free curry", "no seafood, a chicken curry", "a curry without any seafood"].map((d) => swapFriday("", d));
+  check("seafood: a request that rules it out never gets fish or shrimp ('fish-free curry', 'no seafood')",
+    notSea.every((s) => s.main !== "fish" && s.main !== "shrimp"), notSea.map((s) => s.main).join(", "));
+}
+
 // ---------------------------------------------------------------- AGENT READ SURFACE
 // The tools the agent uses to LOOK THINGS UP before deciding (ASSISTANT-SCHEMA.md v3).
 // They are pure functions of (args, context), which is exactly why they can be tested here with
@@ -5358,6 +5385,27 @@ if (violations.size === 0) {
   check("find_recipes: a non-numeric limit yields a finite count, not NaN",
     Number.isFinite(badLimit.shown) && badLimit.shown <= MAX_ROWS && badLimit.rows.length === badLimit.shown);
   check("find_recipes: a non-string query does not throw", Array.isArray(findRecipes({ query: 5 } as never).rows));
+
+  // -- "seafood", and the person's own allergies (the models lane's diagnosis, step 11). "seafood" matched 0 of 136
+  // dinners although 27 are fish, and find_recipes ignored the profile, so a wider search listed shrimp to
+  // someone allergic to shellfish.
+  {
+    const mainOf = new Map(RECIPES.map((r) => [r.name, r.mainProtein]));
+    const fromSea = (name: string) => mainOf.get(name) === "fish" || mainOf.get(name) === "shrimp";
+    const shellfishCtx = { ...ctx, profile: { ...BASE, allergies: "shellfish" } };
+    const shrimp = runReadTool(shellfishCtx, "find_recipes", { query: "shrimp" }) as { matched: number };
+    const anyRows = ["", "rice", "bowl", "tacos", "curry", "salad"].flatMap((query) =>
+      (runReadTool(shellfishCtx, "find_recipes", { query, limit: 10 }) as { rows: { name: string }[] }).rows);
+    const shellfishInRows = anyRows.filter((r) => mainOf.get(r.name) === "shrimp" || /shrimp|prawn|crab|scallop|lobster|mussel/i.test(r.name));
+    check("find_recipes: never offers a dish the person's allergies block (no shrimp to a shellfish allergy)",
+      shrimp.matched === 0 && shellfishInRows.length === 0, `shrimp ${shrimp.matched}, shellfish rows ${shellfishInRows.map((r) => r.name).join(", ")}`);
+    const sea = runReadTool(ctx, "find_recipes", { query: "seafood", mealType: "dinner", limit: 10 }) as { matched: number; rows: { name: string }[] };
+    const seaUnderShellfish = runReadTool(shellfishCtx, "find_recipes", { query: "seafood", mealType: "dinner", limit: 10 }) as { matched: number; rows: { name: string }[] };
+    check("find_recipes: 'seafood' finds the fish and shrimp dinners, and under a shellfish allergy only the fish",
+      sea.matched > 20 && sea.rows.every((r) => fromSea(r.name)) && seaUnderShellfish.matched > 20 &&
+        seaUnderShellfish.rows.every((r) => mainOf.get(r.name) === "fish"),
+      `seafood ${sea.matched}, under shellfish ${seaUnderShellfish.matched}`);
+  }
 
   // -- get_plan
   const week = getPlan(ctx);

@@ -58,6 +58,22 @@ export function blockedByExclusions(r: Recipe, tokens: string[]): boolean {
   return haystackBlocked(mealHaystack(r.name, r.ingredients.map((i) => i.name), r.steps), tokens);
 }
 
+/**
+ * "Seafood" as a request: the fish and shrimp dishes, by their main protein (the models lane's diagnosis, step
+ * 11). No dish is NAMED seafood, so a lookup or swap of "seafood" matched 0 of 136 dinners although 27 are fish,
+ * and Nemotron then asked rather than acted. Only seafood is taught: with fish, meat and poultry read the same
+ * way, "fish-free curry" resolved to Cod Curry & Rice. A request that rules seafood out ("no seafood",
+ * "without any seafood", "seafood-free") is not one for it.
+ */
+const SEAFOOD_WORD = /\bsea\s?foods?\b/;
+export const wantsSeafood = (request: string): boolean => {
+  const t = request.toLowerCase();
+  return SEAFOOD_WORD.test(t) && !/\b(?:no|without|not|zero)\s+(?:[a-z]+\s+){0,2}sea\s?foods?\b|\bsea\s?foods?[-\s]free\b/.test(t);
+};
+export const isSeafood = (r: Pick<Recipe, "mainProtein">): boolean => r.mainProtein === "fish" || r.mainProtein === "shrimp";
+/** The word in a request that `wantsSeafood` is about. */
+export const isSeafoodWord = (w: string): boolean => /^seafoods?$/.test(w);
+
 /** The user's ratings as the selector wants them: lowercased name -> 1..5. */
 export function ratingMap(profile: UserProfile): ReadonlyMap<string, number> {
   return new Map((profile.mealRatings ?? []).map((r) => [r.name.toLowerCase(), r.rating]));

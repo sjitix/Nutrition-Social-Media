@@ -419,7 +419,10 @@ macros land as close to target as the library allows."*
   Track E, **`swapCandidates(profile, plan, day, slot, limit?, minProtein?)`** — the dishes that
   could take a slot, each with the delta it would cause. It reuses the private `batchCandidates`
   pool, so the diet, allergen, dislike, cook-time and budget rules and the rated-1 bans all apply:
-  **a candidate the executor would refuse must never be offered.**
+  **a candidate the executor would refuse must never be offered.** And, from `plan/rules` (2026-10-23, the
+  models lane's diagnosis, step 11), **`wantsSeafood(request)`** and **`isSeafood(recipe)`**: "seafood" as a
+  request is the fish and shrimp dishes, unless the request rules it out. The swap lookup and `find_recipes` share
+  them, so the two cannot disagree about what seafood is.
 - **Private:** `chooseRecipe`, `pickMealsForDay`, `candidatesForSlot`, `batchCandidates`,
   `pickKForSlot`, `scaleRecipeToTarget`, `localSplit`, `budgetCap`, `passesDiet`,
   `blockedByExclusions`, `mulberry32`, `ratingMap`, `selectDay`, `findRecipe`, `SelectionReport`.
@@ -499,7 +502,8 @@ was forwarded to it verbatim on 2026-10-03. The constraint this side holds: what
 arrives through `ModelFn`, so the choice is a provider change, never a code change here.
 
 **`assistant/read-surface`** (`agentTools.ts`) — *"Seven pure lookups the MODEL calls and the user
-never sees."*
+never sees."* Since 2026-10-23, `find_recipes` (and `inspect_recipe`'s suggestions) are the person's: a dish
+their allergies or dislikes block is never offered, because the model picks from what it is shown.
 - **Public:** `runReadTool`, `isReadTool`, `READ_TOOL_NAMES`, `AgentContext`, `MAX_ROWS`, and the
   seven functions. **Private:** the row projections.
 - **Invariants:** pure — no I/O, no model, no network; `what_if` clones before simulating;

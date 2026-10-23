@@ -4,7 +4,7 @@
  * delete it freely, as long as these promises hold. docs/v1/02-module-map.md §4 L3 is the contract.
  */
 export { recipeToMeal, RECIPES, recipeMicros } from "./library";
-export { ratingMap } from "./rules";
+export { ratingMap, wantsSeafood, isSeafood } from "./rules";
 export { rebalanceWeek } from "./rebalance";
 export { findRecipe, withSeed, newReport, reportNotes, selectWeekFromDb, selectDay } from "./select";
 export type { SelectionReport } from "./select";

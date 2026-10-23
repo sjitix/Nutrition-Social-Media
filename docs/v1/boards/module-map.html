@@ -371,7 +371,7 @@
       <div class="rows">
         <div class="row2"><span class="k">Public</span><span class="pub mono">applyOperations(profile, plan, operations, previous?)</span></div>
         <div class="row2"><span class="k">Private</span><span class="priv">every per-tool handler, <span class="mono">reimposeLocks</span>, <span class="mono">guaranteeFridge</span>, <span class="mono">guaranteeBoost</span>, <span class="mono">findRecipeForSwap</span>, the note-writers, the undo snapshot</span></div>
-        <div class="row2"><span class="k">Invariants</span><span>Never mutates what it is handed. A refusal is reported, never faked. <span class="mono">replyOverride</span> on a crisis discards the model's words entirely. <b><span class="mono">planChanged</span> is a deep comparison of before and after</b> — never a guess from which tool ran.</span></div>
+        <div class="row2"><span class="k">Invariants</span><span>Never mutates what it is handed. A refusal is reported, never faked. <span class="mono">replyOverride</span> on a crisis discards the model's words entirely. <b><span class="mono">planChanged</span> is a deep comparison of before and after</b> — never a guess from which tool ran. <b>&ldquo;Seafood&rdquo; is the fish and shrimp dishes</b> (<span class="mono">wantsSeafood</span>, shared with the agent&rsquo;s <span class="mono">find_recipes</span>, which never offers a dish the person&rsquo;s allergies block).</span></div>
       </div>
     </div>
 

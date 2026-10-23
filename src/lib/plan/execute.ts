@@ -12,7 +12,7 @@ import { computeTargets, explainTargets, hydrationTarget, explainHydration, CALO
 import { type Recipe } from "../data";
 import { CRISIS_REPLY, MICRO_LABEL, exclusionCovers, haystackBlocked, mealHaystack, parseExclusionTokens, wordMatches, type MicroKey } from "../nutrition";
 import { RECIPES, baseRecipeOf, scaleRecipeToTarget, toMeal } from "./library";
-import { bannedForUser, blockedByExclusions, budgetCap, exclusionKey, exclusionTokens, fiberOn, keepMacros, localSplit, mergeDislikes, normalizeCuisine, passesDiet } from "./rules";
+import { bannedForUser, blockedByExclusions, budgetCap, exclusionKey, exclusionTokens, fiberOn, isSeafood, isSeafoodWord, keepMacros, localSplit, mergeDislikes, normalizeCuisine, passesDiet, wantsSeafood } from "./rules";
 import { SCALE_LO, clampScale, dayTargetMacros, macroDistance, rebalanceDay, rebalanceWeek, recipeMacros, scaleRecipeByFactor, scaleToTargets, slotShare, slotTargetMacros, slotsUpTo } from "./rebalance";
 import { brokenImports, importNotes, newReport, reportNotes, selectDay, selectWeekFromDb, withSeed, type ReplacedImport } from "./select";
 import { buildWeek } from "./batch";
@@ -22,18 +22,47 @@ import { guaranteeBoost } from "./boost";
 // Macro-aware swap: among the recipes that match the requested dish name, pick the
 // one whose macro profile best fits the slot — so "pancakes" on a high-protein plan
 // auto-selects the protein-forward pancake (the user never has to say "protein").
-/** The words of a swap request that count toward a match (three letters or more). */
-const askedWords = (query: string) => query.toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 2);
+/** The words of a swap request that count toward a match (three letters or more). "sea food" is one word. */
+const askedWords = (query: string) => query.toLowerCase().replace(/\bsea\s+food/g, "seafood").split(/[^a-z]+/).filter((w) => w.length > 2);
 
 /** How many of the request's words a dish matches: the swap lookup's own score. A substring hit, OR the
  *  asked word is an inflection of a whole word in the dish: "pancakes" must find "Chickpea Flour Pancake".
  *  Substring alone missed it, and it surfaced the day a remembered lactose intolerance became binding:
  *  the only pancake left was singular-named, so "pancakes every day" answered "I don't have anything like
  *  pancakes". (The wider fuzzy-match rewrite is D6's.) */
-function keywordHits(words: string[], r: Recipe): number {
+function keywordHits(words: string[], r: Recipe, seafood = false): number {
   const hay = `${r.name} ${r.description} ${r.ingredients.map((i) => i.name).join(" ")}`.toLowerCase();
   const hayWords = hay.split(/[^a-z]+/).filter((h) => h.length >= 3);
-  return words.filter((w) => hay.includes(w) || hayWords.some((h) => wordMatches(w, h))).length;
+  // "seafood" is met by any fish or shrimp dish, when the request asks for it (rules.ts, wantsSeafood).
+  return words.filter((w) => (seafood && isSeafoodWord(w) ? isSeafood(r) : hay.includes(w) || hayWords.some((h) => wordMatches(w, h)))).length;
+}
+
+/** Words a request carries that no dish name is asked to: "some seafood", "a seafood dinner for tonight". */
+const FILLER = new Set(["some", "any", "the", "and", "for", "with", "nice", "good", "something", "please", "more", "dinner", "lunch", "breakfast", "snack", "meal", "dish", "tonight", "today", "tomorrow"]);
+/** The words of a swap request the placed dish does not carry, for the "I didn't have …" note. "seafood" is
+ *  carried by any fish or shrimp dish: "I didn't have \"seafood\" — I used Cod Curry" was false, and so was
+ *  "I didn't have \"some seafood\"" over a tuna bake. */
+const unmetWords = (dish: string, match: Recipe) => {
+  const sea = wantsSeafood(dish);
+  const got = match.name.toLowerCase();
+  return askedWords(dish).filter((w) => !FILLER.has(w) && !(sea && isSeafoodWord(w) && isSeafood(match)) && !got.includes(w));
+};
+
+/**
+ * "I kept shellfish out: it's in your allergies." A request for seafood under an allergy to part of it (shrimp,
+ * or fish) is answered with the part that is left, and says what it left out and why (the models lane's
+ * diagnosis, step 11). Null when the request is not for seafood or no allergy touches it. Given the dish it
+ * `placed`, it names it too, because "seafood" names no dish: "I used White Bean & Tuna Bake, and kept shellfish
+ * out…" (the models lane's wording note); with no allergy touching it, "I used White Bean & Tuna Bake."
+ */
+function seafoodKeptOut(dish: string, p: UserProfile, placed?: string): string | null {
+  if (!wantsSeafood(dish)) return null;
+  const allergies = parseExclusionTokens(p.allergies ?? "", "");
+  const blocks = (part: string) => allergies.filter((t) => haystackBlocked(part, [t]));
+  const named = uniqueByKey([...blocks("shrimp"), ...blocks("salmon"), ...blocks("cod")]).map(shownToken);
+  const why = named.length ? `kept ${listPhrase(named)} out: ${pluralList(named) ? "they're" : "it's"} in your allergies.` : "";
+  if (placed) return why ? `I used ${placed}, and ${why}` : `I used ${placed}.`;
+  return why ? `I ${why}` : null;
 }
 
 // Dish match wins first; macro fit only breaks ties between equally-matching dishes.
@@ -47,6 +76,7 @@ function findRecipeForSwap(
   respectSoft = true,
 ): Recipe | null {
   const words = askedWords(query);
+  const seafood = wantsSeafood(query);
   if (words.length === 0) return null;
   const cap = budgetCap(profile.budget);
   const tokens = exclusionTokens(profile);
@@ -68,7 +98,7 @@ function findRecipeForSwap(
   const scored: { r: Recipe; kw: number }[] = [];
   for (const r of RECIPES) {
     if (!eligible(r)) continue;
-    const kw = keywordHits(words, r);
+    const kw = keywordHits(words, r, seafood);
     if (kw > 0) scored.push({ r, kw });
   }
   if (scored.length === 0) return null;
@@ -945,7 +975,9 @@ export function applyOperations(
               refusedForExclusions(op.dish, op.mealType ?? undefined, p, null, false);
             notes.push(refused
               ? `${refused.dish.name} ${refused.why}, so I left the week as it is.`
-              : `I don't have anything like "${op.dish}" that fits your plan, so I left the week as it is.`);
+              : seafoodKeptOut(op.dish, p)
+                ? `${seafoodKeptOut(op.dish, p)} Nothing else from the sea fits your plan, so I left the week as it is.`
+                : `I don't have anything like "${op.dish}" that fits your plan, so I left the week as it is.`);
             break;
           }
           const slot = op.mealType ?? match.type;
@@ -983,8 +1015,9 @@ export function applyOperations(
                 }
               : b),
           };
-          const asked = op.dish.toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 2);
-          if (asked.length && asked.some((w) => !match.name.toLowerCase().includes(w))) {
+          const keptOut = seafoodKeptOut(op.dish, p);
+          if (keptOut) notes.push(keptOut);
+          if (unmetWords(op.dish, match).length) {
             const refused = refusedForExclusions(op.dish, op.mealType ?? undefined, p, match);
             notes.push(refused
               ? `${refused.dish.name} ${refused.why}, so I used ${match.name} instead.`
@@ -1006,7 +1039,9 @@ export function applyOperations(
               refusedForExclusions(op.dish, op.mealType ?? undefined, p, null, false);
             notes.push(refused
               ? `${refused.dish.name} ${refused.why}, so I left the week as it is.`
-              : `I don't have anything like "${op.dish}" that fits your plan, so I left the week as it is.`);
+              : seafoodKeptOut(op.dish, p)
+                ? `${seafoodKeptOut(op.dish, p)} Nothing else from the sea fits your plan, so I left the week as it is.`
+                : `I don't have anything like "${op.dish}" that fits your plan, so I left the week as it is.`);
             break;
           }
           const slot = op.mealType ?? match.type;
@@ -1047,8 +1082,9 @@ export function applyOperations(
             notes.push(`None of your days have a ${slot} to swap, so I left the week as it is. Tell me if you'd like to add ${match.name} as a new ${slot} and I'll fit it in.`);
             break;
           }
-          const wanted = op.dish.toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 2);
-          if (wanted.length && wanted.some((w) => !match.name.toLowerCase().includes(w))) {
+          const keptOut = seafoodKeptOut(op.dish, p);
+          if (keptOut) notes.push(keptOut);
+          if (unmetWords(op.dish, match).length) {
             const refused = refusedForExclusions(op.dish, op.mealType ?? undefined, p, match);
             notes.push(refused
               ? `${refused.dish.name} ${refused.why}, so I used ${match.name} instead.`
@@ -1101,7 +1137,9 @@ export function applyOperations(
               ? `${why.dish.name} ${why.why}, so I left ${op.day} as it is.`
               : loose
                 ? `${loose.name} takes ${loose.timeMinutes} min, over your ${p.maxCookTime}-min limit — I left ${op.day} as it is.`
-                : `I don't have anything like "${op.dish}" that fits your plan.`,
+                : seafoodKeptOut(op.dish, p)
+                  ? `${seafoodKeptOut(op.dish, p)} Nothing else from the sea fits your plan, so I left ${op.day} as it is.`
+                  : `I don't have anything like "${op.dish}" that fits your plan.`,
           );
           break;
         }
@@ -1119,10 +1157,11 @@ export function applyOperations(
         // Be honest when we substituted something other than what was asked for.
         // "unicorn stew" matching "Cod & Smoky Bean Stew" is a reasonable guess, but
         // the user must be told — a silent wrong swap is worse than no swap.
-        const asked = op.dish.toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 2);
-        const got = match.name.toLowerCase();
-        const unmatched = asked.filter((w) => !got.includes(w));
-        if (asked.length && unmatched.length) {
+        // One day's swap names no dish in its other notes, so a seafood swap says which it used.
+        const keptOut = seafoodKeptOut(op.dish, p, match.name);
+        if (keptOut) notes.push(keptOut);
+        const unmatched = unmetWords(op.dish, match);
+        if (unmatched.length) {
           // …unless the library HAS the dish and an allergy or a dislike kept it out: then say that.
           const refused = refusedForExclusions(op.dish, op.mealType ?? undefined, p, match);
           notes.push(refused

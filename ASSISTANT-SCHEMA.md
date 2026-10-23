@@ -141,7 +141,7 @@ one is unit-testable and cannot fail in a way the loop has to reason about.
 
 | tool | arguments | returns | wraps |
 |---|---|---|---|
-| `find_recipes` | `mealType?, diet?, minProtein?, maxTime?, maxCalories?, query?, limit?` | ≤10 rows: name, type, kcal, protein, carbs, fat, fibre, minutes, dietTags | `filterFeed` + `sortFeed` |
+| `find_recipes` | `mealType?, diet?, minProtein?, maxTime?, maxCalories?, query?, limit?` | ≤10 rows: name, type, kcal, protein, carbs, fat, fibre, minutes, dietTags. Never a dish the person's allergies or dislikes block; "seafood" in the query is the fish and shrimp dishes (2026-10-23) | `filterFeed` + `sortFeed`, `wantsSeafood` |
 | `inspect_recipe` | `name` | one dish in full: ingredients with quantities, steps, macros, micro coverage | `RECIPES` + `microsForIngredients` |
 | `get_plan` | `day?` | the week, or one day: slot, dish, macros, day totals against target | the plan in the request |
 | `get_profile` | — | targets, diet, allergies, dislikes, mealsPerDay, maxCookTime, pins, ratings, remembered facts | the profile in the request |

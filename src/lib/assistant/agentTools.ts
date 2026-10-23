@@ -28,14 +28,16 @@
  */
 import {
   RECIPES,
+  isSeafood,
   recipeToMeal,
+  wantsSeafood,
   weeklyReportNote,
   withSeed,
   type DietTag,
   type Recipe,
 } from "../recipeDb";
 import { FEED_RECIPES, filterFeed, sortFeed, type FeedSort } from "../presentation";
-import { microsForIngredients, DAILY_REFERENCE, MICRO_KEYS, MICRO_LABEL, MICRO_UNIT } from "../nutrition";
+import { microsForIngredients, DAILY_REFERENCE, MICRO_KEYS, MICRO_LABEL, MICRO_UNIT, haystackBlocked, mealHaystack, parseExclusionTokens } from "../nutrition";
 import { applyPrimitives, type PrimitiveOp } from "./primitives";
 import type { DayPlan, Meal, UserProfile, WeekPlan } from "../core";
 
@@ -92,22 +94,37 @@ const toRow = (m: Meal, dietTags: DietTag[]): RecipeRow => ({
   dietTags,
 });
 
-export function findRecipes(args: FindRecipesArgs = {}): { rows: RecipeRow[]; matched: number; shown: number } {
+/** The main protein of each library dish, by name: the feed's cards do not carry it. */
+const MAIN_PROTEIN = new Map(RECIPES.map((r) => [r.name, r.mainProtein]));
+
+/**
+ * `profile`, when the loop passes it, makes the search the person's: a dish their allergies or dislikes block is
+ * never offered (the models lane's diagnosis, step 11). A widened search would otherwise list shrimp to someone
+ * allergic to shellfish, and the model picks from what it is shown.
+ */
+export function findRecipes(args: FindRecipesArgs = {}, profile?: UserProfile): { rows: RecipeRow[]; matched: number; shown: number } {
+  // "seafood" is the fish and shrimp dishes (rules.ts, wantsSeafood): no dish is named it, so as a word it matched
+  // nothing. It leaves the text query and becomes a facet of its own.
+  const query = typeof args.query === "string" ? args.query : "";
+  const seafood = wantsSeafood(query);
   // The facets filterFeed already owns go through filterFeed — a second "vegan" would be a bug.
   const base = filterFeed(FEED_RECIPES, {
     mealType: args.mealType ?? "all",
     diet: args.diet ?? "all",
     highProtein: false,
     maxTime: args.maxTime ?? null,
-    query: typeof args.query === "string" ? args.query : "",
+    query: seafood ? query.replace(/\bsea\s?foods?\b/gi, " ").trim() : query,
   });
+  const avoided = profile ? parseExclusionTokens(profile.allergies ?? "", profile.dislikes ?? "") : [];
 
   // Two numeric facets filterFeed has no concept of. Applied here rather than by widening
   // filterFeed, because filterFeed backs the Explore UI and its filters are user-facing chips.
   const narrowed = base.filter(
     (it) =>
       (args.minProtein == null || it.meal.proteinGrams >= args.minProtein) &&
-      (args.maxCalories == null || it.meal.calories <= args.maxCalories),
+      (args.maxCalories == null || it.meal.calories <= args.maxCalories) &&
+      (!seafood || isSeafood({ mainProtein: MAIN_PROTEIN.get(it.meal.name) ?? "legumes" })) &&
+      (!avoided.length || !haystackBlocked(mealHaystack(it.meal.name, it.meal.ingredients.map((i) => i.name), it.meal.steps), avoided)),
   );
 
   const sorted = sortFeed(narrowed, args.sort ?? "default");
@@ -124,7 +141,7 @@ export function findRecipes(args: FindRecipesArgs = {}): { rows: RecipeRow[]; ma
 
 /* ── inspect_recipe ───────────────────────────────────────────────────────────────────────── */
 
-export function inspectRecipe(name: string) {
+export function inspectRecipe(name: string, profile?: UserProfile) {
   const key = name.trim().toLowerCase();
   // An empty/whitespace name must miss cleanly — otherwise the includes() fallback below matches
   // every recipe ("".includes("") === true) and hands back an arbitrary dish as a confident match.
@@ -134,7 +151,7 @@ export function inspectRecipe(name: string) {
     RECIPES.find((r) => r.name.toLowerCase().includes(key));
   if (!recipe) {
     // An honest miss, not an exception: the loop must be able to read this and try another name.
-    return { found: false as const, name, suggestion: findRecipes({ query: name, limit: 3 }).rows };
+    return { found: false as const, name, suggestion: findRecipes({ query: name, limit: 3 }, profile).rows };
   }
 
   const meal = recipeToMeal(recipe);
@@ -347,10 +364,10 @@ export function runReadTool(
   try {
     switch (name) {
       case "find_recipes":
-        return findRecipes(args as FindRecipesArgs);
+        return findRecipes(args as FindRecipesArgs, ctx.profile);
       case "inspect_recipe":
         return typeof args.name === "string"
-          ? inspectRecipe(args.name)
+          ? inspectRecipe(args.name, ctx.profile)
           : { error: "inspect_recipe needs a recipe name." };
       case "get_plan":
         return getPlan(ctx, typeof args.day === "string" ? args.day : undefined);
