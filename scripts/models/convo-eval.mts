@@ -39,7 +39,7 @@ import { selectWeekFromDb, rebalanceWeek, withSeed, RECIPES } from "@/lib/plan";
 import { haystackBlocked, parseExclusionTokens, MICRO_LABEL, type MicroKey } from "@/lib/nutrition";
 import { withFastFinish, fastFinishModeFromEnv, type ShadowCall } from "./fast-finish";
 import {
-  withErrorCapture, failedOnInfra, failureKindOf, unreadableRetriedOf, holdFailure, scriptedModel, scriptLabel, reseedEngine, engineSeedConfig,
+  withErrorCapture, failedOnInfra, failureKindOf, unreadableRetriedOf, figuresGuardedOf, holdFailure, scriptedModel, scriptLabel, reseedEngine, engineSeedConfig,
   outsideScope, unaskedProfileEdit, writesSent, isVegMeal, isVeganMeal, symptomTexts, quotesUser, holdWrites,
   mentions, replanningConstrains, asksQuestion, changedOutside, inventedFigures, declines, NAMES_VEGETARIAN,
   namesClash, chosenCalorieFigure, memoryFactsAdded, DIAGNOSIS, sleepWatch, offersToPickFigure, crisisAnswered,
@@ -624,7 +624,9 @@ interface TurnRow { user: string; want: "act" | "hold"; pass: boolean; infra: bo
   totalWallSeconds?: number;
   /** F5a-1: the failure's typed kind, and whether the loop gave an unreadable turn its one retry. */
   failureKind?: string;
-  unreadableRetried?: boolean; guardRetried: boolean; guardCaught: boolean; wallSeconds?: number; shadow?: ShadowCall[] }
+  unreadableRetried?: boolean;
+  /** F8: figures the loop dropped and targets it refused on this turn. Never part of pass. */
+  guardedFigures?: { dropped: string[]; refused: number }; guardRetried: boolean; guardCaught: boolean; wallSeconds?: number; shadow?: ShadowCall[] }
 interface ConvoRow { id: string; skill: Skill; pass: boolean; infra: boolean; turns: TurnRow[]; heldOutOf?: string; heldOutTurn?: number }
 const EMOJI = /\p{Extended_Pictographic}/u;
 const rows: ConvoRow[] = [];
@@ -690,6 +692,7 @@ for (const c of convos) {
     if (reason && slotConstrain && !r.planChanged) reason += " [the model sent a slot-scoped constrain, which the engine does not support]";
     turns.push({ user: t.user, want: t.want, pass: reason === null, infra: false, reason, steps: r.steps, gaveUp: r.gaveUp, seconds, ops: opsOf(r), writes: writesOf(r), reply: r.reply.replace(/\s+/g, " "), emoji: EMOJI.test(r.reply), modelCalls: r.steps - (ff.skipped - sk0) - (r.fastFinished ? 1 : 0), fastFinished: Boolean(r.fastFinished) || ff.skipped > sk0, falseClaim: claimed, guardRetried: Boolean(guard(r).falseClaimRetried), guardCaught: Boolean(guard(r).falseClaimCaught), wallSeconds,
       failureKind: failureKindOf(r), unreadableRetried: unreadableRetriedOf(r) || undefined,
+      guardedFigures: (() => { const g = figuresGuardedOf(r); return g && (g.dropped.length || g.refused) ? g : undefined; })(),
       shadow: FAST_FINISH_MODE === "shadow" ? ff.shadow.slice(sh0) : undefined, slept,
       retryErrors: retryErrors.length ? retryErrors : undefined, totalWallSeconds: +((performance.now() - tFirst) / 1000).toFixed(1) });
     // Carry state forward exactly as the client does between requests.
@@ -758,6 +761,8 @@ const summary = {
    *  never came. The latency figures time only the attempt that answered, so this is reported beside them. */
   firstAttemptFailures: rows.flatMap((r) => r.turns).filter((t) => t.retryErrors?.length || t.infra).length,
   /** F5a-1: turns where the loop retried an unreadable turn (a pass after it still counts as a pass). */
+  /** F8: turns where the loop dropped a figure or refused a target the person never gave. Never part of pass. */
+  figuresGuarded: gradedTurns.filter((t) => t.guardedFigures).length,
   unreadableRetried: gradedTurns.filter((t) => t.unreadableRetried).length,
   unusableOutput: rows.flatMap((r) => r.turns).filter((t) => /^unusable model output/.test(t.reason ?? "")).length,
   p90SecondsPerTurn: q(0.9),

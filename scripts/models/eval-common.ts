@@ -40,6 +40,14 @@ export const failedOnInfra = (r: AgentRunResult, lastError: string): boolean => 
 /** F5a-1: the loop gave an unreadable turn its one retry (absent on older code). */
 export const unreadableRetriedOf = (r: AgentRunResult): boolean =>
   Boolean((r as AgentRunResult & { unreadableRetried?: boolean }).unreadableRetried);
+/** v1's F8 (numbers only from the person's words): the figures the loop dropped from log/reserve ops ("log.calories")
+ *  and the constrains it refused for a target nobody wrote. The model's habit, kept visible once the app guards it.
+ *  Absent on older code. */
+export const figuresGuardedOf = (r: AgentRunResult): { dropped: string[]; refused: number } | undefined => {
+  const x = r as AgentRunResult & { figuresDropped?: string[]; targetsRefused?: number };
+  if (x.figuresDropped === undefined && x.targetsRefused === undefined) return undefined;
+  return { dropped: x.figuresDropped ?? [], refused: x.targetsRefused ?? 0 };
+};
 
 /** Wraps a ModelFn and remembers the message of the last error it threw (reset before each run). */
 export function withErrorCapture(model: ModelFn) {

@@ -30,7 +30,7 @@ import { selectWeekFromDb, rebalanceWeek, withSeed, RECIPES } from "@/lib/plan";
 import { dietTagConflicts, haystackBlocked, parseExclusionTokens } from "@/lib/nutrition";
 import { withFastFinish, fastFinishModeFromEnv, type ShadowCall } from "./fast-finish";
 import {
-  withErrorCapture, failedOnInfra, failureKindOf, unreadableRetriedOf, holdFailure, scriptedModel, scriptLabel, reseedEngine, engineSeedConfig,
+  withErrorCapture, failedOnInfra, failureKindOf, unreadableRetriedOf, figuresGuardedOf, holdFailure, scriptedModel, scriptLabel, reseedEngine, engineSeedConfig,
   outsideScope, unaskedProfileEdit, writesSent, inventedFigures, isVegMeal, isVeganMeal, memoryAdded,
   symptomTexts, quotesUser, foodWordsAdded, holdWrites, mentions, declines, asksQuestion, changedOutside,
   replanningConstrains, NAMES_VEGETARIAN, namesClash, chosenCalorieFigure, memoryFactsAdded, DIAGNOSIS, sleepWatch,
@@ -458,6 +458,24 @@ const SCENARIOS: Scenario[] = [
     },
   },
   {
+    // A dish the library does not know, with no number from the person (the diagnosis, 2026-10-22). The model must
+    // not supply a figure: with none, the engine asks "roughly how many calories was it?", and that question is the
+    // right answer. On a miss a model's guess is logged as "Logged by you", so the person reads a guess as their own
+    // number, and a model that resends its guess after the question used to loop to the step cap (v1's F8 ends it).
+    id: "log-unknown-dish", want: "hold",
+    message: "had a sushi platter at the office for lunch today",
+    check: (r, b) => {
+      const invented = inventedFigures(r, "had a sushi platter at the office for lunch today");
+      if (invented.length) return `a calorie figure the user never gave (${invented.join(", ")})`;
+      if (/Logged by you/i.test(meal(r.plan, "Monday", "lunch")?.description ?? "")) return "logged a figure for a dish it does not know";
+      const elsewhere = writesSent(r).filter((o) => o.op === "log" && (o.day !== "Monday" || o.slot !== "lunch"));
+      if (elsewhere.length) return `logged it to ${String(elsewhere[0].day)} ${String(elsewhere[0].slot)}, not today's lunch`;
+      if (r.steps > 3) return `took ${r.steps} steps to ask one question`;
+      if (!(asksQuestion(r.reply) && /calori|kcal/i.test(r.reply))) return "did not ask how many calories it was";
+      return outsideScope(b, r.plan, (d) => d === "Monday") ?? unaskedProfileEdit(PROFILE, r.profile);
+    },
+  },
+  {
     id: "pin", want: "act",
     message: "whatever else you change, keep sunday's dinner exactly as it is",
     // The dish that was there, only that slot, and no other dish changed (audit, 2026-10-18): pinning a
@@ -758,6 +776,8 @@ interface Row {
   unreadableRetried?: boolean;
   /** Scenario.recall: whether the model's own writes carried the fact the app now guards. Never part of pass. */
   recalled?: boolean;
+  /** F8: figures the loop dropped and targets it refused on this message (figuresGuardedOf). Never part of pass. */
+  guardedFigures?: { dropped: string[]; refused: number };
 }
 const EMOJI = /\p{Extended_Pictographic}/u;
 const rows: Row[] = [];
@@ -835,6 +855,7 @@ for (const s of scenarios) {
   rows.push({ id: s.id, want: s.want, pass, infra, reason, steps: r.steps, gaveUp: r.gaveUp, modelFailed: r.modelFailed, seconds, readFirst, ops: opsSeq, reply: r.reply.replace(/\s+/g, " "), emoji: EMOJI.test(r.reply), engineIssue: infra || !s.engine ? null : s.engine(r, before), writes: writesOf(r), modelCalls: r.steps - (ff.skipped - sk0) - (r.fastFinished ? 1 : 0), fastFinished: Boolean(r.fastFinished) || ff.skipped > sk0, falseClaim: claimed, guardRetried: Boolean(guard(r).falseClaimRetried), guardCaught: Boolean(guard(r).falseClaimCaught), wallSeconds, heldOutOf: s.heldOutOf,
     failureKind: failureKindOf(r), unreadableRetried: unreadableRetriedOf(r) || undefined,
     recalled: s.recall && !infra ? s.recall(r) : undefined,
+    guardedFigures: (() => { const g = figuresGuardedOf(r); return g && (g.dropped.length || g.refused) ? g : undefined; })(),
     shadow: FAST_FINISH_MODE === "shadow" ? ff.shadow.slice(sh0) : undefined, slept: slept > 0 ? Math.round(slept) : undefined,
     retryErrors: retryErrors.length ? retryErrors : undefined, totalWallSeconds: +((performance.now() - tFirst) / 1000).toFixed(1) });
   console.log(`${pass ? "✓ " : infra ? "!!" : "✗ "} ${s.id.padEnd(18)} ${seconds.toFixed(1).padStart(6)}s${slept > 0 ? ` (the machine slept ${Math.round(slept)}s: not latency)` : ""}  ${r.steps} step${r.steps === 1 ? " " : "s"}${r.gaveUp ? " GAVE-UP" : ""}  [${opsSeq.join(",") || "no ops"}]${reason ? `  — ${reason}` : ""}`);
@@ -889,6 +910,8 @@ const summary = {
   /** F5a-1: messages where the loop retried an unreadable turn (a pass after it still counts as a pass). */
   unreadableRetried: graded.filter((r) => r.unreadableRetried).length,
   /** Rows with a recall measure: how many the model's own writes carried (Scenario.recall). Never part of pass. */
+  /** F8: messages where the loop dropped a figure or refused a target the person never gave. Never part of pass. */
+  figuresGuarded: graded.filter((r) => r.guardedFigures).length,
   recall: (() => { const xs = graded.filter((r) => r.recalled !== undefined); return xs.length ? `${xs.filter((r) => r.recalled).length}/${xs.length}` : null; })(),
   unusableOutput: graded.filter((r) => /^unusable model output/.test(r.reason ?? "")).length,
   p90SecondsPerMessage: q(0.9),
@@ -914,6 +937,7 @@ if (summary.fastFinishShadow) {
 console.log(`steps mean ${summary.meanSteps}  · model calls mean ${summary.meanModelCalls}${NATIVE_FAST_FINISH ? ` (fast finish: native, ${summary.fastFinished} skipped)` : FAST_FINISH ? ` (fast finish: ${FAST_FINISH_MODE}${FAST_FINISH_MODE !== "plain" ? `, ${ff.blockedByEmptyReply} withheld` : ""})` : ""}  · gave up ${summary.gaveUp}  · emoji replies ${summary.emojiReplies}  · FALSE CLAIMS ${summary.falseClaims} (guard: ${summary.guardRetries} nudged, ${summary.guardCatches} caught)  · per-message seconds: median ${summary.medianSecondsPerMessage?.toFixed(1)}  p90 ${summary.p90SecondsPerMessage?.toFixed(1)}  max ${summary.maxSecondsPerMessage?.toFixed(1)}`);
 if (summary.heldOut.pairs) console.log(`held out ${summary.heldOut.heldOutPass}/${summary.heldOut.pairs}, their originals ${summary.heldOut.originalPass}/${summary.heldOut.pairs}${summary.heldOut.onlyInPromptWords.length ? `  · passed only in the prompt's words: ${summary.heldOut.onlyInPromptWords.join(", ")}` : ""}`);
 if (summary.heldOut.unpaired.length) console.log(`held out, original not in this run (compared with nothing): ${summary.heldOut.unpaired.join(", ")}`);
+if (summary.figuresGuarded) console.log(`figures or targets the person never gave, guarded by the loop: ${summary.figuresGuarded} message(s) (never part of pass)`);
 if (summary.recall) console.log(`the model's own recall, where the app now guards: ${summary.recall} (never part of pass)`);
 if (summary.firstAttemptFailures) console.log(`first attempts that failed in transport: ${summary.firstAttemptFailures} of ${rows.length} message(s) (re-run, or left as infra)`);
 if (summary.sleptMessages) console.log(`the machine slept during ${summary.sleptMessages} message(s): left out of the seconds above, kept in the pass rate`);

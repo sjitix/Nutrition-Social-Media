@@ -1,0 +1,1 @@
+{ "sushi platter": [ { "reply": "", "operations": [ { "op": "log", "day": "Monday", "slot": "lunch", "dish": "sushi platter", "calories": 1100, "protein": 45 } ] }, { "reply": "", "operations": [] } ] }
