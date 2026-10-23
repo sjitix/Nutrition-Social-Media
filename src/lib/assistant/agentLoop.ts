@@ -28,6 +28,8 @@
 import { runReadTool, isReadTool, type AgentContext } from "./agentTools";
 import { applyPrimitives, expandConstrain, noOpConstrain, sameAllergies, verbToOperations, withoutUnchangedClaims, type ConstrainOp, type PrimitiveOp, type VerbOp } from "./primitives";
 import { claimsChange, composeReply, joinPhrases, operationPhrases } from "./reply";
+import { modelFailureOf, type ModelFailure, type ModelFailureKind } from "./modelFailure";
+import { CRISIS_REPLY } from "../nutrition";
 import type { Operation, PlanSnapshot, UserProfile, WeekPlan } from "../core";
 
 /** A cap, not a target. Reaching it is a bug to investigate, not a normal outcome. */
@@ -117,6 +119,11 @@ export interface AgentRunResult {
    * difference, so it is reported rather than left to be inferred from the reply text.
    */
   modelFailed: boolean;
+  /** Why it failed, when it did: the provider's kind (assistant/modelFailure.ts), never its message. */
+  modelFailure?: { kind: ModelFailureKind; retryAfterS?: number };
+  /** The engine, or the loop's own answer, had something to say before any failure line: notes, or an
+   *  urgent reply. A failed run that has it is not "offline": the route returns what it said (MF-1). */
+  engineSpoke: boolean;
   notes: string[];
   /** The model claimed a change with nothing applied, and was given one more step to fix it. */
   falseClaimRetried: boolean;
@@ -124,9 +131,60 @@ export interface AgentRunResult {
   falseClaimCaught: boolean;
   /** The finishing call was not made: the loop answered it itself (see `fastFinishable`). */
   fastFinished: boolean;
+  /** A turn the model sent could not be read, and it was given one more step (`unreadableNudge`). */
+  unreadableRetried: boolean;
 }
 
 const isRead = (o: PrimitiveOp): boolean => isReadTool(String((o as { op?: string }).op ?? ""));
+
+/**
+ * What the model is told when its turn could not be read: why, and what of it was kept. Like the
+ * false-claim nudge it goes in the transcript, never to the person, and the model gets ONE more step.
+ * Ending the run there used to lose the whole turn and tell the person the assistant was offline, though
+ * the model had answered (F5's mapping, MF-2, MF-3).
+ */
+export function unreadableNudge(issues: string | undefined, kept: PrimitiveOp[]): string {
+  const facts = kept.filter(isRemember).length;
+  const saved = facts === 0 ? "" : facts === 1 ? ", except the fact to remember, which was saved" : `, except the ${facts} facts to remember, which were saved`;
+  const answered = kept.some((o) => opName(o) === "symptom") ? " The symptom you passed on was answered." : "";
+  return `Your last turn could not be read${issues ? ` (${issues})` : ""}, so none of its changes ran${saved}.${answered} Send them again as one JSON object in the right shape. If the user told you something to remember, such as an allergy, and it is not saved above, send that remember again. Or tell the user plainly what you could not do.`;
+}
+
+const REMEMBER_KINDS = new Set(["preference", "allergy", "condition", "goal", "context"]);
+/** A remember's fact as text, however the model wrote it: a string, a list of strings, or an object of them. */
+const factText = (f: unknown): string =>
+  typeof f === "string" ? f.trim()
+  : Array.isArray(f) ? f.filter((x): x is string => typeof x === "string").join(", ").trim()
+  : f && typeof f === "object" ? Object.values(f).filter((x): x is string => typeof x === "string").join(", ").trim()
+  : "";
+
+/**
+ * What a turn that could not be read still says, each op read on its own and leniently: its remembers and its
+ * symptoms. A stated allergy must never be lost with the rest of its turn (I2), and a symptom carries the
+ * urgent or crisis reply, which the person must read whatever the model does next (review of F5a,
+ * 2026-10-22). A remember keeps its fact even when its label is unreadable ("Allergy", null, "allergen"): the
+ * engine binds an allergy from the fact's own words. Nothing else is kept, because any other op of a refused
+ * turn could be half of something ([undo, an unreadable swap] would undo alone).
+ */
+function keptFromUnreadable(raw: unknown): PrimitiveOp[] {
+  const listed = (raw as { operations?: unknown } | null | undefined)?.operations;
+  const ops = Array.isArray(listed) ? listed : listed && typeof listed === "object" ? [listed] : [];
+  return ops.flatMap((o): PrimitiveOp[] => {
+    const rec = (o ?? {}) as Record<string, unknown>;
+    if (rec.op === "symptom") {
+      return typeof rec.text === "string" && rec.text.trim() ? [{ op: "symptom", text: rec.text } as PrimitiveOp] : [];
+    }
+    if (rec.op !== "remember") return [];
+    const fact = factText(rec.fact);
+    if (!fact) return [];
+    const label = typeof rec.kind === "string" ? rec.kind.trim().toLowerCase().replace(/^allerg(?:en|ens|ies|ic)$/, "allergy") : "";
+    const kind = REMEMBER_KINDS.has(label) ? label
+      // {fact: {allergy: "peanuts"}}: the key says what the value is.
+      : rec.fact && typeof rec.fact === "object" && !Array.isArray(rec.fact) && Object.keys(rec.fact).some((k) => /allerg|intoleran/i.test(k)) ? "allergy"
+      : undefined;
+    return [{ op: "remember", fact, ...(kind ? { kind } : {}) } as PrimitiveOp];
+  });
+}
 
 /**
  * FAST FINISH: the model call that only "finishes" is skipped. After a write the loop calls the model
@@ -263,6 +321,16 @@ export async function runAgent(args: {
   let modelFailed = false;
   let falseClaimRetried = false;
   let fastFinished = false;
+  let unreadableRetried = false;
+  let modelFailure: ModelFailure | undefined;
+  // Set by an unreadable turn; said to the model once the step's kept remembers have run.
+  let nudge: string | undefined;
+  // An unreadable turn past the one retry: what it kept runs as the step, and then the run ends as this failure.
+  let endAfterStep: ModelFailure | undefined;
+  // The retried failure, when nothing at all could be read from it: if the retry then brings nothing the engine
+  // can vouch for, the run is still that failure, not the model's unverified words ("noted" over an allergy
+  // that was never saved; review of F5a, 2026-10-22).
+  let blindRetry: ModelFailure | undefined;
   // What can back a claim the model makes in its own words: a plan change, the engine's notes, a crisis
   // override, or a real edit to the profile. A memory saved cannot — see FALSE_CLAIM_NUDGE_MEMORY.
   const profileEdited = () => editedApartFromMemory(args.profile, profile);
@@ -278,10 +346,26 @@ export async function runAgent(args: {
     } else {
       try {
         turn = await args.model(transcript, steps, { profile, plan });
-      } catch {
-        // The model itself failed. Stop honestly rather than pretending a turn happened.
-        modelFailed = true;
-        break;
+      } catch (e) {
+        const failure = modelFailureOf(e);
+        // The model answered, but not as a turn the loop can use. One malformed op used to throw the whole
+        // turn away, a stated allergy with it, and the person read "offline" (F5's mapping, MF-2). What it asked
+        // to remember, and any symptom it passed on, run whatever happens next. The model gets ONE more step,
+        // told why; past that, or on the cap step, the run ends as the failure it is.
+        const kept = failure.kind === "unreadable" ? keptFromUnreadable(failure.detail.raw) : [];
+        if (failure.kind === "unreadable" && !unreadableRetried && steps < maxSteps) {
+          unreadableRetried = true;
+          if (failure.detail.raw === undefined) blindRetry = failure;
+          nudge = unreadableNudge(failure.detail.issues, kept);
+        } else if (kept.length) {
+          endAfterStep = failure;
+        } else {
+          // The model itself failed. Stop honestly rather than pretending a turn happened.
+          modelFailure = failure;
+          modelFailed = true;
+          break;
+        }
+        turn = { thinking: "(the model's turn could not be read; only what it asked to remember, and any symptom, were kept)", reply: "", operations: kept };
       }
     }
 
@@ -296,6 +380,12 @@ export async function runAgent(args: {
     const acting = ops.filter((o) => (o as { op?: string }).op !== "answer");
 
     if (acting.length === 0) {
+      // Nothing of an unreadable turn could be kept: the model is told why, and tries once more.
+      if (nudge) {
+        transcript.push({ role: "tool", name: "apply", result: { notes: [nudge], planChanged: false, profileChanged: false } });
+        nudge = undefined;
+        continue;
+      }
       if (lastReply.trim()) spoken = lastReply;
       // The model says it is done. If its reply is the only thing the user will read (the engine is
       // silent) and it claims a change that nothing made, give it one step to make it real or retract.
@@ -393,7 +483,8 @@ export async function runAgent(args: {
       profile = res.profile;
       planChanged = planChanged || res.planChanged;
       undone = undone || Boolean(res.undone);
-      if (res.replyOverride) replyOverride = res.replyOverride;
+      // A crisis outranks an urgent reply, whichever step said it first.
+      if (res.replyOverride && replyOverride !== CRISIS_REPLY) replyOverride = res.replyOverride;
       const from = notes.length;
       notes.push(...res.notes);
       if (snapshot && !res.undone && (stepChanged || group.some((o) => PLAN_DESCRIBING.has(opName(o))))) stale.push([from, notes.length]);
@@ -408,9 +499,34 @@ export async function runAgent(args: {
       });
     }
 
+    // The remembers of an unreadable turn have run: now the model is told why the rest did not.
+    if (nudge) {
+      transcript.push({ role: "tool", name: "apply", result: { notes: [nudge], planChanged: false, profileChanged: false } });
+      nudge = undefined;
+    }
+    // A crisis reply is the whole answer and nothing outranks it, so the run ends with it, as the pre-scan's does.
+    // An urgent reply does not end it: a later step can still bind an allergy, or raise it to a crisis. A later
+    // failure no longer replaces it either, because the route returns any run the engine spoke in
+    // (`engineSpoke`; F5's mapping, MF-1; review of F5a, 2026-10-22).
+    if (replyOverride === CRISIS_REPLY) break;
+    // Past its one retry, an unreadable turn's kept ops have run, and the run ends as the failure it is.
+    if (endAfterStep) {
+      modelFailure = endAfterStep;
+      modelFailed = true;
+      break;
+    }
     if (steps >= maxSteps) gaveUp = true;
   }
 
+  // A retry after a turn nothing could be read from, which brought nothing the engine vouches for: still that
+  // failure. The model's words alone ("Noted.") would stand over an allergy that was never saved.
+  if (blindRetry && !modelFailed && notes.length === 0 && replyOverride === undefined && !planChanged && same(args.profile, profile)) {
+    modelFailure = blindRetry;
+    modelFailed = true;
+  }
+
+  // Said before any failure line is added: whether the run has an answer of its own to give.
+  const engineSpoke = notes.length > 0 || replyOverride !== undefined;
   if (modelFailed) {
     notes.push("I couldn't reach the assistant to finish that.");
   } else if (gaveUp) {
@@ -444,9 +560,14 @@ export async function runAgent(args: {
     steps,
     gaveUp,
     modelFailed,
+    modelFailure: modelFailure
+      ? { kind: modelFailure.kind, ...(modelFailure.detail.retryAfterS !== undefined ? { retryAfterS: modelFailure.detail.retryAfterS } : {}) }
+      : undefined,
+    engineSpoke,
     notes,
     falseClaimRetried,
     falseClaimCaught: reply !== said.trim() && notes.length === 0 && replyOverride === undefined && claimsChange(said),
     fastFinished,
+    unreadableRetried,
   };
 }

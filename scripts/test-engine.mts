@@ -24,14 +24,14 @@ import { aisleFor, groupByAisle, AISLE_ORDER } from "@/lib/nutrition/grocery";
 import { currentStreak, prevDay, isoDay, requestDay } from "@/lib/presentation/streak";
 import { expandConstrain, applyRemember, applyPrimitives, memoryContext, AssistantTurnV2Schema, allergensInFact, verbToOperations, type PrimitiveOp, type VerbOp } from "@/lib/assistant/primitives";
 import { assistantV2SystemPrompt } from "@/lib/assistant/promptV2";
-import { redFlag, CRISIS_REPLY } from "@/lib/nutrition/safety";
+import { redFlag, CRISIS_REPLY, URGENT_REPLY } from "@/lib/nutrition/safety";
 import { tableKey, INGREDIENTS, resolveIngredient } from "@/lib/data/ingredients";
 import { validateExample, validateBatch, type TrainingExample } from "@/lib/dataValidate";
 import { generateExamples } from "@/lib/genV2";
 import { microsForIngredients } from "@/lib/nutrition/nutrients";
 import { bulkGroceriesFromWeek, formatBulkQuantity, batchEfficiency } from "@/lib/presentation/batchGrocery";
 import { haystackBlocked, dietTagConflicts, parseExclusionTokens, expandExclusion, exclusionCovers, mealHaystack, EXCLUSION_CATEGORIES } from "@/lib/nutrition/exclusions";
-import { normalizeMealTypes } from "@/lib/providers/turnShape";
+import { normalizeMealTypes, jsonObjectsIn, turnIn, opsIn } from "@/lib/providers/turnShape";
 import { bmr, computeTargets, hydrationTarget, CALORIE_FLOOR, DEFAULT_CALORIE_FLOOR, BODY_LIMITS, bodyStatMessage, referenceWeightKg } from "@/lib/nutrition/targets";
 import { composeReply, planWasChanged, describeOperations, READ_ONLY_TOOLS, claimsChange, NOTHING_CHANGED_REPLY, NOTED_NOTHING_CHANGED_REPLY } from "@/lib/assistant/reply";
 import { SUBSTITUTES } from "@/lib/data/substitutions";
@@ -46,6 +46,7 @@ import {
   runReadTool, isReadTool, READ_TOOL_NAMES, MAX_ROWS,
 } from "@/lib/assistant/agentTools";
 import { runAgent, MAX_STEPS, FALSE_CLAIM_NUDGE, FALSE_CLAIM_NUDGE_MEMORY, NO_FURTHER_UNDO, NOTHING_EARLIER_TO_UNDO, type AgentTurn, type ModelFn } from "@/lib/assistant/agentLoop";
+import { ModelFailure, failureFromStatus, modelFailureOf, retryableFailure } from "@/lib/assistant/modelFailure";
 import { weekMicroAverage } from "@/lib/plan/report";
 import { localExtraBody } from "@/lib/providers/extraBody";
 
@@ -6013,6 +6014,181 @@ if (violations.size === 0) {
         unstable.length === 0 && differ.length === 0 && skips.length >= 12,
         `skipped ${skips.length} [${skips.join(", ")}]; differ [${differ.join(", ")}]; not reproducible [${unstable.join(", ")}]`);
     }
+  }
+
+  // MODEL FAILURES (F5a, from F5's mapping, 2026-10-22: MF-1, MF-2). A failure of the model after the engine
+  // has answered must not cost the person that answer, and a turn refused for one malformed op must not take a
+  // stated allergy with it. The scripted model throws where a real one would fail.
+  {
+    const failing = (turns: (AgentTurn | Error)[]) => {
+      let calls = 0;
+      const fn: ModelFn = async () => {
+        const t = turns[Math.min(calls, turns.length - 1)];
+        calls++;
+        if (t instanceof Error) throw t;
+        return t;
+      };
+      return { fn, calls: () => calls };
+    };
+    const op = (o: object) => o as unknown as PrimitiveOp;
+    const busy = () => new ModelFailure("busy", "Local AI server error (429): too many requests");
+    const urgent = op({ op: "symptom", text: "chest pain and my left arm is numb" });
+    const crisis = op({ op: "symptom", text: "I don't want to live anymore" });
+    {
+      const p = failing([turn("That sounds serious.", [urgent]), busy()]);
+      const r = await runAgent({ ...base, model: p.fn });
+      check("model failure: an urgent-care reply survives a failure after it, and the run says it spoke, so the route returns it, not 'offline' (MF-1)",
+        r.modelFailed && r.reply === URGENT_REPLY && r.engineSpoke === true, `${p.calls()} calls, modelFailed ${r.modelFailed}: ${r.reply.slice(0, 60)}`);
+    }
+    // An urgent reply does not end the run (a first version of F5a ended it, and its review found what that cost).
+    const peanutAllergyOp = op({ op: "remember", fact: "I'm allergic to peanuts", kind: "allergy" });
+    {
+      const p = failing([turn("", [urgent]), turn("", [peanutAllergyOp]), turn("")]);
+      const r = await runAgent({ ...base, model: p.fn });
+      check("model failure: an urgent reply does not end the run: the allergy the next step remembers is still bound (I2)",
+        r.reply === URGENT_REPLY && /peanut/i.test(r.profile.allergies), `allergies "${r.profile.allergies}": ${r.reply.slice(0, 50)}`);
+    }
+    {
+      const later = await runAgent({ ...base, model: failing([turn("", [urgent]), turn("", [crisis]), turn("")]).fn });
+      const oneStep = await runAgent({ ...base, model: failing([turn("", [crisis, urgent]), turn("")]).fn });
+      check("model failure: a crisis outranks an urgent reply, whether it comes in a later step or first in the same one",
+        later.reply === CRISIS_REPLY && oneStep.reply === CRISIS_REPLY, `${later.reply.slice(0, 40)} / ${oneStep.reply.slice(0, 40)}`);
+    }
+    {
+      const p = failing([turn("", [crisis]), turn("", [op({ op: "pin", day: "Sunday", slot: "dinner" })]), turn("")]);
+      const r = await runAgent({ ...base, model: p.fn });
+      check("model failure: a crisis reply ends the run, as the pre-scan's does: no model call after it, and nothing else applied",
+        p.calls() === 1 && r.reply === CRISIS_REPLY && !r.modelFailed && !r.planChanged, `${p.calls()} calls, planChanged ${r.planChanged}`);
+    }
+    {
+      const p = failing([turn("Here's Monday's dinner.", [op({ op: "explain", day: "Monday", slot: "dinner" })]), busy()]);
+      const r = await runAgent({ ...base, model: p.fn });
+      check("model failure: an engine answer given before a failure is kept and marked, so the route returns it rather than 'offline' (MF-1)",
+        r.modelFailed && r.engineSpoke === true && r.notes.some((n) => /Monday's dinner is/.test(n)), r.notes.join(" | ").slice(0, 120));
+    }
+    {
+      const p = failing([busy()]);
+      const r = await runAgent({ ...base, model: p.fn });
+      check("model failure: with nothing done and nothing said, the run is still the route's 503, and says why (busy)",
+        r.modelFailed && r.engineSpoke === false && !r.planChanged && !r.profileChanged && r.modelFailure?.kind === "busy" && p.calls() === 1,
+        `kind ${r.modelFailure?.kind}, calls ${p.calls()}`);
+    }
+    {
+      const p = failing([new Error("socket hang up")]);
+      const r = await runAgent({ ...base, model: p.fn });
+      check("model failure: an untyped throw reads as unreachable, which is how every failure used to be read",
+        r.modelFailure?.kind === "unreachable", String(r.modelFailure?.kind));
+    }
+    // MF-2: a stated allergy outlives a turn the schema refused.
+    const withPeanut = applyPrimitives(BASE, plan, [op({ op: "swap", dish: "Thai Peanut Chicken Rice Bowl", slot: "lunch", days: ["Monday"] })]).plan;
+    const hasPeanutBowl = (pl: WeekPlan) => pl.days.some((d) => d.meals.some((m) => m.name === "Thai Peanut Chicken Rice Bowl"));
+    const refusedTurn = (operations: unknown[]) => new ModelFailure("unreadable", "The local AI's answer didn't match the expected format.",
+      { raw: { thinking: "", reply: "Noted, and done.", operations }, issues: "operations.1.scope: Unrecognized key: \"slots\"" });
+    const peanutAllergy = { op: "remember", fact: "I'm allergic to peanuts", kind: "allergy" };
+    const badConstrain = { op: "constrain", scope: { slots: ["lunch", "dinner"], days: ["Wednesday"] }, diet: "vegetarian" };
+    {
+      const p = failing([refusedTurn([peanutAllergy, badConstrain]), turn("I've added peanuts to your allergies.")]);
+      const r = await runAgent({ ...base, plan: withPeanut, model: p.fn });
+      const nudged = r.transcript.some((e) => e.role === "tool" && JSON.stringify(e.result).includes("could not be read"));
+      check("model failure: a turn the schema refused keeps the allergy it stated, and the peanut dish leaves the week (MF-2, I2)",
+        hasPeanutBowl(withPeanut) && /peanut/i.test(r.profile.allergies) && !hasPeanutBowl(r.plan) && !r.modelFailed,
+        `allergies "${r.profile.allergies}", bowl ${hasPeanutBowl(r.plan)}, modelFailed ${r.modelFailed}`);
+      check("model failure: ...and the model gets ONE more step, told what could not be read and that the fact was saved",
+        p.calls() === 2 && r.unreadableRetried === true && nudged, `${p.calls()} calls, nudged ${nudged}`);
+    }
+    {
+      const p = failing([refusedTurn([peanutAllergy, badConstrain]), refusedTurn([badConstrain]), turn("never reached")]);
+      const r = await runAgent({ ...base, plan: withPeanut, model: p.fn });
+      check("model failure: a second unreadable turn ends the run honestly, and the allergy the first one stated stays bound",
+        p.calls() === 2 && r.modelFailed && r.modelFailure?.kind === "unreadable" && /peanut/i.test(r.profile.allergies) && !hasPeanutBowl(r.plan),
+        `${p.calls()} calls, kind ${r.modelFailure?.kind}, allergies "${r.profile.allergies}"`);
+    }
+    {
+      const prior = { plan: withSeed(9, () => freshWeek(BASE)), profile: BASE, label: "rebuilt your week" };
+      const p = failing([refusedTurn([{ op: "undo" }, { op: "swap", dish: 5 }]), turn("Sorry, could you say that again?")]);
+      const r = await runAgent({ ...base, previous: prior, model: p.fn });
+      check("model failure: of a refused turn only remembers are kept: [undo, an unreadable swap] runs nothing, and the undo slot stays",
+        JSON.stringify(r.plan) === JSON.stringify(plan) && r.previous === prior && p.calls() === 2, `${p.calls()} calls, previous kept ${r.previous === prior}`);
+    }
+    {
+      // The nudge is a tool entry named "apply", like the false-claim nudge, with no change on it, so neither the
+      // loop's fast finish nor the models lane's wrapper skips the model's answer to it.
+      const p = failing([turn("", [op({ op: "pin", day: "Sunday", slot: "dinner" })]), refusedTurn([badConstrain]), turn("I couldn't make that change.")]);
+      const r = await runAgent({ ...base, model: p.fn, fastFinish: true });
+      check("model failure: a write, then an unreadable turn: the fast finish never skips the model's answer to the nudge",
+        p.calls() === 3 && !r.fastFinished && !r.modelFailed && r.unreadableRetried === true, `${p.calls()} calls, fastFinished ${r.fastFinished}`);
+    }
+    {
+      // An empty answer is the host's failure: the provider retries it (retryableFailure), and the loop does not
+      // tell the model its turn could not be read, or write a turn for it.
+      const p = failing([new ModelFailure("empty", "The local AI returned an empty response."), turn("Pinned.", [op({ op: "pin", day: "Sunday", slot: "dinner" })])]);
+      const r = await runAgent({ ...base, model: p.fn });
+      check("model failure: an empty answer is the host's failure: no nudge and no loop-written turn, the run ends with kind empty, and the provider retries it",
+        r.modelFailed && r.modelFailure?.kind === "empty" && !r.unreadableRetried && p.calls() === 1 && retryableFailure(new ModelFailure("empty", "x")),
+        `${p.calls()} calls, kind ${r.modelFailure?.kind}`);
+    }
+    // The salvage is lenient and unconditional (review of F5a, 2026-10-22).
+    {
+      const p = failing([refusedTurn([urgent, badConstrain]), turn("")]);
+      const r = await runAgent({ ...base, model: p.fn });
+      const q = failing([refusedTurn([crisis, badConstrain]), turn("never reached")]);
+      const c = await runAgent({ ...base, model: q.fn });
+      check("model failure: a refused turn's symptom still answers: its urgent reply reaches the person, and its crisis reply ends the run",
+        r.reply === URGENT_REPLY && c.reply === CRISIS_REPLY && q.calls() === 1 && !c.modelFailed, `${r.reply.slice(0, 40)} / ${c.reply.slice(0, 40)}, ${q.calls()} calls`);
+    }
+    {
+      const variants: unknown[][] = [
+        [{ op: "remember", fact: "I'm allergic to peanuts", kind: "Allergy" }, badConstrain],
+        [{ op: "remember", fact: "I'm allergic to peanuts", kind: null }, badConstrain],
+        [{ op: "remember", fact: "I'm allergic to peanuts", kind: "allergen" }, badConstrain],
+        [{ op: "remember", fact: ["I'm allergic to peanuts"] }, badConstrain],
+        [{ op: "remember", fact: { allergy: "peanuts" } }, badConstrain],
+      ];
+      const lost: string[] = [];
+      for (const v of variants) {
+        const r = await runAgent({ ...base, plan: withPeanut, model: failing([refusedTurn(v), turn("")]).fn });
+        if (!/peanut/i.test(r.profile.allergies) || hasPeanutBowl(r.plan)) lost.push(JSON.stringify(v[0]));
+      }
+      const single = new ModelFailure("unreadable", "x", { raw: { thinking: "", reply: "", operations: peanutAllergy }, issues: "operations: expected array" });
+      const s = await runAgent({ ...base, plan: withPeanut, model: failing([single, turn("")]).fn });
+      if (!/peanut/i.test(s.profile.allergies)) lost.push("operations as one object");
+      check("model failure: a remember whose only fault is its label, or whose fact is a list or an object, still binds the allergy, as does one sent as a lone object",
+        lost.length === 0, lost.join(" | "));
+    }
+    {
+      const capped = await runAgent({ ...base, plan: withPeanut, maxSteps: 1, model: failing([refusedTurn([peanutAllergy, badConstrain])]).fn });
+      const second = await runAgent({ ...base, plan: withPeanut, model: failing([refusedTurn([badConstrain]), refusedTurn([peanutAllergy, badConstrain]), turn("never reached")]).fn });
+      check("model failure: on the cap step, and on a second unreadable turn, the allergy it states is still kept, and the run ends as the failure",
+        /peanut/i.test(capped.profile.allergies) && capped.modelFailed && capped.modelFailure?.kind === "unreadable" &&
+        /peanut/i.test(second.profile.allergies) && second.modelFailed && !hasPeanutBowl(second.plan),
+        `capped "${capped.profile.allergies}" ${capped.modelFailure?.kind}; second "${second.profile.allergies}" ${second.modelFailure?.kind}`);
+    }
+    {
+      // Nothing could be read at all (cut-off JSON): a retry that brings only words is still the failure, so
+      // "Noted." never stands over an allergy that was never saved.
+      const blind = new ModelFailure("unreadable", "The local AI returned invalid JSON.", { issues: "the answer was not one valid JSON object" });
+      const r = await runAgent({ ...base, plan: withPeanut, model: failing([blind, turn("Noted, your peanut allergy is saved.")]).fn });
+      check("model failure: after a turn nothing could be read from, a retry of words alone is still the failure, never an unverified 'noted'",
+        r.modelFailed && r.modelFailure?.kind === "unreadable" && r.engineSpoke === false && r.unreadableRetried === true, `modelFailed ${r.modelFailed}, kind ${r.modelFailure?.kind}`);
+    }
+    {
+      const strayBrace = 'Output format: {thinking, reply, operations}.\n{"thinking":"","reply":"Done.","operations":[{"op":"pin","day":"Sunday","slot":"dinner"}]}';
+      const cutOff = '{"thinking":"saving it","reply":"Noted.","operations":[{"op":"remember","fact":"I\'m allergic to peanuts","kind":"allergy"},{"op":"constrain","exclude":["pean';
+      const braceInString = '{"op":"remember","fact":"a brace } inside { a string"}';
+      const turnFound = turnIn(strayBrace) as { operations?: unknown[] } | undefined;
+      const ops = opsIn(cutOff);
+      check("model failure: a turn beside a stray brace is still read, the ops of a cut-off answer are still found, and a brace inside a string does not count",
+        Array.isArray(turnFound?.operations) && turnFound!.operations!.length === 1 &&
+        ops.length === 1 && ops[0].op === "remember" && jsonObjectsIn(braceInString).length === 1,
+        `turn ${JSON.stringify(turnFound)?.slice(0, 60)}, ops ${JSON.stringify(ops).slice(0, 80)}`);
+    }
+    check("model failure: an HTTP status reads as its kind (429 busy with its Retry-After seconds, 5xx unavailable, 401/403/404 config, other 4xx rejected)",
+      failureFromStatus(429, "x", "60").kind === "busy" && failureFromStatus(429, "x", "60").detail.retryAfterS === 60 &&
+      failureFromStatus(429, "x", "Wed, 21 Oct 2026 07:28:00 GMT").detail.retryAfterS === undefined &&
+      failureFromStatus(503, "x").kind === "unavailable" && failureFromStatus(500, "x").kind === "unavailable" &&
+      failureFromStatus(404, "x").kind === "config" && failureFromStatus(401, "x").kind === "config" && failureFromStatus(403, "x").kind === "config" &&
+      failureFromStatus(400, "x").kind === "rejected" && failureFromStatus(422, "x").kind === "rejected" &&
+      modelFailureOf("plain").kind === "unreachable");
   }
 
   // The models lane's gaps from the 550B reasoning-off run (2026-10-03): passive claims slipped past

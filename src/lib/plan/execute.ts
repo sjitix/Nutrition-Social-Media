@@ -10,7 +10,7 @@
 import { DAYS, type DayPlan, type Meal, type Operation, type UserProfile, type WeekPlan, type LockedMeal, type MealRating, type PlanSnapshot } from "../core";
 import { computeTargets, explainTargets, hydrationTarget, explainHydration, CALORIE_FLOOR, DEFAULT_CALORIE_FLOOR, BODY_LIMITS, bodyStatProblems, bodyStatMessage, isRealBody, referenceWeightKg } from "../nutrition/client";
 import { type Recipe } from "../data";
-import { MICRO_LABEL, exclusionCovers, haystackBlocked, mealHaystack, parseExclusionTokens, wordMatches, type MicroKey } from "../nutrition";
+import { CRISIS_REPLY, MICRO_LABEL, exclusionCovers, haystackBlocked, mealHaystack, parseExclusionTokens, wordMatches, type MicroKey } from "../nutrition";
 import { RECIPES, baseRecipeOf, scaleRecipeToTarget, toMeal } from "./library";
 import { bannedForUser, blockedByExclusions, budgetCap, exclusionKey, exclusionTokens, fiberOn, keepMacros, localSplit, mergeDislikes, normalizeCuisine, passesDiet } from "./rules";
 import { SCALE_LO, clampScale, dayTargetMacros, macroDistance, rebalanceDay, rebalanceWeek, recipeMacros, scaleRecipeByFactor, scaleToTargets, slotShare, slotTargetMacros, slotsUpTo } from "./rebalance";
@@ -1514,7 +1514,8 @@ export function applyOperations(
         // Read-only, and deliberately so: a symptom never silently rewrites someone's food.
         const res = symptomNote(curPlan, p, op.symptom ?? op.dish ?? "");
         notes.push(res.text);
-        if (res.override) replyOverride = res.text;
+        // A crisis outranks an urgent reply, in whichever order the symptoms came (review of F5a, 2026-10-22).
+        if (res.override && replyOverride !== CRISIS_REPLY) replyOverride = res.text;
         break;
       }
       case "substitute_ingredient": {

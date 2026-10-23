@@ -177,9 +177,34 @@ reply = composeReply(turn.reply, engine notes)
   sets `modelFailed` on the result, and the caller MUST branch on it. This was learned by
   shipping the bug: because the loop caught the error, the route's offline handling became dead
   code and a stopped LM Studio came back as an ordinary `200` reading "1 of 8 steps". The rule the
-  route now follows: **model failed and nothing changed → `503 offline`; model failed after the
-  engine had already changed something → `200` (that work is real and is kept) carrying
-  `modelFailed: true`, so the client can say the turn did not finish.**
+  route now follows: **model failed and nothing changed and nothing was said → `503 offline`; model
+  failed after the engine had already changed something or answered (`engineSpoke`: an explanation,
+  an urgent reply) → `200` with that answer, carrying `modelFailed: true`, so the client can say the
+  turn did not finish.** The "nothing was said" half is from 2026-10-22: a failure after an answer used
+  to replace it with "offline", an urgent-care reply included (F5's mapping, MF-1).
+- **Why the model failed travels with the failure** (2026-10-22). The provider throws a `ModelFailure`
+  (`assistant/modelFailure.ts`), whose kind is one of unreachable, timeout, busy, unavailable, config,
+  rejected, unreadable or empty. The result carries `modelFailure.kind`, and the route logs it. Nobody
+  shows the person the error's text.
+- **A crisis reply ends the run; an urgent one does not.** Nothing outranks a crisis, so the run stops
+  with it, as the pre-scan's does. After an urgent reply a later step can still bind an allergy or raise
+  it to a crisis, so the run goes on, and a later failure no longer replaces it (`engineSpoke`). A crisis
+  outranks an urgent reply in whichever order they come. (A first version ended the run on any urgent
+  reply; its review found the allergy that cost.)
+- **A turn the model sent but nobody could read is not the end of the turn.** That covers JSON that
+  fails the schema, and text that is not one JSON object. In text that is not one object, a complete
+  turn beside a stray brace is still read, and the op objects of a cut-off answer are still found. One
+  malformed op used to throw the whole turn away, a stated allergy with it (MF-2). Now:
+  - the turn's `remember` and `symptom` ops are kept, each read on its own and leniently (a label
+    such as "Allergy" or null, or a fact sent as a list, still binds), and nothing else, because
+    `[undo, an unreadable swap]` must not half run. They run whatever happens next, on the cap step
+    and after a second failure too;
+  - the model gets ONE more step, told what could not be read and what was saved;
+  - if that step fails too, the run stops as a model failure, with what was kept still kept;
+  - if nothing at all could be read and the retry brings only words, the run is still the failure:
+    "Noted." never stands over an allergy that was never saved.
+- **An empty answer is the host's failure, not the model's.** The provider retries it, and the loop
+  neither nudges the model nor writes a turn for it.
 - **A reply may not claim a change the engine did not make** (2026-10-03, the models lane's proposal).
   With reasoning off, a fast model copied the engine's note style and wrote "Wednesday now has 2000
   kcal…" with no operation at all. When the model stops, nothing changed, the engine wrote no notes
