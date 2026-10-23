@@ -215,43 +215,45 @@ in the main folder (`2fd6f02`). Its WORKPLAN lesson was renumbered 38 → 48 bec
 
 #### PARALLEL LANE — models (written by the models agent only)
 
-**2026-10-22 (evening) — RESUME HERE. Nemotron-3-Ultra 550B is the model (the owner's choice). Its setting is
-reasoning off plus the fast finish, which v1 landed as `b2b4285` (`AI_FAST_FINISH=1`). 633 controls hold on
-`b2b4285`** (2 engine seeds, every must-fail control for the same reason as on `afa7f89`).
-- **The evals run the app's own fast finish (`0327c45`):** `AI_FAST_FINISH=1` reaches `runAgent` from both evals, as arms
-  N and convoN in `fair-arms.mjs`. Quote the app's speed from those arms. On every control, the native skip and
-  the eval's wrapper give byte-identical rows (verdict, reason, reply, writes, steps, model calls; 453 finishing
-  calls skipped by each), and no control changes verdict between the skip off and on. The evals refuse both
-  switches at once.
-- **Sleep can no longer spoil a timed run.** A message the machine slept through is left out of the seconds,
-  and named. fair-arms holds a Windows machine awake for the whole run, and the lock exits by itself when the
-  run ends. **The battery is the other limit:** 34% to 22% in 25 minutes of control runs, so a timed run waits
-  for the charger.
-- **NVIDIA's free endpoint is for testing only:** its API Trial Terms of Service allow internal testing and
-  evaluation, not production (1.2, 1.4), and forbid health or personal information (4.3). Launch needs a paid host
-  of the same model (OpenRouter: DeepInfra, BaseTen or Venice, at FP4 or FP8), re-measured there; OWNER-TODO item 1
-  asks for an OpenRouter key with about $10. Decision 2 (doc rev 31) has the question; v1 updated its files (`dc1433c`).
-- **The diagnosis of every Nemotron failure is done:** `docs/models/nemotron-diagnosis.md` (the data in
-  `nemotron-diagnosis-2026-10-22.json`). 42 failures in 196 rows of arm C, nine causes, none needing another
-  model.
-  - Three safety habits need code, and v1 took them, in this order: F5a-1 (typed model failures), F6 (an
-    `{op:"crisis"}`, on a branch this lane measures with `--code` first), the history allergy (its design to
-    this lane first; decision 12(b) covers "my daughter is allergic"), then numbers only from the user's words.
-  - The rest are prompt lines for this lane, plus harness corrections that come first.
-  - The owner's eight questions: 2, 7 and 8 go under decision 2 (this lane), after v1 says it is out of the
-    doc; v1 files 1 under decision 8 and 3-6 as a new decision 14. v1 landed rate-recur's held-out twin
-    (`964e6cc`), so the rate line is no longer blocked by the hard cases.
+**2026-10-23 — RESUME HERE. Nemotron-3-Ultra 550B is the model (the owner's choice), with reasoning off and the
+fast finish (`AI_FAST_FINISH=1`, `b2b4285`). NVIDIA's free endpoint is for testing only, so launch runs the same
+model on a paid host. 690 controls hold under 2 engine seeds.**
+- **The evals run the app's own fast finish** (`0327c45`): arms N and convoN, now fair-arms' default. They equal the
+  eval's wrapper on every control (engine seed 1: verdict, reason, reply, writes, steps, model calls, the skip). The
+  evals refuse both switches at once. No model run has used N yet.
+- **Sleep:** a message the machine slept through is left out of the seconds and named. fair-arms asks Windows to keep
+  the machine awake (polls every 5 s, exits with the run, tested after `taskkill /F`). That it keeps this laptop
+  awake through a whole run is not yet shown: read the first unattended run's `slept` count. A closed lid still
+  sleeps the machine, and the run pauses. **The battery is the other limit** (26% today, 1% last night): timed runs
+  wait for the charger.
+- **NVIDIA's free endpoint is for testing only.** Its API Trial Terms of Service allow internal testing and
+  evaluation, not production (1.2, 1.4), and forbid health or personal information (4.3). OpenRouter sells the same
+  model (DeepInfra, BaseTen, Venice; FP4 or FP8). OWNER-TODO item 1 asks for an OpenRouter key with about $10, so the
+  launch figures come from that host (its own `--url`, `--key-var`, `--off`). The NVIDIA runs stay the reference
+  for the prompt work and the arm comparisons. Decision 2 (doc rev 31) has the question; v1 updated its files
+  (`dc1433c`).
+- **The diagnosis** (`docs/models/nemotron-diagnosis.md`, data in `nemotron-diagnosis-2026-10-22.json`): 42 failures
+  in 196 rows of arm C, nine causes. Eight of the nine clusters were diagnosed, each checked by a skeptic; the one-off
+  misses were filled in by the unchecked plan.
+  - v1 does F5a-1 (typed model failures, landing now) first, then fixes the three safety habits: F6, the crisis
+    operation (v1 sends a branch this lane runs with `--code` before it lands); the history allergy (design agreed,
+    with `removedAllergies` so an allergy removed by hand is not re-added from old chat history; "my daughter is
+    allergic" binds, as on the live path, pending decision 12(b)); then numbers only from the user's words.
+  - The rest are prompt lines for this lane: the candidate is `models-wording` `efcf9c2` (8 edits, byte-identical
+    to the diagnosis's candidate, probe-quotes 0 on the evals and the hard cases), unmeasured.
+  - The owner's questions: 2, 7 and 8 under decision 2 (written); v1 filed 1 under decision 8 and 3-6 as decision 14.
+- **The diagnosis's seven harness corrections are in (`c3cfaf1`):** full replies; first-attempt failures counted; pin-only rate
+  controls; an offer to choose the number fails the weight-goal checks; crisis rows graded on what the person reads,
+  with two held-out phrasings the pre-scan misses (there the verbatim `symptom` op fails, the hazard); an implied
+  reserve and a negative one; twins for pin-then-shake and allergy-carry. Loop 38 scenarios (11 held out), convo 17
+  (3 held out). Older scorecards grade the crisis and weight-goal rows differently. Failures are classified by v1's
+  `modelFailure.kind` (F5a-1 landed as `950d243`), and the scripted model throws v1's `ModelFailure("unreadable")`.
 - **Next:**
-  1. The harness corrections (the diagnosis's list), each with its controls.
-  2. The clean speed range: `node scripts/models/fair-arms.mjs --arms B,N,convoN --repeat 3`, laptop charging.
-  3. The prompt candidate on `models-wording`, merged with main, against main on the native arms three times.
-  4. Decision 2 gets the range and the owner's three questions.
-- **v1's F5a-1 (typed model failures; an unreadable turn gets one retry) changes what the evals see.** It is in
-  review. When it lands:
-  - record `unreadableRetried` and `modelFailure.kind` per row;
-  - classify infra by kind, keeping the message regex as the fallback;
-  - make `scriptedModel` throw `ModelFailure("unreadable", msg, { raw, issues })` from `@/lib/assistant`.
-  No control keys on the old behaviour (checked).
+  1. On the charger: `node scripts/models/fair-arms.mjs --arms B,N,convoN --repeat 3` (the NVIDIA reference range,
+     and the lock's first real test), then the candidate against main on N/convoN three times.
+  2. **RUNNING (2026-10-23 evening):** v1's F6 (the crisis operation, uncommitted in `../NutriFlow-f6`), its crisis
+     rows and over-firing guards on N/convoN ×3, main then `--code ../NutriFlow-f6 --allow-dirty`; logs in the session
+     scratchpad (`f6-main.log`, `f6-f6.log`), manifests in `data/eval-runs/`. v1 ships F6 on the result. When the history allergy lands: rename the 5 memory-allergy must-fail controls to pass-* and add a recall column.
 
 **2026-10-21 (evening). The held-outs and their checks were reviewed adversarially and fixed;
 633 controls hold on main as of v1's `7624008`** (all 49 scenarios, 2 engine seeds; `node scripts/models/run-controls.mjs`).
