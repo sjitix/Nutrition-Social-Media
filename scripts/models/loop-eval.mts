@@ -121,6 +121,10 @@ interface Scenario {
   expectRead?: boolean;
   /** A held-out paraphrase: the id of the scenario whose words the prompt quotes. Graded like it. */
   heldOutOf?: string;
+  /** The model's own memory, measured but never failed, for a row the app now guards itself: v1's F7 binds a
+   *  history allergy before the model runs, so the row passes whatever the model recalls. Did its own writes carry
+   *  the fact? (The bind is the run's starting state, never an assistant turn, so writesSent sees only the model.) */
+  recall?: (r: AgentRunResult) => boolean;
   /** Engine-verified outcome. Return null for pass, or the reason it failed. */
   check: (r: AgentRunResult, before: WeekPlan) => string | null;
   /**
@@ -318,6 +322,7 @@ const SCENARIOS: Scenario[] = [
   {
     id: "memory-allergy", want: "act",
     history: [{ user: "heads up, i'm allergic to peanuts", assistant: "Noted — I'll keep peanuts out of everything." }],
+    recall: (r) => writesSent(r).some((o) => /peanut/i.test(JSON.stringify(o))),
     message: "add a high-protein snack in the afternoons",
     check: (r) => {
       if (r.profile.mealsPerDay !== 4 && !allMeals(r.plan).some((m) => m.type === "snack")) return "no snack slot added";
@@ -751,6 +756,8 @@ interface Row {
   /** F5a-1: the failure's typed kind, and whether the loop gave an unreadable turn its one retry. */
   failureKind?: string;
   unreadableRetried?: boolean;
+  /** Scenario.recall: whether the model's own writes carried the fact the app now guards. Never part of pass. */
+  recalled?: boolean;
 }
 const EMOJI = /\p{Extended_Pictographic}/u;
 const rows: Row[] = [];
@@ -827,6 +834,7 @@ for (const s of scenarios) {
   const pass = !infra && reason === null;
   rows.push({ id: s.id, want: s.want, pass, infra, reason, steps: r.steps, gaveUp: r.gaveUp, modelFailed: r.modelFailed, seconds, readFirst, ops: opsSeq, reply: r.reply.replace(/\s+/g, " "), emoji: EMOJI.test(r.reply), engineIssue: infra || !s.engine ? null : s.engine(r, before), writes: writesOf(r), modelCalls: r.steps - (ff.skipped - sk0) - (r.fastFinished ? 1 : 0), fastFinished: Boolean(r.fastFinished) || ff.skipped > sk0, falseClaim: claimed, guardRetried: Boolean(guard(r).falseClaimRetried), guardCaught: Boolean(guard(r).falseClaimCaught), wallSeconds, heldOutOf: s.heldOutOf,
     failureKind: failureKindOf(r), unreadableRetried: unreadableRetriedOf(r) || undefined,
+    recalled: s.recall && !infra ? s.recall(r) : undefined,
     shadow: FAST_FINISH_MODE === "shadow" ? ff.shadow.slice(sh0) : undefined, slept: slept > 0 ? Math.round(slept) : undefined,
     retryErrors: retryErrors.length ? retryErrors : undefined, totalWallSeconds: +((performance.now() - tFirst) / 1000).toFixed(1) });
   console.log(`${pass ? "✓ " : infra ? "!!" : "✗ "} ${s.id.padEnd(18)} ${seconds.toFixed(1).padStart(6)}s${slept > 0 ? ` (the machine slept ${Math.round(slept)}s: not latency)` : ""}  ${r.steps} step${r.steps === 1 ? " " : "s"}${r.gaveUp ? " GAVE-UP" : ""}  [${opsSeq.join(",") || "no ops"}]${reason ? `  — ${reason}` : ""}`);
@@ -880,6 +888,8 @@ const summary = {
   firstAttemptFailures: rows.filter((r) => r.retryErrors?.length || r.infra).length,
   /** F5a-1: messages where the loop retried an unreadable turn (a pass after it still counts as a pass). */
   unreadableRetried: graded.filter((r) => r.unreadableRetried).length,
+  /** Rows with a recall measure: how many the model's own writes carried (Scenario.recall). Never part of pass. */
+  recall: (() => { const xs = graded.filter((r) => r.recalled !== undefined); return xs.length ? `${xs.filter((r) => r.recalled).length}/${xs.length}` : null; })(),
   unusableOutput: graded.filter((r) => /^unusable model output/.test(r.reason ?? "")).length,
   p90SecondsPerMessage: q(0.9),
   maxSecondsPerMessage: secs.length ? secs[secs.length - 1] : null,
@@ -904,6 +914,7 @@ if (summary.fastFinishShadow) {
 console.log(`steps mean ${summary.meanSteps}  · model calls mean ${summary.meanModelCalls}${NATIVE_FAST_FINISH ? ` (fast finish: native, ${summary.fastFinished} skipped)` : FAST_FINISH ? ` (fast finish: ${FAST_FINISH_MODE}${FAST_FINISH_MODE !== "plain" ? `, ${ff.blockedByEmptyReply} withheld` : ""})` : ""}  · gave up ${summary.gaveUp}  · emoji replies ${summary.emojiReplies}  · FALSE CLAIMS ${summary.falseClaims} (guard: ${summary.guardRetries} nudged, ${summary.guardCatches} caught)  · per-message seconds: median ${summary.medianSecondsPerMessage?.toFixed(1)}  p90 ${summary.p90SecondsPerMessage?.toFixed(1)}  max ${summary.maxSecondsPerMessage?.toFixed(1)}`);
 if (summary.heldOut.pairs) console.log(`held out ${summary.heldOut.heldOutPass}/${summary.heldOut.pairs}, their originals ${summary.heldOut.originalPass}/${summary.heldOut.pairs}${summary.heldOut.onlyInPromptWords.length ? `  · passed only in the prompt's words: ${summary.heldOut.onlyInPromptWords.join(", ")}` : ""}`);
 if (summary.heldOut.unpaired.length) console.log(`held out, original not in this run (compared with nothing): ${summary.heldOut.unpaired.join(", ")}`);
+if (summary.recall) console.log(`the model's own recall, where the app now guards: ${summary.recall} (never part of pass)`);
 if (summary.firstAttemptFailures) console.log(`first attempts that failed in transport: ${summary.firstAttemptFailures} of ${rows.length} message(s) (re-run, or left as infra)`);
 if (summary.sleptMessages) console.log(`the machine slept during ${summary.sleptMessages} message(s): left out of the seconds above, kept in the pass rate`);
 for (const e of summary.engineIssues) console.log(`ENGINE (not the model): ${e}`);
