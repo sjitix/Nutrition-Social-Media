@@ -3,7 +3,7 @@
 //   node db.mjs init       the roles and schemas a Supabase project starts with (idempotent)
 //   node db.mjs migrate    supabase/migrations/*.sql from this repo, in order, exactly as committed
 //   node db.mjs query SQL  one statement, rows printed as JSON (the live run's look at the database, and
-//                          its one write: moving a sign-in request back in time)
+//                          its two writes: moving a sign-in request, or a code's issue time, back in time)
 //
 // Superuser `postgres` throughout: on a hosted project that is the role the SQL editor runs as. It
 // connects through Postgres's Unix socket, which only this WSL user can open (stack.sh), never TCP.

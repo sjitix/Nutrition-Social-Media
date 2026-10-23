@@ -11,10 +11,11 @@
  * would push every edit twice and race itself. Each caller registers its own `onPulled` listener.
  */
 import {
-  STORE_NAMES, claimSyncReload, clearAll, clearPendingSignIn, loadPendingSignIn, loadSessionRaw, loadSignInCode,
-  loadStoreMeta, loadSyncedAt, loadSyncOwner, markSynced, onBrowserChangedHandsElsewhere, onSignInChangedElsewhere,
-  onStoreChange, onStoresChangedElsewhere, readStore, resetStoresSilently, saveCarriedNote, savePendingSignIn,
-  saveSessionRaw, saveSignInCode, saveSyncOwner, takeBackup, takeCarriedNote, writeStore, type StoreName,
+  STORE_NAMES, claimSyncReload, clearAll, clearPendingSignIn, dataGeneration, loadPendingSignIn, loadSessionRaw,
+  loadSignInCode, loadStoreMeta, loadSyncedAt, loadSyncOwner, markSynced, onBrowserChangedHandsElsewhere,
+  onSignInChangedElsewhere, onStoreChange, onStoresChangedElsewhere, readStore, resetStoresSilently, saveCarriedNote,
+  savePendingSignIn, saveSessionRaw, saveSignInCode, saveSyncOwner, takeBackup, takeCarriedNote, writeStore,
+  type KeptSignIn, type StoreName,
 } from "../persistence";
 import { createMirror, syncNow, type HeldReason, type LocalAccess, type Mirror, type SyncReport } from "./sync";
 import {
@@ -172,16 +173,26 @@ const LABEL: Record<StoreName, string> = {
 const PENDING_SIGN_IN_TTL_MS = 25 * 60 * 60 * 1000;
 /** How long a repeat request for the same address reuses the pending verifier. Links last an hour. */
 const REUSE_VERIFIER_MS = 60 * 60 * 1000;
+/**
+ * Whether two addresses are one person to GoTrue, which lowercases an address before it looks anyone up
+ * (mail.go validateEmail). Compared as typed, "Sam@" after "sam@" made a new verifier, and gave up a
+ * sign-in kept for "Try again"; and if that request never reached GoTrue, the link already sent could no
+ * longer be finished (the third and fourth reviews of the Try-again batch).
+ */
+function sameAddress(a: unknown, b: string): boolean {
+  return typeof a === "string" && a.toLowerCase() === b.toLowerCase();
+}
 
 /**
  * Email a sign-in link. The PKCE verifier is kept in THIS browser first, so the link can only complete
  * here (see `supabase.ts` — that is what makes a link made by someone else worthless).
  *
- * The address is checked BEFORE anything is stored, and a repeat request for the same address reuses
- * the verifier. Before, each request replaced the verifier, even a request with a typo or one the server
- * then refused for being too soon (GoTrue allows one link a minute per person). The valid link already
- * in the inbox then failed as "opened in a different browser", though it was opened in this one
- * (review 2). A request the server ACCEPTS is different: GoTrue keeps one link per person, so it retires
+ * The address is checked BEFORE anything is stored, and a repeat request for the same address, in any
+ * letter case, reuses the verifier. Before, each request replaced the verifier, even one with a typo, one
+ * that never reached the server, or one the server refused while rolling it back (a first link's sign-up
+ * with "Confirm email" on, refused as too soon). The valid link already in the inbox then failed as
+ * "opened in a different browser", though it was opened in this one (review 2). A refused request is
+ * otherwise harmless here: GoTrue records it as the person's latest anyway, so the link is issued for it. A request the server ACCEPTS is different: GoTrue keeps one link per person, so it retires
  * the earlier link, and only the newest one works (the link-error sentence in supabase.ts says so).
  */
 export async function sendSignInLink(email: string): Promise<void> {
@@ -190,9 +201,14 @@ export async function sendSignInLink(email: string): Promise<void> {
   const address = email.trim();
   if (!looksLikeEmail(address)) throw new AccountError("That doesn't look like an email address.");
   const pending = loadPendingSignIn();
-  const reuse = !!pending && pending.email === address && Date.now() - pending.at < REUSE_VERIFIER_MS;
+  const reuse = !!pending && sameAddress(pending.email, address) && Date.now() - pending.at < REUSE_VERIFIER_MS;
   const verifier = reuse && pending ? pending.verifier : (await createPkcePair()).verifier;
   if (!reuse) savePendingSignIn({ verifier, email: address, at: Date.now() });
+  // A request for another address gives up the sign-in this tab kept for "Try again", so "Finish the
+  // earlier sign-in" never offers one the person has moved on from. Decided by the kept sign-in's own
+  // address, not the pending request's, which another tab can have replaced (the fourth review).
+  const kept = loadSignInCode();
+  if (kept && !sameAddress(kept.email, address)) saveSignInCode(null);
   await requestMagicLink(cfg, address, `${window.location.origin}${window.location.pathname}`, await challengeFor(verifier));
 }
 
@@ -231,34 +247,62 @@ export async function completeSignInFromUrl(): Promise<Session | null> {
   // "Web" keeps it from reading as their email address.
   if (!pending || Date.now() - pending.at > PENDING_SIGN_IN_TTL_MS) {
     savePendingSignIn(null);
+    // Signed in already, the page says so first. Two cases land here: a link asked for on another device
+    // and opened in this one, and a newer link for a sign-in that "Try again" finished meanwhile, for which
+    // every cause above would be false (the fourth and fifth reviews).
+    const already = currentSession();
+    if (already) {
+      throw new AccountError(
+        `That sign-in link can't be used here: this browser is already signed in${already.email ? ` as ${already.email}` : ""} and has no sign-in waiting for it. If you asked for it on another device or browser, ask again there and open it there. To sign in here as someone else, sign out first, then ask for a new link here.`,
+        "auth",
+      );
+    }
     throw new AccountError(
       "That sign-in link can't be finished here: it was opened somewhere other than where it was asked for (in a different browser, or at a different web address), or this browser's data was cleared since. Ask for a new link here, and open it in this browser.",
       "auth",
     );
   }
-  return exchangeWith(cfg, result.code, pending.verifier);
+  return exchangeWith(cfg, { code: result.code, verifier: pending.verifier, email: pending.email });
 }
 
 /**
  * Exchange a link's code for a session, and decide what to keep.
  *  - Success: the verifier that was used is forgotten. Only that one, compared by value: a newer
  *    request made while this exchange was in flight keeps its own (review 2).
- *  - A TRANSIENT failure (offline, 429, 5xx): the code is still good for a few minutes, so it is kept,
- *    with its verifier, for "Try again" (`retrySignIn`). The emailed link was used up when it was
- *    opened, so telling the person to open it again (as this once did) could never work.
+ *  - A TRANSIENT failure (offline, 429, 5xx): the code is kept for "Try again" (`retrySignIn`), with the
+ *    verifier this exchange used (the one pending when the link landed) and that request's address. Kept
+ *    together, in this tab: the pending request is one per browser, and another tab's request can replace
+ *    it. The code is usually still good, for five minutes after the link was
+ *    opened (for a first link with "Confirm email" on, after it was asked for). The emailed link was used
+ *    up when it was opened, so telling the person to open it again (as this once did) could never work.
  *  - Any other failure: the code is dropped; the verifier stays for another link from the same
- *    request, until its time runs out.
+ *    request, until its time runs out. That includes a 200 whose body was cut off: GoTrue had already
+ *    used the code, so `exchangeCode` says so, and there is nothing to try again.
+ * A transient failure can also be a lost RESPONSE, after GoTrue already used the code. Then "Try
+ * again" is refused (404), and `retry` lets `exchangeCode` say so rather than blame the link; it does the
+ * same for a retry pressed after the five minutes (422).
  */
-async function exchangeWith(cfg: AccountConfig, code: string, verifier: string): Promise<Session> {
+async function exchangeWith(cfg: AccountConfig, attempt: KeptSignIn, retry = false): Promise<Session> {
+  // The browser's generation when this attempt began. Cleared (or changed hands) while the exchange was in
+  // flight, nothing of it may land in the new one, neither the session nor a code kept for "Try again":
+  // "Delete everything" pressed while "Trying…" was signing in once let both through (the fifth review).
+  const generation = dataGeneration();
   let s: Session;
   try {
-    s = await exchangeCode(cfg, code, verifier);
+    s = await exchangeCode(cfg, attempt.code, attempt.verifier, undefined, undefined, retry);
   } catch (e) {
-    saveSignInCode(e instanceof AccountError && e.retryable ? code : null);
+    saveSignInCode(e instanceof AccountError && e.retryable && dataGeneration() === generation ? attempt : null);
     throw e;
   }
+  if (dataGeneration() !== generation) {
+    saveSignInCode(null);
+    throw new AccountError(
+      "This browser was cleared, or signed in to another account, while that sign-in was finishing, so it was not kept. Ask for a new link here to sign in.",
+      "auth",
+    );
+  }
   saveSignInCode(null);
-  clearPendingSignIn(verifier);
+  clearPendingSignIn(attempt.verifier);
   saveSessionRaw(s);
   // This tab now shows this account, so sign-out and delete act on it (see `shownUser`). Its sync,
   // which the caller starts next, replaces this status with its own.
@@ -271,18 +315,46 @@ export function openedFromSignInLink(): boolean {
   return !!accountConfig() && typeof window !== "undefined" && hasAuthParams(window.location.search, window.location.hash);
 }
 
-/** Whether a sign-in can be finished with "Try again": its exchange failed for a transient reason. */
-export function canRetrySignIn(): boolean {
-  return !!accountConfig() && !!loadSignInCode() && !!loadPendingSignIn();
+/**
+ * The sign-in "Try again" would finish, if any: one this tab kept after a transient failure, from the
+ * browser's current generation of data (storage.ts drops it once the browser is cleared or changes hands),
+ * while nobody is signed in. Signed in since (in another tab, say), there is nothing left to finish, and a
+ * retry could only sign someone in again over that sign-in (the fourth review of the Try-again batch).
+ */
+function keptToFinish(): KeptSignIn | null {
+  if (!accountConfig()) return null;
+  if (currentSession()) {
+    // Dropped, not just hidden: after a sign-out it would come back (the fifth review).
+    saveSignInCode(null);
+    return null;
+  }
+  return loadSignInCode();
 }
 
-/** "Try again": finish the sign-in whose exchange failed for a transient reason. */
-export async function retrySignIn(): Promise<Session | null> {
+/** Whether a sign-in can be finished with "Try again": its exchange failed for a transient reason. */
+export function canRetrySignIn(): boolean {
+  return !!keptToFinish();
+}
+
+/**
+ * "Try again": finish the sign-in whose exchange failed for a transient reason, with the verifier that
+ * exchange used. Not the one pending now: another tab's request may have replaced it, and the code with
+ * that one could only be refused (bad_code_verifier). A takeover can still refuse the kept one, since
+ * GoTrue binds a link's code to the person's latest request when the link is opened, and the sentence
+ * for that says so. With nothing to finish it throws, so a button pressed late never reads as a sign-in.
+ */
+export async function retrySignIn(): Promise<Session> {
   const cfg = accountConfig();
-  const code = loadSignInCode();
-  const pending = loadPendingSignIn();
-  if (!cfg || !code || !pending) return null;
-  return exchangeWith(cfg, code, pending.verifier);
+  const kept = keptToFinish();
+  if (!cfg || !kept) {
+    throw new AccountError(
+      currentSession()
+        ? "There's nothing to finish here: this browser is already signed in."
+        : "That sign-in can't be finished from here any more. Ask for a new link here.",
+      "auth",
+    );
+  }
+  return exchangeWith(cfg, kept, true);
 }
 
 /* ---- the running sync ---- */
@@ -330,8 +402,18 @@ const HELD_BY_SCREENS: ReadonlySet<StoreName> = new Set<StoreName>(["plan", "bat
  */
 export function watchOtherTabs(on: { reload: () => void; refresh: () => void }): () => void {
   if (typeof window === "undefined") return () => {};
-  const offHands = onBrowserChangedHandsElsewhere(() => on.reload());
+  // A sign-in this tab kept for "Try again" belongs to the generation that just ended. It is dropped before
+  // the reload, so no working code and verifier outlive "Delete everything in this browser" in this tab.
+  const offHands = onBrowserChangedHandsElsewhere(() => {
+    saveSignInCode(null);
+    on.reload();
+  });
   if (!accountConfig()) return offHands;
+  // Signed in in another tab: a sign-in this tab kept for "Try again" has nothing left to finish. Dropped,
+  // not just hidden, or a sign-out there would bring it back (the fifth review).
+  const offSignIn = onSignInChangedElsewhere(() => {
+    if (currentSession()) saveSignInCode(null);
+  });
   const offStores = onStoresChangedElsewhere((names) => {
     if (!currentSession()) return;
     if (names.some((n) => HELD_BY_SCREENS.has(n)) && claimSyncReload()) on.reload();
@@ -339,6 +421,7 @@ export function watchOtherTabs(on: { reload: () => void; refresh: () => void }):
   });
   return () => {
     offHands();
+    offSignIn();
     offStores();
   };
 }

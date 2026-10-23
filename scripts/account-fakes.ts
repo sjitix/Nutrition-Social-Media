@@ -101,6 +101,17 @@ export class FakeSupabase {
   serverSkewMs = 0;
   /** Make the next N code exchanges fail with a 503 (a transient server error). */
   failExchange = 0;
+  /**
+   * Make the next N successful code exchanges lose their ANSWER: the code is used and a session issued,
+   * then the connection drops, as a reply lost on a phone's network would. GoTrue destroys the flow state
+   * in the same transaction that issues the session (token.go), so a retry then finds nothing (404).
+   */
+  loseExchangeAnswer = 0;
+  /**
+   * Make the next N successful code exchanges lose their answer's BODY: the code is used and a session
+   * issued, the 200 and its headers arrive, and the connection drops before the body does.
+   */
+  loseExchangeBody = 0;
   /** Make code exchanges take this long, so a test can act while one is in flight. */
   exchangeDelayMs = 0;
   /**
@@ -174,21 +185,25 @@ export class FakeSupabase {
 
     if (url.pathname === "/auth/v1/otp" && method === "POST") {
       if (!body?.code_challenge) return reply(400, { msg: "this fake only does PKCE" });
-      this.latestChallenge.set(body.email, body.code_challenge); // before the limit, as GoTrue does
-      const sentAt = this.linkSentAt.get(body.email);
+      // GoTrue lowercases the address before it looks anyone up (mail.go validateEmail): "Sam@" is sam@.
+      const email = String(body.email).toLowerCase();
+      this.latestChallenge.set(email, body.code_challenge); // before the limit, as GoTrue does
+      const sentAt = this.linkSentAt.get(email);
       if (this.linkIntervalMs > 0 && sentAt !== undefined && Date.now() - sentAt < this.linkIntervalMs) {
         const wait = Math.ceil((this.linkIntervalMs - (Date.now() - sentAt)) / 1000);
         return reply(429, { code: 429, error_code: "over_email_send_rate_limit", msg: `For security purposes, you can only request this after ${wait} seconds.` });
       }
-      this.user(body.email);
+      this.user(email);
       // GoTrue keeps ONE sign-in link per person: an accepted request deletes the earlier one-time token,
       // so an older link opened afterwards fails (the live run checks it against the real GoTrue). A kinder
       // fake let a test request twice and sign in with the first, a sequence the platform never allows.
-      for (const [old, c] of this.codes) if (c.email === body.email) this.codes.delete(old);
+      // A code already presented (here that stands for the link having been opened) is a flow state of its
+      // own, which a newer request leaves alone: magic_link.go creates one and touches no other.
+      for (const [old, c] of this.codes) if (c.email === email && !this.boundChallenge.has(old)) this.codes.delete(old);
       const code = `code${++this.n}xyz`;
-      this.codes.set(code, { email: body.email, at: Date.now() });
-      this.lastCode.set(body.email, code);
-      this.linkSentAt.set(body.email, Date.now());
+      this.codes.set(code, { email, at: Date.now() });
+      this.lastCode.set(email, code);
+      this.linkSentAt.set(email, Date.now());
       return reply(200, {});
     }
     if (url.pathname === "/auth/v1/token" && url.searchParams.get("grant_type") === "pkce") {
@@ -206,7 +221,17 @@ export class FakeSupabase {
       if (Date.now() - c.at > this.codeTtlMs) return reply(422, { error_code: "flow_state_expired", msg: "invalid flow state, flow state has expired" });
       if (s256(body.code_verifier ?? "") !== this.boundChallenge.get(body.auth_code)) return reply(400, { error_code: "bad_code_verifier" });
       this.codes.delete(body.auth_code); // one use
-      return reply(200, this.issue(this.user(c.email).id));
+      const issued = this.issue(this.user(c.email).id);
+      if (this.loseExchangeAnswer > 0) {
+        this.loseExchangeAnswer--;
+        throw new TypeError("Failed to fetch"); // the session exists; nobody received it
+      }
+      if (this.loseExchangeBody > 0) {
+        this.loseExchangeBody--;
+        const cut = new ReadableStream({ start(c) { c.error(new TypeError("terminated")); } });
+        return new Response(cut, { status: 200, headers: { "content-type": "application/json" } });
+      }
+      return reply(200, issued);
     }
     if (url.pathname === "/auth/v1/token" && url.searchParams.get("grant_type") === "refresh_token") {
       const id = this.refresh.get(body?.refresh_token);

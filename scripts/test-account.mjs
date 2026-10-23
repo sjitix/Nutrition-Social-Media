@@ -31,6 +31,10 @@ const PAGES = {
   Q: "Q", R: "R", S: "S", T: "T", U: "U", V: "V", X: "X", Y: "Y", Z: "Z", W: "W", J: "J", I: "I", O: "O",
   Ca: "Ca", Da: "Da", Cb: "Cb", Db: "Db", Cc: "Cc", Dc: "Dc", Ka1: "Ka", Ka2: "Ka",
   Ya1: "Ya", Ya2: "Ya", Ya3: "Ya", Yb: "Yb", Ga: "Ga", Gb: "Gb",
+  // the third review of the Try-again batch: a kept code and another tab's request
+  Ha: "Ha", Hb: "Hb",
+  // the fourth review: a kept sign-in's own address, a clear, and a sign-in elsewhere
+  Ia: "Ia", Ib: "Ib", Ja: "Ja", Jb: "Jb", Jc: "Jc", La: "La", Lb: "Lb", Lc: "Lc",
 };
 for (const [page, tab] of Object.entries(PAGES)) {
   await build({

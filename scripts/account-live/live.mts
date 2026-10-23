@@ -25,6 +25,9 @@
  * the preview, so that link lands where Lee's earlier request is still held. And four browsers
  * ("ConfA" to "ConfD") talk to a second GoTrue with "Confirm email" on, a hosted project's default, where
  * Nia, Oli and Pat are new: a first link's five minutes, and a refused request that takes nothing over.
+ * Four more ("FlakyA" to "FlakyD") lose the link's exchange: Uma's request is lost and Vic's answer is,
+ * and each presses "Try again"; Wes presses it after the five minutes; and Xan's answer is cut off after
+ * its headers, which leaves nothing to try again.
  */
 import { execFileSync } from "node:child_process";
 import { createHash, createHmac } from "node:crypto";
@@ -169,7 +172,10 @@ async function refresh(token: string) {
   });
   return { status: r.status, body: (await r.json().catch(() => ({}))) as { refresh_token?: string; error_code?: string } };
 }
-/** Postgres as the project's own SQL editor sees it (superuser), for what no API shows (and ageRequests). */
+/**
+ * Postgres as the project's own SQL editor sees it (superuser): for what no API shows, and for the run's
+ * two writes to GoTrue's tables (ageRequests, and moving Wes's code issue time back).
+ */
 function db(sql: string): unknown[] {
   const out = execFileSync("wsl", ["-d", process.env.LIVE_WSL_DISTRO || "Ubuntu", "--exec",
     `${process.env.LIVE_WSL_HOME}/.cache/nutriflow-live/node/bin/node`,
@@ -226,7 +232,7 @@ async function hide(name: string) {
   docs[name].visibilityState = "visible";
 }
 
-for (const name of ["Lap", "Pho", "Rob", "Late", "Desk", "Tablet", "ConfA", "ConfB", "ConfC", "ConfD"]) makeDevice(name);
+for (const name of ["Lap", "Pho", "Rob", "Late", "Desk", "Tablet", "ConfA", "ConfB", "ConfC", "ConfD", "FlakyA", "FlakyB", "FlakyC", "FlakyD"]) makeDevice(name);
 makeDevice("Prev", PREVIEW);
 makeDevice("Site", SITE_URL);
 const Lap = await load("Lap");
@@ -241,6 +247,10 @@ const ConfA = await load("ConfA");
 const ConfB = await load("ConfB");
 const ConfC = await load("ConfC");
 const ConfD = await load("ConfD");
+const FlakyA = await load("FlakyA");
+const FlakyB = await load("FlakyB");
+const FlakyC = await load("FlakyC");
+const FlakyD = await load("FlakyD");
 const sam = "sam.live@example.com";
 const rob = "rob.live@example.com";
 const ivy = "ivy.live@example.com";
@@ -251,10 +261,26 @@ const max = "max.live@example.com";
 const nia = "nia.live@example.com";
 const oli = "oli.live@example.com";
 const pat = "pat.live@example.com";
+const uma = "uma.live@example.com";
+const vic = "vic.live@example.com";
+const wes = "wes.live@example.com";
+const xan = "xan.live@example.com";
+/** The PKCE code exchange: armed one-shots name it with its query, so a token renewal cannot take them. */
+const PKCE = "/auth/v1/token?grant_type=pkce";
+/** Arm one of the gateway's one-shots for the next request whose path and query start with `path`. */
+async function arm(hook: "fail-next" | "drop-response-next" | "drop-body-next", path: string) {
+  await fetch(`${URL_}/__live/${hook}?path=${encodeURIComponent(path)}`);
+}
+/** How many one-shots are still armed. A step that arms one must have used it. */
+async function armsLeft(): Promise<number> {
+  const a = (await (await fetch(`${URL_}/__live/arms`)).json()) as Record<string, string[]>;
+  return Object.values(a).reduce((n, l) => n + l.length, 0);
+}
 const sessionOf = (d: Device) => d.storage.loadSessionRaw() as Session | null;
 /**
  * Move a person's sign-in requests back in time, in GoTrue's own table: what waiting would do to its 300 s
- * flow-state expiry, without adding minutes to the run. The live run's one write to GoTrue's tables.
+ * flow-state expiry, without adding minutes to the run. One of the live run's two writes to GoTrue's
+ * tables; the other moves Wes's code issue time back the same way.
  */
 const ageRequests = (email: string, minutes: number, method?: string) =>
   db(
@@ -407,6 +433,91 @@ check("confirm email on: a not-yet-confirmed person's second request, refused as
     !(patOn instanceof Error) && patOn?.email === pat,
   json({ second: errText(patFromD), requests: patRequests, session: errText(patOn) }));
 
+// "Try again", after the link's exchange fails for a transient reason. The page keeps the code and offers
+// to try again (client.ts exchangeWith). Two losses look the same to the page and differ on GoTrue:
+//  - a lost REQUEST: GoTrue never saw it, the code is unused, and the retry finishes;
+//  - a lost RESPONSE: GoTrue finished the exchange, destroying the flow state in the transaction that
+//    issued the session (token.go), and the reply never arrived. The retry finds nothing (404
+//    flow_state_not_found), and the page must say an earlier try may have used the link.
+await FlakyA.client.sendSignInLink(uma);
+const umaTo = await open(await newMail(uma));
+windows.FlakyA.location.search = umaTo.search;
+windows.FlakyA.location.hash = umaTo.hash;
+await arm("fail-next", PKCE);
+const umaLost = await mayThrow(FlakyA.client.completeSignInFromUrl());
+const umaCanRetry = FlakyA.client.canRetrySignIn();
+const umaRetried = await mayThrow(FlakyA.client.retrySignIn());
+const umaArms = await armsLeft();
+check("try again: after a lost request the kept code still works, and 'Try again' signs in",
+  umaLost instanceof Error && umaCanRetry && !(umaRetried instanceof Error) && umaRetried?.email === uma && umaArms === 0,
+  json({ lost: errText(umaLost), canRetry: umaCanRetry, retried: errText(umaRetried), armsLeft: umaArms }));
+await FlakyB.client.sendSignInLink(vic);
+const vicTo = await open(await newMail(vic));
+windows.FlakyB.location.search = vicTo.search;
+windows.FlakyB.location.hash = vicTo.hash;
+await arm("drop-response-next", PKCE);
+const vicMark = await logMark();
+const vicLost = await mayThrow(FlakyB.client.completeSignInFromUrl());
+const vicCanRetry = FlakyB.client.canRetrySignIn();
+const vicRetried = await mayThrow(FlakyB.client.retrySignIn());
+const vicExchanges = (await logAfter(vicMark)).filter((r) => r.path.startsWith(PKCE));
+const vicArms = await armsLeft();
+check("try again: after a lost response GoTrue had already used the code, so 'Try again' is refused (404) and says an earlier try may have used the link",
+  vicLost instanceof Error && vicCanRetry && vicExchanges.length === 2 && vicExchanges[0].status === 200 && vicExchanges[1].status === 404 &&
+    vicRetried instanceof Error && vicRetried.message.includes("earlier try may have reached the server") &&
+    FlakyB.client.currentSession() === null && !FlakyB.client.canRetrySignIn() && vicArms === 0,
+  json({ lost: errText(vicLost), canRetry: vicCanRetry, exchanges: vicExchanges, retried: errText(vicRetried), armsLeft: vicArms }));
+// "Try again" pressed after the kept code's five minutes. Wes's request is lost on the way, and his flow
+// state is then moved six minutes past the link's opening: a magic link's five minutes run from it
+// (flow_state.go IsExpired counts from auth_code_issued_at). The retry is refused (422), and the page
+// must say five minutes have passed, not that the link was opened too late.
+await FlakyC.client.sendSignInLink(wes);
+const wesTo = await open(await newMail(wes));
+windows.FlakyC.location.search = wesTo.search;
+windows.FlakyC.location.hash = wesTo.hash;
+await arm("fail-next", PKCE);
+const wesLost = await mayThrow(FlakyC.client.completeSignInFromUrl());
+const wesCanRetry = FlakyC.client.canRetrySignIn();
+const wesAged = db(
+  `update auth.flow_state f set auth_code_issued_at = f.auth_code_issued_at - interval '6 minutes' from auth.users u
+   where u.id = f.user_id and u.email = '${wes}' and f.authentication_method = 'magiclink' returning f.authentication_method`,
+) as { authentication_method: string }[];
+const wesMark = await logMark();
+const wesRetried = await mayThrow(FlakyC.client.retrySignIn());
+const wesExchanges = (await logAfter(wesMark)).filter((r) => r.path.startsWith(PKCE));
+const wesArms = await armsLeft();
+check("try again: pressed more than five minutes after the link was opened, it is refused (422) and says so, not that the link was opened too late",
+  wesLost instanceof Error && wesCanRetry && wesAged.length === 1 && wesExchanges.length === 1 && wesExchanges[0].status === 422 &&
+    wesRetried instanceof Error && wesRetried.message.includes("more than five minutes have passed") &&
+    !wesRetried.message.includes("open it straight away") && FlakyC.client.currentSession() === null && wesArms === 0,
+  json({ lost: errText(wesLost), canRetry: wesCanRetry, aged: wesAged, exchanges: wesExchanges, retried: errText(wesRetried), armsLeft: wesArms }));
+// And an answer cut off after its headers: GoTrue's 200 arrives, then the connection drops before the
+// body. GoTrue answers only after its transaction commits, so the code is already used, and "Try again"
+// could only be refused: the page says what happened and offers none. The run then presents the code
+// itself, with the verifier the page kept, as "Try again" would have, and GoTrue refuses it (404): the
+// sentence's claim, checked.
+await FlakyD.client.sendSignInLink(xan);
+const xanTo = await open(await newMail(xan));
+windows.FlakyD.location.search = xanTo.search;
+windows.FlakyD.location.hash = xanTo.hash;
+await arm("drop-body-next", PKCE);
+const xanMark = await logMark();
+const xanCut = await mayThrow(FlakyD.client.completeSignInFromUrl());
+const xanCanRetry = FlakyD.client.canRetrySignIn();
+const xanVerifier = (FlakyD.storage.loadPendingSignIn() as { verifier?: string } | null)?.verifier ?? "";
+const xanAgain = await fetch(`${URL_}${PKCE}`, {
+  method: "POST", headers: { apikey: KEY, "Content-Type": "application/json" },
+  body: json({ auth_code: xanTo.searchParams.get("code"), code_verifier: xanVerifier }),
+}).then((r) => r.text().then(() => r.status));
+const xanExchanges = (await logAfter(xanMark)).filter((r) => r.path.startsWith(PKCE));
+const xanArms = await armsLeft();
+check("try again: an answer cut off after its headers says the link was used up and offers no 'Try again' (GoTrue refuses that code: 404)",
+  xanCut instanceof Error && xanCut.message.includes("its answer was cut off on the way back") && xanCut.message.includes("used up this link") &&
+    xanCut.message.includes("Ask for a new link") && !xanCanRetry && xanVerifier !== "" &&
+    xanExchanges.length === 2 && xanExchanges[0].status === 200 && xanExchanges[1].status === 404 && xanAgain === 404 &&
+    FlakyD.client.currentSession() === null && xanArms === 0,
+  json({ cut: errText(xanCut), canRetry: xanCanRetry, exchanges: xanExchanges, again: xanAgain, armsLeft: xanArms }));
+
 console.log("      (waiting out GoTrue's 60-second per-person email limit)");
 await sleep(61_000);
 await askOnceAllowed(Pho, sam);
@@ -474,6 +585,15 @@ const oliOn = await mayThrow(ConfB.client.completeSignInFromUrl());
 check("confirm email on: …asking again, as that sentence says, sends a magic link, which still works six minutes after it was asked for",
   new URL(oliAgain).searchParams.get("type") === "magiclink" && oliAgedAgain.length === 1 && !(oliOn instanceof Error) && oliOn?.email === oli,
   json({ type: new URL(oliAgain).searchParams.get("type"), aged: oliAgedAgain.length, session: errText(oliOn) }));
+
+// Vic, more than a minute on, does what the lost-answer sentence said and asks for a new link: it signs
+// Vic in.
+await askOnceAllowed(FlakyB, vic);
+const vicAgain = await open(await newMail(vic));
+windows.FlakyB.location.search = vicAgain.search;
+windows.FlakyB.location.hash = vicAgain.hash;
+const vicOn = await mayThrow(FlakyB.client.completeSignInFromUrl());
+check("try again: …and a new link, as the lost-answer sentence says, signs Vic in", !(vicOn instanceof Error) && vicOn?.email === vic, errText(vicOn));
 
 // =================================================================================================
 // 3. An edit on the phone reaches the laptop

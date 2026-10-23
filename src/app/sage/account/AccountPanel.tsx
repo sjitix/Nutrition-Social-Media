@@ -28,9 +28,12 @@ export function AccountPanel({ onChange }: { onChange: () => void }) {
   // While a sign-in link's code is being exchanged, the email form is not offered: a second request
   // made then could only confuse the sign-in already under way (review 2).
   const [signingIn, setSigningIn] = useState(false);
-  // A sign-in whose exchange failed for a transient reason can be finished from here: the emailed link
-  // was used up when it was opened, so opening it again could not.
-  const [canRetry, setCanRetry] = useState(false);
+  // A sign-in whose exchange failed for a transient reason can usually be finished from here: the emailed
+  // link was used up when it was opened, so opening it again could not. (Not when only the answer was
+  // lost, or five minutes have passed: "Try again" then says so.) Held as the button's label, null for
+  // none: beside a failed request for a new link it reads "Finish the earlier sign-in", so it is never
+  // taken for retrying that request.
+  const [retryLabel, setRetryLabel] = useState<string | null>(null);
   // What the panel itself has to say, when the account has nothing to: "Signed out." Cleared by the
   // next change of status, so it never outlives the moment it describes.
   const [said, setSaid] = useState<string | null>(null);
@@ -77,7 +80,7 @@ export function AccountPanel({ onChange }: { onChange: () => void }) {
     void completeSignInFromUrl()
       .catch((e: unknown) => {
         setError(e instanceof Error ? e.message : "Sign-in didn't complete. Ask for a new link.");
-        setCanRetry(canRetrySignIn());
+        setRetryLabel(canRetrySignIn() ? "Try again" : null);
       })
       .finally(() => setSigningIn(false))
       .then(() => startSync())
@@ -95,8 +98,16 @@ export function AccountPanel({ onChange }: { onChange: () => void }) {
     try {
       await sendSignInLink(email);
       setSent(email.trim());
+      setRetryLabel(null); // the new link is the way on now
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't send the email.");
+      // A failed request can leave an earlier sign-in still to finish, and then it stays on offer: text
+      // that is not an email address stores nothing, and a repeat of the earlier sign-in's own address
+      // (in any letter case) keeps it. A request for another address gives it up (client.ts
+      // sendSignInLink). Beside this failure ("Too many sign-in emails… Try again later."), "Try again"
+      // would read as retrying the request, so the button says what it finishes (the re-review of the
+      // Try-again batch).
+      setRetryLabel(canRetrySignIn() ? "Finish the earlier sign-in" : null);
     } finally {
       setBusy(false);
     }
@@ -111,15 +122,18 @@ export function AccountPanel({ onChange }: { onChange: () => void }) {
     try {
       await retrySignIn();
       setError(null);
-      setCanRetry(false);
+      setRetryLabel(null);
       await startSync();
       onChange();
       if (!accountStatus().message) setSaid(`Signed in as ${accountStatus().email || "your account"}.`);
       setFocusOn("note");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Sign-in didn't complete. Ask for a new link.");
-      setCanRetry(canRetrySignIn());
+      setRetryLabel(canRetrySignIn() ? "Try again" : null);
       setFocusOn("alert");
+      // Signed in meanwhile (in another tab), the panel takes that sign-in up rather than offer the email
+      // form under "already signed in". Signed out, this changes nothing (the fifth review).
+      void startSync().then(() => onChange());
     } finally {
       setBusy(false);
       setSigningIn(false);
@@ -299,14 +313,14 @@ export function AccountPanel({ onChange }: { onChange: () => void }) {
       {error && (
         <div ref={alertBox} tabIndex={-1} role="alert" className="mt-3 flex flex-wrap items-center gap-3 rounded-[10px] bg-white px-4 py-3 text-[12.5px] text-red-700 outline-none">
           <span>{error}</span>
-          {canRetry && (
+          {retryLabel && (
             <button
               type="button"
               disabled={busy}
               onClick={() => void retry()}
               className="rounded-full bg-red-700 px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-red-800 disabled:opacity-50"
             >
-              {busy ? "Trying…" : "Try again"}
+              {busy ? "Trying…" : retryLabel}
             </button>
           )}
         </div>

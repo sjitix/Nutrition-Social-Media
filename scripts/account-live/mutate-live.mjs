@@ -10,16 +10,20 @@
  * live.mts (an RLS write check satisfied by a primary-key collision, a renewal check that never sent an
  * expired token, and redirects nobody looked at).
  *
- * WHAT IT PROVES, EXACTLY: 24 mutations, which between them require 35 distinct named checks to fail
- * (the allow list's takes all ten landings, "Confirm email" off takes three checks, the newest-link
- * sentence's two, the dropped verifier's two, and the reused verifier and the 422 mapping each share one
- * of those), so 35 of live.mts's 50 checks are shown able to fail. The other 15 are:
+ * WHAT IT PROVES, EXACTLY: 31 mutations, which between them require 39 distinct named checks to fail
+ * (the allow list's takes all ten landings, "Confirm email" off takes three checks, and the newest-link
+ * sentence's, the dropped verifier's and the kept code's take two each. The reused verifier and the
+ * first-link 422 mapping each share one of those; the retry's 404 sentence and the retry flag both
+ * share the lost-response check; and the cut-off answer told as transient, and its sentence without "used
+ * up this link", share the cut-off check with the bare read), so 39 of live.mts's 55 checks are shown able
+ * to fail. The other 16 are:
  *  - five platform facts the run records rather than guards it tests: GoTrue's parent rule, the newest
  *    link signing in, /logout's 403, a re-signup's new id, and a magic link still working six minutes
  *    after its request (its five minutes run from the open);
- *  - ten preconditions and follow-ons of the proven ones: the laptop's sign-in, the first sync, the
+ *  - eleven preconditions and follow-ons of the proven ones: the laptop's sign-in, the first sync, the
  *    phone's pull, the mirror, the newer week kept, both edits after a renewal, the plain sign-out, the
- *    delete itself, and Kai's second link coming back to the Site URL's page.
+ *    delete itself, Vic's new link after a refused "Try again", and Kai's second link coming back to the
+ *    Site URL's page.
  * That last one cannot tell GoTrue's same-origin rule from its fallback to the Site URL, which there is
  * the same address. So the bare-domain Site URL mutation requires it to PASS (`passes`), where only the
  * same-origin rule can bring it back: that is how the run records the rule.
@@ -29,11 +33,11 @@
  * mutation (the run hands each code to the device it names, wherever the link landed), so the other
  * eight went red unrequired. And it counted "the takeover's other side" (the tablet finishing Jo's link)
  * as a platform fact, though dropping the verifier on a refused request turns it red every time, so that
- * mutation now requires it. Count from the run's output, never from memory. Say "35 of 50", never
+ * mutation now requires it. Count from the run's output, never from memory. Say "39 of 55", never
  * "every check".
  *
- * Each mutation runs the full live run, about 80 s (21 took 1681 s on 2026-10-21), so all 24 take about
- * 32 minutes. An anchor that no
+ * Each mutation runs the full live run, about 80 s (24 took 1863 s on 2026-10-22), so all 31 take about
+ * 40 minutes. An anchor that no
  * longer matches exactly once is reported as SKIP and fails the run, like mutate-account.mjs. A run
  * killed mid-mutation is undone at the next start (the journal), so a broken file never outlives it.
  */
@@ -171,7 +175,7 @@ const MUTATIONS = [
     // dropped-connection request got into the check: only a request GoTrue never saw tells the two apart.
     name: "asking again for the same address replaces the verifier",
     file: "src/lib/account/client.ts",
-    from: "  const reuse = !!pending && pending.email === address && Date.now() - pending.at < REUSE_VERIFIER_MS;",
+    from: "  const reuse = !!pending && sameAddress(pending.email, address) && Date.now() - pending.at < REUSE_VERIFIER_MS;",
     to: "  const reuse = false;",
     fails: ["sign-in: requests GoTrue refuses (429) or never receives"],
   },
@@ -237,9 +241,58 @@ const MUTATIONS = [
   {
     name: "a first link refused as expired (422) reads as a passing failure",
     file: "src/lib/account/supabase.ts",
-    from: "  if (res.status === 422) throw new AccountError(LINK_ERRORS.flow_state_expired, \"auth\");\n",
+    from: "  if (res.status === 422) throw new AccountError(retry ? LINK_RETRY_TOO_LATE : LINK_ERRORS.flow_state_expired, \"auth\");\n",
     to: "",
     fails: ["confirm email on: a first link opened six minutes after it was asked for is refused"],
+  },
+  {
+    name: "the page keeps no code after a transient failure, so there is nothing to try again",
+    file: "src/lib/account/client.ts",
+    from: "    saveSignInCode(e instanceof AccountError && e.retryable && dataGeneration() === generation ? attempt : null);",
+    to: "    saveSignInCode(null);",
+    fails: ["try again: after a lost request the kept code still works", "try again: after a lost response GoTrue had already used the code"],
+  },
+  {
+    name: "a retry refused as not found (404) gets the general sentence, not the lost-answer one",
+    file: "src/lib/account/supabase.ts",
+    from: "  if (retry && res.status === 404) throw new AccountError(LINK_USED_BY_EARLIER_TRY, \"auth\");\n",
+    to: "",
+    fails: ["try again: after a lost response GoTrue had already used the code"],
+  },
+  {
+    name: "\"Try again\" is not marked as a retry, so its 404 blames the link",
+    file: "src/lib/account/client.ts",
+    from: "  return exchangeWith(cfg, kept, true);",
+    to: "  return exchangeWith(cfg, kept);",
+    fails: ["try again: after a lost response GoTrue had already used the code"],
+  },
+  {
+    name: "a late retry's 422 gets the slow-first-link sentence",
+    file: "src/lib/account/supabase.ts",
+    from: "retry ? LINK_RETRY_TOO_LATE : LINK_ERRORS.flow_state_expired",
+    to: "LINK_ERRORS.flow_state_expired",
+    fails: ["try again: pressed more than five minutes after the link was opened"],
+  },
+  {
+    name: "an answer cut off after its headers escapes as the browser's own error",
+    file: "src/lib/account/supabase.ts",
+    from: "  const body = await res.json().catch(() => {\n    throw new AccountError(LINK_ANSWER_CUT_OFF, \"auth\");\n  });\n",
+    to: "  const body = await res.json();\n",
+    fails: ["try again: an answer cut off after its headers"],
+  },
+  {
+    name: "an answer cut off after its headers is told as transient, offering a \"Try again\" GoTrue can only refuse",
+    file: "src/lib/account/supabase.ts",
+    from: "    throw new AccountError(LINK_ANSWER_CUT_OFF, \"auth\");",
+    to: "    throw new AccountError(LINK_ANSWER_CUT_OFF, \"network\");",
+    fails: ["try again: an answer cut off after its headers"],
+  },
+  {
+    name: "an answer cut off after its headers no longer says it used up the link",
+    file: "src/lib/account/supabase.ts",
+    from: "reached the server and used up this link, but its answer",
+    to: "reached the server, but its answer",
+    fails: ["try again: an answer cut off after its headers"],
   },
 ];
 

@@ -30,6 +30,8 @@ export function AccountClient() {
   const [incoming, setIncoming] = useState<{ file: string; result: ParseResult } | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // Changed after "Delete everything in this browser", which mounts a fresh sign-in panel (deleteNow).
+  const [panelKey, setPanelKey] = useState(0);
   // Focus goes INTO a confirm step when it opens, so a keyboard or screen-reader user lands on the
   // question rather than on the page body after the button they pressed disappears.
   const keepButton = useRef<HTMLButtonElement>(null);
@@ -137,6 +139,9 @@ export function AccountClient() {
     }
     setConfirmDelete(false);
     sayAndFocus("Everything this app kept in this browser is gone, and this browser is signed out. Your account, if you had one, is untouched.");
+    // A fresh sign-in panel: what it was showing (an error, "Try again", "Check your email") belonged to
+    // what was just deleted (the fourth review of the Try-again batch).
+    setPanelKey((k) => k + 1);
     refresh();
   }
 
@@ -195,7 +200,7 @@ export function AccountClient() {
       )}
 
       <div className="mt-8 grid max-w-[1100px] gap-4 lg:grid-cols-2">
-        <AccountPanel onChange={refresh} />
+        <AccountPanel key={panelKey} onChange={refresh} />
 
         {/* ---- what is here ---- */}
         <section className="rounded-[12px] bg-cream p-5 lg:col-span-2">

@@ -57,9 +57,12 @@ const INTERNAL = {
 /**
  * Per-TAB bookkeeping (sessionStorage), so none of it can outlive the tab.
  * - `syncReload` — when this tab last reloaded itself for sync (see `claimSyncReload`).
- * - `signInCode` — the one-time code from a sign-in link whose exchange failed for a TRANSIENT reason.
- *   It stays good for a few minutes, so "Try again" can finish the sign-in. The emailed link was used
- *   up when it was opened, so opening it again could not.
+ * - `signInCode` — the one-time code from a sign-in link whose exchange failed for a TRANSIENT reason,
+ *   with the verifier that exchange used and the address it was for, stamped with the browser's
+ *   generation of data. It is usually still good, for five minutes after the link was opened (for a first link with "Confirm
+ *   email" on, after it was asked for), so "Try again" can finish the sign-in; not when only the answer
+ *   was lost (GoTrue had already used it), which "Try again" then says. The emailed link was used up
+ *   when it was opened, so opening it again could not.
  * - `carriedNote` — what this tab's sync had just said when this tab reloaded itself for it, so the
  *   sentence ("set aside", "your account had newer data") survives the reload it caused.
  */
@@ -110,6 +113,14 @@ const CHANGED_HANDS =
 const knownEpoch = new WeakMap<object, string | null>();
 
 const storedEpoch = (): string | null => window.localStorage.getItem(INTERNAL.epoch);
+
+/**
+ * The browser's current generation of data, which a clear or a change of hands replaces. For work that
+ * spans a wait and must not land in the next generation: a sign-in's exchange (client.ts exchangeWith).
+ */
+export function dataGeneration(): string | null {
+  return storedEpoch();
+}
 
 /**
  * This tab's first read or write, of ANY key: from now on, it works from the generation it found.
@@ -561,17 +572,35 @@ export function clearPendingSignIn(verifier: string): void {
   if (loadPendingSignIn()?.verifier === verifier) window.localStorage.removeItem(INTERNAL.pkce);
 }
 
-/** The one-time code of a sign-in whose exchange failed for a transient reason, kept for "Try again". */
-export function loadSignInCode(): string | null {
+/**
+ * A sign-in whose exchange failed for a transient reason, kept for "Try again": the link's one-time code,
+ * the verifier that exchange used (the one pending when the link landed), and the address that request
+ * was for. Kept together, because the pending request is one per browser and another tab's request can
+ * replace it, and the code with that one's verifier could only be refused. Stamped with the browser's
+ * generation of data (THE WRITE FENCE): once the browser is cleared or changes hands, the kept sign-in is
+ * stale, and is dropped where it is read (the fourth review of the Try-again batch).
+ */
+export interface KeptSignIn {
+  code: string;
+  verifier: string;
+  email: string;
+}
+export function loadSignInCode(): KeptSignIn | null {
   try {
-    return window.sessionStorage.getItem(TAB.signInCode);
+    const v = JSON.parse(window.sessionStorage.getItem(TAB.signInCode) ?? "null") as (Partial<KeptSignIn> & { epoch?: unknown }) | null;
+    if (!v || typeof v.code !== "string" || typeof v.verifier !== "string" || typeof v.email !== "string") return null;
+    if (v.epoch !== storedEpoch()) {
+      window.sessionStorage.removeItem(TAB.signInCode); // kept before a clear or a change of hands
+      return null;
+    }
+    return { code: v.code, verifier: v.verifier, email: v.email };
   } catch {
-    return null;
+    return null; // none kept, no sessionStorage, or an older tab's bare code: nothing to try again
   }
 }
-export function saveSignInCode(code: string | null): void {
+export function saveSignInCode(kept: KeptSignIn | null): void {
   try {
-    if (code) window.sessionStorage.setItem(TAB.signInCode, code);
+    if (kept) window.sessionStorage.setItem(TAB.signInCode, JSON.stringify({ ...kept, epoch: storedEpoch() }));
     else window.sessionStorage.removeItem(TAB.signInCode);
   } catch {
     /* no sessionStorage: "Try again" is simply not offered */
@@ -655,5 +684,8 @@ export function saveSessionRaw(s: unknown): void {
 export function clearAll(): void {
   for (const n of STORE_NAMES) window.localStorage.removeItem(KEYS[n]);
   Object.values(INTERNAL).forEach((k) => window.localStorage.removeItem(k));
+  // This tab's kept sign-in too: its code and verifier would finish the sign-in. Another tab's goes stale
+  // with the generation, and that tab drops it when it hears (client.ts watchOtherTabs).
+  saveSignInCode(null);
   newEpoch();
 }

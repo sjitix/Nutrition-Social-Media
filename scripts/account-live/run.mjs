@@ -123,7 +123,7 @@ try {
   // The Conf browsers talk to the second GoTrue ("Confirm email" on) through the gateway's /confirm
   // prefix: the app reads the project URL as a literal process.env read, so a define gives one bundle its own.
   const confirmUrl = { "process.env.NEXT_PUBLIC_SUPABASE_URL": JSON.stringify("http://localhost:54321/confirm") };
-  for (const device of ["Lap", "Pho", "Rob", "Late", "Desk", "Tablet", "Prev", "Site", "ConfA", "ConfB", "ConfC", "ConfD"]) {
+  for (const device of ["Lap", "Pho", "Rob", "Late", "Desk", "Tablet", "Prev", "Site", "ConfA", "ConfB", "ConfC", "ConfD", "FlakyA", "FlakyB", "FlakyC", "FlakyD"]) {
     await build({
       ...common,
       entryPoints: ["scripts/account-tab.mts"],

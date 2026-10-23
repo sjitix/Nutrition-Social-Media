@@ -89,7 +89,7 @@ const sb = new FakeSupabase();
 
 for (const t of ["A", "B", "C", "D", "E", "F", "G", "H", "K", "L", "M", "N"]) makeTab(t, sharedStorage(t), true);
 // Batch 6's scenarios (the review of batches 4-5), loaded where they are used.
-for (const t of ["Q", "R", "S", "T", "U", "V", "X", "Y", "Z", "W", "J", "I", "O", "Ca", "Da", "Cb", "Db", "Cc", "Dc", "Ka", "Ya", "Yb", "Ga", "Gb"]) {
+for (const t of ["Q", "R", "S", "T", "U", "V", "X", "Y", "Z", "W", "J", "I", "O", "Ca", "Da", "Cb", "Db", "Cc", "Dc", "Ka", "Ya", "Yb", "Ga", "Gb", "Ha", "Hb", "Ia", "Ib", "Ja", "Jb", "Jc", "La", "Lb", "Lc"]) {
   makeTab(t, sharedStorage(t), true);
 }
 makeTab("P", new MemoryStorage(), false);
@@ -779,6 +779,108 @@ function mountAccountSync(T: Tab, name: string) {
   check("deleted elsewhere: …and another tab of the browser does not claim the person signed out",
     Gb.client.accountStatus().state === "signed-out" && !(Gb.client.accountStatus().message ?? "").startsWith("You signed out"),
     json(Gb.client.accountStatus()));
+}
+
+// 20. A kept sign-in carries the verifier its failed exchange used, and its own address. The pending
+//     request is one per browser (localStorage) and a kept sign-in is per tab (sessionStorage), so another
+//     tab's request for another address replaces the request under it. "Try again" still finishes, with
+//     the kept verifier (the third review of the Try-again batch), and a repeat of the kept sign-in's own
+//     address keeps it on offer, though the pending request is now another's (the fourth).
+{
+  shared.clear();
+  const Ha = await load("Ha");
+  const Hb = await load("Hb");
+  await Ha.client.sendSignInLink("hal@example.com");
+  tabs.Hb.window.location.search = `?code=${sb.lastCode.get("hal@example.com")}`; // the link opens in tab Hb
+  sb.failExchange = 1;
+  const halFailed = await Hb.client.completeSignInFromUrl().then(() => "", (e: Error) => e.message);
+  await Ha.client.sendSignInLink("hana@example.com"); // tab Ha asks for another address: a new verifier
+  sb.down = true;
+  await Hb.client.sendSignInLink("hal@example.com").catch(() => undefined); // tab Hb asks for hal again: lost
+  sb.down = false;
+  const halCanRetry = Hb.client.canRetrySignIn();
+  const halRetry = await Hb.client.retrySignIn().then((s) => s.userId, (e: Error) => e.message);
+  check("try again: 'Try again' still finishes after another tab's request replaced the browser's, and a repeat of its own address keeps it",
+    halFailed !== "" && halCanRetry && halRetry === "uid-hal", json({ halFailed, halCanRetry, halRetry }));
+  await Hb.client.signOut();
+}
+
+// 21. …while a request in that tab for another address gives the kept sign-in up, even one that reuses the
+//     pending request (another tab's): the person has moved on from it (the fourth review).
+{
+  shared.clear();
+  const Ia = await load("Ia");
+  const Ib = await load("Ib");
+  await Ia.client.sendSignInLink("ian@example.com");
+  tabs.Ib.window.location.search = `?code=${sb.lastCode.get("ian@example.com")}`;
+  sb.failExchange = 1;
+  await Ib.client.completeSignInFromUrl().catch(() => undefined);
+  const ianKept = Ib.client.canRetrySignIn();
+  await Ia.client.sendSignInLink("iona@example.com");
+  sb.down = true;
+  await Ib.client.sendSignInLink("iona@example.com").catch(() => undefined); // reuses tab Ia's request: lost
+  sb.down = false;
+  check("try again: a request for another address gives the kept sign-in up, even one that reuses another tab's request",
+    ianKept && !Ib.client.canRetrySignIn(), json({ ianKept, after: Ib.client.canRetrySignIn() }));
+}
+
+// 22. "Delete everything in this browser" in one tab ends the sign-ins other tabs kept. A kept sign-in is
+//     stamped with the browser's generation, so a tab that has not heard yet cannot finish it, and a tab
+//     that hears drops it before it reloads (the fourth review).
+{
+  shared.clear();
+  const Ja = await load("Ja");
+  const Jb = await load("Jb");
+  const Jc = await load("Jc");
+  mountAccountSync(Jc, "Jc");
+  for (const [T, name, who] of [[Jb, "Jb", "jay@example.com"], [Jc, "Jc", "joy@example.com"]] as const) {
+    await Ja.client.sendSignInLink(who);
+    tabs[name].window.location.search = `?code=${sb.lastCode.get(who)}`;
+    sb.failExchange = 1;
+    await T.client.completeSignInFromUrl().catch(() => undefined);
+  }
+  const keptBefore = Jb.client.canRetrySignIn() && Jc.client.canRetrySignIn();
+  deafen("Jb");
+  await Ja.client.forgetThisBrowser();
+  await settle();
+  const jbAfter = Jb.client.canRetrySignIn(); // tab Jb has not heard: the generation decides
+  const jcLeft = tabs.Jc.window.sessionStorage.getItem("nutriflow.signInCode"); // tab Jc heard; nothing read it since
+  await hear("Jb");
+  check("clear: 'Delete everything' in one tab ends the sign-ins other tabs kept, whether or not they have heard yet",
+    keptBefore && !jbAfter && jcLeft === null, json({ keptBefore, jbAfter, jcLeft }));
+}
+
+// 23. Signed in since, in another tab: nothing is left to finish, so nothing is offered, and a late press
+//     says so rather than sign anyone in again (the fourth review). The kept sign-in is DROPPED, not just
+//     hidden, so a sign-out afterwards does not bring it back (the fifth): a tab that hears the sign-in
+//     drops it then, and one that has not heard drops it when it is next read.
+{
+  shared.clear();
+  const La = await load("La");
+  const Lb = await load("Lb");
+  const Lc = await load("Lc");
+  mountAccountSync(Lb, "Lb");
+  mountAccountSync(Lc, "Lc");
+  for (const [T, name, who] of [[Lb, "Lb", "lou@example.com"], [Lc, "Lc", "luz@example.com"]] as const) {
+    await La.client.sendSignInLink(who);
+    tabs[name].window.location.search = `?code=${sb.lastCode.get(who)}`;
+    sb.failExchange = 1;
+    await T.client.completeSignInFromUrl().catch(() => undefined);
+  }
+  const keptBefore = Lb.client.canRetrySignIn() && Lc.client.canRetrySignIn();
+  deafen("Lc");
+  await signIn(La, "La", "lou@example.com"); // a newer link for lou, finished in tab La
+  await settle();
+  const lbLeft = tabs.Lb.window.sessionStorage.getItem("nutriflow.signInCode"); // tab Lb heard; nothing read it since
+  const lcOffered = Lc.client.canRetrySignIn(); // tab Lc has not heard: read while signed in
+  const louAgain = await Lb.client.retrySignIn().then((s) => s.userId, (e: Error) => e.message);
+  check("try again: once the browser is signed in (in another tab), nothing is offered, and a late press says so",
+    keptBefore && lbLeft === null && !lcOffered && louAgain.includes("already signed in"), json({ keptBefore, lbLeft, lcOffered, louAgain }));
+  await La.client.signOut();
+  await hear("Lc");
+  check("try again: …and after that sign-in ends, neither tab offers its kept sign-in again",
+    !Lb.client.canRetrySignIn() && !Lc.client.canRetrySignIn(),
+    json({ lb: Lb.client.canRetrySignIn(), lc: Lc.client.canRetrySignIn() }));
 }
 
 Date.now = realNow;

@@ -207,6 +207,36 @@ const LINK_TAKEN_OVER =
   "This sign-in link can't be finished here: it was asked for in a different browser or at a different web address, or a newer sign-in request took it over (one from another browser, device or web address counts, even one refused as too soon). Ask for a new link here, and open it in this browser.";
 
 /**
+ * "Try again" refused because the code no longer exists (GoTrue's 404 flow_state_not_found). An earlier
+ * try failed for a transient reason, and one of them is a lost RESPONSE: GoTrue finished the exchange,
+ * destroying the flow state in the same transaction that issued the session (token.go), and the reply
+ * never arrived. The retry then finds nothing. (A 200 whose body was cut off is final instead, and never
+ * retried: LINK_ANSWER_CUT_OFF, below.) The generic sentence ("expired, already used, or opened in a
+ * different browser") named nothing the person did, so a retry's 404 gets this one.
+ * "Earlier", not "first": on a second "Try again" the try that used the code may have been a retry.
+ */
+const LINK_USED_BY_EARLIER_TRY =
+  "That sign-in can't be finished: an earlier try may have reached the server and used up this link, though its answer never arrived. Ask for a new link here.";
+/**
+ * "Try again" refused as expired (422 flow_state_expired). The kept code works for five minutes after
+ * the link was opened, or for a first link with "Confirm email" on, after it was asked for (GoTrue's
+ * FlowStateExpiryDuration; flow_state.go IsExpired). A retry pressed later lands here, and the
+ * slow-first-link sentence ("took too long to open… open it straight away") would usually blame an
+ * opening that was on time.
+ */
+const LINK_RETRY_TOO_LATE =
+  "That sign-in can't be finished any more: more than five minutes have passed since the link was opened (or, for a first link, asked for). Ask for a new link here.";
+/**
+ * An exchange whose 200 arrived and whose body did not. GoTrue answers only after the transaction that
+ * issued the session, and destroyed the flow state with it, has committed (token.go), so a 200 means the
+ * code is used: "Try again" could only be refused (404). So this is final, and says why a new link is
+ * needed. (It used to be offered as transient, a retry certain to fail: the re-review of the Try-again
+ * batch.)
+ */
+const LINK_ANSWER_CUT_OFF =
+  "That sign-in reached the server and used up this link, but its answer was cut off on the way back. Ask for a new link here.";
+
+/**
  * Read a landing URL. PKCE reports success as `?code=` and failure as `?error=…&error_code=…` (GoTrue
  * also mirrors errors into the fragment); both places are read for errors. A fragment carrying
  * `access_token` is deliberately NOT a sign-in — see the section header.
@@ -227,13 +257,18 @@ export function hasAuthParams(search: string, hash: string): boolean {
   return /(^|[?&#])(code|error|error_code|error_description|access_token|refresh_token)=/.test(`${search}#${hash.replace(/^#/, "")}`);
 }
 
-/** Exchange the one-time code from a link for a session, proving this browser asked with the verifier. */
+/**
+ * Exchange the one-time code from a link for a session, proving this browser asked with the verifier.
+ * `retry` is true for "Try again", where a missing code means an earlier try most likely used it, and an
+ * expired one that the retry came late.
+ */
 export async function exchangeCode(
   cfg: AccountConfig,
   code: string,
   verifier: string,
   f: Fetch = fetch,
   nowSec = Math.floor(Date.now() / 1000),
+  retry = false,
 ): Promise<Session> {
   const res = await call(f, `${cfg.url}/auth/v1/token?grant_type=pkce`, {
     method: "POST",
@@ -244,17 +279,26 @@ export async function exchangeCode(
   // default) expires five minutes after it was REQUESTED, not after it was opened, so a link opened
   // six minutes later lands here (review 2). The emailed link was used up when it was opened, so the
   // only way forward is a new one, and saying "try the link again" would send them in a circle.
-  if (res.status === 422) throw new AccountError(LINK_ERRORS.flow_state_expired, "auth");
+  if (res.status === 422) throw new AccountError(retry ? LINK_RETRY_TOO_LATE : LINK_ERRORS.flow_state_expired, "auth");
   if (res.status === 400 && ((await res.clone().json().catch(() => ({}))) as { error_code?: string }).error_code === "bad_code_verifier") {
     throw new AccountError(LINK_TAKEN_OVER, "auth");
   }
+  if (retry && res.status === 404) throw new AccountError(LINK_USED_BY_EARLIER_TRY, "auth");
   if (res.status === 400 || res.status === 401 || res.status === 403 || res.status === 404) {
     throw new AccountError("That sign-in link has expired, was already used, or was opened in a different browser from the one that asked for it. Ask for a new one here.", "auth");
   }
-  // Transient (offline, 429, 5xx): the code is still good for a few minutes, so the caller keeps it,
-  // with its verifier, and offers to try the exchange again. Opening the link again would not work.
+  // Transient (offline, 429, 5xx): the caller keeps the code, with its verifier, and offers to try the
+  // exchange again. Opening the link again would not work. The code is usually still good, for five minutes
+  // after the link was opened (for a first link with "Confirm email" on, after it was asked for), but not
+  // when only the answer was lost: GoTrue had already used it, and the retry is refused (404, above).
   if (!res.ok) throw new AccountError("Couldn't finish signing in just now.", kindOf(res.status));
-  const s = sessionFromTokenResponse(await res.json(), nowSec);
+  // The connection can also drop after the 200, before the body. GoTrue answers only after its
+  // transaction commits, so the code is already used, and "Try again" could only be refused: this is
+  // final, and says so. (Read bare, the browser's own error escaped as the message.)
+  const body = await res.json().catch(() => {
+    throw new AccountError(LINK_ANSWER_CUT_OFF, "auth");
+  });
+  const s = sessionFromTokenResponse(body, nowSec);
   if (!s) throw new AccountError(LINK_ERROR_FALLBACK, "auth");
   return s;
 }

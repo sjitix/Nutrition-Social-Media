@@ -923,6 +923,31 @@ await (async () => {
   const otherBad = fakeFetch(() => ({ status: 400, body: { error_code: "validation_failed" } }));
   try { await exchangeCode(cfg, "CODE123", pair.verifier, otherBad.f); msg = ""; } catch (e) { msg = (e as Error).message; }
   check("exchange: any other refusal keeps the general sentence", msg.includes("expired, was already used"), msg);
+  // A code that no longer exists (404 flow_state_not_found). On "Try again" that most likely means an
+  // earlier try reached GoTrue and used it before the connection dropped; on a first exchange it does not.
+  const gone = fakeFetch(() => ({ status: 404, body: { error_code: "flow_state_not_found" } }));
+  try { await exchangeCode(cfg, "CODE123", pair.verifier, gone.f, 1000, true); msg = ""; } catch (e) { msg = (e as Error).message; }
+  check("exchange: a retry refused as not found (404) says an earlier try may have used the link",
+    msg.includes("earlier try may have reached the server") && !msg.includes("different browser"), msg);
+  try { await exchangeCode(cfg, "CODE123", pair.verifier, gone.f, 1000); msg = ""; } catch (e) { msg = (e as Error).message; }
+  check("exchange: …while a first exchange's 404 keeps the general sentence", msg.includes("expired, was already used"), msg);
+  // A retry refused as expired (422): the kept code's five minutes ran out. Not the slow-first-link case,
+  // whose sentence ("took too long to open… open it straight away") would usually blame an opening that
+  // was on time.
+  const late = fakeFetch(() => ({ status: 422, body: { error_code: "flow_state_expired" } }));
+  try { await exchangeCode(cfg, "CODE123", pair.verifier, late.f, 1000, true); msg = ""; } catch (e) { msg = (e as Error).message; }
+  check("exchange: a retry refused as expired (422) says five minutes have passed, not that the link was opened too late",
+    msg.includes("more than five minutes have passed") && !msg.includes("open it straight away"), msg);
+  try { await exchangeCode(cfg, "CODE123", pair.verifier, late.f, 1000); msg = ""; } catch (e) { msg = (e as Error).message; }
+  check("exchange: …while a first exchange's 422 keeps the slow-first-link sentence", msg.includes("took too long to open"), msg);
+  // An answer cut off after its headers: the 200 means GoTrue had committed, so the code is used and a
+  // retry could only be refused. Final, and said so, not the browser's own error.
+  const cut = (async () => new Response(new ReadableStream({ start(c) { c.error(new TypeError("terminated")); } }), { status: 200 })) as unknown as typeof fetch;
+  let cutErr: unknown = null;
+  try { await exchangeCode(cfg, "CODE123", pair.verifier, cut, 1000); } catch (e) { cutErr = e; }
+  check("exchange: an answer cut off after its headers says the link was used up, and is not retryable (not the browser's own error)",
+    cutErr instanceof AccountError && !cutErr.retryable && cutErr.message.includes("its answer was cut off on the way back") &&
+      cutErr.message.includes("used up this link") && cutErr.message.includes("Ask for a new link"), String(cutErr));
 
   // Review 2, the platform lens (against GoTrue's own source).
   const skewed = fakeFetch(() => ({ body: { access_token: token, refresh_token: "R1", expires_in: 3600, expires_at: 999_999, user: { id: "user-1", email: "sam@example.com" } } }));
@@ -1527,6 +1552,167 @@ await (async () => {
   check("sign-in: …and 'Try again' finishes it with the kept code", retried?.userId === "uid-lee" && currentSession()?.userId === "uid-lee");
   check("sign-in: …after which nothing is left to retry, and the verifier is gone", !canRetrySignIn() && storage.loadPendingSignIn() === null);
   await signOut();
+
+  // A lost ANSWER: the exchange reached the server and used the code, then the connection dropped. The
+  // page offers "Try again" (it cannot tell this from a lost request), and the retry finds the code gone
+  // (404). It must say an earlier try may have used the link, not blame the link or another browser.
+  fakeWindow.localStorage = new MemoryStorage();
+  await sendSignInLink("uma@example.com");
+  fakeWindow.location.search = `?code=${sb.lastCode.get("uma@example.com")}`;
+  sb.loseExchangeAnswer = 1;
+  let lostAnswer = "";
+  try { await completeSignInFromUrl(); } catch (e) { lostAnswer = (e as Error).message; }
+  const canRetryAfterLoss = canRetrySignIn();
+  let usedUp = "";
+  try { await retrySignIn(); } catch (e) { usedUp = (e as Error).message; }
+  check("sign-in: after a lost answer, 'Try again' is refused (the code is used up) and says an earlier try may have used the link",
+    lostAnswer.length > 0 && canRetryAfterLoss && usedUp.includes("earlier try may have reached the server") &&
+      currentSession() === null && !canRetrySignIn(),
+    json({ lostAnswer, canRetryAfterLoss, usedUp }));
+  // The used code presented again on a later landing, a first exchange and not a retry: the general
+  // sentence. This pins the client's wiring (completeSignInFromUrl never passes retry), which the unit
+  // checks above cannot. (Opening the emailed link again would be refused before any exchange, at
+  // /verify, since opening it used it up; here the landing's code is presented as it stands.)
+  fakeWindow.location.search = `?code=${sb.lastCode.get("uma@example.com")}`;
+  let reopenedUsed = "";
+  try { await completeSignInFromUrl(); } catch (e) { reopenedUsed = (e as Error).message; }
+  check("sign-in: the used code presented again on a later landing (a first exchange, not a retry) keeps the general sentence",
+    reopenedUsed.includes("expired, was already used") && !reopenedUsed.includes("earlier try"), reopenedUsed);
+
+  // "Try again" pressed after the kept code's five minutes (here, the fake's few milliseconds).
+  fakeWindow.localStorage = new MemoryStorage();
+  sb.codeTtlMs = 40;
+  await sendSignInLink("wes@example.com");
+  fakeWindow.location.search = `?code=${sb.lastCode.get("wes@example.com")}`;
+  sb.failExchange = 1;
+  await mayThrow(completeSignInFromUrl());
+  const canRetryLate = canRetrySignIn();
+  await new Promise((r) => setTimeout(r, 80));
+  let lateRetry = "";
+  try { await retrySignIn(); } catch (e) { lateRetry = (e as Error).message; }
+  sb.codeTtlMs = Infinity;
+  check("sign-in: 'Try again' pressed after the five minutes says so, not that the link was opened too late",
+    canRetryLate && lateRetry.includes("more than five minutes have passed") && currentSession() === null, json({ canRetryLate, lateRetry }));
+
+  // An answer cut off after its headers: the code is used (the 200 says GoTrue committed), so the page
+  // says so and offers no "Try again", which could only be refused.
+  fakeWindow.localStorage = new MemoryStorage();
+  await sendSignInLink("xan@example.com");
+  fakeWindow.location.search = `?code=${sb.lastCode.get("xan@example.com")}`;
+  sb.loseExchangeBody = 1;
+  let cutFirst = "";
+  try { await completeSignInFromUrl(); } catch (e) { cutFirst = (e as Error).message; }
+  check("sign-in: an answer cut off after its headers says the link was used up, and offers no 'Try again'",
+    cutFirst.includes("its answer was cut off on the way back") && cutFirst.includes("used up this link") &&
+      cutFirst.includes("Ask for a new link") && !canRetrySignIn() && currentSession() === null,
+    json({ cutFirst, canRetry: canRetrySignIn() }));
+
+  // Asking for a new link: text that is not an email address stores nothing, so a kept code stays on
+  // offer. A request for another address starts a new sign-in and gives the earlier one up, so "Finish
+  // the earlier sign-in" never offers one the person has moved on from. (A typo that still looks like an
+  // address counts as another address.)
+  fakeWindow.localStorage = new MemoryStorage();
+  await sendSignInLink("yan@example.com");
+  fakeWindow.location.search = `?code=${sb.lastCode.get("yan@example.com")}`;
+  sb.failExchange = 1;
+  await mayThrow(completeSignInFromUrl());
+  await mayThrow(sendSignInLink("yan@example"));
+  const keptAfterTypo = canRetrySignIn();
+  await sendSignInLink("zed@example.com");
+  check("sign-in: text that is not an email address leaves 'Try again' on offer; a request for another address gives the earlier sign-in up",
+    keptAfterTypo && !canRetrySignIn(), json({ keptAfterTypo, afterAnotherAddress: canRetrySignIn() }));
+
+  // A repeat of the kept sign-in's own address, refused (429) or lost (offline), keeps it on offer, and
+  // "Finish the earlier sign-in" then completes it. In any letter case: GoTrue lowercases an address
+  // before it looks anyone up, so "Ria@Example.com" is ria@example.com asking again, refused as too soon
+  // (the third review of the Try-again batch).
+  fakeWindow.localStorage = new MemoryStorage();
+  sb.linkIntervalMs = 60_000;
+  await sendSignInLink("ria@example.com");
+  fakeWindow.location.search = `?code=${sb.lastCode.get("ria@example.com")}`;
+  sb.failExchange = 1;
+  await mayThrow(completeSignInFromUrl());
+  let refusedRepeat = "";
+  try { await sendSignInLink("Ria@Example.com"); } catch (e) { refusedRepeat = (e as Error).message; }
+  sb.down = true;
+  let lostRepeat = "";
+  try { await sendSignInLink("ria@example.com"); } catch (e) { lostRepeat = (e as Error).message; }
+  sb.down = false;
+  sb.linkIntervalMs = 0;
+  const keptAfterRepeats = canRetrySignIn();
+  const riaFinished = await mayThrow(retrySignIn());
+  check("sign-in: a repeat for the same address in any letter case, refused (429) or lost, keeps the earlier sign-in, which 'Try again' finishes",
+    /too many sign-in emails/i.test(refusedRepeat) && lostRepeat.length > 0 && keptAfterRepeats && riaFinished?.userId === "uid-ria",
+    json({ refusedRepeat, lostRepeat, keptAfterRepeats, finished: riaFinished?.userId ?? null }));
+  await signOut();
+
+  // The link already sent survives a repeat in another letter case that never reached the server: the
+  // verifier is reused, and GoTrue's latest request is still the first (the fourth review: compared as
+  // typed, "Kit@" made a new verifier, and the link failed as asked for somewhere else).
+  fakeWindow.localStorage = new MemoryStorage();
+  await sendSignInLink("kit@example.com");
+  const kitLink = sb.lastCode.get("kit@example.com");
+  sb.down = true;
+  await mayThrow(sendSignInLink("Kit@Example.com"));
+  sb.down = false;
+  fakeWindow.location.search = `?code=${kitLink}`;
+  const kitIn = await mayThrow(completeSignInFromUrl());
+  check("sign-in: a repeat in another letter case that never reached the server leaves the link already sent working",
+    kitIn?.userId === "uid-kit", json(kitIn?.userId ?? null));
+  await signOut();
+
+  // A newer link for a sign-in that "Try again" finished meanwhile: no request is held any more, but the
+  // browser is signed in, so the page says that, not that the link was asked for somewhere else (the
+  // fourth review). The code kept for "Try again" outlives the newer request, as on GoTrue.
+  fakeWindow.localStorage = new MemoryStorage();
+  await sendSignInLink("kim@example.com");
+  fakeWindow.location.search = `?code=${sb.lastCode.get("kim@example.com")}`;
+  sb.failExchange = 1;
+  await mayThrow(completeSignInFromUrl());
+  await sendSignInLink("kim@example.com"); // a newer link, for the same request
+  const kimNewer = sb.lastCode.get("kim@example.com");
+  const kimRetried = await mayThrow(retrySignIn());
+  fakeWindow.location.search = `?code=${kimNewer}`;
+  let kimNotNeeded = "";
+  try { await completeSignInFromUrl(); } catch (e) { kimNotNeeded = (e as Error).message; }
+  check("sign-in: a newer link opened after 'Try again' finished says the browser is already signed in, not that it was asked for elsewhere",
+    kimRetried?.userId === "uid-kim" && kimNotNeeded.includes("already signed in as kim@example.com") && !kimNotNeeded.includes("different browser"),
+    json({ retried: kimRetried?.userId ?? null, kimNotNeeded }));
+  await signOut();
+
+  // "Delete everything in this browser" takes a kept sign-in with it: its code and verifier would finish
+  // the sign-in for the rest of its five minutes (the fourth review).
+  fakeWindow.localStorage = new MemoryStorage();
+  await sendSignInLink("lia@example.com");
+  fakeWindow.location.search = `?code=${sb.lastCode.get("lia@example.com")}`;
+  sb.failExchange = 1;
+  await mayThrow(completeSignInFromUrl());
+  const liaKept = canRetrySignIn();
+  await forgetThisBrowser();
+  const liaLeft = fakeWindow.sessionStorage.getItem("nutriflow.signInCode");
+  check("sign-in: 'Delete everything in this browser' takes a kept sign-in with it, code and verifier",
+    liaKept && liaLeft === null && !canRetrySignIn(), json({ liaKept, liaLeft }));
+
+  // …and a sign-in still finishing when the browser is cleared keeps nothing of what comes back: not the
+  // session (mae's exchange succeeds) and not a code for "Try again" (moe's fails for a transient reason).
+  // Both used to land in the emptied browser (the fifth review).
+  const clearedWhile: { who: string; outcome: string; session: string | null; kept: boolean }[] = [];
+  for (const [who, fail] of [["mae@example.com", 0], ["moe@example.com", 1]] as const) {
+    fakeWindow.localStorage = new MemoryStorage();
+    await sendSignInLink(who);
+    fakeWindow.location.search = `?code=${sb.lastCode.get(who)}`;
+    sb.failExchange = fail;
+    sb.exchangeDelayMs = 60;
+    const finishing = completeSignInFromUrl();
+    await forgetThisBrowser();
+    const outcome = await finishing.then((s) => s?.userId ?? "none", (e: Error) => e.message);
+    sb.exchangeDelayMs = 0;
+    clearedWhile.push({ who, outcome, session: currentSession()?.userId ?? null, kept: canRetrySignIn() });
+  }
+  check("sign-in: a sign-in still finishing when the browser is cleared keeps nothing, neither the session nor a code to try again",
+    clearedWhile.length === 2 && clearedWhile.every((c) => c.session === null && !c.kept) &&
+      clearedWhile[0].outcome.includes("was cleared") && clearedWhile[1].outcome === "Couldn't finish signing in just now.",
+    json(clearedWhile));
 
   // A first link opened more than five minutes after it was asked for.
   fakeWindow.localStorage = new MemoryStorage();

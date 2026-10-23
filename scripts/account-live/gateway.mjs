@@ -14,6 +14,14 @@
 //                                     so the live run can see which requests the app made, and with which token
 //           /__live/fail-next?path=P  the next request to path P has its connection dropped before anything
 //                                     reaches GoTrue or PostgREST, as a lost network would
+//           /__live/drop-response-next?path=P  the next request to path P is served, and then its connection
+//                                     is dropped before the answer goes back: a lost response, after the
+//                                     server has done (and committed) the work
+//           /__live/drop-body-next?path=P  the same, but the status and headers go back first: an answer cut
+//                                     off after its headers
+//           /__live/arms              which of those one-shots are still armed. P matches a request whose
+//                                     path AND query start with it, so "/auth/v1/token?grant_type=pkce"
+//                                     never takes a token renewal (same path, another grant)
 //   :54325  SMTP, for GoTrue's mailer: every message kept in memory
 //
 // Both listen on 127.0.0.1 only. WSL forwards loopback ports to Windows' localhost, which is all the run
@@ -48,6 +56,18 @@ const OPEN = new Set(["/auth/v1/verify", "/auth/v1/callback", "/auth/v1/authoriz
 const mail = [];
 const requests = []; // { n, method, path, status, token }: numbered, so the run never compares two machines' clocks
 const failNext = new Set(); // paths whose next request is dropped
+const dropResponseNext = new Set(); // paths whose next request is served, and its answer then dropped
+const dropBodyNext = new Set(); // paths whose next request is served, its status and headers sent, then dropped
+/** Use up the one-shot armed for this request, if any. */
+function takeArm(armed, full) {
+  for (const p of armed) {
+    if (full.startsWith(p)) {
+      armed.delete(p);
+      return true;
+    }
+  }
+  return false;
+}
 const tokenTag = (authorization) => {
   const token = /^Bearer (.+)$/.exec(authorization ?? "")?.[1];
   return token ? createHash("sha256").update(token).digest("hex").slice(0, 12) : null;
@@ -66,8 +86,19 @@ http
       failNext.add(u.searchParams.get("path") ?? "");
       return send(res, 200, { dropping: [...failNext] });
     }
-    if (failNext.has(u.pathname)) {
-      failNext.delete(u.pathname);
+    if (u.pathname === "/__live/drop-response-next") {
+      dropResponseNext.add(u.searchParams.get("path") ?? "");
+      return send(res, 200, { dropping: [...dropResponseNext] });
+    }
+    if (u.pathname === "/__live/drop-body-next") {
+      dropBodyNext.add(u.searchParams.get("path") ?? "");
+      return send(res, 200, { dropping: [...dropBodyNext] });
+    }
+    if (u.pathname === "/__live/arms") {
+      return send(res, 200, { failNext: [...failNext], dropResponseNext: [...dropResponseNext], dropBodyNext: [...dropBodyNext] });
+    }
+    const full = u.pathname + u.search;
+    if (takeArm(failNext, full)) {
       return req.socket.destroy(); // nothing reaches the server: the caller sees a failed fetch
     }
     if (u.pathname === "/__live/log") {
@@ -91,8 +122,25 @@ http
     if (upstream === REST && !headers.authorization) headers.authorization = `Bearer ${ANON}`;
     const entry = { n: requests.length + 1, method: req.method, path: u.pathname + u.search, status: 0, token: tokenTag(req.headers.authorization) };
     requests.push(entry);
+    const dropAnswer = takeArm(dropResponseNext, full);
+    const dropBody = takeArm(dropBodyNext, full);
     const out = http.request({ host: "127.0.0.1", port: upstream, method: req.method, path: path + u.search, headers }, (r) => {
       entry.status = r.statusCode ?? 502;
+      if (dropAnswer) {
+        // The server has answered, so its work is done; the caller never hears it. The log keeps the status.
+        r.resume();
+        r.on("end", () => req.socket.destroy());
+        return;
+      }
+      if (dropBody) {
+        // The status and headers go back, then the connection drops before the body: the caller's fetch
+        // resolves, and reading the body fails.
+        res.writeHead(r.statusCode ?? 502, r.headers);
+        res.flushHeaders();
+        r.resume();
+        r.on("end", () => req.socket.destroy());
+        return;
+      }
       res.writeHead(r.statusCode ?? 502, r.headers);
       r.pipe(res);
     });
