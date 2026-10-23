@@ -497,8 +497,13 @@ function eatingOut(
   const othersKcal = (ms: Meal[]) => ms.filter((m) => m.type !== mealType).reduce((sum, m) => sum + m.calories, 0);
   const lighter = othersKcal(meals) < othersKcal(origDay.meals) - 1;
 
+  // A dish the re-plan put in another slot is named, as every replacement is (decision 7): "made the other meals
+  // lighter" was the whole note while both of Friday's other dishes had been swapped (the models lane's diagnosis,
+  // step 16). Only a dish that took the place of a different one counts: a resize keeps its name.
+  const swapped = meals.filter((m) => m.type !== mealType && !origDay.meals.some((o) => o.type === m.type && o.name === m.name));
   notes.push(
-    `I've set aside ${reserve} kcal for ${day} ${mealType} — about ${pct}% of your day${lighter ? " — and made the other meals lighter" : ""}.`,
+    `I've set aside ${reserve} kcal for ${day} ${mealType} — about ${pct}% of your day${lighter ? " — and made the other meals lighter" : ""}.` +
+      (swapped.length ? ` To fit the rest of ${day} around it, I switched your ${swapped.map((m) => `${m.type} to ${m.name}`).join(" and ")}.` : ""),
   );
   if (!estimated)
     notes.push(

@@ -4708,6 +4708,27 @@ console.log("\n--- THE ASSISTANT'S WORDS BIND THE ENGINE ---");
       check("eating out: 'made the other meals lighter' is said exactly when they got lighter",
         eatOut.notes.some((n) => /made the other meals lighter/.test(n)) === shrank, `${shrank} | ${eatOut.notes[0]}`);
     }
+    {
+      // A meal out re-plans the rest of its day, and that swapped Friday's other two dishes in 40 of 40 weeks with
+      // only "made the other meals lighter" said (the models lane's diagnosis, step 16). Every dish that took
+      // another's slot is named, and nothing is named that did not change.
+      const unnamed: string[] = [];
+      let swappedWeeks = 0;
+      for (let seed = 1; seed <= 12; seed++) {
+        const wk = withSeed(seed, () => freshWeek(BASE));
+        const r = applyOperations(BASE, wk, [op({ tool: "eating_out", day: "Friday", mealType: "dinner" })]);
+        const before = wk.days.find((d) => d.day === "Friday")!.meals;
+        const after = r.plan.days.find((d) => d.day === "Friday")!.meals;
+        const swapped = after.filter((m) => m.type !== "dinner" && !before.some((o) => o.type === m.type && o.name === m.name));
+        if (swapped.length) swappedWeeks++;
+        const said = r.notes.join(" ");
+        for (const m of swapped) if (!said.includes(`${m.type} to ${m.name}`)) unnamed.push(`${seed}: ${m.type} ${m.name}`);
+        const kept = after.filter((m) => m.type !== "dinner" && !swapped.includes(m));
+        for (const m of kept) if (said.includes(`${m.type} to ${m.name}`)) unnamed.push(`${seed}: named unchanged ${m.type}`);
+      }
+      check("eating out: every dish the day's re-plan swapped in is named, and none that stayed",
+        swappedWeeks > 0 && unnamed.length === 0, `${swappedWeeks} of 12 weeks swapped; ${unnamed.slice(0, 3).join(" | ")}`);
+    }
   }
 
   // E (2026-10-20, the models lane's audit, iron-veg#2): a boost in the same request as a diet change or a
