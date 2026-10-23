@@ -373,8 +373,11 @@ async function mayThrow<T>(p: Promise<T>): Promise<T | null> {
   check("validate: a profile with meal-prep settings this app doesn't know is refused",
     bad("profile", { ...PROFILE, planMode: "monthly" }) && bad("profile", { ...PROFILE, batchCadence: "hourly" }));
   check("validate: a profile whose targets are not numbers is refused", bad("profile", { ...PROFILE, carbsGrams: "lots" }));
+  // v1's F7 field: allergies taken off by hand. What it decides is whether an allergy is honoured.
+  check("validate: removed allergies that are not a list of text are refused",
+    bad("profile", { ...PROFILE, removedAllergies: "peanuts" }) && bad("profile", { ...PROFILE, removedAllergies: ["peanuts", 1] }));
   const fullProfile = {
-    ...PROFILE, name: "Sam", planMode: "batch", batchCadence: "weekly", fiberGrams: 30,
+    ...PROFILE, name: "Sam", planMode: "batch", batchCadence: "weekly", fiberGrams: 30, removedAllergies: ["sesame"],
     lockedMeals: [{ day: "Sunday", mealType: "dinner", name: "Roast chicken" }],
     mealRatings: [{ name: "Tofu stir-fry", rating: 1 }],
     memory: [{ fact: "IBS, avoids onions", kind: "condition", since: "2026-10-01" }],

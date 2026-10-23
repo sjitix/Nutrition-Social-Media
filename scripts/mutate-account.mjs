@@ -675,6 +675,12 @@ const MUTATIONS = [
     to: '    if (false) return "the profile has a target that is not a number";',
   },
   {
+    name: "a profile's removed allergies may be in any shape (v1's F7 field)",
+    file: "src/lib/account/validate.ts",
+    from: "  if (!optList(v.removedAllergies, isStr)) return",
+    to: "  if (false) return",
+  },
+  {
     name: "notice: being offline is kept like a one-off note, so it outlives the reconnection",
     file: "src/app/sage/account/notice.ts",
     from: "  if (s.message && !isCondition(s)) {",

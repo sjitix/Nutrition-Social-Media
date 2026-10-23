@@ -116,6 +116,10 @@ function checkProfileExtras(v: Record<string, unknown>): string | null {
   if (!optList(v.memory, (f) => isObj(f) && isStr(f.fact) && optStr(f.kind) && optStr(f.since))) {
     return "the profile's remembered notes are in a shape this app can't read";
   }
+  // Allergies the person took off by hand, so an old chat mention cannot put them back (v1's F7). Its shape,
+  // as v1 settled it on 2026-10-23: a list of strings. What this list decides is whether an allergy is
+  // honoured, so a value in any other shape is refused here rather than synced to every device.
+  if (!optList(v.removedAllergies, isStr)) return "the profile's removed allergies are in a shape this app can't read";
   const b = v.bodyStats;
   if (b !== undefined) {
     const ok = isObj(b) && optNum(b.age) && optNum(b.heightCm) && optNum(b.weightKg) &&
