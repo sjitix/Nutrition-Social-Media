@@ -1,0 +1,5 @@
+{ "keep sunday's dinner exactly": [ { "thinking": "Pin Sunday dinner.", "reply": "Pinning Sunday dinner.", "operations": [ { "op": "pin", "day": "Sunday", "slot": "dinner" } ] }, { "thinking": "done", "reply": "Sunday dinner is pinned.", "operations": [] } ],
+  "mix up the other six days": [
+    { "thinking": "Find a new breakfast.", "reply": "", "operations": [ { "op": "find_recipes", "mealType": "breakfast", "limit": 5 } ] },
+    { "thinking": "Use the yogurt bowl for breakfast.", "reply": "Switching up your breakfasts.", "operations": [ { "op": "swap", "dish": "Greek Yogurt & Berry Bowl", "slot": "breakfast" } ] },
+    { "thinking": "done", "reply": "Your breakfasts are new.", "operations": [] } ] }

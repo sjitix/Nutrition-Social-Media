@@ -1,0 +1,16 @@
+{
+  "have it more often": [
+    {
+      "thinking": "Keep it: pin Monday's breakfast.",
+      "reply": "",
+      "operations": [
+        { "op": "pin", "day": "Monday", "slot": "breakfast" }
+      ]
+    },
+    {
+      "thinking": "Done.",
+      "reply": "",
+      "operations": []
+    }
+  ]
+}

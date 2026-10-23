@@ -1,0 +1,10 @@
+{
+  "help me lose weight": [
+    { "thinking": "Ask for their target, and offer to choose one if they have none.", "reply": "Happy to help. What daily calorie target would you like to aim for? Or would you like me to suggest a moderate deficit from your current ~2000 kcal?", "operations": [] },
+    { "thinking": "Asked.", "reply": "Happy to help. What daily calorie target would you like to aim for? Or would you like me to suggest a moderate deficit from your current ~2000 kcal?", "operations": [] }
+  ],
+  "let's go with 1700 calories a day": [
+    { "thinking": "Their number: set it and rebalance.", "reply": "", "operations": [ { "op": "constrain", "targets": { "calories": 1700 }, "preserveMacros": true } ] },
+    { "thinking": "Done.", "reply": "", "operations": [] }
+  ]
+}

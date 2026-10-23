@@ -7,21 +7,30 @@ Protocol: [`README.md`](README.md). Worktree: `../NutriFlow-models/`, branch `mo
 
 ## Now doing
 
-**2026-10-22, evening — the evals run the app's own fast finish, and sleep can no longer spoil a timed run;
-633 controls hold on v1's `b2b4285`.**
+**2026-10-23 — the review of `0327c45` fixed, and all seven of the diagnosis's harness corrections in; 690
+controls hold.**
+- **Corrections in:** full replies stored; first-attempt transport failures counted (each re-run's error and the
+  whole wait); pin-only and rate-plus-pin controls for `rate` and `rate-heldout`; an offer to choose the
+  person's number now fails the weight-goal checks; crisis rows graded on what the person reads, with two held-out
+  phrasings the pre-scan misses; an implied reserve (`eat-out-implied`) and a negative (`occasion-cooked-at-home`);
+  twins for `pin-then-shake` and `allergy-carry`. Loop 38 scenarios (11 held out), convo 17 (3 held out).
+- **Failures are classified by v1's `modelFailure.kind`** where the code has it (F5a-1), with the message as the
+  fallback; `unreadableRetried` is recorded.
+- **fair-arms:** arms N and convoN are the default; the lock polls every 5 s, checks the run's start time, and a
+  failed spawn only loses the lock. Tested: gone 2.1 s after `taskkill /F`.
+- **Next:** the timed runs on the charger (the speed range on N, then the candidate against main).
+
+**2026-10-22, evening — the evals can run the app's own fast finish, and a sleep can no longer inflate the
+latency figures; 633 controls hold on v1's `b2b4285`** (and again on the shipped harness, `ed76c97`).
 - **The production path.** `AI_FAST_FINISH=1`, the switch the route reads, now reaches `runAgent` from both
-  evals. fair-arms has arms N and convoN for it, and the app's speed is quoted from them. On every control,
-  the native skip and the eval's wrapper give byte-identical rows (verdict, reason, reply, writes, steps, model calls; 453 finishing calls skipped by each), and no control changes verdict between the skip off and on. The evals refuse both switches at once.
+  evals, as arms N and convoN in fair-arms; the app's speed is quoted from them. No model run has used them yet.
+  On every control (engine seed 1), the native skip and the eval's wrapper give identical rows in verdict, reason,
+  reply, writes, steps, model calls and the skip. The evals refuse both switches at once.
 - **Sleep.** A message the machine slept through is left out of the seconds and named (it stays in the pass
-  rate), and fair-arms holds a Windows machine awake for the whole run. The lock exits by itself when the run
-  does, killed or not.
-- **On `b2b4285`:** 633/633 controls hold under 2 seeds, every must-fail control failing for the same reason
-  as on `afa7f89`.
-- **The diagnosis is done** (`docs/models/nemotron-diagnosis.md`). Three safety habits need code, and v1
-  took them: a crisis operation, history allergies, and numbers only from the user's words. The rest are prompt
-  lines for this lane, after the harness corrections. Next: those corrections, then the clean speed range (B
-  against N interleaved, three times each, plus convoN three times, with the laptop on its charger), then the
-  prompt candidate against main.
+  rate). fair-arms asks Windows to keep the machine awake; a closed lid still sleeps it, and the run then pauses.
+- **The diagnosis** (`docs/models/nemotron-diagnosis.md`): eight of nine clusters diagnosed, each checked by a
+  skeptic. Three safety habits need code, and v1 took them: a crisis operation, history allergies, and numbers
+  only from the user's words. The rest are prompt lines for this lane, after the harness corrections.
 
 **2026-10-21 — every eval message the prompt quotes has a held-out paraphrase, reviewed and fixed; 633
 controls hold on v1's `da023da`.** `node scripts/models/probe-quotes.mjs` reads the prompt the model is sent and
@@ -171,8 +180,8 @@ Branches: `models` (ships my paths onto main). `models-exp` = main + merges, for
       cue binds the engine whatever its label. Unlabelled, only food words count; with no cue the fact is
       never parsed (the parser alone reads "a high-protein snack" as a "protein" allergy).
     - Patched: 12/12, and the replay passes 2/2. It errs toward excluding ("my son is allergic to eggs").
-  - **Fast finish in `runAgent`, with the reply rule.** Accepted; held for the fair numbers (above).
-    The reply rule withheld 0 skips in both evals.
+  - ~~**Fast finish in `runAgent`, with the reply rule.**~~ **Landed as `b2b4285`** (2026-10-22), set per model
+    with `AI_FAST_FINISH=1`; the evals run it as arms N and convoN since `0327c45`.
   - ~~Two product bugs~~ (a Wed–Sun swap replaced all seven days; a claim paired with `remember` got
     through). **Fixed by v1 in `5c12c4c`**, re-checked here model-free (1/4 before, 4/4 after).
   - **One row v1 asked for:** a bare day constrain used for "lighter weekend".
@@ -209,3 +218,8 @@ Branches: `models` (ships my paths onto main). `models-exp` = main + merges, for
 | `3591188` (branch `models-wording`) | the wording branch merged with main again (2026-10-21; first `e078efd`): main + exactly its 3 prompt lines; probe-quotes exits 0 on it |
 | `0fdfba1` | `days-lighter-heldout` (the third line's held-out paraphrase); the stub's `script` mode, the positive control: all 6 held-out-test checks pass the answer they reward |
 | `49385e5` (branch `models-exp`) | the allergy-label patch for v1: a fact that says allergy binds the engine whatever its label (probe 7/12 → 12/12) |
+| `d1d35ee` · `1c35df0` · `b43873f` … `bdd3184` · `f3e1f04` | the harness's own test suite (`run-controls.mjs`, seeded engine dice) and every check in both evals fixed and proven by controls (512, then 524) |
+| `9327a01` · `6d1b978` · `7b42059` · `97e0f11` | every quoted eval message gets a held-out (`probe-quotes.mjs`), reviewed adversarially; the probe also scans v1's hard cases |
+| `cd2244b` · `e8322f5` · `6344c77` · `41d2af2` | the fair arms on Nemotron-3-Ultra 550B (reasoning off plus the fast finish, 2.8 times faster at no loss), the repeats, shadow mode, decision 2 |
+| `0327c45` | the evals run the app's own fast finish (arms N, convoN), the sleep watch and the keep-awake, the Nemotron diagnosis, NVIDIA's trial terms in OWNER-TODO |
+| `efcf9c2` (branch `models-wording`) | the diagnosis's prompt candidate: 8 edits, byte-identical to the planned candidate, probe-quotes 0 on the evals and hard cases; unmeasured |

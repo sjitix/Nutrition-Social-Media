@@ -2,7 +2,7 @@
   "drop a few pounds": [
     {
       "thinking": "Remember the goal and ask the one clarifying question in this same turn.",
-      "reply": "Happy to help. Do you have a calorie target from your doctor, or should I work one out from your age, height, weight and activity?",
+      "reply": "Happy to help. Do you have a calorie target from your doctor? Once you have one, I'll build your week around it.",
       "operations": [
         {
           "op": "remember",

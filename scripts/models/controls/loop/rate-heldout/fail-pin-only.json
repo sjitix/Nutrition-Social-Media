@@ -1,0 +1,16 @@
+{
+  "keep that one coming back": [
+    {
+      "thinking": "Keep it: pin Tuesday's breakfast.",
+      "reply": "",
+      "operations": [
+        { "op": "pin", "day": "Tuesday", "slot": "breakfast" }
+      ]
+    },
+    {
+      "thinking": "Done.",
+      "reply": "",
+      "operations": []
+    }
+  ]
+}
