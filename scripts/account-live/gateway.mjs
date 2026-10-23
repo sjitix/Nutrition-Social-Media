@@ -21,7 +21,9 @@
 //                                     off after its headers
 //           /__live/arms              which of those one-shots are still armed. P matches a request whose
 //                                     path AND query start with it, so "/auth/v1/token?grant_type=pkce"
-//                                     never takes a token renewal (same path, another grant)
+//                                     never takes a token renewal (same path, another grant). P must be a
+//                                     path this gateway proxies, or the arm is refused (400): an empty or
+//                                     mistyped P would match every request, the run's own log reads too
 //   :54325  SMTP, for GoTrue's mailer: every message kept in memory
 //
 // Both listen on 127.0.0.1 only. WSL forwards loopback ports to Windows' localhost, which is all the run
@@ -58,6 +60,13 @@ const requests = []; // { n, method, path, status, token }: numbered, so the run
 const failNext = new Set(); // paths whose next request is dropped
 const dropResponseNext = new Set(); // paths whose next request is served, and its answer then dropped
 const dropBodyNext = new Set(); // paths whose next request is served, its status and headers sent, then dropped
+/** Arm a one-shot for the path in `?path=`: only a path this gateway proxies (see the header). */
+function armFor(armed, u, res) {
+  const p = u.searchParams.get("path") ?? "";
+  if (!/^\/(auth\/v1|rest\/v1|confirm)\//.test(p)) return send(res, 400, { message: `not a path this gateway proxies: "${p}"` });
+  armed.add(p);
+  return send(res, 200, { dropping: [...armed] });
+}
 /** Use up the one-shot armed for this request, if any. */
 function takeArm(armed, full) {
   for (const p of armed) {
@@ -82,18 +91,9 @@ http
   .createServer((req, res) => {
     const u = new URL(req.url, "http://localhost");
     if (u.pathname === "/__live/anon-key") return send(res, 200, { anonKey: ANON, stack: STACK });
-    if (u.pathname === "/__live/fail-next") {
-      failNext.add(u.searchParams.get("path") ?? "");
-      return send(res, 200, { dropping: [...failNext] });
-    }
-    if (u.pathname === "/__live/drop-response-next") {
-      dropResponseNext.add(u.searchParams.get("path") ?? "");
-      return send(res, 200, { dropping: [...dropResponseNext] });
-    }
-    if (u.pathname === "/__live/drop-body-next") {
-      dropBodyNext.add(u.searchParams.get("path") ?? "");
-      return send(res, 200, { dropping: [...dropBodyNext] });
-    }
+    if (u.pathname === "/__live/fail-next") return armFor(failNext, u, res);
+    if (u.pathname === "/__live/drop-response-next") return armFor(dropResponseNext, u, res);
+    if (u.pathname === "/__live/drop-body-next") return armFor(dropBodyNext, u, res);
     if (u.pathname === "/__live/arms") {
       return send(res, 200, { failNext: [...failNext], dropResponseNext: [...dropResponseNext], dropBodyNext: [...dropBodyNext] });
     }

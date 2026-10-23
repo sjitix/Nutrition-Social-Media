@@ -269,7 +269,9 @@ const xan = "xan.live@example.com";
 const PKCE = "/auth/v1/token?grant_type=pkce";
 /** Arm one of the gateway's one-shots for the next request whose path and query start with `path`. */
 async function arm(hook: "fail-next" | "drop-response-next" | "drop-body-next", path: string) {
-  await fetch(`${URL_}/__live/${hook}?path=${encodeURIComponent(path)}`);
+  const r = await fetch(`${URL_}/__live/${hook}?path=${encodeURIComponent(path)}`);
+  // A refused arm would leave the step it sets up running unarmed, and its check failing for another reason.
+  if (!r.ok) throw new Error(`the gateway refused to arm ${hook} for ${path}: ${await r.text()}`);
 }
 /** How many one-shots are still armed. A step that arms one must have used it. */
 async function armsLeft(): Promise<number> {
@@ -526,7 +528,7 @@ const phoLink = await newMail(sam);
 const phoAgain = await mayThrow(Pho.client.sendSignInLink(sam));
 // A third, whose connection drops before GoTrue sees it: GoTrue's latest stays where it was, so a phone
 // that had replaced its verifier for it could no longer finish with the link already sent.
-await fetch(`${URL_}/__live/fail-next?path=/auth/v1/otp`);
+await arm("fail-next", "/auth/v1/otp");
 const phoLost = await mayThrow(Pho.client.sendSignInLink(sam));
 await landOn("Pho", await open(phoLink));
 const phoSession = await mayThrow(Pho.client.completeSignInFromUrl());
