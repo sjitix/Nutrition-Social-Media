@@ -50,10 +50,10 @@ by mutation (31 guards), with the other 16 accounted for.**
 
 One item stays under "Not exercised" in `supabase/README.md`: GoTrue's hourly email cap. Nothing of
 this lane's is running or uncommitted.
-Next:
-- a shape check for v1's `removedAllergies` profile field, when v1 confirms it;
-- whatever the owner's decisions doc answers for #1 (the Supabase project) and #4 (the chat log). It
-  had no comments on 2026-10-23.
+v1's `removedAllergies` profile field (its F7) is checked by `validate.ts` since `3b1e483` (2026-10-24):
+it must be a list of strings, or a file or an account row carrying it is refused.
+Next: whatever the owner's decisions doc answers for #1 (the Supabase project) and #4 (the chat log). It
+had no comments on 2026-10-23.
 
 **Long runs need the laptop awake.** Modern Standby suspends WSL: a live run stalls, or dies with
 `ECONNRESET`. Kernel-Power events 506 and 507 in Windows' System log show when (WORKPLAN lesson 75).

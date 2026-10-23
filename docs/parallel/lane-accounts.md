@@ -134,11 +134,9 @@ Also today: `account/validate.ts` imports from `../core/client` (`dd5b33e`); the
 own module, which took 3.16 kB gz off "/" (`2d9e024`); and two script imports moved off a D5a shim
 for v1's shim removal.
 
-**Next:**
-- a shape check in `checkProfileExtras` for v1's `removedAllergies` profile field (after v1's F6), once
-  v1 confirms its shape;
-- whatever the owner's decisions doc answers for #1 (the Supabase project) and #4 (the chat log). Until
-  then, the three things only a hosted project can show stay listed in `supabase/README.md`.
+**Next:** whatever the owner's decisions doc answers for #1 (the Supabase project) and #4 (the chat
+log). Until then, the three things only a hosted project can show stay listed in `supabase/README.md`.
+(v1's `removedAllergies` field is checked since `3b1e483`.)
 
 **Built and shipped (`4fa187f`, see above), kept as the plan it started from: "Try again" after a lost response.** "Try again" appears
 after a transient failure of the link's exchange (offline, 429, 5xx), with the code kept
@@ -401,3 +399,4 @@ whose claims were each checked against the code (and corrected twice by the revi
 | `2bd92e8` | the review of `a915d12` (one agent, 6 findings, none breaking a check): the rollback described as GoTrue does it (confirmed versus not; the sign-up path refuses inside its transaction), in the README's takeover qualifier, the fake's comment and the app's; a four-minute first link that still works, bracketing the limit; the slow link's code and logged 422 asserted; GoTrue's 60 s message pinned; the magic-link path line GoTrue never reads, dropped; "Try again" and the hourly cap back under "Not exercised"; step 4 on the hourly cap — 50/50 live, 24/24 |
 | `3f64959` | VISION: accounts are built and checked against the real servers, not "nothing is built"; the old path and the anon key's name gone |
 | `4fa187f` | "Try again", run live and fixed. Told rightly: a lost answer (404), a late retry (422), an answer cut off after its headers (final). Finishing where it can: across tabs (the kept sign-in carries its verifier and address) and in any letter case. "Finish the earlier sign-in" after a failed request. A kept sign-in ended by "Delete everything" in every tab (the data generation) and by a sign-in elsewhere. The gateway's drop-response and drop-body one-shots. Five reviews — 55/55 live, 31/31, 39 of 55, 354 + 48, 114/114 |
+| `3b1e483` | v1's `removedAllergies` profile field (its F7) checked in `checkProfileExtras`: a list of strings, or the file or account row is refused — 355 + 48, 115 mutations, engine 1203/0 |
