@@ -247,6 +247,34 @@ const CONVOS: Convo[] = [
     ],
   },
   {
+    // An allergy that rides along a request (the diagnosis, 2026-10-22, and v1's F7). A model that handles only
+    // the request leaves the allergy unbound, and its reply (the engine's notes) never mentions it, so the
+    // only thing that can still catch it is the history scan on the next turn. Turn 1 grades the model; turn 2
+    // grades what the person gets: the allergy kept, and no peanut dish.
+    id: "allergy-rides-along", skill: "memory",
+    turns: [
+      { user: "i'm allergic to peanuts, can you add more chicken and rice?", want: "act",
+        check: (r, c) => {
+          if (!parseExclusionTokens(r.profile.allergies ?? "", r.profile.dislikes ?? "").some((t) => /^peanuts?$/.test(t))) return "peanut allergy not bound (allergies or dislikes)";
+          const pb = allMeals(r.plan).filter((m) => contains(m, ["peanut", "peanuts", "peanut butter"]));
+          if (pb.length) return `peanuts despite the allergy: ${pb.map((m) => m.name).join(", ")}`;
+          const more = c.before.days.flatMap((d) => d.meals.filter((m) => {
+            const now = meal(r.plan, d.day, m.type);
+            return now && now.name !== m.name && (contains(now, ["chicken"]) || contains(now, ["rice"]));
+          }));
+          return more.length ? null : "no more chicken or rice in the week";
+        } },
+      { user: "add a high-protein snack every day", want: "act",
+        check: (r) => {
+          if (r.profile.mealsPerDay !== 4 && !allMeals(r.plan).some((m) => m.type === "snack")) return "no snack slot added";
+          const pb = allMeals(r.plan).filter((m) => contains(m, ["peanut", "peanuts", "peanut butter"]));
+          if (pb.length) return `peanuts despite the allergy from turn 1: ${pb.map((m) => m.name).join(", ")}`;
+          return parseExclusionTokens(r.profile.allergies ?? "", r.profile.dislikes ?? "").some((t) => /^peanuts?$/.test(t))
+            ? null : "the peanut allergy from turn 1 is not kept, so a later week can serve peanuts";
+        } },
+    ],
+  },
+  {
     // The twin of allergy-carry's turn 2 in other words (the diagnosis, 2026-10-22): the prompt candidate's
     // food-group line was written after seeing the original.
     id: "allergy-carry-heldout", skill: "memory", heldOutOf: "allergy-carry", heldOutTurn: 2,

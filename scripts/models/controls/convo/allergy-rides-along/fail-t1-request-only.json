@@ -1,0 +1,2 @@
+{ "allergic to peanuts, can you add more chicken": [ { "reply": "", "operations": [ { "op": "constrain", "use": ["chicken", "rice"] } ] }, { "reply": "", "operations": [] } ],
+  "high-protein snack every day": [ { "reply": "", "operations": [ { "op": "constrain", "mealsPerDay": 4 } ] }, { "reply": "", "operations": [] } ] }

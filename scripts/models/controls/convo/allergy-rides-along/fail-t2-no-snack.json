@@ -1,0 +1,2 @@
+{ "allergic to peanuts, can you add more chicken": [ { "reply": "", "operations": [ { "op": "remember", "fact": "allergic to peanuts", "kind": "allergy" }, { "op": "constrain", "use": ["chicken", "rice"] } ] }, { "reply": "", "operations": [] } ],
+  "high-protein snack every day": [ { "reply": "Sure, here's a snack idea: Greek yogurt with berries.", "operations": [] }, { "reply": "Sure, here's a snack idea: Greek yogurt with berries.", "operations": [] } ] }
