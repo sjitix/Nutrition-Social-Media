@@ -7,6 +7,26 @@
 
 ## Now doing
 
+**2026-10-23: "Try again" after a failed sign-in exchange, run live and fixed (`4fa187f`). The live run
+is 55/55, and 39 of its 55 checks are proven able to fail (31/31).** "Try again" is offered when the
+link's exchange fails for a transient reason, with the code kept. Against GoTrue's source it handled five
+cases wrongly:
+- three were told wrongly. A lost answer (GoTrue had used the code, so the retry gets 404) blamed the
+  link. A late retry (422) blamed a slow first link. An answer cut off after its headers showed the
+  browser's own error;
+- two failed although they could have finished. Another tab's request broke the retry, which paired this
+  tab's code with the newer verifier. And "Sam@" after "sam@" made a new verifier, though GoTrue
+  lowercases addresses.
+
+Each is fixed, and the rules for a kept sign-in are settled:
+- it is kept or given up by its own address;
+- "Delete everything" ends it in every tab, since it is stamped with the data generation, and so does
+  a sign-in elsewhere;
+- an exchange the browser was cleared under keeps nothing.
+
+Five reviews (18, 13, 10, 10 and 4 findings). Two rare cases are left, in the 2026-10-23 day file. The
+gateway can now drop a response, or cut one off after its headers.
+
 **2026-10-21, later: "Confirm email" on, run live (`a915d12`). The live run is 50/50, and 35 of its 50
 checks are proven able to fail (24/24).** A second GoTrue on the same database has "Confirm email" on,
 a hosted project's default, behind the gateway's `/confirm` prefix. Four browsers are pointed at it.
@@ -114,10 +134,13 @@ Also today: `account/validate.ts` imports from `../core/client` (`dd5b33e`); the
 own module, which took 3.16 kB gz off "/" (`2d9e024`); and two script imports moved off a D5a shim
 for v1's shim removal.
 
-**Next:** whatever the owner's decisions doc answers for #1 (the Supabase project) and #4 (the chat
-log). Until then, the three things only a hosted project can show stay listed in `supabase/README.md`.
+**Next:**
+- a shape check in `checkProfileExtras` for v1's `removedAllergies` profile field (after v1's F6), once
+  v1 confirms its shape;
+- whatever the owner's decisions doc answers for #1 (the Supabase project) and #4 (the chat log). Until
+  then, the three things only a hosted project can show stay listed in `supabase/README.md`.
 
-**Ready to build when the engine slot allows: "Try again" after a lost response.** "Try again" appears
+**Built and shipped (`4fa187f`, see above), kept as the plan it started from: "Try again" after a lost response.** "Try again" appears
 after a transient failure of the link's exchange (offline, 429, 5xx), with the code kept
 (`exchangeWith`, `retrySignIn`). Two cases differ on the real GoTrue:
 - **The request was lost** (GoTrue never saw it). The code is unused, so the retry finishes. The fake
@@ -376,3 +399,5 @@ whose claims were each checked against the code (and corrected twice by the revi
 | `2410119` | the docs half of `c284616` (`--no-gate`): 45/45 and 31 of 45 everywhere, lesson 67 twice more, the 2026-10-21 day file, and the shims removal reflected |
 | `a915d12` | "Confirm email" on, run live: a second GoTrue with it on behind the gateway's `/confirm` prefix and four browsers pointed at it; a first link's five minutes from the request (the request aged in `auth.flow_state`), the magic link after it from its opening, and a not-yet-confirmed person's refused second request rolling back its own flow state; two mutations ("Confirm email" off on that server, the app's 422 mapping), and the allow list's tenth landing — 50/50 live, 24/24, 35 of 50 |
 | `2bd92e8` | the review of `a915d12` (one agent, 6 findings, none breaking a check): the rollback described as GoTrue does it (confirmed versus not; the sign-up path refuses inside its transaction), in the README's takeover qualifier, the fake's comment and the app's; a four-minute first link that still works, bracketing the limit; the slow link's code and logged 422 asserted; GoTrue's 60 s message pinned; the magic-link path line GoTrue never reads, dropped; "Try again" and the hourly cap back under "Not exercised"; step 4 on the hourly cap — 50/50 live, 24/24 |
+| `3f64959` | VISION: accounts are built and checked against the real servers, not "nothing is built"; the old path and the anon key's name gone |
+| `4fa187f` | "Try again", run live and fixed. Told rightly: a lost answer (404), a late retry (422), an answer cut off after its headers (final). Finishing where it can: across tabs (the kept sign-in carries its verifier and address) and in any letter case. "Finish the earlier sign-in" after a failed request. A kept sign-in ended by "Delete everything" in every tab (the data generation) and by a sign-in elsewhere. The gateway's drop-response and drop-body one-shots. Five reviews — 55/55 live, 31/31, 39 of 55, 354 + 48, 114/114 |

@@ -1632,6 +1632,18 @@ Each of these was discovered by doing the work, and each earned its place.
     session restart stopped the workflow for good. **Before launching a long workflow, expect interruptions: split
     long lenses into short agents, check the journal's `started` counts when results are slow, and treat the
     journal's finished results as the work done, not the run.**
+75. **A long run that crawls or dies on this laptop is first a question for its power log.** On 2026-10-22 the
+    accounts live run, 85 s when awake, took 2723 s once and died with `ECONNRESET` another time, in a check that
+    passes. That night its 31-guard mutation run took 11,804 s instead of 40 minutes, and two guards "survived"
+    only because their runs died. The models lane's timed repeats lost their latencies the same night.
+    - Modern Standby suspends WSL with the laptop: a run stalls for as long as the laptop sleeps.
+    - WSL's localhost forwarding drops its connections on resume, hence the `ECONNRESET`.
+    - Even `timeout 400` did not fire, since its clock stopped too.
+    Windows logs each sleep as Kernel-Power events 506 (entering) and 507 (leaving), so
+    `Get-WinEvent -FilterHashtable @{LogName='System'; ProviderName='Microsoft-Windows-Kernel-Power'; Id=506,507}`
+    around the run's times answers it in seconds. **Before debugging a slow or broken long run, read the power log.
+    Rerun what died with the laptop awake, and do not count a guard that "survived" a run that slept: no check
+    was run against it.** Lesson 70 is the other half: a background gate throttled to nothing by a sleep.
 
 ---
 

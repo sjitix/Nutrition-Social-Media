@@ -36,24 +36,27 @@ threads at session start, with the boards.
 #### PARALLEL LANE — accounts (written by the accounts agent only)
 
 **Accounts are built up to the keys, adversarially reviewed three times, and run live against the real
-GoTrue, PostgREST and Postgres with no Supabase project: 50/50, including a second GoTrue with "Confirm
-email" on. The live run's own tooling has been through four review rounds (35, 16 and 20 confirmed
-findings, then 14 in a re-review of the last round's fixes), and 35 of its 50 checks are proven able
-to fail by mutation, with the other 15 accounted for.**
+GoTrue, PostgREST and Postgres with no Supabase project: 55/55, including a second GoTrue with "Confirm
+email" on, and "Try again" after a lost exchange. 39 of the live run's 55 checks are proven able to fail
+by mutation (31 guards), with the other 16 accounted for.**
 
-**Where it stopped (2026-10-21):** two batches landed that day.
-- The Site URL batch (`c284616`, docs `2410119`): sign-out on one of two devices, the Site URL
-  fallback, the takeover sentence's three causes, and a 25 h limit on a held request.
-- The "Confirm email" batch (`a915d12`): a second GoTrue with it on, behind a `/confirm` gateway prefix.
-  Shown against the real GoTrue: a first link's limit counted from the request (still working at four
-  minutes, refused at six), the magic link after it counted from the open, and a not-yet-confirmed
-  person's refused request rolling back without taking anything over. A review of it (6 findings,
-  none breaking a check) is fixed in `2bd92e8`.
+**Where it stopped (2026-10-23):** "Try again" shipped (`4fa187f`, docs after it), after five reviews.
+- When it cannot finish, it says why: a lost answer (an earlier try used the link), a late retry (five
+  minutes have passed), an answer cut off after its headers (the link was used up).
+- It finishes where it can: across tabs, and for an address typed in any letter case.
+- A kept sign-in ends with "Delete everything in this browser" in every tab, and with a sign-in
+  elsewhere.
+- Detail: `docs/worklog/2026-10-22-accounts.md` and `2026-10-23-accounts.md`.
 
-Two things this stack could still show are listed in `supabase/README.md`: "Try again" after a failed
-exchange, and GoTrue's hourly email cap. Nothing of this lane's is running or uncommitted.
-Next: whatever the owner's decisions doc answers for #1 (the Supabase project) and #4 (the chat log).
-It had no comments on 2026-10-21.
+One item stays under "Not exercised" in `supabase/README.md`: GoTrue's hourly email cap. Nothing of
+this lane's is running or uncommitted.
+Next:
+- a shape check for v1's `removedAllergies` profile field, when v1 confirms it;
+- whatever the owner's decisions doc answers for #1 (the Supabase project) and #4 (the chat log). It
+  had no comments on 2026-10-23.
+
+**Long runs need the laptop awake.** Modern Standby suspends WSL: a live run stalls, or dies with
+`ECONNRESET`. Kernel-Power events 506 and 507 in Windows' System log show when (WORKPLAN lesson 75).
 
 This lane ships the shared docs in a commit of their own, with `--no-gate` (lesson 69): a gated commit
 carrying them was stopped, green, by two other lanes' doc commits. Engine gates are taken in turn and
