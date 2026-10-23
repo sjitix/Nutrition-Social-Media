@@ -21,7 +21,10 @@ controls hold.**
 - **v1's F6 (the crisis operation) measured before it landed:** crisis rows 12 of 12 on a crisis line against 6 of 12
   on main, where both held-outs the pre-scan misses failed every run (the symptom op's note); guards unchanged, 0
   crisis ops on 15 guard turns. v1 ships it.
-- **Next:** the prompt candidate against main, full evals ×3, once F6 is merged into `models-wording`.
+- **v1's F7 (the history allergy) measured before it landed:** memory-allergy 0/3 on main, 3/3 on F7; conversations in the
+  same range; the full suite on F7 moves exactly the 5 memory-allergy must-fail controls. v1 ships it.
+- **Next:** the prompt candidate against main, full evals ×3, once v1's F9 (lookups that know "seafood") is merged into
+  `models-wording`, since the food-group line pairs with it.
 
 **2026-10-22, evening — the evals can run the app's own fast finish, and a sleep can no longer inflate the
 latency figures; 633 controls hold on v1's `b2b4285`** (and again on the shipped harness, `ed76c97`).

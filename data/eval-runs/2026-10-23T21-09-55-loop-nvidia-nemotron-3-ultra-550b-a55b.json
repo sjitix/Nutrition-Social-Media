@@ -1,0 +1,88 @@
+{
+  "kind": "loop-eval",
+  "ranAt": "2026-10-23T21:09:55.911Z",
+  "model": "nvidia/nemotron-3-ultra-550b-a55b",
+  "endpoint": "https://integrate.api.nvidia.com/v1",
+  "maxSteps": 8,
+  "prompt": {
+    "sha": "09b4054afa54",
+    "sentSha": "396140dc45be",
+    "agentSection": true,
+    "howToDecide": true,
+    "label": "fair 2026-10-23 f30e003: arm N (reasoning off + the loop's own fast finish (AI_FAST_FINISH=1, as the app runs it)) run 3/3 · F7 test: f7 (uncommitted, on f30e003)"
+  },
+  "config": {
+    "today": "2026-10-05",
+    "endpoint": "https://integrate.api.nvidia.com/v1",
+    "modelScript": null,
+    "engineSeed": 1,
+    "extraBody": "{\"chat_template_kwargs\":{\"enable_thinking\":false}}",
+    "fastFinish": "native",
+    "clock": "wall clock (includes the adapter's own retry back-off)"
+  },
+  "summary": {
+    "scenarios": 1,
+    "infraFailures": 0,
+    "trustworthy": true,
+    "pass": 1,
+    "passRate": 100,
+    "actPass": "1/1",
+    "holdPass": "0/0",
+    "readBeforeWrite": "0/0",
+    "gaveUp": 0,
+    "emojiReplies": 0,
+    "falseClaims": 0,
+    "guardRetries": 0,
+    "guardCatches": 0,
+    "engineIssues": [],
+    "meanSteps": 2,
+    "meanModelCalls": 1,
+    "fastFinish": "native",
+    "fastFinishBlockedByEmptyReply": 0,
+    "fastFinished": 1,
+    "fastFinishShadow": null,
+    "medianSecondsPerMessage": 4.4109558,
+    "medianWallSecondsPerMessage": 4.4,
+    "sleptMessages": 0,
+    "firstAttemptFailures": 0,
+    "unreadableRetried": 0,
+    "unusableOutput": 0,
+    "p90SecondsPerMessage": 4.4109558,
+    "maxSecondsPerMessage": 4.4109558,
+    "heldOut": {
+      "pairs": 0,
+      "heldOutPass": 0,
+      "originalPass": 0,
+      "onlyInPromptWords": [],
+      "unpaired": []
+    }
+  },
+  "rows": [
+    {
+      "id": "memory-allergy",
+      "want": "act",
+      "pass": true,
+      "infra": false,
+      "reason": null,
+      "steps": 2,
+      "gaveUp": false,
+      "modelFailed": false,
+      "seconds": 4.4109558,
+      "readFirst": null,
+      "ops": [
+        "constrain"
+      ],
+      "reply": "Going by what you said earlier, I've added peanuts to your allergies, so nothing containing them will be planned. Your week now averages 2001 kcal and 149g protein. Your week now averages 1999 kcal and 153g protein.",
+      "emoji": false,
+      "engineIssue": null,
+      "writes": "[{\"op\":\"constrain\",\"mealsPerDay\":4}]",
+      "modelCalls": 1,
+      "fastFinished": true,
+      "falseClaim": false,
+      "guardRetried": false,
+      "guardCaught": false,
+      "wallSeconds": 4.4109558,
+      "totalWallSeconds": 4.4
+    }
+  ]
+}
