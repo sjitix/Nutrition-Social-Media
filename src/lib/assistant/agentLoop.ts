@@ -423,7 +423,11 @@ export async function runAgent(args: {
     // top of the undo never got a snapshot: [swap, undo] left the swap with nothing to undo it, and
     // [undo, swap Tuesday] made the next "undo" revert Tuesday AND the earlier turn (review, 2026-10-21).
     const undos = writes.filter(isUndo);
-    const groups = undos.length && undos.length < writes.length ? [[undos[0]], writes.filter((o) => !isUndo(o))] : [writes];
+    // A crisis runs alone, before anything, an undo included: nothing else of its turn is applied, and its reply
+    // ends the run (applyPrimitives; the CRISIS_REPLY break below).
+    const crisisOp = writes.find((o) => opName(o) === "crisis");
+    const groups = crisisOp ? [[crisisOp]]
+      : undos.length && undos.length < writes.length ? [[undos[0]], writes.filter((o) => !isUndo(o))] : [writes];
     for (const group of groups) {
       if (!group.length) continue;
       // The one level of undo is spent: say so, rather than pass a second undo to the engine.
