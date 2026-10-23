@@ -1,0 +1,1 @@
+{ "work is catering lunch": [ { "thinking": "Act.", "reply": "", "operations": [{"op":"resize","direction":"smaller","day":"Wednesday","slot":"lunch"}] }, { "thinking": "Done.", "reply": "", "operations": [] } ] }

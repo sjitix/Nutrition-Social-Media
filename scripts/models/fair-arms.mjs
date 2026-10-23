@@ -1,7 +1,7 @@
 /**
  * FAIR ARMS — one command for a speed/quality comparison that can be trusted.
  *
- *   node scripts/models/fair-arms.mjs                       # loop A, B, C, convo A, convo C on the 550B
+ *   node scripts/models/fair-arms.mjs                       # loop A, B, N, convo A, convo N on the 550B (N: the app's own path)
  *   node scripts/models/fair-arms.mjs --arms N,convoN --repeat 3   # the app's own path (AI_FAST_FINISH=1): its speed range
  *   node scripts/models/fair-arms.mjs --dry-run             # bundle, show the plan and whether a key is there
  *   node scripts/models/fair-arms.mjs --arms C --repeat 3 --only '^(rate|eat-out-future|weekend-lighter|rate-heldout|eat-out-heldout|days-lighter-heldout)$' --code ../NutriFlow-models-wording
@@ -25,7 +25,7 @@
  *   LOCAL_AI_API_KEY. It never appears on a command line, in a log, in the manifest or in a scorecard.
  * - A manifest is written after EVERY arm (`data/eval-runs/<ts>-fair-arms-<model>.json`), so a run cut
  *   short still leaves a record. An arm with infra failures is marked "not evidence" (lesson 44).
- * - On Windows the machine is held awake for the whole run (`--no-keep-awake` opts out), and a message the
+ * - On Windows the run asks Windows to keep the machine awake (`--no-keep-awake` opts out), and a message the
  *   machine slept through anyway is left out of the seconds by the evals themselves (sleepWatch).
  *
  * Reasoning off is host-specific: the default `--off` is NVIDIA's chat-template switch for the 550B.
@@ -72,7 +72,7 @@ const ARMS = {
   convoN: { evalKind: "convo", what: "reasoning off + the loop's own fast finish (AI_FAST_FINISH=1, as the app runs it)", env: { LOCAL_AI_EXTRA_BODY: OFF, AI_FAST_FINISH: "1" } },
 };
 
-const arms = flag("--arms", "A,B,C,convoA,convoC").split(",").map((a) => a.trim()).filter(Boolean);
+const arms = flag("--arms", "A,B,N,convoA,convoN").split(",").map((a) => a.trim()).filter(Boolean);
 for (const a of arms) if (!(a in ARMS)) die(`unknown arm "${a}" (known: ${Object.keys(ARMS).join(", ")})`, 2);
 const repeat = Number(flag("--repeat", "1"));
 if (!Number.isInteger(repeat) || repeat < 1) die("--repeat must be a whole number >= 1", 2);
@@ -165,19 +165,25 @@ if (dryRun) {
 // ── the machine stays awake for the whole run (Windows) ─────────────────────────────────────────
 // The laptop idle-sleeps after 5 minutes on AC and 3 on battery, and on 2026-10-22 that cut the repeats:
 // messages that spanned a sleep were timed at 1,854 and 4,314 s. A hidden PowerShell child asks Windows for
-// "system required" (SetThreadExecutionState) while this process lives, and exits by itself within seconds
-// of it, so a killed run never leaves the machine held awake. It changes no power setting, and it cannot
-// stop a lid-close or a sleep chosen by hand; the evals' sleep watch catches those (eval-common sleepWatch).
+// "system required" (SetThreadExecutionState) while this process lives, and exits within about 5 s of it
+// (its poll), killed or not, so a run never leaves the machine held awake. It checks the start time as well as
+// the id, so a reused id holds nothing. It changes no power setting, and it cannot stop a lid-close or a sleep
+// chosen by hand: the run then pauses, and the evals leave the message it spanned out of the seconds
+// (eval-common sleepWatch).
 if (process.platform === "win32" && !has("--no-keep-awake")) {
   const hold = "[uint32]2147483649"; // ES_CONTINUOUS | ES_SYSTEM_REQUIRED; the call returns 0 when refused
   const ps = [
     `Add-Type -Namespace KeepAwake -Name Native -MemberDefinition '[DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint f);'`,
     `$granted = [KeepAwake.Native]::SetThreadExecutionState(${hold}) -ne 0`,
-    `Write-Output "fair-arms: keep-awake $(if ($granted) { 'held' } else { 'REFUSED by Windows' })"`,
-    `while (Get-Process -Id ${process.pid} -ErrorAction SilentlyContinue) { [void][KeepAwake.Native]::SetThreadExecutionState(${hold}); Start-Sleep -Seconds 20 }`,
+    `Write-Output "fair-arms: keep-awake $(if ($granted) { 'requested' } else { 'REFUSED by Windows' })"`,
+    `$born = (Get-Process -Id ${process.pid} -ErrorAction SilentlyContinue).StartTime`,
+    `while (($p = Get-Process -Id ${process.pid} -ErrorAction SilentlyContinue) -and $p.StartTime -eq $born) { [void][KeepAwake.Native]::SetThreadExecutionState(${hold}); Start-Sleep -Seconds 5 }`,
   ].join("; ");
-  // unref: this process must not wait for the child, which waits for this process to end.
-  spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", ps], { stdio: ["ignore", "inherit", "inherit"], windowsHide: true }).unref();
+  // unref: this process must not wait for the child, which waits for this process to end. A failed spawn
+  // only loses the lock, never the run.
+  spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", ps], { stdio: ["ignore", "inherit", "inherit"], windowsHide: true })
+    .on("error", (e) => console.error(`fair-arms: keep-awake not started (${e.message}); the run goes on without it`))
+    .unref();
 }
 
 // ── run ─────────────────────────────────────────────────────────────────────────────────────────

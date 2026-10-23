@@ -76,7 +76,7 @@ gate's job is to keep it true, not to fix it.
 | **L1 · Data** | `data/` — the 501 recipe seeds, ingredient identity, `nutrientTable.generated.ts`, `substitutions.ts`, `symptoms.ts`, `conditions.ts` (+ `nutrition/unitGrams.generated.ts`, kept client-safe) | L0 | anything computing over it |
 | **L2 · Pure computation** | `nutrition/` — `units.ts`, `nutrients.ts`, `targets.ts`, `exclusions.ts`, `safety.ts`, `grocery.ts` (+ `presentation/streak.ts`, local-day arithmetic) | L0–L1 | the plan engine, the assistant, any I/O |
 | **L3 · Plan engine** | selection, rebalancing, batch, the executor | L0–L2 | the assistant, providers, UI, `storage` |
-| **L4 · Assistant** | `assistant/` — `primitives.ts`, `agentTools.ts`, `agentLoop.ts`, `reply.ts`, `promptV2.ts` | L0–L3 | providers (the model arrives **injected**), UI, `storage` |
+| **L4 · Assistant** | `assistant/` — `primitives.ts`, `agentTools.ts`, `agentLoop.ts`, `modelFailure.ts`, `reply.ts`, `promptV2.ts` | L0–L3 | providers (the model arrives **injected**), UI, `storage` |
 | **L5 · Adapters** | `providers/` — `ai.ts`, `import.ts`, `videoImport.ts`; `persistence/` — `storage.ts`; and the accounts lane's `account/` — sync, sign-in, export, and `savedStore.ts` (local or account) | L0–L4 | the UI |
 | **L6 · Presentation** | `presentation/` — `feed.ts`, `feedFilter.ts`, `recipes.ts` (images), `batchGrocery.ts`; `weekStats.ts`, and everything in `src/app` | L0–L5 **via barrels only** | — |
 | **T · Tooling** | `scripts/*` | anything, including internals | — it is the harness, and it is *supposed* to reach inside |
@@ -515,7 +515,18 @@ back, call again, stop."*
   with no model at all, and it is the most important line in the file. `MAX_STEPS = 8` is a cap, not
   a target; hitting it sets `gaveUp` and the user is told. One undo snapshot per user turn, taken
   before the first write. A reply that claims a change nothing made gets one nudge and one retry,
-  then never reaches the user (`falseClaimRetried` / `falseClaimCaught`).
+  then never reaches the user (`falseClaimRetried` / `falseClaimCaught`). A crisis reply ends the run
+  and outranks an urgent one (2026-10-22). A turn the model sent but nobody could read keeps its
+  remembers and symptoms, and only those, read leniently; the model gets one more step, told why
+  (`unreadableRetried`). `engineSpoke` says whether a failed run still has an answer of its own.
+
+**`assistant/modelFailure`** (`modelFailure.ts`, 2026-10-22) — *"Why a model call failed."*
+- **Public:** `ModelFailure`, `ModelFailureKind`, `modelFailureOf`, `failureFromStatus`, `retryableFailure`.
+- **Invariants:** the contract between a `ModelFn` and the loop. The provider throws a `ModelFailure`
+  (unreachable, timeout, busy, unavailable, config, rejected, unreadable, empty), and an untyped throw
+  reads as unreachable. The loop and the route act on the kind and never show the message, which can
+  carry a server URL. It lives in L4, beside `ModelFn`, because providers sit above the loop and may
+  import it, not the other way round.
 
 **`assistant/reply`** — *"Compose the user-facing answer; engine notes are authoritative."*
 Public: `composeReply`, `describeOperations`, `READ_ONLY_TOOLS`, `planWasChanged`, `claimsChange`,
@@ -535,7 +546,10 @@ mode."*
   how reasoning is switched off on the 550B as configuration, not code; unset = the body unchanged), and
   `normalizeMealTypes` (`providers/turnShape.ts`, 2026-10-21: a model's turn read the way the schema reads it
   before validation, its meal types lowercased and every constrain scope made readable; its own module, like
-  extraBody, so the rule is tested without loading the provider).
+  extraBody, so the rule is tested without loading the provider). Private to the folder beside it (2026-10-22):
+  `jsonObjectsIn`, `turnIn` and `opsIn`, which read a model's text that is not one JSON object (a stray brace, a
+  cut-off answer), so a stated allergy in it can still be kept. `ai.ts` throws `assistant/modelFailure`'s typed
+  failures.
 - **Private / to seal:** `withPlanDefaults`, `Provider`, `ExtractedRecipeSchema`, `ExtractedRecipe`,
   `parseAssistantTurnV2`. **To delete:** `runAssistant` (no caller).
 - **Invariants:** the env vars it reads are exactly `AI_PROVIDER`, `ANTHROPIC_API_KEY`,

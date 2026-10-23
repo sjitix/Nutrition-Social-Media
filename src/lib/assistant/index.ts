@@ -3,6 +3,7 @@
 // the folder is private, and check:boundaries fails an import that reaches past this file.
 export { runAgent, MAX_STEPS, FALSE_CLAIM_NUDGE, FALSE_CLAIM_NUDGE_MEMORY, type AgentTurn, type AgentRunResult, type ModelFn, type TranscriptEntry } from "./agentLoop";
 export { runReadTool, isReadTool, READ_TOOL_NAMES, MAX_ROWS, type AgentContext } from "./agentTools";
+export { ModelFailure, modelFailureOf, failureFromStatus, retryableFailure, type ModelFailureKind } from "./modelFailure";
 export {
   applyPrimitives, memoryContext, allergensInFact, expandConstrain, applyRemember,
   AssistantTurnV2Schema, AgentTurnSchema, type AssistantTurnV2, type PrimitiveOp,

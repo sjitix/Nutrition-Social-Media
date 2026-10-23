@@ -170,8 +170,8 @@
       the schedule ahead.</p>
     <div class="stamp">
       <b><i>source</i> docs/worklog/</b>
-      <b><i>synced</i> 2026-10-22</b>
-      <b><i>commit</i> b2b4285+</b>
+      <b><i>synced</i> 2026-10-23</b>
+      <b><i>commit</i> 950d243+</b>
     </div>
   </header>
 
@@ -189,7 +189,7 @@
 
   <section id="totals">
     <div class="stats">
-      <div class="stat"><div class="v">7</div><div class="l">days logged</div></div>
+      <div class="stat"><div class="v">8</div><div class="l">days logged</div></div>
       <div class="stat"><div class="v">10</div><div class="l">milestones done</div></div>
       <div class="stat"><div class="v">9</div><div class="l">days to V1</div></div>
       <div class="stat"><div class="v">10</div><div class="l">open deferrals</div></div>
@@ -202,6 +202,44 @@
     <p class="lede">Only days that actually happened, each with its date, appended at the end of every work-day.
       Nothing planned appears here — the schedule ahead is in its own collapsed block below.</p>
     <div class="tl" style="margin-top:20px">
+
+      <article class="entry" id="d-2026-10-23">
+        <div class="box">
+          <div class="ehead">
+            <span class="date">2026-10-23</span>
+            <span class="pill done">solved &middot; done</span>
+          </div>
+          <h3>When the model fails partway, nothing the app already said or saved is lost</h3>
+          <p class="sub">The first fixes from mapping how the assistant behaves when the model misbehaves, before Nemotron
+            meets real people. Then the crisis fix, built and waiting on its measurement.</p>
+          <div class="blocks">
+            <div class="blk">
+              <h4>What moved</h4>
+              <ul>
+                <li><b>Urgent-care advice is never replaced by &ldquo;the assistant is offline&rdquo;.</b> If the model fails
+                  after the app has answered (urgent advice, an explanation, a substitution), you now get that answer.</li>
+                <li><b>An allergy you state is kept even when the model&rsquo;s reply is malformed.</b> Before, one broken part of
+                  its reply threw the whole thing away, the allergy with it, and the peanut dish stayed in your week.</li>
+                <li><b>A crisis always comes first.</b> If a message is both urgent and a crisis, you get the crisis reply.</li>
+                <li><b>Built, not yet live: the model can flag a crisis itself.</b> It is answered with the same reviewed
+                  crisis reply the app already uses, and the check now also catches &ldquo;i do not want to live&rdquo; and
+                  &ldquo;i dont wanna live&rdquo;. It ships once the models agent has measured it on Nemotron.</li>
+              </ul>
+            </div>
+            <div class="blk found">
+              <h4>Found along the way</h4>
+              <ul>
+                <li><b>The first version had a flaw its review caught.</b> It stopped the conversation after any urgent reply,
+                  which could lose an allergy the model was about to save in its next step. Fixed before it shipped.</li>
+                <li><b>An allergy mentioned in an earlier message can still be missed</b> when that turn failed or the model
+                  forgot it. The fix is designed and agreed. An allergy you remove yourself will never be added back from an
+                  old message.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="gate">GATE &middot; engine 1198/0 &middot; 16 of the new tests fail on the code before the fix</div>
+        </div>
+      </article>
 
       <article class="entry" id="d-2026-10-22">
         <div class="box">

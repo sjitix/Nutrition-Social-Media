@@ -1,0 +1,1 @@
+{ "parents are coming over": [ { "thinking": "Act.", "reply": "", "operations": [{"op":"constrain","scope":{"days":["Saturday"]},"targets":{"calories":2600}}] }, { "thinking": "Done.", "reply": "", "operations": [] } ] }

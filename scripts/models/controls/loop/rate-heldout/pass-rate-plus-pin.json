@@ -1,0 +1,17 @@
+{
+  "keep that one coming back": [
+    {
+      "thinking": "They loved it and want it kept: rate it 5 and pin the slot.",
+      "reply": "",
+      "operations": [
+        { "op": "rate", "rating": 5, "day": "Tuesday", "slot": "breakfast" },
+        { "op": "pin", "day": "Tuesday", "slot": "breakfast" }
+      ]
+    },
+    {
+      "thinking": "Done.",
+      "reply": "",
+      "operations": []
+    }
+  ]
+}

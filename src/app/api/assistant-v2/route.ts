@@ -134,6 +134,10 @@ export async function POST(request: Request) {
       gaveUp: result.gaveUp,
       // Its last assistant turn was written by the loop, not a model: training data must not learn from it.
       fastFinished: result.fastFinished,
+      // Why the model failed, by kind: nothing recorded it, so the 550B's real failures could not be counted. A
+      // turn that could not be read but was rescued by the retry is recorded too, or the rate would hide it.
+      modelFailure: result.modelFailure?.kind,
+      unreadableRetried: result.unreadableRetried,
       transcript: result.transcript,
       planChanged: result.planChanged,
     });
@@ -144,8 +148,9 @@ export async function POST(request: Request) {
     // started returning 200 for a stopped LM Studio. The screen then showed an infrastructure
     // failure as an ordinary turn ("1 of 8 steps"), and the 503 assertion in test:api became
     // unreachable. So: if the model failed and NOTHING was accomplished, it is a 503, exactly as
-    // it was before the loop was wired.
-    if (result.modelFailed && !result.planChanged && !result.profileChanged) {
+    // it was before the loop was wired. "Nothing" includes nothing SAID: an engine answer (an explanation,
+    // an urgent-care reply) given before the failure is returned, not replaced by "offline" (F5's mapping, MF-1).
+    if (result.modelFailed && !result.planChanged && !result.profileChanged && !result.engineSpoke) {
       return NextResponse.json(
         {
           error: "The chat assistant is offline right now. You can still rate, pin and resize meals directly, or regenerate your plan — those work without it.",

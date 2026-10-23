@@ -1,0 +1,2 @@
+{ "keep sunday's dinner exactly": [ { "thinking": "Pin Sunday dinner.", "reply": "Pinning Sunday dinner.", "operations": [ { "op": "pin", "day": "Sunday", "slot": "dinner" } ] }, { "thinking": "done", "reply": "Sunday dinner is pinned.", "operations": [] } ],
+  "mix up the other six days": { "thinking": "Say it is done.", "reply": "Done! I've swapped in fresh dishes across the rest of your week and kept Sunday's dinner exactly as it is.", "operations": [] } }

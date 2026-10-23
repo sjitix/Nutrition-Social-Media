@@ -1,0 +1,10 @@
+{
+  "keep sunday's dinner exactly": [
+    { "thinking": "Pin Sunday dinner so no rebuild can touch it.", "reply": "Pinning Sunday's dinner so it stays exactly as it is.", "operations": [ { "op": "pin", "day": "Sunday", "slot": "dinner" } ] },
+    { "thinking": "Pinned; report.", "reply": "Sunday's dinner is pinned and will stay as it is.", "operations": [] }
+  ],
+  "mix up the other six days": [
+    { "thinking": "New dishes everywhere except the pinned Sunday dinner. A day-scoped constrain re-plans those days; the pin is re-imposed by the engine.", "reply": "Re-planning the whole week with fresh dishes, keeping your pinned Sunday dinner.", "operations": [ { "op": "constrain", "scope": { "days": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"] } } ] },
+    { "thinking": "Applied; report.", "reply": "Here is your refreshed week, with Sunday's dinner kept as it was.", "operations": [] }
+  ]
+}

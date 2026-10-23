@@ -1,0 +1,6 @@
+{
+  "help me lose weight": [
+    { "thinking": "Ask for their target, and offer to choose one if they have none.", "reply": "Happy to help. What daily calorie target would you like to aim for? Or would you like me to suggest a moderate deficit from your current ~2000 kcal?", "operations": [] },
+    { "thinking": "Asked.", "reply": "Happy to help. What daily calorie target would you like to aim for? Or would you like me to suggest a moderate deficit from your current ~2000 kcal?", "operations": [] }
+  ]
+}

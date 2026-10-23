@@ -35,6 +35,56 @@ function normalizeScope(sc: Record<string, unknown>): void {
   for (const key of Object.keys(sc)) if (key !== "days" && !SLOT_KEYS.includes(key) && !MANY_SLOT_KEYS.test(key)) delete sc[key];
 }
 
+/** Where the object opened at `start` closes, tracking strings so a brace inside one does not count; -1 if it
+ *  never does (the text was cut off). */
+function closingBrace(text: string, start: number): number {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < text.length; i++) {
+    const c = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (c === "\\") escaped = true;
+      else if (c === '"') inString = false;
+    } else if (c === '"') inString = true;
+    else if (c === "{") depth++;
+    else if (c === "}" && --depth === 0) return i;
+  }
+  return -1;
+}
+
+/**
+ * Every JSON object written in a model's text, at any depth, in the order each starts. An answer is meant to be
+ * one object, but a stray brace in the prose around it ("Output format: {thinking, reply, operations}"), or an
+ * answer cut off at the token limit, made the whole of it unreadable, a stated allergy with it (review of F5a,
+ * 2026-10-22).
+ */
+export function jsonObjectsIn(text: string): Record<string, unknown>[] {
+  const out: Record<string, unknown>[] = [];
+  for (let start = text.indexOf("{"); start >= 0; start = text.indexOf("{", start + 1)) {
+    const end = closingBrace(text, start);
+    if (end < 0) continue;
+    try {
+      const value: unknown = JSON.parse(text.slice(start, end + 1));
+      if (value && typeof value === "object" && !Array.isArray(value)) out.push(value as Record<string, unknown>);
+    } catch {
+      /* not JSON from this brace; an object inside it may still be */
+    }
+  }
+  return out;
+}
+
+/** The turn in a text that is not one object as a whole: the first object in it with a turn's fields. */
+export function turnIn(text: string): Record<string, unknown> | undefined {
+  return jsonObjectsIn(text).find((o) => "operations" in o || "reply" in o);
+}
+
+/** The ops written in a text where no whole turn can be read, each a complete object of its own. */
+export function opsIn(text: string): Record<string, unknown>[] {
+  return jsonObjectsIn(text).filter((o) => typeof o.op === "string");
+}
+
 /** Lowercases any "type", "slot" or "mealType" field whose lowercase form is a meal type, wherever it appears,
  *  and reads every constrain scope as the schema does (normalizeScope). Mutates `node`. */
 export function normalizeMealTypes(node: unknown): void {

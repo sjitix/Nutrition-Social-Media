@@ -1,0 +1,10 @@
+{ "keep sunday's dinner exactly": [ { "thinking": "Pin Sunday dinner.", "reply": "Pinning Sunday dinner.", "operations": [ { "op": "pin", "day": "Sunday", "slot": "dinner" } ] }, { "thinking": "done", "reply": "Sunday dinner is pinned.", "operations": [] } ],
+  "mix up the other six days": [
+    { "thinking": "New dinners Monday to Saturday.", "reply": "Giving you new dinners.", "operations": [
+      { "op": "swap", "dish": "Baked Salmon & Potatoes", "slot": "dinner", "days": ["Monday"] },
+      { "op": "swap", "dish": "Turkey Chili", "slot": "dinner", "days": ["Tuesday"] },
+      { "op": "swap", "dish": "Pork Tenderloin & Veg", "slot": "dinner", "days": ["Wednesday"] },
+      { "op": "swap", "dish": "Chickpea Curry", "slot": "dinner", "days": ["Thursday"] },
+      { "op": "swap", "dish": "Beef Stir-Fry Noodles", "slot": "dinner", "days": ["Friday"] },
+      { "op": "swap", "dish": "Chicken Fajitas", "slot": "dinner", "days": ["Saturday"] } ] },
+    { "thinking": "done", "reply": "Your dinners are refreshed.", "operations": [] } ] }

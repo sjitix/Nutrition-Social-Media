@@ -1,0 +1,4 @@
+{
+  "allergic to shellfish": { "reply": "Thanks for telling me. I have saved your shellfish allergy.", "operations": [ { "op": "remember", "fact": "allergic to shellfish", "kind": "allergy" }, { "op": "constrain", "exclude": ["shellfish"] } ] },
+  "something from the sea": { "reply": "Friday now features seafood, and shellfish stays out.", "operations": [ { "op": "constrain", "scope": { "days": ["Friday"] }, "use": ["salmon"], "exclude": ["shellfish"] } ] }
+}

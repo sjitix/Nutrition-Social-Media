@@ -1,0 +1,17 @@
+{
+  "have it more often": [
+    {
+      "thinking": "They loved it and want it kept: rate it 5 and pin the slot.",
+      "reply": "",
+      "operations": [
+        { "op": "rate", "rating": 5, "day": "Monday", "slot": "breakfast" },
+        { "op": "pin", "day": "Monday", "slot": "breakfast" }
+      ]
+    },
+    {
+      "thinking": "Done.",
+      "reply": "",
+      "operations": []
+    }
+  ]
+}

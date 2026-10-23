@@ -1,0 +1,11 @@
+{
+  "keep sunday's dinner exactly": [
+    { "thinking": "Pin it, and remember the preference.", "reply": "I'll keep Sunday's dinner exactly as it is.", "operations": [ { "op": "pin", "day": "Sunday", "slot": "dinner" }, { "op": "remember", "fact": "wants Sunday dinner kept exactly as it is", "kind": "preference" } ] },
+    { "thinking": "Done.", "reply": "Sunday's dinner is pinned.", "operations": [] }
+  ],
+  "mix up the other six days": [
+    { "thinking": "Preview a re-plan of every other day first.", "reply": "", "operations": [ { "op": "what_if", "operations": [ { "op": "constrain", "scope": { "days": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"] } } ] } ] },
+    { "thinking": "Looks fine; apply it. Sunday stays as it is (its dinner is pinned).", "reply": "Re-planning Monday to Saturday with new dishes.", "operations": [ { "op": "constrain", "scope": { "days": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"] } } ] },
+    { "thinking": "Applied.", "reply": "Your week from Monday to Saturday has new dishes, and Sunday's dinner is unchanged.", "operations": [] }
+  ]
+}

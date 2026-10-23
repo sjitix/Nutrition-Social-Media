@@ -1,0 +1,4 @@
+{
+  "allergic to shellfish": { "reply": "Thanks for telling me. I have saved your shellfish allergy.", "operations": [ { "op": "remember", "fact": "allergic to shellfish", "kind": "allergy" }, { "op": "constrain", "exclude": ["shellfish"] } ] },
+  "something from the sea": [ { "reply": "", "operations": [ { "op": "find_recipes", "mealType": "dinner", "query": "shrimp" } ] }, { "reply": "Friday dinner is now Chilli Shrimp Rice Bowl.", "operations": [ { "op": "swap", "dish": "Chilli Shrimp Rice Bowl", "slot": "dinner", "days": ["Friday"] } ] } ]
+}

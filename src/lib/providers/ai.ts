@@ -1,8 +1,9 @@
-import Anthropic from "@anthropic-ai/sdk";
+import Anthropic, { APIConnectionError, APIConnectionTimeoutError, APIError } from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import { buildWeek } from "../recipeDb";
 import { AssistantTurnV2Schema, AgentTurnSchema, type AssistantTurnV2, type AgentTurn, type ModelFn, type TranscriptEntry } from "../assistant";
+import { ModelFailure, failureFromStatus, retryableFailure } from "../assistant";
 import { assistantV2SystemPrompt } from "../assistant";
 import {
   AssistantResponseSchema,
@@ -20,7 +21,7 @@ import {
 } from "../core";
 // Host-specific request fields from configuration (LOCAL_AI_EXTRA_BODY): see ./extraBody.
 import { localExtraBody } from "./extraBody";
-import { normalizeMealTypes } from "./turnShape";
+import { normalizeMealTypes, opsIn, turnIn } from "./turnShape";
 export { localExtraBody };
 
 type MealType = (typeof MEAL_TYPES)[number];
@@ -290,19 +291,23 @@ async function localStructuredChat<T>(
   temperature?: number,
 ): Promise<T> {
   let lastError: Error = new Error("No local AI model configured.");
+  // An answer that could not be read but held something (a stated allergy) outranks a later model's failure:
+  // with a fallback list, the last model's error used to replace it, and the allergy went with it.
+  let unreadable: ModelFailure | undefined;
   for (const model of localModels()) {
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         return await localStructuredChatOnce(schema, schemaName, messages, model, temperature);
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
-        const retryable = /\(429\)|\(5\d\d\)|Could not reach/.test(lastError.message);
+        if (lastError instanceof ModelFailure && lastError.kind === "unreadable" && lastError.detail.raw !== undefined) unreadable ??= lastError;
+        const retryable = lastError instanceof ModelFailure ? retryableFailure(lastError) : /\(429\)|\(5\d\d\)|Could not reach/.test(lastError.message);
         if (!retryable) break; // bad output shape → try the next model instead
         await sleep(2000 * (attempt + 1));
       }
     }
   }
-  throw lastError;
+  throw unreadable ?? lastError;
 }
 
 async function localStructuredChatOnce<T>(
@@ -365,21 +370,28 @@ async function localStructuredChatOnce<T>(
       }),
     });
   } catch {
-    throw new Error(
+    // Each failure says which it was (assistant/modelFailure.ts): the agent loop and its route act on the kind
+    // and never show these messages. /api/plan and /api/import still show them, server URL included (F5a-2).
+    throw new ModelFailure("unreachable",
       `Could not reach the local AI server at ${LOCAL_AI_URL}. Is LM Studio (or Ollama) running with its server enabled?`,
     );
   }
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(
+    throw failureFromStatus(res.status,
       `Local AI server error (${res.status}): ${body.slice(0, 300) || "no details"}`,
+      res.headers.get("retry-after"),
     );
   }
-  const data = (await res.json()) as {
-    choices?: { message?: { content?: string } }[];
-  };
+  let data: { choices?: { message?: { content?: string } }[] };
+  try {
+    data = (await res.json()) as typeof data;
+  } catch {
+    // A 200 that is not JSON (an HTML page from a proxy, a cut-off body) was thrown untyped, and read as offline.
+    throw new ModelFailure("unreadable", "The local AI server's response was not JSON.");
+  }
   const content = data.choices?.[0]?.message?.content;
-  if (!content) throw new Error("The local AI returned an empty response.");
+  if (!content) throw new ModelFailure("empty", "The local AI returned an empty response.");
   // Models may wrap JSON in markdown fences or preface it with thinking text —
   // extract the outermost JSON object before parsing.
   const cleaned = content
@@ -393,13 +405,32 @@ async function localStructuredChatOnce<T>(
   try {
     parsed = JSON.parse(candidate);
   } catch {
-    throw new Error("The local AI returned invalid JSON. Try a larger model or lower temperature.");
+    // Not one object as a whole: a stray brace in the prose around it, or cut off at the token limit. The first
+    // object in it with a turn's fields is the turn; failing that, the ops it holds go with the failure, so the
+    // loop can keep a stated allergy (turnShape.ts).
+    parsed = turnIn(cleaned);
+    if (parsed === undefined) {
+      const ops = opsIn(cleaned);
+      throw new ModelFailure("unreadable", "The local AI returned invalid JSON. Try a larger model or lower temperature.",
+        { issues: "the answer was not one valid JSON object", ...(ops.length ? { raw: { operations: ops } } : {}) });
+    }
   }
   normalizeMealTypes(parsed);
   const validated = schema.safeParse(parsed);
   if (!validated.success) {
-    throw new Error(
+    // What it sent goes with the failure: the loop keeps the facts it asked to remember, and tells the
+    // model what was wrong (agentLoop.ts, an unreadable turn). An op is named by its own name, since a union's
+    // issue alone gives the model nothing to fix.
+    const opName = (path: PropertyKey[]) => {
+      const ops = (parsed as { operations?: unknown }).operations;
+      const op = path[0] === "operations" && Array.isArray(ops) && typeof path[1] === "number" ? (ops[path[1]] as { op?: unknown })?.op : undefined;
+      return typeof op === "string" ? ` (${op})` : "";
+    };
+    const issues = validated.error.issues.slice(0, 4)
+      .map((i) => `${i.path.join(".") || "the turn"}${opName(i.path)}: ${i.message}`).join("; ");
+    throw new ModelFailure("unreadable",
       "The local AI's answer didn't match the expected format. A larger model usually fixes this.",
+      { raw: parsed, issues },
     );
   }
   return validated.data;
@@ -935,16 +966,28 @@ export function agentModelFn(opts: { today?: string } = {}): ModelFn {
     }
 
     const client = new Anthropic();
-    const response = await client.messages.parse({
-      model: CLAUDE_MODEL,
-      max_tokens: 2000,
-      system: assistantV2SystemPrompt(p, state.plan, promptOpts),
-      messages: turns,
-      output_config: { format: zodOutputFormat(AgentTurnSchema) },
-    });
-    const parsed = response.parsed_output;
+    let parsed: unknown;
+    try {
+      const response = await client.messages.parse({
+        model: CLAUDE_MODEL,
+        max_tokens: 2000,
+        system: assistantV2SystemPrompt(p, state.plan, promptOpts),
+        messages: turns,
+        output_config: { format: zodOutputFormat(AgentTurnSchema) },
+      });
+      parsed = response.parsed_output;
+    } catch (e) {
+      // By the SDK's own error classes. Everything else it throws comes from reading a 200 it did get (a parse
+      // that fails the schema, cut-off JSON, a refusal in prose), so the model answered: unreadable, not
+      // unreachable. The SDK does not keep the text, so nothing can be salvaged from it here.
+      const message = e instanceof Error ? e.message : String(e);
+      if (e instanceof APIConnectionTimeoutError) throw new ModelFailure("timeout", message);
+      if (e instanceof APIConnectionError) throw new ModelFailure("unreachable", message);
+      if (e instanceof APIError && typeof e.status === "number") throw failureFromStatus(e.status, message, e.headers?.get?.("retry-after"));
+      throw new ModelFailure("unreadable", message, { issues: "the answer could not be read as a turn" });
+    }
     // Throwing is correct here: the loop catches it and reports honestly rather than inventing a turn.
-    if (!parsed) throw new Error("The assistant could not understand that.");
+    if (!parsed) throw new ModelFailure("unreadable", "The assistant could not understand that.");
     return parsed as AgentTurn;
   };
 }
