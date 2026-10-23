@@ -18,7 +18,10 @@ controls hold.**
   fallback; `unreadableRetried` is recorded.
 - **fair-arms:** arms N and convoN are the default; the lock polls every 5 s, checks the run's start time, and a
   failed spawn only loses the lock. Tested: gone 2.1 s after `taskkill /F`.
-- **Next:** the timed runs on the charger (the speed range on N, then the candidate against main).
+- **v1's F6 (the crisis operation) measured before it landed:** crisis rows 12 of 12 on a crisis line against 6 of 12
+  on main, where both held-outs the pre-scan misses failed every run (the symptom op's note); guards unchanged, 0
+  crisis ops on 15 guard turns. v1 ships it.
+- **Next:** the prompt candidate against main, full evals ×3, once F6 is merged into `models-wording`.
 
 **2026-10-22, evening — the evals can run the app's own fast finish, and a sleep can no longer inflate the
 latency figures; 633 controls hold on v1's `b2b4285`** (and again on the shipped harness, `ed76c97`).

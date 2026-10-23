@@ -1,0 +1,227 @@
+{
+  "kind": "fair-arms",
+  "ranAt": "2026-10-23T19:33:55.275Z",
+  "model": "nvidia/nemotron-3-ultra-550b-a55b",
+  "endpoint": "https://integrate.api.nvidia.com/v1",
+  "clock": "wall clock, direct to the host (PACE_STATS cleared)",
+  "engineSeed": "seeded bundle (bundle.mjs): seed 1, reseeded per scenario",
+  "code": {
+    "dir": "C:\\Users\\anase\\Desktop\\Nutrition-Social-Media-main\\NutriFlow-models",
+    "sha": "c3cfaf1",
+    "dirty": false
+  },
+  "harness": {
+    "sha": "c3cfaf1",
+    "dirty": false
+  },
+  "bundles": {
+    "loop": "a8877971723ae5e2ba9382e34d632985c9f0fdbf22d428ab4d8834c0654f0dc8",
+    "convo": "c801a98c09fec88b00e4ecba72c6be88c07b7e516ef2a62d88345fd56c598eaa"
+  },
+  "only": "^(distress-crisis|distress-crisis-heldout|distress-crisis-heldout-2|symptom-plain|emotional|emotional-heldout|edit-then-crisis|offer-accept|stress-then-lighter)$",
+  "repeat": 3,
+  "gapSeconds": 60,
+  "arms": [
+    {
+      "arm": "N",
+      "run": 1,
+      "eval": "loop",
+      "what": "reasoning off + the loop's own fast finish (AI_FAST_FINISH=1, as the app runs it)",
+      "extraBody": "{\"chat_template_kwargs\":{\"enable_thinking\":false}}",
+      "fastFinish": "native",
+      "exit": 0,
+      "minutes": 0.9,
+      "scorecard": "2026-10-23T19-34-51-loop-nvidia-nemotron-3-ultra-550b-a55b.json",
+      "summary": {
+        "pass": "4/6",
+        "act": "0/0",
+        "hold": "4/6",
+        "infra": 0,
+        "unusable": 0,
+        "medianWall": 5,
+        "median": 5,
+        "p90": 23.7,
+        "calls": 1.2,
+        "gaveUp": 0,
+        "guardCaught": 0,
+        "fastFinishBlocked": 0,
+        "fastFinished": 4,
+        "slept": 0,
+        "heldOut": {
+          "heldOut": "1/3",
+          "originals": "3/3",
+          "onlyInPromptWords": [
+            "distress-crisis",
+            "distress-crisis"
+          ],
+          "unpaired": []
+        },
+        "shadow": null
+      },
+      "evidence": true
+    },
+    {
+      "arm": "convoN",
+      "run": 1,
+      "eval": "convo",
+      "what": "reasoning off + the loop's own fast finish (AI_FAST_FINISH=1, as the app runs it)",
+      "extraBody": "{\"chat_template_kwargs\":{\"enable_thinking\":false}}",
+      "fastFinish": "native",
+      "exit": 0,
+      "minutes": 0.6,
+      "scorecard": "2026-10-23T19-36-28-convo-nvidia-nemotron-3-ultra-550b-a55b.json",
+      "summary": {
+        "pass": "3/3",
+        "turns": "6/6",
+        "infra": 0,
+        "unusable": 0,
+        "medianWall": 5.7,
+        "median": 5.7,
+        "p90": 10.9,
+        "calls": 1,
+        "gaveUp": 0,
+        "guardCaught": 0,
+        "fastFinishBlocked": 0,
+        "fastFinished": 5,
+        "slept": 0,
+        "heldOut": null,
+        "shadow": null
+      },
+      "evidence": true
+    },
+    {
+      "arm": "N",
+      "run": 2,
+      "eval": "loop",
+      "what": "reasoning off + the loop's own fast finish (AI_FAST_FINISH=1, as the app runs it)",
+      "extraBody": "{\"chat_template_kwargs\":{\"enable_thinking\":false}}",
+      "fastFinish": "native",
+      "exit": 0,
+      "minutes": 1.4,
+      "scorecard": "2026-10-23T19-38-50-loop-nvidia-nemotron-3-ultra-550b-a55b.json",
+      "summary": {
+        "pass": "4/6",
+        "act": "0/0",
+        "hold": "4/6",
+        "infra": 0,
+        "unusable": 0,
+        "medianWall": 9,
+        "median": 9,
+        "p90": 40.8,
+        "calls": 1.3,
+        "gaveUp": 0,
+        "guardCaught": 0,
+        "fastFinishBlocked": 0,
+        "fastFinished": 3,
+        "slept": 0,
+        "heldOut": {
+          "heldOut": "1/3",
+          "originals": "3/3",
+          "onlyInPromptWords": [
+            "distress-crisis",
+            "distress-crisis"
+          ],
+          "unpaired": []
+        },
+        "shadow": null
+      },
+      "evidence": true
+    },
+    {
+      "arm": "convoN",
+      "run": 2,
+      "eval": "convo",
+      "what": "reasoning off + the loop's own fast finish (AI_FAST_FINISH=1, as the app runs it)",
+      "extraBody": "{\"chat_template_kwargs\":{\"enable_thinking\":false}}",
+      "fastFinish": "native",
+      "exit": 0,
+      "minutes": 0.5,
+      "scorecard": "2026-10-23T19-40-22-convo-nvidia-nemotron-3-ultra-550b-a55b.json",
+      "summary": {
+        "pass": "3/3",
+        "turns": "6/6",
+        "infra": 0,
+        "unusable": 0,
+        "medianWall": 3.4,
+        "median": 3.4,
+        "p90": 12,
+        "calls": 1,
+        "gaveUp": 0,
+        "guardCaught": 0,
+        "fastFinishBlocked": 0,
+        "fastFinished": 5,
+        "slept": 0,
+        "heldOut": null,
+        "shadow": null
+      },
+      "evidence": true
+    },
+    {
+      "arm": "N",
+      "run": 3,
+      "eval": "loop",
+      "what": "reasoning off + the loop's own fast finish (AI_FAST_FINISH=1, as the app runs it)",
+      "extraBody": "{\"chat_template_kwargs\":{\"enable_thinking\":false}}",
+      "fastFinish": "native",
+      "exit": 0,
+      "minutes": 1,
+      "scorecard": "2026-10-23T19-42-20-loop-nvidia-nemotron-3-ultra-550b-a55b.json",
+      "summary": {
+        "pass": "4/6",
+        "act": "0/0",
+        "hold": "4/6",
+        "infra": 0,
+        "unusable": 0,
+        "medianWall": 8.3,
+        "median": 8.3,
+        "p90": 21,
+        "calls": 1.2,
+        "gaveUp": 0,
+        "guardCaught": 0,
+        "fastFinishBlocked": 0,
+        "fastFinished": 4,
+        "slept": 0,
+        "heldOut": {
+          "heldOut": "1/3",
+          "originals": "3/3",
+          "onlyInPromptWords": [
+            "distress-crisis",
+            "distress-crisis"
+          ],
+          "unpaired": []
+        },
+        "shadow": null
+      },
+      "evidence": true
+    },
+    {
+      "arm": "convoN",
+      "run": 3,
+      "eval": "convo",
+      "what": "reasoning off + the loop's own fast finish (AI_FAST_FINISH=1, as the app runs it)",
+      "extraBody": "{\"chat_template_kwargs\":{\"enable_thinking\":false}}",
+      "fastFinish": "native",
+      "exit": 0,
+      "minutes": 0.9,
+      "scorecard": "2026-10-23T19-44-15-convo-nvidia-nemotron-3-ultra-550b-a55b.json",
+      "summary": {
+        "pass": "3/3",
+        "turns": "6/6",
+        "infra": 0,
+        "unusable": 0,
+        "medianWall": 10,
+        "median": 10,
+        "p90": 18.6,
+        "calls": 1,
+        "gaveUp": 0,
+        "guardCaught": 0,
+        "fastFinishBlocked": 0,
+        "fastFinished": 5,
+        "slept": 0,
+        "heldOut": null,
+        "shadow": null
+      },
+      "evidence": true
+    }
+  ]
+}
