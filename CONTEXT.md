@@ -218,9 +218,10 @@ in the main folder (`2fd6f02`). Its WORKPLAN lesson was renumbered 38 → 48 bec
 
 #### PARALLEL LANE — models (written by the models agent only)
 
-**2026-10-23 — RESUME HERE. Nemotron-3-Ultra 550B is the model (the owner's choice), with reasoning off and the
+**2026-10-24 — RESUME HERE. Nemotron-3-Ultra 550B is the model (the owner's choice), with reasoning off and the
 fast finish (`AI_FAST_FINISH=1`, `b2b4285`). NVIDIA's free endpoint is for testing only, so launch runs the same
-model on a paid host. 690 controls hold under 2 engine seeds.**
+model on a paid host. v1's crisis op (F6), history allergy (F7) and seafood lookups (F9) have landed, each measured
+here first; F8 (numbers) is being measured. 703 controls hold under 2 engine seeds.**
 - **The evals run the app's own fast finish** (`0327c45`): arms N and convoN, now fair-arms' default. They equal the
   eval's wrapper on every control (engine seed 1: verdict, reason, reply, writes, steps, model calls, the skip). The
   evals refuse both switches at once. No model run has used N yet.
@@ -252,17 +253,17 @@ model on a paid host. 690 controls hold under 2 engine seeds.**
   (3 held out). Older scorecards grade the crisis and weight-goal rows differently. Failures are classified by v1's
   `modelFailure.kind` (F5a-1 landed as `950d243`), and the scripted model throws v1's `ModelFailure("unreadable")`.
 - **Next:**
-  1. On the charger: `node scripts/models/fair-arms.mjs --arms B,N,convoN --repeat 3` (the NVIDIA reference range,
-     and the lock's first real test), then the candidate against main on N/convoN three times.
-  2. **Done: v1's F6 (`803ac71`) and F7 (`db3904c`) measured before landing.** F6: crisis rows 12/12 on a crisis
-     line against 6/12 on main, 0 crisis ops on 15 guard turns; it landed as `8c2519a`. F7: memory-allergy 3/3
-     against 0/3 on main, conversations in the same range, and the full suite on F7 moves exactly the 5 memory-allergy
-     must-fail controls. v1's order now: F9 (lookups that know "seafood"; checked here without a model: a plain
-     seafood swap passes allergy-carry and its twin only on F9), then F7 rebased onto it, then F8 (numbers only from
-     the user's words) to this lane for its `--code` run.
-  3. When F9 and F7 are on main: merge them into `models-wording`, then run the candidate against main (full evals,
-     N/convoN ×3; main's three runs are also the speed range). When F9 lands: add pass-swap-seafood to allergy-carry and
-     its twin. When the history allergy lands: rename the 5 memory-allergy must-fail controls to pass-* and add a recall column.
+  1. **Done: v1's F6, F7 and F9 measured before landing, and all three landed** (F6 `8c2519a`, F9 `876e37f`, F7
+     `42b6e51`). F6: crisis rows 12/12 on a crisis line against 6/12 on main. F7: memory-allergy 3/3 against 0/3; its 5
+     must-fail controls are now `pass-history-binds-*` (`a75229e`), and the recall column keeps the model's own memory
+     measured. F9: `pass-swap-seafood` for allergy-carry and its twin (`6afee6d`).
+  2. **RUNNING (2026-10-24, early hours):** v1's F8 (numbers only from the person's words, uncommitted in
+     `../NutriFlow-f8` on `42b6e51`), 12 loop rows with figures and 5 conversations, N/convoN ×3, against main. No model:
+     on F8 695/703 controls hold, and the 8 that pass instead are each an invented figure or target the guard removes;
+     they become pass-* when F8 lands. New on main: `log-unknown-dish` (a dish the library does not know), and a
+     guarded-figures column.
+  3. Next: merge main into `models-wording`, then the candidate against main, full evals, N/convoN ×3 (main's three
+     runs are also the speed range).
 
 **2026-10-21 (evening). The held-outs and their checks were reviewed adversarially and fixed;
 633 controls hold on main as of v1's `7624008`** (all 49 scenarios, 2 engine seeds; `node scripts/models/run-controls.mjs`).
