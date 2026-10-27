@@ -47,7 +47,8 @@ import {
 } from "@/lib/assistant/agentTools";
 import { runAgent, MAX_STEPS, FALSE_CLAIM_NUDGE, FALSE_CLAIM_NUDGE_MEMORY, NO_FURTHER_UNDO, NOTHING_EARLIER_TO_UNDO, EARLIER_LEAD, type AgentTurn, type ModelFn, type TranscriptEntry } from "@/lib/assistant/agentLoop";
 import { ModelFailure, failureFromStatus, modelFailureOf, retryableFailure } from "@/lib/assistant/modelFailure";
-import { weekMicroAverage } from "@/lib/plan/report";
+import { weekMicroAverage, figuresNote, microNote } from "@/lib/plan/report";
+import { settleNotes, type RunNote, type PhaseChange } from "@/lib/assistant/runNotes";
 import { localExtraBody } from "@/lib/providers/extraBody";
 
 // ---------------------------------------------------------------- harness
@@ -6479,6 +6480,109 @@ if (violations.size === 0) {
       const missed = respelled.filter((t) => redFlag(t)?.kind !== "crisis");
       check("pre-scan: a respelling of a listed phrase ('do not', 'wanna') is the same phrase, and 'wanna' alone raises nothing",
         missed.length === 0 && redFlag("i wanna cook more at home") === null, `missed: ${missed.join(" | ")}`);
+    }
+  }
+
+  // A reply is read once, at the end, so every note in it must be true of the FINAL week (the second review's #14),
+  // and the undo label must name only what happened (#4). All three reproduced on main 2026-10-27.
+  {
+    const peanuty = (pl: WeekPlan) => pl.days.flatMap((d) => d.meals).filter((m) => /peanut/i.test(m.name));
+    // #14, allergy: a denial says "still include peanuts, so nothing with them is planned", then an undo takes peanuts off.
+    {
+      const week0 = withSeed(4, () => buildWeek(BASE));
+      const dish = RECIPES.find((r) => /peanut/i.test(r.name))!;
+      const withPeanut = withSeed(4, () => applyPrimitives(BASE, week0, [{ op: "swap", dish: dish.name, days: ["Monday"] } as unknown as PrimitiveOp])).plan;
+      const added = withSeed(4, () => applyPrimitives(BASE, withPeanut, [{ op: "remember", kind: "allergy", fact: "I'm allergic to peanuts" } as unknown as PrimitiveOp]));
+      const p = scripted([turn("", [{ op: "remember", fact: "I'm not allergic to peanuts any more" } as unknown as PrimitiveOp]),
+        turn("", [{ op: "undo" } as unknown as PrimitiveOp]), turn("")]);
+      const r = await withSeed(5, () => runAgent({ ...base, profile: added.profile, plan: added.plan, model: p.fn,
+        previous: { plan: withPeanut, profile: BASE, label: "noted what you told me" } }));
+      check("#14: after an undo took peanuts off, the reply never says they are still in the allergies",
+        peanuty(r.plan).length > 0 && !/still include peanuts|nothing with them is planned/i.test(r.reply), r.reply);
+      check("#14: ...and it does say the undo took peanuts off", /took peanuts off/i.test(r.reply), r.reply);
+    }
+    // #14, figures: a swap states Monday's totals, then a resize changes Monday again.
+    {
+      const p = scripted([turn("", [{ op: "swap", dish: "Chicken Fajitas", slot: "dinner", days: ["Monday"] } as unknown as PrimitiveOp]),
+        turn("", [{ op: "resize", direction: "much_bigger", day: "Monday", slot: "lunch" } as unknown as PrimitiveOp]), turn("")]);
+      const r = await withSeed(7, () => runAgent({ ...base, plan: withSeed(6, () => buildWeek(BASE)), model: p.fn }));
+      const monday = r.plan.days[0].meals.reduce((t, m) => t + m.calories, 0);
+      const stated = [...r.reply.matchAll(/Monday now (?:has|comes to) (\d+) kcal/g)].map((m) => Number(m[1]));
+      check("#14: one total for Monday, and it is the final one", stated.length === 1 && stated[0] === monday,
+        `stated ${stated.join(", ")} · final ${monday} · ${r.reply.slice(0, 160)}`);
+      check("#14: ...and what the first step did is still said", /bumped your breakfast|Swapped|Chicken Fajitas/i.test(r.reply), r.reply.slice(0, 120));
+    }
+    // #4: one step holds a refused swap and a real one.
+    {
+      const p = scripted([turn("", [{ op: "swap", dish: "Zzq Imaginary Dish", slot: "dinner", days: ["Monday"] } as unknown as PrimitiveOp,
+        { op: "swap", dish: "Chicken Fajitas", slot: "dinner", days: ["Tuesday"] } as unknown as PrimitiveOp]), turn("")]);
+      const r = await withSeed(9, () => runAgent({ ...base, plan: withSeed(8, () => buildWeek(BASE)), model: p.fn }));
+      check("#4: the undo label names only the swap that happened", r.previous?.label === "swapped Tuesday's dinner", String(r.previous?.label));
+    }
+    // #4, the guard: two writes that both change something are both named.
+    {
+      const p = scripted([turn("", [{ op: "swap", dish: "Chicken Fajitas", slot: "dinner", days: ["Monday"] } as unknown as PrimitiveOp,
+        { op: "swap", dish: "Chicken Fajitas", slot: "dinner", days: ["Tuesday"] } as unknown as PrimitiveOp]), turn("")]);
+      const r = await withSeed(9, () => runAgent({ ...base, plan: withSeed(8, () => buildWeek(BASE)), model: p.fn }));
+      check("#4: two writes that both changed something are both named", /Monday/.test(r.previous?.label ?? "") && /Tuesday/.test(r.previous?.label ?? ""), String(r.previous?.label));
+    }
+    // #4: the trials draw from a seed of their own. Within one seeded sequence, a trial wrapped the way the loop wraps
+    // it leaves every later random choice exactly as it was. (A seeded runAgent cannot show this: it is async, and
+    // withSeed restores the generator when the promise is returned.)
+    {
+      const ops = [{ op: "constrain", scope: { days: ["Wednesday"] } }] as unknown as PrimitiveOp[];
+      const plain = withSeed(11, () => { const w = buildWeek(BASE); applyPrimitives(BASE, w, ops); return buildWeek(BASE); });
+      const tried = withSeed(11, () => {
+        const w = buildWeek(BASE);
+        applyPrimitives(BASE, w, ops);
+        withSeed(1, () => applyPrimitives(BASE, w, ops)); // what changers() does
+        return buildWeek(BASE);
+      });
+      check("#4: a trial on a seed of its own leaves the run's later random choices unchanged", JSON.stringify(plain) === JSON.stringify(tried));
+    }
+
+    // settleNotes, on its own: the paths the runs above do not reach.
+    const week = withSeed(12, () => buildWeek(BASE));
+    const fin = { plan: week, profile: BASE };
+    const ch = (phase: number, days: string[], targets = false): PhaseChange => ({ phase, days: new Set(days), targets });
+    const n = (source: RunNote["source"], phase: number): RunNote => ({ source, phase });
+    const mondayLine = figuresNote(week, BASE, "Monday")!;
+    {
+      const out = settleNotes([n("Swapped your Monday dinner. Monday now has 1800 kcal and 90g protein. Fiber is 9g, under the 30g I aim for — a serving of veg, beans or whole grains closes it.", 1)],
+        [ch(1, ["Monday"]), ch(2, ["Monday"])], fin);
+      check("settleNotes: a stale day figure goes, its follow-on sentences with it, and the action stays",
+        out[0] === "Swapped your Monday dinner." && !out.join(" ").includes("1800"), out.join(" | "));
+      check("settleNotes: ...and with nothing later stating Monday, the final week's line is added", out.includes(mondayLine), out.join(" | "));
+    }
+    {
+      const note = "Monday now has 1800 kcal and 90g protein.";
+      const out = settleNotes([n(note, 1)], [ch(1, ["Monday"]), ch(2, ["Tuesday"])], fin);
+      check("settleNotes: a later change to ANOTHER day leaves the figure alone", out.length === 1 && out[0] === note, out.join(" | "));
+    }
+    {
+      const out = settleNotes([n("Your week now averages 1900 kcal and 120g protein.", 1)], [ch(1, ["Monday"]), ch(2, ["Friday"])], fin);
+      check("settleNotes: the week's figure is stale after any later change, and replaced from the final week",
+        out.length === 1 && out[0] === figuresNote(week, BASE)!, out.join(" | "));
+    }
+    {
+      const out = settleNotes([n("Monday now has 1800 kcal and 90g protein.", 1)], [ch(1, ["Monday"]), ch(2, [], true)], fin);
+      check("settleNotes: new targets make an old figure stale too", !out.join(" ").includes("1800"), out.join(" | "));
+    }
+    {
+      const out = settleNotes([n("I re-solved the rest of Monday: it now lands at 1700 kcal and 80g protein.", 1), n("Monday now comes to 2100 kcal against your 2000 kcal target.", 2)],
+        [ch(1, ["Monday"]), ch(2, ["Monday"])], fin);
+      check("settleNotes: a stale 'now lands at' keeps its action half, and the later figure stands alone",
+        out.join(" | ") === "I re-solved the rest of Monday. | Monday now comes to 2100 kcal against your 2000 kcal target.", out.join(" | "));
+    }
+    {
+      const out = settleNotes([n("Raised your iron. Your week now averages about 9mg of iron a day — roughly 50% of the daily reference.", 1)],
+        [ch(1, ["Monday"]), ch(2, ["Friday"])], fin);
+      check("settleNotes: a stale nutrient figure is re-stated for that nutrient from the final week, not as calories",
+        out.join(" | ") === `Raised your iron. | ${microNote(week, "iron")}` && !/kcal/.test(out.join(" ")), out.join(" | "));
+    }
+    {
+      const out = settleNotes([n((f) => [`${f.plan.days.length} days`], 1), n("Kept.", 2)], [ch(1, ["Monday"])], fin);
+      check("settleNotes: a note given as a function is rendered from the final week", out[0] === "7 days" && out[1] === "Kept.", out.join(" | "));
     }
   }
 

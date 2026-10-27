@@ -12,6 +12,7 @@ import { z } from "zod";
 import type { Meal, Operation, UserProfile, UserFact, WeekPlan, PlanSnapshot } from "../core";
 import { DAYS, MEAL_TYPES } from "../core";
 import { applyOperations } from "../recipeDb";
+import type { NoteSource } from "./runNotes";
 import { CRISIS_REPLY, parseExclusionTokens, EXCLUSION_CATEGORIES, expandExclusion, exclusionCovers, haystackBlocked, mealHaystack } from "../nutrition";
 import { INGREDIENTS } from "../data";
 
@@ -545,8 +546,17 @@ function allergyNotes(o: AllergyOutcome, plan: WeekPlan, profile: UserProfile): 
       : `, so nothing ${verb} ${itOrThem(items)} ${tense}.`;
   };
   if (o.nameless) return [NAMES_NO_FOOD];
+  // Rendered from the final profile, which a later step may have changed: an undo that took the allergy off made
+  // "your allergies still include peanuts, so nothing with them is planned" false, over peanut dishes (#14).
+  const listed = parseExclusionTokens(profile.allergies ?? "", "");
+  const stillListed = (items: string[]) => items.filter((t) => {
+    const keys = parseExclusionTokens(t, "").map(allergyKey);
+    return (keys.length > 0 && keys.every((k) => listed.some((u) => allergyKey(u) === k))) || exclusionCovers(listed, t);
+  });
   if (o.denied) {
-    return [o.denied.length ? `Your allergies still include ${listOf(o.denied)}${promise(o.denied, "with", "is planned")}` : DENIED_NOTHING_BOUND];
+    const still = stillListed(o.denied);
+    if (o.denied.length && !still.length) return ["I've noted that."];
+    return [still.length ? `Your allergies still include ${listOf(still)}${promise(still, "with", "is planned")}` : DENIED_NOTHING_BOUND];
   }
   const screened = parseExclusionTokens(profile.allergies ?? "", profile.dislikes ?? "");
   const excludedNow = (w: string) => haystackBlocked(w, screened);
@@ -554,8 +564,10 @@ function allergyNotes(o: AllergyOutcome, plan: WeekPlan, profile: UserProfile): 
   const notScreened = o.notAdded.filter((w) => !excludedNow(w));
   const notes: string[] = [];
   if (o.add.length) notes.push(`I've added ${listOf(o.add)} to your allergies${promise(o.add, "containing", "will be planned")}`);
-  if (o.already.length) notes.push(`${capital(listOf(o.already))} ${isOrAre(o.already)} already in your allergies${promise(o.already, "with", "is planned")}`);
-  if (o.covered.length) notes.push(`${capital(listOf(o.covered))} ${isOrAre(o.covered)} already covered by your allergies${promise(o.covered, "with", "is planned")}`);
+  const already = stillListed(o.already);
+  const covered = o.covered.filter((t) => stillListed([t]).length || haystackBlocked(t, listed));
+  if (already.length) notes.push(`${capital(listOf(already))} ${isOrAre(already)} already in your allergies${promise(already, "with", "is planned")}`);
+  if (covered.length) notes.push(`${capital(listOf(covered))} ${isOrAre(covered)} already covered by your allergies${promise(covered, "with", "is planned")}`);
   if (o.kept.length) notes.push(`${capital(listOf(o.kept))} ${isOrAre(o.kept)} already among the foods you avoid${promise(o.kept, "with", "is planned")}`);
   if (excluded.length) notes.push(`I haven't added ${listOf(excluded)} as an allergy, but you've excluded ${itOrThem(excluded)}${promise(excluded, "with", "is planned")}`);
   if (notScreened.length) notes.push(`I haven't added ${listOf(notScreened)} as an allergy, so your meals aren't screened for ${itOrThem(notScreened)}.`);
@@ -804,7 +816,7 @@ export function applyPrimitives(
   ops: PrimitiveOp[],
   today?: string,
   previous?: PlanSnapshot,
-): ReturnType<typeof applyOperations> {
+): ReturnType<typeof applyOperations> & { noteSources?: NoteSource[] } {
   // A crisis the model flagged is the whole answer: the reviewed crisis reply, the same one the pre-scan gives,
   // and nothing else from the turn applied, not even an undo. With reasoning off, Nemotron sent crisis words to
   // the symptom tool (6 of 8), where a phrasing the pre-scan misses got a nutrition note: "honestly i wish i was
@@ -825,6 +837,7 @@ export function applyPrimitives(
     const notes = [...back.notes, ...rest.notes];
     return {
       ...rest,
+      noteSources: [...(back.noteSources ?? back.notes), ...(rest.noteSources ?? rest.notes)],
       notes: sameAllergies(profile.allergies, rest.profile.allergies) ? notes : withoutUnchangedClaims(notes),
       planChanged: back.planChanged || rest.planChanged,
       profileChanged: back.profileChanged || rest.profileChanged,
@@ -902,6 +915,9 @@ export function applyPrimitives(
   const notes = [...written, ...res.notes];
   return {
     ...res,
+    // The same notes, with an allergy fact's sentences still a function of the final week: the agent loop renders
+    // them once, from the RUN's end, since a later step can make this call's final week untrue (runNotes.ts).
+    noteSources: [...extraNotes, ...res.notes],
     notes: sameAllergies(profile.allergies, res.profile.allergies) ? notes : withoutUnchangedClaims(notes),
     profileChanged: res.profileChanged || remembered,
   };

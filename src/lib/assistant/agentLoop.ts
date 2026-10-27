@@ -30,6 +30,8 @@ import { applyPrimitives, earlierAllergyFacts, expandConstrain, type EarlierMess
 import { claimsChange, composeReply, joinPhrases, NOTED_NOTHING_CHANGED_REPLY, NOTHING_CHANGED_REPLY, operationPhrases } from "./reply";
 import { modelFailureOf, type ModelFailure, type ModelFailureKind } from "./modelFailure";
 import { CRISIS_REPLY } from "../nutrition";
+import { withSeed } from "../plan";
+import { settleNotes, changedDays, targetsChanged, type RunNote, type PhaseChange } from "./runNotes";
 import type { Operation, PlanSnapshot, UserProfile, WeekPlan } from "../core";
 
 /** A cap, not a target. Reaching it is a bug to investigate, not a normal outcome. */
@@ -255,6 +257,25 @@ function labelOps(ops: PrimitiveOp[]): string {
   return joinPhrases([...new Set(phrases)]) || "made that change";
 }
 
+/**
+ * The writes of a step that changed something, for the undo label. A step is applied as a whole, so a refused write
+ * beside a real one was named as if it had happened: [swap Monday (no such dish), swap Tuesday] was labelled
+ * "swapped Monday's dinner and swapped Tuesday's dinner" (the second review's #4, reproduced 2026-10-27). In a step of
+ * several writes each is also tried alone from the same state, and only those that change something are named. The
+ * trials draw from a seed of their own, so the run's own random choices are exactly what they were. If none changes
+ * anything alone (the change came from writes together), the whole step is named, as before.
+ */
+function changers(group: PrimitiveOp[], before: { plan: WeekPlan; profile: UserProfile }, target: PlanSnapshot | undefined, today?: string): PrimitiveOp[] {
+  const isRem = (o: PrimitiveOp) => (o as { op?: string }).op === "remember";
+  const tried = group.filter((o) => !isRem(o));
+  if (tried.length < 2) return group;
+  const alone = tried.filter((o) => {
+    const r = withSeed(1, () => applyPrimitives(before.profile, before.plan, [o], today, target));
+    return r.planChanged || !same(before.profile, r.profile);
+  });
+  return alone.length ? [...group.filter(isRem), ...alone] : group;
+}
+
 /** The line a run that lost its model ends with, and the words of the one a run at the step cap ends with. A turn whose
  *  reply holds either did not finish, so the history allergy reads its message as unanswered. */
 const MODEL_FAILED_LINE = "I couldn't reach the assistant to finish that.";
@@ -327,7 +348,12 @@ export async function runAgent(args: {
   let planChanged = false;
   let replyOverride: string | undefined;
   let undone = false;
-  const notes: string[] = [];
+  // Every note, tagged with the engine call ("phase") that wrote it, and what each call changed: at the end they
+  // are settled against the FINAL week (runNotes.ts), so a figure or an allergy promise a later step made untrue
+  // is not shown as true (#14).
+  const entries: RunNote[] = [];
+  const changes: PhaseChange[] = [];
+  let phase = 0;
 
   // Taken by the first step that CHANGES something, not before: a run that only looks things up, answers,
   // explains, or has a change refused must not consume the undo slot, or "undo" after a question would
@@ -336,8 +362,7 @@ export async function runAgent(args: {
   let snapshot: PlanSnapshot | undefined;
   // The writes of every step that changed something, so the snapshot's label names all of what an undo
   // reverses, not only the first step's. Only the wording grows: what is restored is still the state
-  // before the first. A step is judged as a whole, so a refused write that shares a step with a real
-  // change is named too (open, recorded: telling them apart means applying a step's writes one by one).
+  // before the first. A refused write that shares a step with a real change is not named (changers, below).
   const written: PrimitiveOp[] = [];
   // Every remember this run applied: an undo in the same run must not take them back (G, run level).
   const remembered: PrimitiveOp[] = [...statedOps];
@@ -434,7 +459,7 @@ export async function runAgent(args: {
       if (lastReply.trim()) spoken = lastReply;
       // The model says it is done. If its reply is the only thing the user will read (the engine is
       // silent) and it claims a change that nothing made, give it one step to make it real or retract.
-      const unbacked = !planChanged && !profileEdited() && notes.length === 0 && replyOverride === undefined;
+      const unbacked = !planChanged && !profileEdited() && entries.length === 0 && replyOverride === undefined;
       // Judged on the text the person will actually read, which may be a line said beside a remember.
       const willShow = lastReply.trim() ? lastReply : spoken;
       if (!falseClaimRetried && unbacked && claimsChange(willShow) && steps < maxSteps) {
@@ -477,7 +502,7 @@ export async function runAgent(args: {
       if (!group.length) continue;
       // The one level of undo is spent: say so, rather than pass a second undo to the engine.
       if (group.every(isUndo) && undoneArgs && !snapshot) {
-        notes.push(NO_FURTHER_UNDO);
+        entries.push({ source: NO_FURTHER_UNDO, phase });
         transcript.push({ role: "tool", name: "apply", result: { notes: [NO_FURTHER_UNDO], planChanged: false, profileChanged: false } });
         continue;
       }
@@ -491,7 +516,7 @@ export async function runAgent(args: {
       const undoing = group.every(isUndo);
       const remembersOnly = undoing && written.length > 0 && written.every(isRemember);
       if (remembersOnly && (undoneArgs || !args.previous)) {
-        notes.push(NOTHING_EARLIER_TO_UNDO);
+        entries.push({ source: NOTHING_EARLIER_TO_UNDO, phase });
         transcript.push({ role: "tool", name: "apply", result: { notes: [NOTHING_EARLIER_TO_UNDO], planChanged: false, profileChanged: false } });
         continue;
       }
@@ -511,12 +536,12 @@ export async function runAgent(args: {
       if (res.undone) {
         if (!snapshot || remembersOnly) undoneArgs = true;
         // Undoing this run's own change: what its steps said ("Monday now has …") is no longer true.
-        else for (const [from, to] of [...stale].reverse()) notes.splice(from, to - from);
+        else for (const [from, to] of [...stale].reverse()) entries.splice(from, to - from);
         stale = [];
         snapshot = undefined;
         written.length = 0;
       } else if (stepChanged) {
-        written.push(...group);
+        written.push(...changers(group, before, target, args.today));
         snapshot = { plan: snapshot?.plan ?? before.plan, profile: snapshot?.profile ?? before.profile, label: labelOps(written) };
       }
       // A line written beside writes was written BEFORE the engine ran, so it may describe a change that
@@ -534,9 +559,11 @@ export async function runAgent(args: {
       undone = undone || Boolean(res.undone);
       // A crisis outranks an urgent reply, whichever step said it first.
       if (res.replyOverride && replyOverride !== CRISIS_REPLY) replyOverride = res.replyOverride;
-      const from = notes.length;
-      notes.push(...res.notes);
-      if (snapshot && !res.undone && (stepChanged || group.some((o) => PLAN_DESCRIBING.has(opName(o))))) stale.push([from, notes.length]);
+      phase++;
+      changes.push({ phase, days: changedDays(before.plan, res.plan), targets: targetsChanged(before.profile, res.profile) });
+      const from = entries.length;
+      entries.push(...(res.noteSources ?? res.notes).map((source) => ({ source, phase })));
+      if (snapshot && !res.undone && (stepChanged || group.some((o) => PLAN_DESCRIBING.has(opName(o))))) stale.push([from, entries.length]);
       transcript.push({
         role: "tool",
         name: "apply",
@@ -569,13 +596,15 @@ export async function runAgent(args: {
 
   // A retry after a turn nothing could be read from, which brought nothing the engine vouches for: still that
   // failure. The model's words alone ("Noted.") would stand over an allergy that was never saved.
-  if (blindRetry && !modelFailed && notes.length === 0 && replyOverride === undefined && !planChanged && same(start.profile, profile)) {
+  if (blindRetry && !modelFailed && entries.length === 0 && replyOverride === undefined && !planChanged && same(start.profile, profile)) {
     modelFailure = blindRetry;
     modelFailed = true;
   }
 
   // Said before any failure line is added: whether the run has an answer of its own to give.
-  const engineSpoke = earlierNotes.length > 0 || notes.length > 0 || replyOverride !== undefined;
+  const engineSpoke = earlierNotes.length > 0 || entries.length > 0 || replyOverride !== undefined;
+  // What the person reads: every note, rendered and judged against the week the run ENDS with.
+  const notes = settleNotes(entries, changes, { plan, profile });
   if (modelFailed) {
     notes.push(MODEL_FAILED_LINE);
   } else if (gaveUp) {

@@ -109,6 +109,17 @@ export function achievementNote(
 }
 
 /**
+ * The figures of one day ("Monday now has …") or of the week ("Your week now averages …") as they stand
+ * in `plan`, in the same words the engine uses after a change. For a reply whose earlier figures a later
+ * step made stale: the agent loop drops those, and states the final week's here (assistant/runNotes.ts).
+ */
+export function figuresNote(plan: WeekPlan, p: UserProfile, day?: DayPlan["day"]): string | null {
+  if (!day) return plan.days.length ? achievementNote("Your week now averages", weekAveragesFull(plan), p) : null;
+  const d = plan.days.find((x) => x.day === day);
+  return d ? achievementNote(`${day} now has`, dayTotalsFull(d), p) : null;
+}
+
+/**
  * "I'm always tired." The only defensible thing an app can do here is refuse to guess.
  *
  * It does not diagnose: it names what the symptom is nutritionally ASSOCIATED with, then checks

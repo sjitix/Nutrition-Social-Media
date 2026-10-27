@@ -76,7 +76,7 @@ gate's job is to keep it true, not to fix it.
 | **L1 · Data** | `data/` — the 501 recipe seeds, ingredient identity, `nutrientTable.generated.ts`, `substitutions.ts`, `symptoms.ts`, `conditions.ts` (+ `nutrition/unitGrams.generated.ts`, kept client-safe) | L0 | anything computing over it |
 | **L2 · Pure computation** | `nutrition/` — `units.ts`, `nutrients.ts`, `targets.ts`, `exclusions.ts`, `safety.ts`, `grocery.ts` (+ `presentation/streak.ts`, local-day arithmetic) | L0–L1 | the plan engine, the assistant, any I/O |
 | **L3 · Plan engine** | selection, rebalancing, batch, the executor | L0–L2 | the assistant, providers, UI, `storage` |
-| **L4 · Assistant** | `assistant/` — `primitives.ts`, `agentTools.ts`, `agentLoop.ts`, `modelFailure.ts`, `reply.ts`, `promptV2.ts` | L0–L3 | providers (the model arrives **injected**), UI, `storage` |
+| **L4 · Assistant** | `assistant/` — `primitives.ts`, `agentTools.ts`, `agentLoop.ts`, `runNotes.ts`, `modelFailure.ts`, `reply.ts`, `promptV2.ts` | L0–L3 | providers (the model arrives **injected**), UI, `storage` |
 | **L5 · Adapters** | `providers/` — `ai.ts`, `import.ts`, `videoImport.ts`; `persistence/` — `storage.ts`; and the accounts lane's `account/` — sync, sign-in, export, and `savedStore.ts` (local or account) | L0–L4 | the UI |
 | **L6 · Presentation** | `presentation/` — `feed.ts`, `feedFilter.ts`, `recipes.ts` (images), `batchGrocery.ts`; `weekStats.ts`, and everything in `src/app` | L0–L5 **via barrels only** | — |
 | **T · Tooling** | `scripts/*` | anything, including internals | — it is the harness, and it is *supposed* to reach inside |
@@ -453,8 +453,9 @@ realistic bounds."*
   `planChanged` is a **deep comparison of before and after**, never a guess from which tool ran.
 
 **`plan/report`** — *"Read-only descriptions of a plan: weekly averages, shortfalls, micro coverage."*
-Public: `weeklyReportNote`, `keepDays`, `freezesWell`, `reportNotes`, `newReport`. Invariant: it
-computes, it never writes.
+Public: `weeklyReportNote`, `figuresNote` and `microNote` (a day's, the week's or a nutrient's figures as they
+stand, in the engine's own words: the agent loop re-states figures a later step made stale, 2026-10-27),
+`keepDays`, `freezesWell`, `reportNotes`, `newReport`. Invariant: it computes, it never writes.
 
 ### L4 · Assistant
 
@@ -527,6 +528,14 @@ back, call again, stop."*
   Before the first model call, allergies stated in EARLIER user messages bind through the same gate
   (`primitives.earlierAllergyFacts`, the history allergy, 2026-10-23). That is the run's starting state: it
   takes no undo slot, and no undo takes it back. `EARLIER_LEAD` opens its note.
+
+**`assistant/runNotes`** (`runNotes.ts`, 2026-10-27) — *"A run's notes, true of the week it ends with."*
+- **Private to the folder** (the loop calls it): `settleNotes`, `changedDays`, `targetsChanged`, `NoteSource`, `RunNote`,
+  `PhaseChange`. Pure.
+- **Invariants:** a note given as a function of the final week (an allergy fact's sentences) is rendered once, from
+  the run's end; a figures sentence ("<Day> now has", "Your week now averages", a nutrient's average, and what
+  `achievementNote` appends) is dropped when a later engine call changed its day, any day for the week, or the
+  targets, and is re-stated from the final week when nothing later states it; every other note is kept as written.
 
 **`assistant/modelFailure`** (`modelFailure.ts`, 2026-10-22) — *"Why a model call failed."*
 - **Public:** `ModelFailure`, `ModelFailureKind`, `modelFailureOf`, `failureFromStatus`, `retryableFailure`.
