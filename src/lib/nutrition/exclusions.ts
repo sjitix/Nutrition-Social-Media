@@ -80,6 +80,9 @@ const EGG = ["egg", "caesar dressing", "mayonnaise", "mayo", "aioli", "meringue"
  * synonyms and label terms are keys too ("soya", "prawns", "coeliac", "crustaceans"): each must block
  * what its plain-English twin blocks, and a key is how expandExclusion recognises one.
  */
+const CHICKPEA = ["chickpea", "garbanzo", "chana", "hummus", "houmous", "falafel", "besan", "gram flour", "chickpea flour", "aquafaba"];
+const EGGPLANT = ["eggplant", "aubergine", "brinjal", "baba ganoush"];
+
 const CATEGORY_TERMS: Record<string, string[]> = {
   nut: NUTS,
   nuts: NUTS,
@@ -121,6 +124,15 @@ const CATEGORY_TERMS: Record<string, string[]> = {
   casein: DAIRY,
   whey: DAIRY,
   cmpa: DAIRY,
+  // One food under several names, and what is made from it. "garbanzo beans" blocked none of the 38 chickpea
+  // dishes, and "aubergine" 1 of the 4 eggplant ones (the library says eggplant). Hummus, falafel, chana and
+  // gram flour are chickpeas, the way pesto is nuts. (2026-10-27)
+  chickpea: CHICKPEA,
+  garbanzo: CHICKPEA,
+  chana: CHICKPEA,
+  eggplant: EGGPLANT,
+  aubergine: EGGPLANT,
+  brinjal: EGGPLANT,
   pork: ["pork", "bacon", "chorizo", "sausage", "ham", "pepperoni", "prosciutto", "salami", "pancetta", "lard", "gammon", "guanciale", "gelatin"],
   // caesar dressing is raw egg yolk + parmesan + anchovy — it hides egg and dairy the way its name
   // hides the anchovy already covered under fish/seafood. Mirror the pesto (nut+dairy) precedent.
@@ -291,6 +303,10 @@ const JOINS: [RegExp, string][] = [
   [/\bpea[\s-]+nuts?\b/g, "peanuts"],
   [/\bground[\s-]+nuts?\b/g, "groundnuts"],
   [/\bsoy[a]?[\s-]+beans?\b/g, "soybeans"],
+  // A food typed in two words was read as its last word: "chick peas" stored "peas" and blocked none of the
+  // 38 chickpea dishes, and "egg plant" stored "egg", blocking 81 egg dishes and none of the eggplant ones.
+  [/\bchick[\s-]+peas?\b/g, "chickpeas"],
+  [/\begg[\s-]+plants?\b/g, "eggplant"],
 ];
 
 /** Function words and feelings: removed from a phrase so the food in it is what is left. Never a food. */

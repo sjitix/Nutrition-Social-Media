@@ -892,6 +892,53 @@ console.log("\n--- COMPUTE_TARGETS (the engine does the arithmetic) ---");
   check("full facts -> profile targets are set", full.profile.targetCalories > 2900 && full.profile.proteinGrams === 152, `${full.profile.targetCalories} kcal, ${full.profile.proteinGrams}g protein`);
   check("compute_targets explains itself in plain English", full.notes.some((n) => /resting burn/.test(n)), (full.notes[0] ?? "").slice(0, 90));
 }
+// ---------------------------------------------------------------- one food, two words or two names (2026-10-27)
+// "chick peas" stored "peas" and blocked none of the 38 chickpea dishes (12 pea dishes instead); "garbanzo beans"
+// blocked none; "aubergine" 1 of the 4 eggplant dishes (the library says eggplant); "egg plant" blocked 81 egg
+// dishes and none of the eggplant ones. Each food's dishes, hummus and falafel included, must now be blocked.
+console.log("\n--- ONE FOOD, TWO WORDS OR TWO NAMES (chick peas, garbanzo, aubergine, egg plant) ---");
+{
+  const blocks = (allergy: string) => {
+    const t = parseExclusionTokens(allergy, "");
+    return (r: (typeof RECIPES)[number]) => haystackBlocked(recipeHay(r), t);
+  };
+  const withWord = (re: RegExp) => RECIPES.filter((r) => re.test(recipeHay(r).toLowerCase()));
+  const chickpea = withWord(/chickpea|garbanzo|hummus|houmous|falafel|chana|besan|gram flour/);
+  const eggplant = withWord(/eggplant|aubergine|brinjal/);
+  const eggOnly = withWord(/\beggs?\b/).filter((r) => !/eggplant/.test(recipeHay(r).toLowerCase()));
+  const peaOnly = withWord(/\bpeas?\b/).filter((r) => !/chickpea|chick pea/.test(recipeHay(r).toLowerCase()));
+  check("the library has the dishes these rows need", chickpea.length >= 40 && eggplant.length >= 4 && eggOnly.length > 50 && peaOnly.length > 5,
+    `chickpea ${chickpea.length}, eggplant ${eggplant.length}, egg ${eggOnly.length}, pea ${peaOnly.length}`);
+  for (const said of ["allergic to chick peas", "allergic to chick pea", "allergic to chick-peas", "allergic to garbanzo beans", "chickpea allergy", "allergic to chana"]) {
+    const missed = chickpea.filter((r) => !blocks(said)(r)).map((r) => r.name);
+    check(`"${said}" blocks every chickpea dish, hummus and falafel included`, missed.length === 0, missed.slice(0, 3).join(" | "));
+  }
+  for (const said of ["allergic to chick peas", "allergic to garbanzo beans"]) {
+    const extra = peaOnly.filter(blocks(said)).map((r) => r.name);
+    check(`"${said}" does not block green-pea dishes (it is not a pea allergy)`, extra.length === 0, extra.slice(0, 3).join(" | "));
+  }
+  for (const said of ["allergic to aubergine", "allergic to egg plant", "allergic to eggplants", "brinjal allergy"]) {
+    const missed = eggplant.filter((r) => !blocks(said)(r)).map((r) => r.name);
+    check(`"${said}" blocks every eggplant dish`, missed.length === 0, missed.join(" | "));
+  }
+  {
+    const extra = eggOnly.filter(blocks("allergic to egg plant")).map((r) => r.name);
+    check('"allergic to egg plant" does not block the egg dishes', extra.length === 0, `${extra.length}: ${extra.slice(0, 3).join(" | ")}`);
+  }
+  {
+    const missed = eggOnly.filter((r) => !blocks("allergic to eggs")(r)).map((r) => r.name);
+    check("an egg allergy still blocks every egg dish (eggplant is a new word, not a new exception)", missed.length === 0, missed.slice(0, 3).join(" | "));
+  }
+  // Through the assistant: a remembered allergy typed in two words binds the plan.
+  {
+    const week = withSeed(3, () => applyPrimitives(BASE, freshWeek(BASE), [{ op: "swap", dish: "Chickpea Spinach Curry", slot: "dinner", days: ["Monday"] } as unknown as PrimitiveOp])).plan;
+    check("...the week starts with a chickpea dish in it", week.days[0].meals.some((m) => /chickpea/i.test(m.name)), week.days[0].meals.map((m) => m.name).join(" | "));
+    const r = withSeed(3, () => applyPrimitives(BASE, week, [{ op: "remember", kind: "allergy", fact: "I'm allergic to chick peas" } as unknown as PrimitiveOp]));
+    const left = r.plan.days.flatMap((d) => d.meals).filter((m) => /chickpea|hummus|falafel|chana/i.test(m.name + " " + (m.ingredients ?? []).map((i) => i.name).join(" ")));
+    check("a remembered \"allergic to chick peas\" leaves no chickpea dish in the week", left.length === 0, left.map((m) => m.name).join(" | "));
+  }
+}
+
 // ---------------------------------------------------------------- allergen review (D5b, second pass)
 // An adversarial review of D5b's parser (2026-10-03, every finding reproduced end to end) showed the
 // first fix dropping whole allergy clauses as "allowances": "I can eat anything without gluten" was
