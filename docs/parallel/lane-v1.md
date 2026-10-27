@@ -7,6 +7,9 @@
 
 ## Now doing
 
+**2026-10-27, end of day — v1 shut down cleanly after `7c4b77a`.** Nothing of mine is running or uncommitted. Next: F8
+(once the owner says push-from-laptop or rebuild), otherwise D7. Nothing here blocks either other lane.
+
 **2026-10-27 — the v1 lane resumes on the DESKTOP** (session `nutrition-social-media-main-86`). Main fast-forwarded
 to `ac4ee33` (131 commits; my stale 10-03 edits had all landed as `058a596`/`5c12c4c`, backed up outside the repo and
 dropped). **F8 is not on GitHub:** it lived uncommitted in `../NutriFlow-f8` on the laptop, so it is rebuilt or pushed

@@ -398,6 +398,10 @@ Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Ro
 
 ### >>> V1 LANE — 2026-10-27: on the DESKTOP now. Ask 1 landed `53c7ce9` (a pull no longer gets overwritten by the chat or undo). F8 is on the laptop only <<<
 
+**Shut down cleanly 2026-10-27, after `7c4b77a`:** nothing running, nothing uncommitted, `origin/main..HEAD` empty.
+**Waiting on the owner:** F8 is pushed from the laptop's `../NutriFlow-f8`, or rebuilt here from the description below.
+Without an answer, the next session starts D7. Machine state: §4 of this block.
+
 **2026-10-27.** The v1 lane resumed on the desktop (session `nutrition-social-media-main-86`); main fast-forwarded to
 `ac4ee33`. **F8 never reached GitHub**: it is uncommitted in `../NutriFlow-f8` on the laptop, so it is pushed from there
 or rebuilt from its description below. **Ask 1 landed (`53c7ce9`):** `AssistantChat` and `actions.ts` compare what
@@ -785,7 +789,7 @@ barrel. A 105-point fingerprint identical before/after. **New engine code goes i
 
 **State:** `main` pushed. `check:boundaries` passes (0 new, **6 known debts**) ·
 `test:engine` **924/0** · `test:ui` **51/0** · `test:api` 60/0 last full run (18 new pre-scan checks not yet run as a suite) · `tsc` clean. Live lane status:
-`docs/parallel/lane-v1.md`. **Dev server: UP on :3000** (pid 800) — stop it before any `npm run build`.
+`docs/parallel/lane-v1.md`. Machine state: §4 below (rewritten at the 2026-10-27 shutdown).
 
 #### 0. READ THIS FIRST — the owner's ruling, found two weeks late
 
@@ -920,16 +924,21 @@ push. Documented in `CLAUDE.md`.
 
 #### 4. MACHINE STATE
 
-- **Dev server: UP on :3000 as of 2026-10-03 afternoon** (started for `test:api`). Stop it before any
-  `npm run build` — they share `.next`, and a production build under a running dev server serves
+**As checked at the 2026-10-27 shutdown, on the desktop** (the 10-03 laptop state that stood here is gone):
+
+- **Dev server: DOWN**, and nothing of the v1 lane's was running. Start it with `npm run dev`; stop it before
+  any `npm run build` — they share `.next`, and a production build under a running dev server serves
   every page blank with `Cannot find module './611.js'`.
-- **LM Studio: UP**, serving 14 models including `openai/gpt-oss-20b` (what `.env.local` selects),
-  `meta/llama-3.3-70b`, `qwen/qwen3-30b-a3b-2507` and the v4–v11 fine-tunes. `.env.local` is
-  `AI_PROVIDER=local`, `LOCAL_AI_MODEL=openai/gpt-oss-20b`.
-- **So the assistant can actually be exercised tomorrow**, which it could not be today. The three
-  `assistant offline` API tests expect 503 and got 502 *because the model was down* — **re-run
-  `npm run test:api` with LM Studio up before concluding anything about them.** Neither assistant
-  route was touched by Track E (diff-verified; the clean checkout crashed identically).
+- **LM Studio: UP at shutdown** on :1234, serving 14 models. But `.env.local` does not point at it: it
+  has `AI_PROVIDER=local` and `LOCAL_AI_MODEL=openai/gpt-oss-20b`, with `LOCAL_AI_URL` at NVIDIA's hosted API
+  (`integrate.api.nvidia.com`) and a `LOCAL_AI_API_KEY`, plus `PLAN_ENGINE=db`. It has no `NVIDIA_API_KEY`
+  line, which the models lane's scripts read.
+- **Worktrees here:** `../NutriFlow-models` and `../NutriFlow-models-exp` are clean and pushed (the models
+  lane's). `../NutriFlow-v1fix` is clean and pushed. `../NutriFlow-v1-measure` (detached at `c61cb13`)
+  has 15 dirty files, but they are the 10-03 A4 measurement edits (`units.ts`, `feedFilter.ts`, …), all
+  on main since. Both v1 worktrees can be removed (remove a junctioned `node_modules` with `rmdir` first).
+- `test:api`'s three `assistant offline` tests expect 503 and got 502 on 10-03 *because the model was
+  down*: re-run them with the provider reachable before concluding anything about them.
 
 #### 5. MEASUREMENTS TAKEN TODAY — use these, not the older figures
 
