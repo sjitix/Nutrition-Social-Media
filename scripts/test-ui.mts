@@ -17,6 +17,7 @@
  */
 import { parseCommand, COMMAND_EXAMPLES } from "@/app/sage/commands";
 import { summariseWeek } from "@/app/sage/weekStats";
+import { canonicalJson } from "@/app/sage/canonical";
 import { DAYS } from "@/lib/core";
 import type { Meal, WeekPlan } from "@/lib/core";
 
@@ -152,6 +153,26 @@ const repeated: WeekPlan = {
   days: DAYS.map((day) => ({ day, meals: [meal("Same Dish", 500, 40)] })),
 } as WeekPlan;
 check("a dish repeated all week counts once", summariseWeek(repeated).uniqueDishes === 1);
+
+// canonicalJson: how the chat and the undo snapshot tell "storage still holds what I wrote" from "something
+// else wrote since" (a sync pull, Delete everything, a mode switch). Key order must not count as a change
+// (storage and Postgres both reorder keys), and a real change, at any depth, must.
+console.log("\n--- canonicalJson (is this still the week I wrote?) ---");
+{
+  const a = { profile: { goal: "maintain", diet: "none" }, week: { days: [{ day: "Monday", meals: [{ name: "Oats", calories: 400 }] }] } };
+  const b = { week: { days: [{ meals: [{ calories: 400, name: "Oats" }], day: "Monday" }] }, profile: { diet: "none", goal: "maintain" } };
+  check("the same content in another key order is the same", canonicalJson(a) === canonicalJson(b));
+  const c = structuredClone(a);
+  c.week.days[0].meals[0].calories = 401;
+  check("a change deep inside a meal is a change", canonicalJson(a) !== canonicalJson(c));
+  const d = structuredClone(a);
+  d.week.days[0].meals.push({ name: "Eggs", calories: 300 });
+  const e = structuredClone(d);
+  e.week.days[0].meals.reverse();
+  check("array order still counts (meals are ordered)", canonicalJson(d) !== canonicalJson(e));
+  check("an undefined field is the same as a missing one (JSON drops it on save)",
+    canonicalJson({ x: 1, y: undefined }) === canonicalJson({ x: 1 }));
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) {

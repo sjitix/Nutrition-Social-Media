@@ -2,8 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { summariseWeek } from "../weekStats";
-import { loadMyWeek } from "../myPlan";
-import { savePlan, saveProfile } from "@/lib/persistence";
+import { loadMyWeek, saveMyWeek, storedFingerprint, PLAN_CHANGED_EVENT } from "../myPlan";
 import { isoDay } from "@/lib/presentation/client";
 import type { ChatMessage, PlanSnapshot, UserProfile, WeekPlan } from "@/lib/core";
 
@@ -54,7 +53,7 @@ interface Turn {
   incomplete?: boolean;
   avgProtein?: number;
   /** Set when the turn did not reach the agent at all. */
-  problem?: "no-server" | "offline" | "demo" | "error";
+  problem?: "no-server" | "offline" | "demo" | "error" | "moved";
 }
 
 /**
@@ -67,6 +66,7 @@ const WHY_NOTHING: Record<NonNullable<Turn["problem"]>, string> = {
   offline: "the assistant could not be reached",
   demo: "no assistant is configured here",
   error: "the request failed",
+  moved: "your week changed while I was answering",
 };
 
 const EXAMPLES = [
@@ -94,13 +94,38 @@ export default function AssistantChat({
   // On the client, swap the shared demo week for THIS person's saved plan if they've built one, so
   // the assistant edits their real week (and persists the change) rather than the sample. Runs after
   // the first paint, which is why the page can stay a server component rendering the demo instantly.
-  useEffect(() => {
+  //
+  // It also re-reads whenever storage stops holding what this chat last held. The chat keeps its own
+  // copy of the week and an undo snapshot taken from it; if a sync pulls a newer week from the
+  // account (or "Delete everything", a mode switch, another tab writes), the next turn would send the
+  // OLD week, and its answer would be saved over the newer one, which sync then spreads as the newest
+  // edit (the accounts lane's Ask 1). So: re-read on PLAN_CHANGED_EVENT, check again before sending,
+  // and drop the undo snapshot, which describes a week that is no longer the one on this device.
+  const held = useRef<string | null>(null);
+  function adoptStorage(): { plan: WeekPlan; prof: UserProfile; personalized: boolean } {
     const mine = loadMyWeek();
+    held.current = storedFingerprint();
+    setPrevious(undefined);
     if (mine) {
       setPlan(mine.week);
       setProf(mine.profile);
       setPersonalized(true);
+      return { plan: mine.week, prof: mine.profile, personalized: true };
     }
+    // Nothing set up any more ("Delete everything"): back to the shared sample week.
+    setPlan(initialPlan);
+    setProf(profile);
+    setPersonalized(false);
+    return { plan: initialPlan, prof: profile, personalized: false };
+  }
+  useEffect(() => {
+    if (loadMyWeek()) adoptStorage();
+    const onChange = () => {
+      if (storedFingerprint() !== held.current) adoptStorage();
+    };
+    window.addEventListener(PLAN_CHANGED_EVENT, onChange);
+    return () => window.removeEventListener(PLAN_CHANGED_EVENT, onChange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function send(text: string) {
@@ -127,12 +152,23 @@ export default function AssistantChat({
 
     const push = (t: Turn) => setTurns((prev) => [...prev, t]);
 
+    // The event can be missed (a write with no notify), so check again right before sending: what
+    // goes to the server must be the week this device holds now, never the chat's older copy.
+    const base =
+      storedFingerprint() !== held.current
+        ? { ...adoptStorage(), previous: undefined }
+        : { plan, prof, personalized, previous };
+
+    // What this turn starts from. If storage holds anything else by the time the answer arrives, a
+    // sync or another tab changed the week mid-turn, and saving the answer would overwrite that.
+    const sentFrom = held.current;
+
     try {
       const res = await fetch("/api/assistant-v2", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         // The LOCAL day: the server only knows UTC, which is already tomorrow on a US evening.
-        body: JSON.stringify({ profile: prof, plan, history, previous, today: isoDay(new Date()) }),
+        body: JSON.stringify({ profile: base.prof, plan: base.plan, history, previous: base.previous, today: isoDay(new Date()) }),
       });
 
       // A static export answers with an HTML 404, which is not JSON. That is a missing SERVER, not
@@ -171,15 +207,29 @@ export default function AssistantChat({
         return;
       }
 
-      const nextPlan = (data?.plan as WeekPlan | undefined) ?? plan;
-      const nextProf = (data?.profile as UserProfile | undefined) ?? prof;
+      if (base.personalized && storedFingerprint() !== sentFrom) {
+        adoptStorage();
+        push({
+          me: message,
+          reply:
+            "Your week changed (on another device or tab) while I was answering, so I left it as it is now. Ask me again and I will work from the new week.",
+          planChanged: false,
+          problem: "moved",
+        });
+        return;
+      }
+
+      const nextPlan = (data?.plan as WeekPlan | undefined) ?? base.plan;
+      const nextProf = (data?.profile as UserProfile | undefined) ?? base.prof;
       setPlan(nextPlan);
       setProf(nextProf);
       // When it's the person's OWN plan, persist the engine's change so the Week and Groceries
       // screens reflect it. On the sample week there is nothing to save (and we don't pretend to).
-      if (personalized) {
-        savePlan(nextPlan);
-        saveProfile(nextProf);
+      // Under the key for the profile's MODE: this used to always write the fresh week, so an edit
+      // made in meal-prep mode never reached the Week screen, which reads the meal-prep week.
+      if (base.personalized) {
+        saveMyWeek(nextPlan, nextProf);
+        held.current = storedFingerprint();
       }
       // Undo is one level deep by design, and the snapshot rides the conversation because the
       // server keeps no state. Threading it back is what makes "undo that" work on the next turn.

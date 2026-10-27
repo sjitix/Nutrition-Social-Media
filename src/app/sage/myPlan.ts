@@ -1,6 +1,7 @@
 import { loadPlan, loadProfile, savePlan, saveProfile, loadBatchPlan, saveBatchPlan } from "@/lib/persistence";
 import { groupByAisle, type Aisle } from "@/lib/nutrition/client";
 import { summariseWeek, type WeekStats } from "./weekStats";
+import { canonicalJson } from "./canonical";
 import type { UserProfile, WeekPlan } from "@/lib/core";
 
 /**
@@ -29,6 +30,25 @@ export function loadMyWeek(): MyWeek | null {
   const week = profile.planMode === "batch" ? loadBatchPlan() : loadPlan();
   if (!week || !Array.isArray(week.days) || week.days.length === 0) return null;
   return { week, stats: summariseWeek(week), profile };
+}
+
+/**
+ * What this device holds right now, as one comparable string (null when nothing is set up). A screen
+ * that keeps its own copy of the week records this after it writes, and compares before it relies on
+ * that copy again: anything else that wrote meanwhile (a sync pull, "Delete everything", a mode
+ * switch, another tab) makes the two differ. Read back from storage, never from what was handed to
+ * it: a save can be dropped (the accounts lane's write fence) or be a no-op.
+ */
+export function storedFingerprint(): string | null {
+  const mine = loadMyWeek();
+  return mine ? canonicalJson({ profile: mine.profile, week: mine.week }) : null;
+}
+
+/** Persist a week and profile under the key for the profile's mode: fresh -> `plan`, batch -> `batchPlan`. */
+export function saveMyWeek(week: WeekPlan, profile: UserProfile): void {
+  if (profile.planMode === "batch") saveBatchPlan(week);
+  else savePlan(week);
+  saveProfile(profile);
 }
 
 /** Build this profile's week through the real engine (server side) and persist it under the key for

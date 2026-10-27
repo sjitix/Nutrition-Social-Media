@@ -1,7 +1,7 @@
 "use client";
 
 import { loadBatchPlan, loadPlan, loadProfile, saveBatchPlan, savePlan, saveProfile } from "@/lib/persistence";
-import { notifyPlanChanged } from "./myPlan";
+import { notifyPlanChanged, storedFingerprint } from "./myPlan";
 import { summariseWeek, type WeekStats } from "./weekStats";
 import type { DayPlan, Meal, Operation, PlanSnapshot, UserProfile, WeekPlan } from "@/lib/core";
 
@@ -67,7 +67,25 @@ let snapshot: PlanSnapshot | undefined;
 /** A short label for what the last change was, for the toast ("Swapped Tuesday lunch"). */
 let lastLabel: string | null = null;
 
+/**
+ * What storage held right after this module's last write (`storedFingerprint`). The snapshot is the
+ * week BEFORE that write, so it is only a true "undo" while storage still holds what the write left.
+ * If anything else wrote since (a sync pulling a newer week, "Delete everything", a mode switch,
+ * another tab), undoing would put the old week back over the newer one and sync would carry it to
+ * every device as the newest edit (the accounts lane's Ask 1, reproduced by their review). So a
+ * snapshot that no longer matches is dropped, and the Undo button is not offered for it.
+ */
+let written: string | null = null;
+
+function dropStaleSnapshot(): void {
+  if (snapshot !== undefined && storedFingerprint() !== written) {
+    snapshot = undefined;
+    lastLabel = null;
+  }
+}
+
 export function canUndo(): boolean {
+  dropStaleSnapshot();
   return snapshot !== undefined;
 }
 export function lastChangeLabel(): string | null {
@@ -189,6 +207,7 @@ export async function runOperation(
   operation: Operation | Operation[],
   label?: string,
 ): Promise<ActionResult> {
+  dropStaleSnapshot();
   const { profile, plan } = currentState();
   const data = await post({
     profile,
@@ -211,6 +230,7 @@ export async function runOperation(
   if (nextProfile.planMode === "batch") saveBatchPlan(week);
   else savePlan(week);
   if (data.profile) saveProfile(nextProfile);
+  written = storedFingerprint();
 
   notifyPlanChanged();
 
