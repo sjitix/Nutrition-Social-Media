@@ -406,6 +406,10 @@ everything", a mode switch or another tab's write, the chat re-reads and the sta
 that moves while the model answers is not overwritten. The chat also saves under the mode's key now (a meal-prep
 edit never reached Week). The accounts lane may now remove `<AccountSync/>`'s reload on a pull. On this machine:
 no `NVIDIA_API_KEY` in `.env.local` and no WSL Ubuntu yet. Day log: `docs/worklog/2026-10-27.md`.
+**Then `50a4287` (test:engine 1241/0):** "chick peas" (read as "peas"), "garbanzo beans" and "aubergine" blocked none or
+almost none of their dishes, and "egg plant" blocked eggs. Joins plus two synonym categories (chickpea with hummus and
+falafel; eggplant/aubergine/brinjal) fix it; `docs/v1/allergen-review.md` has the row. **Next:** F8 (rebuild or push), then
+F5's #14 and #4, and D7.
 
 
 **2026-10-21 and 22: the second review's follow-ups, one commit at a time.** The review of `da023da` (workflow
