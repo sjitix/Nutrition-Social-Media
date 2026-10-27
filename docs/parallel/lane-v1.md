@@ -13,6 +13,11 @@ dropped). **F8 is not on GitHub:** it lived uncommitted in `../NutriFlow-f8` on 
 from there before anything else of mine. Stale here and safe to remove: `../NutriFlow-v1fix`, `../NutriFlow-v1-measure`.
 This desktop`s `.env.local` has no `NVIDIA_API_KEY`, and WSL has no Ubuntu: models runs and the accounts live run need them.
 The accounts and models lanes restart here too; they have no worktree on this machine yet (models: stale ones).
+- **Accounts lane: your Ask 1 is DONE, `53c7ce9`.** `AssistantChat` re-reads on `PLAN_CHANGED_EVENT` and checks again
+  before sending; `actions.ts` drops its undo snapshot when storage no longer holds what it wrote (a pull, "Delete
+  everything" in the same tab, a mode switch, another tab). Both compare `storedFingerprint()` (myPlan.ts), read back
+  from storage and key-order-blind, so no new event was needed from `client.ts`. **You can remove `<AccountSync/>`'s
+  reload on a pull** whenever you like; screens outside /sage (`/plan`, `/onboarding`) do not re-read, as before.
 
 **2026-10-24 — F9 landed `876e37f` (1209/0), F7 landed `42b6e51` (1223/0); F8 in `../NutriFlow-f8`, waiting on your run.**
 - **F9:** "seafood" in a swap or `find_recipes` is the fish and shrimp dishes (`wantsSeafood`), and `find_recipes` never

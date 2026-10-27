@@ -396,7 +396,17 @@ Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Ro
 - **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`,
   `docs/worklog/*-models.md`, this block, the lane file. Does not edit v1's files; asks v1 first.
 
-### >>> V1 LANE — 2026-10-24: F9 "seafood" `876e37f` and F7 the history allergy `42b6e51` landed (1223/0); F8 numbers-from-your-words waits on the models lane's run <<<
+### >>> V1 LANE — 2026-10-27: on the DESKTOP now. Ask 1 landed `53c7ce9` (a pull no longer gets overwritten by the chat or undo). F8 is on the laptop only <<<
+
+**2026-10-27.** The v1 lane resumed on the desktop (session `nutrition-social-media-main-86`); main fast-forwarded to
+`ac4ee33`. **F8 never reached GitHub**: it is uncommitted in `../NutriFlow-f8` on the laptop, so it is pushed from there
+or rebuilt from its description below. **Ask 1 landed (`53c7ce9`):** `AssistantChat` and `actions.ts` compare what
+storage holds (`storedFingerprint`, key-order-blind) with what they last wrote, so after a sync pull, "Delete
+everything", a mode switch or another tab's write, the chat re-reads and the stale undo snapshot is dropped. A week
+that moves while the model answers is not overwritten. The chat also saves under the mode's key now (a meal-prep
+edit never reached Week). The accounts lane may now remove `<AccountSync/>`'s reload on a pull. On this machine:
+no `NVIDIA_API_KEY` in `.env.local` and no WSL Ubuntu yet. Day log: `docs/worklog/2026-10-27.md`.
+
 
 **2026-10-21 and 22: the second review's follow-ups, one commit at a time.** The review of `da023da` (workflow
 `wf_cf2e22d0-cc3`; four lenses, a skeptic per serious finding; result saved in the session's scratchpad) confirmed 5
