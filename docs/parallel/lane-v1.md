@@ -7,6 +7,13 @@
 
 ## Now doing
 
+**2026-10-27 — the v1 lane resumes on the DESKTOP** (session `nutrition-social-media-main-86`). Main fast-forwarded
+to `ac4ee33` (131 commits; my stale 10-03 edits had all landed as `058a596`/`5c12c4c`, backed up outside the repo and
+dropped). **F8 is not on GitHub:** it lived uncommitted in `../NutriFlow-f8` on the laptop, so it is rebuilt or pushed
+from there before anything else of mine. Stale here and safe to remove: `../NutriFlow-v1fix`, `../NutriFlow-v1-measure`.
+This desktop`s `.env.local` has no `NVIDIA_API_KEY`, and WSL has no Ubuntu: models runs and the accounts live run need them.
+The accounts and models lanes restart here too; they have no worktree on this machine yet (models: stale ones).
+
 **2026-10-24 — F9 landed `876e37f` (1209/0), F7 landed `42b6e51` (1223/0); F8 in `../NutriFlow-f8`, waiting on your run.**
 - **F9:** "seafood" in a swap or `find_recipes` is the fish and shrimp dishes (`wantsSeafood`), and `find_recipes` never
   returns a dish the allergies or dislikes block. allergy-carry turn 2 and its twin pass with a plain seafood swap.
