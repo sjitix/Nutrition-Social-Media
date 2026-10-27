@@ -257,6 +257,17 @@ reply = composeReply(turn.reply, engine notes)
   import it. Its blind spot is a claim made when the plan DID change, so the engine closes that from
   its side: a day re-plan always writes "<day> now has …", and an empty constrain changes nothing and
   says so (a week-scoped one, or a day scope whose only field is preserveMacros: false).
+- **Every note is true of the week the run ENDS with** (2026-10-27, the second review's #14 and #4). The
+  person reads one reply, at the end, but each step's notes described the week as that step left it: a
+  swap's "Monday now has 2000 kcal" stood beside a later resize's "Monday now comes to 2192", and a denial's
+  "your allergies still include peanuts, so nothing with them is planned" stood after an undo took peanuts
+  off. The loop keeps each engine call's notes as sources and settles them at the end (`runNotes.ts`): an
+  allergy fact's sentences are rendered from the final week and allergies, and a figures sentence a later
+  call made stale is dropped, with one line from the final week if nothing later states it. Action records
+  ("I swapped …") stay. The **undo label** names only the writes that changed something: in a step of
+  several, each is also tried alone on a seed of its own (the run's random choices are untouched), so a
+  refused swap beside a real one is no longer named. The transcript the model sees is unchanged: each
+  step's result still carries that step's own notes.
 - **The finishing call can be skipped when it cannot change what the person reads** (the fast finish,
   2026-10-22). After a step that changed something and got engine notes, whose turn made no lookups and
   carried a reply of its own, `composeReply` returns the notes and discards whatever a finishing call

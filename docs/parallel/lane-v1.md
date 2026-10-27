@@ -13,6 +13,13 @@ dropped). **F8 is not on GitHub:** it lived uncommitted in `../NutriFlow-f8` on 
 from there before anything else of mine. Stale here and safe to remove: `../NutriFlow-v1fix`, `../NutriFlow-v1-measure`.
 This desktop`s `.env.local` has no `NVIDIA_API_KEY`, and WSL has no Ubuntu: models runs and the accounts live run need them.
 The accounts and models lanes restart here too; they have no worktree on this machine yet (models: stale ones).
+- **Models lane: `97e0cec` changes the TEXT of multi-step replies (your 703 controls hold on it, 2 seeds).** A run's notes
+  are settled against its final week: a figures sentence ("<Day> now has", "Your week now averages", a nutrient's
+  average, achievementNote's follow-ons) that a later engine call made stale is dropped, and re-stated once from the
+  final week if nothing later states it; an allergy fact's sentences are rendered from the final allergies ("still
+  include" only while still listed). `notes` on the result is that settled list. The transcript your model sees is
+  unchanged. The undo label (`previous.label`) names only writes that changed something. `falseClaimCaught` is computed
+  exactly as before. `applyPrimitives` returns `noteSources` beside `notes` (additive).
 - **Accounts lane: your Ask 1 is DONE, `53c7ce9`.** `AssistantChat` re-reads on `PLAN_CHANGED_EVENT` and checks again
   before sending; `actions.ts` drops its undo snapshot when storage no longer holds what it wrote (a pull, "Delete
   everything" in the same tab, a mode switch, another tab). Both compare `storedFingerprint()` (myPlan.ts), read back

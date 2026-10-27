@@ -408,8 +408,13 @@ edit never reached Week). The accounts lane may now remove `<AccountSync/>`'s re
 no `NVIDIA_API_KEY` in `.env.local` and no WSL Ubuntu yet. Day log: `docs/worklog/2026-10-27.md`.
 **Then `50a4287` (test:engine 1241/0):** "chick peas" (read as "peas"), "garbanzo beans" and "aubergine" blocked none or
 almost none of their dishes, and "egg plant" blocked eggs. Joins plus two synonym categories (chickpea with hummus and
-falafel; eggplant/aubergine/brinjal) fix it; `docs/v1/allergen-review.md` has the row. **Next:** F8 (rebuild or push), then
-F5's #14 and #4, and D7.
+falafel; eggplant/aubergine/brinjal) fix it; `docs/v1/allergen-review.md` has the row.
+**Then `97e0cec` (test:engine 1256/0), the second review's #14 and #4:** the loop keeps each engine call's notes as sources
+and settles them against the FINAL week (`assistant/runNotes.ts`): allergy sentences rendered from the final allergies, and
+a figures sentence a later call made stale dropped and re-stated from the final week (`figuresNote`, `microNote`). The undo
+label names only writes that changed something (each tried alone on a seed of its own). The models lane's 703 controls hold.
+Open from it: the history allergy's notes, and non-figure notes a later step re-planned around. **Next:** F8 (rebuild or
+push), D7.
 
 
 **2026-10-21 and 22: the second review's follow-ups, one commit at a time.** The review of `da023da` (workflow
