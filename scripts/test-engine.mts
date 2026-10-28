@@ -2493,6 +2493,103 @@ console.log("--- REBALANCE_DAY (balance a day around an imported/fixed meal) ---
   check("rebalance_day: no day -> asks, changes nothing", bad.planChanged === false);
 }
 
+// ---------------------------------------------------------------- records survive every re-plan (V1 D7)
+console.log("");
+console.log("--- RECORDS SURVIVE RE-PLANS (a logged meal, a reservation, an import; V1 D7) ---");
+{
+  // On main before D7 every re-plan below took the person's records out with nothing said: 27 of 27 in
+  // the probe (3 seeds x 9 re-plans), and the target change resized a logged library dish and dropped a
+  // logged breakfast from its slot.
+  const feast = importedToMeal({
+    name: "Imported Feast Bowl", sourceUrl: "https://example.com/feast", servings: 1,
+    ingredients: [{ name: "rice", quantity: "2 cups" }], steps: ["Cook."],
+    calories: 700, proteinGrams: 40, carbsGrams: 80, fatGrams: 20, macrosSource: "site",
+  }, "dinner");
+  const slot = (w: WeekPlan, day: string, type: string) => w.days.find((d) => d.day === day)?.meals.find((m) => m.type === type);
+  const setup = () => {
+    let wk: WeekPlan = freshWeek(BASE);
+    wk = { ...wk, days: wk.days.map((d) => d.day === "Wednesday" ? { ...d, meals: d.meals.map((m) => m.type === "dinner" ? feast : m) } : d) };
+    let p = BASE;
+    const libDish = wk.days[3].meals.find((m) => m.type === "lunch")!.name;
+    for (const o of [
+      op({ tool: "log_meal", day: "Monday", mealType: "lunch", dish: libDish }),
+      op({ tool: "log_meal", day: "Tuesday", mealType: "breakfast", dish: "burger and chips", loggedCalories: 900 } as Partial<Operation>),
+      op({ tool: "eating_out", day: "Friday", mealType: "dinner" }),
+    ]) { const r = applyOperations(p, wk, [o]); wk = r.plan; p = r.profile; }
+    return { wk, p, libDish };
+  };
+  const records = (w: WeekPlan) =>
+    [slot(w, "Monday", "lunch"), slot(w, "Tuesday", "breakfast"), slot(w, "Friday", "dinner"), slot(w, "Wednesday", "dinner")];
+
+  withSeed(1, () => {
+    const { wk, libDish } = setup();
+    const [mon, tue, fri] = records(wk);
+    check("D7: a logged library dish is marked as a record", mon?.record === "logged" && mon.name === libDish);
+    check("D7: ...and described as the person's, not with the library's description (review #18)", mon?.description === "Logged by you.");
+    check("D7: a stated calorie figure wins over the library dish's portion (900, not the library's)", tue?.calories === 900 && tue.record === "logged", `${tue?.name} ${tue?.calories}`);
+    check("D7: a reservation is marked as a record", fri?.record === "out");
+  });
+
+  const REPLANS: [string, Operation[]][] = [
+    ["an iron boost", [op({ tool: "update_profile", boostNutrient: "iron" } as Partial<Operation>)]],
+    ["a B12 boost on a new week", [op({ tool: "regenerate_week", boostNutrient: "b12" } as Partial<Operation>)]],
+    ["a cuisine", [op({ tool: "update_profile", cuisine: "italian" })]],
+    ["a fiber push", [op({ tool: "regenerate_week", targetFiber: 40 } as Partial<Operation>)]],
+    ["a fridge clear-out", [op({ tool: "regenerate_week", useIngredients: ["salmon"] } as Partial<Operation>)]],
+    ["a new week", [op({ tool: "regenerate_week" })]],
+    ["a switch to meal-prep", [op({ tool: "update_profile", planMode: "batch" } as Partial<Operation>)]],
+    ["a day re-planned", [op({ tool: "regenerate_day", day: "Tuesday" })]],
+    ["a new calorie target", [op({ tool: "update_profile", targetCalories: 1700 })]],
+  ];
+  for (const [label, ops] of REPLANS) {
+    const lost: string[] = [];
+    let offTarget = "";
+    for (const seed of [1, 2, 3]) withSeed(seed, () => {
+      const { wk, p } = setup();
+      const r = applyOperations(p, wk, ops);
+      const was = records(wk), now = records(r.plan);
+      was.forEach((m, i) => {
+        if (!now[i] || now[i]!.name !== m!.name || now[i]!.calories !== m!.calories) lost.push(`seed ${seed}: ${m!.name} -> ${now[i]?.name ?? "gone"}`);
+      });
+      // The day a record went back into is re-solved around it (fresh mode): Friday with its 800 kcal set aside
+      // still lands near the target.
+      if (r.profile.planMode !== "batch") {
+        const fri = r.plan.days.find((d) => d.day === "Friday")!;
+        if (Math.abs(kcal(fri) - r.profile.targetCalories) > r.profile.targetCalories * 0.15) offTarget += ` seed ${seed}: Friday ${kcal(fri)}`;
+      }
+    });
+    check(`D7: ${label} keeps every record in its slot (3 seeds)`, !lost.length, lost.slice(0, 3).join("; "));
+    if (label !== "a switch to meal-prep") check(`D7: ...and the day a record sits in is re-solved around it (${label})`, !offTarget, offTarget);
+  }
+
+  withSeed(2, () => {
+    const { wk, p } = setup();
+    // An import that breaks a rule the change brings is not put back: the re-solve takes it out and names it.
+    const r = applyOperations(p, wk, [op({ tool: "update_profile", cuisine: "italian", excludeFoods: ["rice"] })]);
+    check("D7: an import that breaks a new exclusion is not put back", slot(r.plan, "Wednesday", "dinner")?.name !== feast.name);
+    check("D7: ...and is named", r.notes.some((n) => n.includes(feast.name)), r.notes.join(" | "));
+    check("D7: ...while the logged meals and the reservation stay", records(r.plan).slice(0, 3).every((m, i) => m?.name === records(wk)[i]?.name));
+
+    // A week saved before the mark existed: a free-text log and a reservation are still recognised.
+    const legacy: WeekPlan = { ...wk, days: wk.days.map((d) => ({ ...d, meals: d.meals.map(({ record: _r, ...m }) => m as Meal) })) };
+    const lr = applyOperations(p, legacy, [op({ tool: "regenerate_week" })]);
+    check("D7: a week saved before the mark keeps its free-text log and its reservation through a new week",
+      slot(lr.plan, "Tuesday", "breakfast")?.calories === 900 && slot(lr.plan, "Friday", "dinner")?.name === "Dinner out");
+
+    // A logged snack on a three-meal day is added, as log_meal adds it, and a new week keeps it.
+    const s = applyOperations(p, wk, [op({ tool: "log_meal", day: "Thursday", mealType: "snack", dish: "protein bar", loggedCalories: 220 } as Partial<Operation>)]);
+    const s2 = applyOperations(s.profile, s.plan, [op({ tool: "regenerate_week" })]);
+    check("D7: a logged snack in a slot the plan does not have survives a new week", slot(s2.plan, "Thursday", "snack")?.calories === 220);
+
+    // A reservation in a slot the day no longer has is lost, and said.
+    const p4: UserProfile = { ...p, mealsPerDay: 4 };
+    const w4 = applyOperations(p4, freshWeek(p4), [op({ tool: "eating_out", day: "Saturday", mealType: "snack", estimatedCalories: 300 } as Partial<Operation>)]);
+    const w3 = applyOperations(w4.profile, w4.plan, [op({ tool: "update_profile", mealsPerDay: 3 } as Partial<Operation>)]);
+    check("D7: a reservation whose slot is gone after dropping to three meals is named",
+      !slot(w3.plan, "Saturday", "snack") && w3.notes.some((n) => n.includes("Snack out on Saturday")), w3.notes.join(" | "));
+  });
+}
+
 // ---------------------------------------------------------------- whole-week swap ("every day")
 console.log("");
 console.log("--- WHOLE-WEEK SWAP (\"pancakes every day\") ---");

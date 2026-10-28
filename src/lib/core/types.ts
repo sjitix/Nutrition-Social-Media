@@ -37,6 +37,12 @@ export const MealSchema = z.object({
   // Set only on meals imported from a link (Phase 2). Lets the drawer show a "View original"
   // link back to the source. Optional so the model never emits it and stock recipes don't carry it.
   sourceUrl: z.string().url().optional(),
+  // A RECORD, not a plan (V1 D7): "logged" is a meal the person said they ate, "out" a meal they will eat
+  // out (the calories set aside). Neither is the engine's to change: every re-plan puts it back in its
+  // slot, the way a pin is put back, and no rebalance resizes it. A logged library dish carried the
+  // library's own description, so nothing could tell it from a planned one (review #18): a boost then
+  // replaced it in 9 of 9 runs. Optional: a planned meal carries none.
+  record: z.enum(["logged", "out"]).optional(),
   ingredients: z.array(IngredientSchema),
   steps: z.array(z.string()),
 });

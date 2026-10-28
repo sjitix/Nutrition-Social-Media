@@ -9,7 +9,7 @@
 import { type UserProfile, type WeekPlan } from "../core";
 import { conditionBoosts } from "../data";
 import { MICRO_LABEL, parseExclusionTokens, type MicroKey } from "../nutrition";
-import { RECIPES, baseRecipeOf, recipeMicros, scaleRecipeToTarget, toMeal } from "./library";
+import { RECIPES, baseRecipeOf, isRecord, recipeMicros, scaleRecipeToTarget, toMeal } from "./library";
 import { bannedForUser, blockedByExclusions, exclusionTokens, localSplit, passesDiet } from "./rules";
 import { rebalanceWeek } from "./rebalance";
 import { importBreaks, selectWeekFromDb } from "./select";
@@ -43,6 +43,9 @@ function upgradeForNutrient(profile: UserProfile, plan: WeekPlan, key: MicroKey)
   for (const d of days) {
     for (let i = 0; i < d.meals.length; i++) {
       const cur = d.meals[i];
+      // A record or an import is the person's, not the engine's to upgrade: read as 0 of the nutrient, a
+      // logged meal, a reservation and an import were the FIRST slots swapped (V1 D7, found 2026-10-21).
+      if (cur.sourceUrl || isRecord(cur)) continue;
       const curRecipe = RECIPES.find((r) => r.name === cur.name);
       const curAmount = curRecipe ? recipeMicros(curRecipe).micros[key] : 0;
       const inDay = new Set(d.meals.map((m) => m.name));

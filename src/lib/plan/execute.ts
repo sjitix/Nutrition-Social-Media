@@ -11,10 +11,10 @@ import { DAYS, type DayPlan, type Meal, type Operation, type UserProfile, type W
 import { computeTargets, explainTargets, hydrationTarget, explainHydration, CALORIE_FLOOR, DEFAULT_CALORIE_FLOOR, BODY_LIMITS, bodyStatProblems, bodyStatMessage, isRealBody, referenceWeightKg } from "../nutrition/client";
 import { type Recipe } from "../data";
 import { CRISIS_REPLY, MICRO_LABEL, exclusionCovers, haystackBlocked, mealHaystack, parseExclusionTokens, wordMatches, type MicroKey } from "../nutrition";
-import { RECIPES, baseRecipeOf, scaleRecipeToTarget, toMeal } from "./library";
+import { RECIPES, baseRecipeOf, isRecord, recordKind, scaleQuantity, scaleRecipeToTarget, toMeal } from "./library";
 import { bannedForUser, blockedByExclusions, budgetCap, exclusionKey, exclusionTokens, fiberOn, isSeafood, isSeafoodWord, keepMacros, localSplit, mergeDislikes, normalizeCuisine, passesDiet, wantsSeafood } from "./rules";
 import { SCALE_LO, clampScale, dayTargetMacros, macroDistance, rebalanceDay, rebalanceWeek, recipeMacros, scaleRecipeByFactor, scaleToTargets, slotShare, slotTargetMacros, slotsUpTo } from "./rebalance";
-import { brokenImports, importNotes, newReport, reportNotes, selectDay, selectWeekFromDb, withSeed, type ReplacedImport } from "./select";
+import { brokenImports, importBreaks, importNotes, newReport, reportNotes, selectDay, selectWeekFromDb, withSeed, type ReplacedImport } from "./select";
 import { buildWeek } from "./batch";
 import { PROTEIN_MISS, achievementNote, dayTotals, dayTotalsFull, explainMealNote, listPhrase, microNote, rateMealNote, resolveRatedDish, substituteNote, symptomNote, weekAveragesFull, weeklyReportNote } from "./report";
 import { guaranteeBoost } from "./boost";
@@ -205,6 +205,20 @@ function refusedForExclusions(
  * invariants that exist to protect someone's health.
  * ------------------------------------------------------------------------- */
 
+/** A recipe at exactly `f` times its portion, unclamped: for a meal the person says they ate, whose size is a
+ *  fact the planner's 0.6-1.8x portion range does not apply to. */
+function atFactor(r: Recipe, f: number): Recipe {
+  return {
+    ...r,
+    calories: Math.round(r.calories * f),
+    proteinGrams: Math.round(r.proteinGrams * f),
+    carbsGrams: Math.round(r.carbsGrams * f),
+    fatGrams: Math.round(r.fatGrams * f),
+    ...(r.fiberGrams != null ? { fiberGrams: Math.round(r.fiberGrams * f) } : {}),
+    ingredients: r.ingredients.map((i) => ({ ...i, quantity: scaleQuantity(i.quantity, f) })),
+  };
+}
+
 function lockKey(day: string, mealType: string): string {
   return `${day}|${mealType}`;
 }
@@ -308,6 +322,57 @@ function reimposeLocks(
   return { plan: { ...plan, days }, dropped };
 }
 
+/**
+ * Put the person's records back where they were before a re-plan (V1 D7): every meal they logged as eaten,
+ * every meal set aside for eating out, and every recipe they imported that still keeps to the rules. A
+ * boost, a re-theme, a fridge clear-out, a new week and a mode switch all select from scratch, and took all
+ * three out with nothing said (27 of 27 re-plans in the D7 probe, 9 of 9 boosts on `ef71993`). Called after
+ * the pins go back, so a record outranks a pin in the same slot: what was eaten is a fact. Each day a
+ * record went back into is re-solved around it with it held fixed, as log_meal and eating_out do.
+ *
+ * An import that breaks a rule the change brought (importBreaks against `before`) is not put back: the
+ * re-solve already took it out and named it. A logged meal whose slot the day no longer has (a snack, after
+ * dropping to three meals) is added, as log_meal adds it; a reservation or an import there is lost, and said.
+ */
+function reimposeRecords(
+  p: UserProfile,
+  plan: WeekPlan,
+  from: WeekPlan,
+  onlyDays?: ReadonlySet<string>,
+  before?: UserProfile,
+): { plan: WeekPlan; lost: string[] } {
+  const lost: string[] = [];
+  const days = plan.days.map((d) => {
+    if (onlyDays && !onlyDays.has(d.day)) return d;
+    const was = from.days.find((x) => x.day === d.day);
+    const records = (was?.meals ?? []).filter((m) => isRecord(m) || (m.sourceUrl && !importBreaks(m, p, before)));
+    if (!records.length) return d;
+    const meals = [...d.meals];
+    let changed = false;
+    for (const r of records) {
+      const i = meals.findIndex((m) => m.type === r.type);
+      if (i >= 0) {
+        if (sameContent(meals[i], r)) continue;
+        meals[i] = r;
+      } else if (recordKind(r) === "logged") {
+        meals.push(r);
+      } else {
+        lost.push(`${r.name} on ${d.day}`);
+        continue;
+      }
+      changed = true;
+    }
+    if (!changed) return d;
+    // In meal-prep mode the day's other meals are servings of batches cooked once, identical on every day they
+    // feed: resizing them around the record would break that, so the record goes back and the day is not
+    // re-solved.
+    if (p.planMode === "batch") return { ...d, meals };
+    const fixed = new Set<Meal["type"]>([...records.map((r) => r.type), ...lockedSlotsFor(p, d.day)]);
+    return { ...d, meals: rebalanceDay(meals, p, fixed, namesOnOtherDays(plan, d.day, p)) };
+  });
+  return { plan: { ...plan, days }, lost };
+}
+
 /* ------------------------------------------------------------------------- *
  * "Use up the salmon and broccoli I have"
  *
@@ -373,10 +438,11 @@ function guaranteeFridge(
     cands.sort((a, b) => score(b) - score(a) || a.approxCost - b.approxCost);
     const pick = cands[0];
 
-    // Displace a slot of the same type that is neither pinned nor already earning its keep.
+    // Displace a slot of the same type that is neither pinned, the person's own (a record or an import:
+    // V1 D7), nor already earning its keep.
     const target = cur.days.find((d) => {
       const m = d.meals.find((x) => x.type === pick.type);
-      return !!m && !pinned.has(lockKey(d.day, m.type)) && !want.some((w) => uses(m, w));
+      return !!m && !pinned.has(lockKey(d.day, m.type)) && !isRecord(m) && !m.sourceUrl && !want.some((w) => uses(m, w));
     });
     if (!target) {
       unusable.push(ing);
@@ -464,6 +530,7 @@ function eatingOut(
     name: `${mealType[0].toUpperCase()}${mealType.slice(1)} out`,
     type: mealType,
     description: "Eating out — calories reserved. Log what you actually had and I'll rebalance.",
+    record: "out",
     calories: reserve,
     proteinGrams: 0,
     carbsGrams: 0,
@@ -754,8 +821,19 @@ export function applyOperations(
    * said "make Tuesday vegan", not "stop pinning my roast".
    */
   const applyLocks = (onlyDays?: Set<string>, effective?: UserProfile) => {
-    if (!p.lockedMeals?.length) return;
     const eff = effective ?? p;
+    applyPins(eff, onlyDays);
+    // Then the person's records, from the week as this operation found it (V1 D7).
+    const rec = reimposeRecords(eff, curPlan, opStart.plan, onlyDays, opStart.profile);
+    curPlan = rec.plan;
+    if (rec.lost.length)
+      notes.push(`You eat ${p.mealsPerDay} meals a day now, so ${listPhrase(rec.lost)} ${rec.lost.length === 1 ? "has" : "have"} no slot left and ${rec.lost.length === 1 ? "is" : "are"} no longer in your week.`);
+  };
+  /** The pins and then the records, as the person will see the week: what guaranteeBoost measures. */
+  const withPinsAndRecords = (pl: WeekPlan) =>
+    reimposeRecords(p, reimposeLocks(p, pl).plan, opStart.plan, undefined, opStart.profile).plan;
+  const applyPins = (eff: UserProfile, onlyDays?: Set<string>) => {
+    if (!p.lockedMeals?.length) return;
     const temporary = eff !== p;
     const res = reimposeLocks(eff, curPlan, onlyDays);
     curPlan = res.plan;
@@ -771,6 +849,8 @@ export function applyOperations(
     for (const d of res.dropped)
       notes.push(`I couldn't keep ${d.lock.name} pinned on ${d.lock.day} — ${d.why}. I've unpinned it.`);
   };
+  // The week and profile as the current operation found them: where its records are put back from.
+  let opStart = { plan, profile: { ...p } };
   // Factual macro notes the LLM can't produce (it does no math) — the route appends
   // these so the assistant reports honestly what the engine did.
   const notes: string[] = [];
@@ -790,6 +870,7 @@ export function applyOperations(
 
   for (const [opIndex, op] of operations.entries()) {
     const planBefore = curPlan;
+    opStart = { plan: curPlan, profile: { ...p } };
     switch (op.tool) {
       case "update_profile": {
         // The profile before this op changes it: an imported dish that breaks a diet or an exclusion this
@@ -878,7 +959,7 @@ export function applyOperations(
               },
             };
             // Measured with the pins back in place, as the person will see the week (E7).
-            const g = guaranteeBoost(p, prev, curPlan, op.boostNutrient, was, keep, (pl) => reimposeLocks(p, pl).plan);
+            const g = guaranteeBoost(p, prev, curPlan, op.boostNutrient, was, keep, withPinsAndRecords);
             curPlan = g.plan;
             if (g.note) { boostNotes.push({ at: notes.length, key: op.boostNutrient, level: false, op: opIndex }); notes.push(g.note); }
           }
@@ -918,7 +999,7 @@ export function applyOperations(
               unchanged: true,
               resolve: () => rebalanceWeek(selectWeekFromDb(p, undefined, false, undefined, undefined, newReport(),
                 { plan: prev, keepIf: (r) => passesDiet(r, p.diet) && !blockedByExclusions(r, tokNow) }), p),
-            }, (pl) => reimposeLocks(p, pl).plan);
+            }, withPinsAndRecords);
             curPlan = g.plan;
             if (g.note) { boostNotes.push({ at: notes.length, key: op.boostNutrient, level: false, op: opIndex }); notes.push(g.note); }
           }
@@ -1299,25 +1380,38 @@ export function applyOperations(
         const origDay = curPlan.days.find((d) => d.day === op.day);
         if (!origDay) break;
 
+        // Guard the model's number the way update_profile/compute_targets do: a negative or non-finite
+        // logged calorie count is "truthy", was locked into the day, and then the rebalancer inflated
+        // the other meals to cover the phantom deficit. A bad number is treated as no number, so we
+        // fall through to the !eaten branch below and ask, rather than poisoning the day.
+        const stated = op.loggedCalories && op.loggedCalories > 0 && Number.isFinite(op.loggedCalories) ? op.loggedCalories : null;
+        const statedProtein = op.loggedProtein && op.loggedProtein > 0 && Number.isFinite(op.loggedProtein) ? op.loggedProtein : null;
         let eaten: Meal | null = null;
         if (op.dish) {
           // Search ALL slots, not just the logged one: pizza is a "dinner" recipe but people
           // eat it at lunch. respectSoft=false because they already ate it — cook time and
           // budget are irrelevant to a meal that is already in the past.
           const match = findRecipeForSwap(op.dish, undefined, p, false);
-          if (match) eaten = { ...toMeal(match), type: op.mealType };
+          // The person's own figures win over the library's portion: "burger and chips, 900 kcal" was logged
+          // as the library's 769 (V1 D7). The dish is scaled to what they said, with no 0.6-1.8x clamp, since
+          // it is a fact and not a plan; it is marked as a record and described as theirs, where it used to
+          // carry the library's description and look like a planned meal (review #18).
+          if (match) {
+            const eatenAs = stated ? atFactor(match, stated / match.calories) : match;
+            eaten = {
+              ...toMeal(eatenAs), type: op.mealType, description: "Logged by you.", record: "logged",
+              ...(stated ? { calories: stated } : {}), ...(statedProtein ? { proteinGrams: statedProtein } : {}),
+            };
+          }
         }
-        // Guard the model's number the way update_profile/compute_targets do: a negative or non-finite
-        // logged calorie count is "truthy", was locked into the day, and then the rebalancer inflated
-        // the other meals to cover the phantom deficit. A bad number is treated as no number, so we
-        // fall through to the !eaten branch below and ask, rather than poisoning the day.
-        if (!eaten && op.loggedCalories && op.loggedCalories > 0 && Number.isFinite(op.loggedCalories)) {
+        if (!eaten && stated) {
           eaten = {
             name: op.dish ? op.dish : "Logged meal",
             type: op.mealType,
             description: "Logged by you.",
-            calories: op.loggedCalories,
-            proteinGrams: op.loggedProtein && op.loggedProtein > 0 ? op.loggedProtein : 0,
+            record: "logged",
+            calories: stated,
+            proteinGrams: statedProtein ?? 0,
             carbsGrams: 0,
             fatGrams: 0,
             timeMinutes: 0,

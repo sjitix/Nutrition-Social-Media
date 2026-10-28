@@ -138,5 +138,22 @@ const recipeByName = new Map(RECIPES.map((r) => [r.name.toLowerCase(), r]));
  *  one, even titled like one: a "Chickpea Curry" import with cashews was rebuilt as the library's by a
  *  portion rebalance, and a re-solve judged a gluten-free "Chicken Fajitas" import by the library dish's
  *  tortillas and took it out with nothing said (review, 2026-10-21). An import is judged on its own text
- *  (select.ts importBreaks) and kept as it is. */
-export const baseRecipeOf = (m: Meal): Recipe | undefined => (m.sourceUrl ? undefined : recipeByName.get(m.name.toLowerCase()));
+ *  (select.ts importBreaks) and kept as it is. Nor is a record (a meal logged or eaten out, `isRecord`), even
+ *  a logged library dish: what was eaten is a fact, so it is held as it is, never resized or re-picked. */
+export const baseRecipeOf = (m: Meal): Recipe | undefined =>
+  (m.sourceUrl || isRecord(m) ? undefined : recipeByName.get(m.name.toLowerCase()));
+
+/** The descriptions log_meal and eating_out wrote before the `record` mark existed (V1 D7), so a week saved
+ *  before it still has its records recognised. A logged LIBRARY dish of that time carried the library's
+ *  description and cannot be told apart; a free-text one and every reservation can. */
+export function recordKind(m: Meal): Meal["record"] | null {
+  if (m.record) return m.record;
+  if (m.sourceUrl) return null;
+  if ((m.description ?? "").startsWith("Logged by you.")) return "logged";
+  if ((m.description ?? "").startsWith("Eating out — calories reserved.")) return "out";
+  return null;
+}
+
+/** A meal the person told us about rather than one the engine planned: logged as eaten, or set aside for
+ *  eating out. Re-plans put it back (execute.ts reimposeRecords); rebalances hold it fixed. */
+export const isRecord = (m: Meal): boolean => recordKind(m) != null;
