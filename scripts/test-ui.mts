@@ -18,6 +18,7 @@
 import { parseCommand, COMMAND_EXAMPLES } from "@/app/sage/commands";
 import { summariseWeek } from "@/app/sage/weekStats";
 import { canonicalJson } from "@/app/sage/canonical";
+import { shortDays, suggestionText } from "@/app/sage/suggest";
 import { DAYS } from "@/lib/core";
 import type { Meal, WeekPlan } from "@/lib/core";
 
@@ -172,6 +173,35 @@ console.log("\n--- canonicalJson (is this still the week I wrote?) ---");
   check("array order still counts (meals are ordered)", canonicalJson(d) !== canonicalJson(e));
   check("an undefined field is the same as a missing one (JSON drops it on save)",
     canonicalJson({ x: 1, y: undefined }) === canonicalJson({ x: 1 }));
+}
+
+// THE SUGGESTION (V1 D9): which days the bar may speak about, and what it says. The engine half (whether a re-plan
+// closes the gap) is test-engine.mts's; here, the arithmetic and the words.
+{
+  const meal = (name: string, type: Meal["type"], proteinGrams: number, record?: Meal["record"]): Meal =>
+    ({ name, type, description: "", calories: 600, proteinGrams, carbsGrams: 60, fatGrams: 20, timeMinutes: 20, ingredients: [], steps: [], ...(record ? { record } : {}) }) as Meal;
+  const week = (protein: Record<string, number>, logged: string[] = []): WeekPlan => ({
+    weekSummary: "",
+    days: DAYS.map((day) => ({ day, meals: [
+      meal("Oats", "breakfast", 30, logged.includes(day) ? "logged" : undefined),
+      meal("Bowl", "lunch", 50, logged.includes(day) ? "logged" : undefined),
+      meal("Stew", "dinner", (protein[day] ?? 150) - 80, logged.includes(day) ? "out" : undefined),
+    ] })),
+  }) as WeekPlan;
+  const days = (w: WeekPlan, only?: string[]) => shortDays(summariseWeek(w), 150, only).map((d) => d.day).join(",");
+  check("suggestion: a week on target, or short by no more than the engine's 8 g, has no short day",
+    days(week({})) === "" && days(week({ Tuesday: 142 })) === "", days(week({ Tuesday: 142 })));
+  check("suggestion: short days come worst first",
+    days(week({ Tuesday: 128, Friday: 120, Sunday: 140 })) === "Friday,Tuesday,Sunday", days(week({ Tuesday: 128, Friday: 120, Sunday: 140 })));
+  check("suggestion: Today asks about its own day only", days(week({ Tuesday: 128, Friday: 120 }), ["Tuesday"]) === "Tuesday");
+  check("suggestion: a day that is all logged meals and a meal out is a set of facts, not offered",
+    days(week({ Tuesday: 128, Friday: 120 }, ["Friday"])) === "Tuesday", days(week({ Tuesday: 128, Friday: 120 }, ["Friday"])));
+  const reach = suggestionText({ day: "Tuesday", protein: 128, after: 146, target: 150, moves: [
+    { slot: "lunch", from: "Bowl", to: "Chicken Caesar, No Croutons" }, { slot: "dinner", from: "Pizza", to: "Turkey & Bean Chilli" }] });
+  const part = suggestionText({ day: "Tuesday", protein: 110, after: 130, target: 150, moves: [] });
+  check("suggestion: the line gives the gap, names every dish it would change, and says 'on your target' only when it gets there",
+    reach === "Tuesday is 22 g short of protein. Switching lunch to Chicken Caesar, No Croutons and dinner to Turkey & Bean Chilli brings it to 146 g, on your 150 g." &&
+      part === "Tuesday is 40 g short of protein. Re-planning it brings it to 130 g.", `${reach} | ${part}`);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

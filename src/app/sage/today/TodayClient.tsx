@@ -3,6 +3,8 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { loadMyWeek, PLAN_CHANGED_EVENT } from "../myPlan";
+import { SuggestionBar } from "../SuggestionBar";
+import type { WeekStats } from "../weekStats";
 import { imageForMeal, cutoutForMeal } from "@/lib/presentation/client";
 import type { Meal } from "@/lib/core";
 
@@ -65,12 +67,15 @@ export function TodayClient({
   const [targets, setTargets] = useState(initialTargets);
   const [hour, setHour] = useState(0);
   const [pinned, setPinned] = useState(false);
+  // This person's week, for the suggestion (V1 D9): null on the sample day, and in meal-prep mode, where a day
+  // cannot be re-planned on its own.
+  const [mine, setMine] = useState<{ stats: WeekStats; protein: number } | null>(null);
   useEffect(() => {
     // Swap the shared demo for THIS person's real day on mount, and re-read on a mode/cadence switch
     // (PLAN_CHANGED_EVENT) — no page reload.
     const refresh = () => {
       const mine = loadMyWeek();
-      if (!mine) { setDay(initialDay); setMeals(initialMeals); setTargets(initialTargets); return; }
+      if (!mine) { setDay(initialDay); setMeals(initialMeals); setTargets(initialTargets); setMine(null); return; }
       const todayIdx = (new Date().getDay() + 6) % 7; // week days are Monday-first; getDay() is Sunday=0
       const d = mine.week.days[todayIdx];
       if (!d) return;
@@ -83,6 +88,7 @@ export function TodayClient({
       setDay(d.day);
       setMeals(d.meals.map(toDayMeal));
       setTargets({ calories: mine.profile.targetCalories, protein: mine.profile.proteinGrams, fibre: mine.profile.fiberGrams ?? 30 });
+      setMine(mine.profile.planMode === "batch" ? null : { stats: mine.stats, protein: mine.profile.proteinGrams });
     };
     refresh();
     window.addEventListener(PLAN_CHANGED_EVENT, refresh);
@@ -271,6 +277,8 @@ export function TodayClient({
               </span>
             </p>
           </div>
+
+          {mine && <SuggestionBar stats={mine.stats} proteinTarget={mine.protein} onlyDays={[day]} enabled />}
 
           {/* the outlined rows: the meals still to come */}
           <div className="mt-6 flex flex-col gap-2.5">

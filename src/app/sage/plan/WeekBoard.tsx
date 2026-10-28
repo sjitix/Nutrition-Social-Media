@@ -12,6 +12,7 @@ import { loadMyWeek, generateMyWeek, PLAN_CHANGED_EVENT } from "../myPlan";
 import type { WeekStats } from "../weekStats";
 import { MealSheet } from "../MealSheet";
 import { ReconcileSheet } from "../ReconcileSheet";
+import { SuggestionBar } from "../SuggestionBar";
 import { fixMyWeek, movePair, undoLast, canUndo, lastChangeLabel, ActionError } from "../actions";
 import { CommandPalette } from "../CommandPalette";
 import type { DayPlan, Meal, Operation, UserProfile, WeekPlan } from "@/lib/core";
@@ -271,6 +272,7 @@ export default function WeekBoard({ demo }: { demo: { stats: WeekStats; targets:
       {fixNote && (
         <p className="mt-3 rounded-[10px] bg-tint px-4 py-3 text-[12.5px] leading-relaxed">{fixNote}</p>
       )}
+      <SuggestionBar stats={stats} proteinTarget={targets.proteinGrams} enabled={personalized && !view.batch} />
 
       {view.batch && (
         <div className="mt-4 rounded-[10px] bg-panel p-4 text-white">

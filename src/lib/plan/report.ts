@@ -6,7 +6,7 @@
  * milestone A3). The public surface is ./index.ts; an export here that index.ts does not re-export
  * is internal to this folder, and check:boundaries fails anything outside the folder that imports it.
  */
-import { type DayPlan, type Meal, type UserProfile, type WeekPlan } from "../core";
+import { PROTEIN_MISS, type DayPlan, type Meal, type UserProfile, type WeekPlan } from "../core";
 import { haystackBlocked, dietTagConflicts, wordMatches } from "../nutrition";
 import { SUBSTITUTES, INGREDIENT_ALIASES } from "../data";
 import { SYMPTOMS } from "../data";
@@ -57,9 +57,9 @@ export function weekMicroAverage(plan: WeekPlan, key: MicroKey): { amount: numbe
   return { amount: total / n, coverage: meals ? cov / meals : 0 };
 }
 
-export const PROTEIN_MISS = 8;
-
- // g/day we'll tolerate before admitting we fell short
+// g/day we'll tolerate before admitting we fell short. Lives in core (zod-free) so the Week and Today suggestions
+// use the same line the engine's notes do (V1 D9).
+export { PROTEIN_MISS };
 
 /**
  * Report what the plan ACTUALLY achieved. The model writes the friendly sentence but does

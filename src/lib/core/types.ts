@@ -348,7 +348,7 @@ export interface BodyStats {
 }
 
 // The starting targets live in ./defaults (no zod), so the browser can have them without this file.
-export { DEFAULT_TARGETS } from "./defaults";
+export { DEFAULT_TARGETS, PROTEIN_MISS } from "./defaults";
 
 export interface ChatMessage {
   role: "user" | "assistant";

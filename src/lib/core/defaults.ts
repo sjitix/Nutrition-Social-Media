@@ -14,3 +14,7 @@ export const DEFAULT_TARGETS = {
   maxCookTime: 30,
   maxIngredients: 8,
 } as const;
+
+/** Grams of protein a day may fall short by before anything says so: the engine's notes ("Protein lands at …") and
+ *  the Week and Today suggestions (V1 D9) both use it, so neither can call a day short that the other calls fine. */
+export const PROTEIN_MISS = 8;

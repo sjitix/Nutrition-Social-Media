@@ -17,7 +17,7 @@ import { reseed } from "./seeded-random";
 import { selectWeekFromDb, rebalanceWeek, applyOperations, RECIPES, recipeMicros, newReport, reportNotes, selectConditionAwareWeek, buildWeek, selectBatchWeek, rebalanceBatchWeek, withSeed, keepDays, freezesWell, previewOperations, swapCandidates } from "@/lib/recipeDb";
 import { conditionBoosts } from "@/lib/data/conditions";
 import type { UserProfile, Operation, DayPlan, WeekPlan, Meal } from "@/lib/core/types";
-import { MealSchema, WeekPlanSchema } from "@/lib/core/types";
+import { MealSchema, WeekPlanSchema, PROTEIN_MISS } from "@/lib/core/types";
 import { FEED_RECIPES, filterFeed, sortFeed, HIGH_PROTEIN_G, type FeedFilter } from "@/lib/presentation/feed";
 import { videoPlatform, extractVideoText } from "@/lib/providers/videoImport";
 import { aisleFor, groupByAisle, AISLE_ORDER } from "@/lib/nutrition/grocery";
@@ -1835,6 +1835,24 @@ console.log("\n--- LOG_MEAL (real life derails the plan) ---");
   check("log_meal: the dish has to be the food named, by its head word: chicken caesar is not a Caesar wrap, leftover chilli is not chilli-lime tacos, a slice of pizza is pizza",
     caesar.meal?.name === "Chicken Caesar, No Croutons" && /chilli$/i.test(chilli.meal?.name ?? "") && /pizza$/i.test(slice.meal?.name ?? ""),
     `${caesar.meal?.name} / ${chilli.meal?.name} / ${slice.meal?.name}`);
+}
+{
+  // V1 D9's premise: the Week and Today suggestion fixes a protein-short day with regenerate_day, because
+  // rebalance_day holds the day's calories and barely moves its protein (measured 2026-10-28: 128 g -> 127 g).
+  // If the engine changes so that either is no longer true, the suggestion (src/app/sage/suggest.ts) must change too.
+  const gains = [1, 2, 3, 4, 5, 6, 7, 8].map((seed) => withSeed(seed, () => {
+    const wk = freshWeek(BASE);
+    const short = applyOperations(BASE, wk, [op({ tool: "swap_meal", day: "Tuesday", mealType: "dinner", dish: "Pepperoni & Mozzarella Pizza", preserveMacros: false } as never)]).plan;
+    const tue = (w: WeekPlan) => prot(w.days.find((d) => d.day === "Tuesday")!);
+    const regen = applyOperations(BASE, short, [op({ tool: "regenerate_day", day: "Tuesday" })]).plan;
+    const rebal = applyOperations(BASE, short, [op({ tool: "rebalance_day", day: "Tuesday" } as never)]).plan;
+    return { before: tue(short), regen: tue(regen) - tue(short), rebal: tue(rebal) - tue(short) };
+  }));
+  // Only a day short by more than PROTEIN_MISS is one the suggestion would speak about; a seed whose swap left it
+  // within the line is not a case. 8 seeds give 3 short days (2026-10-28: +16, +32 and +8 g).
+  const short = gains.filter((g) => BASE.proteinGrams - g.before > PROTEIN_MISS);
+  check("D9: on a day a swap left short of protein, a re-plan of the day closes at least PROTEIN_MISS of the gap, and rebalancing does not",
+    short.length >= 3 && short.every((g) => g.regen >= PROTEIN_MISS) && gains.every((g) => g.rebal < PROTEIN_MISS), JSON.stringify(gains));
 }
 {
   // log_meal on a slot the day doesn't have (BASE is 3 meals — no snack) must ABSORB the eaten meal,
