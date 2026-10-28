@@ -142,6 +142,7 @@ export const OperationSchema = z.object({
     "rate_meal", // "that salmon was incredible" / "hated the tofu" -> learn the taste
     "hydration", // "how much water should i drink?" -> engine computes it from body weight
     "scale_portions", // "i'm still hungry" / "that's way too much food" -> resize the servings
+    "move_meal", // "move Tuesday's dinner to Thursday" -> the two meals change places as they are (V1 D9a)
     "rebalance_day", // "balance my day around this" -> rescale the day's OTHER meals to targets,
     //                   holding anything without a base recipe (an imported meal, a logged meal,
     //                   a restaurant reserve) fixed. Portions only — never swaps the user's dishes.
@@ -151,6 +152,10 @@ export const OperationSchema = z.object({
   day: z.enum(DAYS).nullable().optional(),
   mealType: z.enum(MEAL_TYPES).nullable().optional(),
   dish: z.string().nullable().optional(), // for swap_meal, e.g. "cottage cheese pancakes"
+  // move_meal: where the meal at day/mealType goes; the meal there comes back the other way. A missing one means the same
+  // as day/mealType ("move it to Thursday" keeps the slot).
+  toDay: z.enum(DAYS).nullable().optional(),
+  toMealType: z.enum(MEAL_TYPES).nullable().optional(),
   cuisine: z.string().nullable().optional(),
   diet: z.enum(["none", "vegetarian", "vegan", "keto", "mediterranean"]).nullable().optional(),
   budget: z.enum(["low", "medium", "high"]).nullable().optional(),

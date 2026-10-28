@@ -16,7 +16,7 @@ import { bannedForUser, blockedByExclusions, budgetCap, exclusionKey, exclusionT
 import { SCALE_LO, clampScale, dayTargetMacros, macroDistance, rebalanceDay, rebalanceWeek, recipeMacros, scaleRecipeByFactor, scaleToTargets, slotShare, slotTargetMacros, slotsUpTo } from "./rebalance";
 import { brokenImports, importBreaks, importNotes, newReport, reportNotes, selectDay, selectWeekFromDb, withSeed, type ReplacedImport } from "./select";
 import { buildWeek } from "./batch";
-import { PROTEIN_MISS, achievementNote, dayTotals, dayTotalsFull, explainMealNote, listPhrase, microNote, rateMealNote, resolveRatedDish, substituteNote, symptomNote, weekAveragesFull, weeklyReportNote } from "./report";
+import { PROTEIN_MISS, achievementNote, dayTotals, dayTotalsFull, explainMealNote, figuresNote, listPhrase, microNote, rateMealNote, resolveRatedDish, substituteNote, symptomNote, weekAveragesFull, weeklyReportNote } from "./report";
 import { guaranteeBoost } from "./boost";
 
 // Macro-aware swap: among the recipes that match the requested dish name, pick the
@@ -1612,6 +1612,62 @@ export function applyOperations(
           Math.abs(off) <= 60
             ? `Balanced ${op.day} around your other meals — the day now lands at about ${total} kcal, on your ${tgt} target.`
             : `Balanced ${op.day} as far as realistic portions allow: about ${total} kcal, still ${off > 0 ? `${off} over` : `${-off} under`} your ${tgt} target — the fixed meal is too ${off > 0 ? "large" : "small"} for the rest of the day to fully offset.`,
+        );
+        break;
+      }
+      case "move_meal": {
+        // "Move Tuesday's dinner to Thursday" (V1 D9a). The two meals change places exactly as they are, so an
+        // import moves as itself; by dish name through swap_meal it would be looked up in the library within the
+        // slot's type, and an import, or a lunch moved to a dinner slot, came back as some other dish. Each day
+        // touched is then balanced (scaleToTargets: an import stays fixed, the rest of the day's portions move).
+        const toDay = op.toDay ?? op.day;
+        const toSlot = op.toMealType ?? op.mealType;
+        if (!op.day || !op.mealType || !toDay || !toSlot) {
+          notes.push("Which meal should I move, and to which day?");
+          break;
+        }
+        if (toDay === op.day && toSlot === op.mealType) {
+          notes.push(`That is already ${op.day}'s ${op.mealType}.`);
+          break;
+        }
+        if (p.planMode === "batch") {
+          notes.push("In meal-prep mode each meal is a serving of a batch you cook once, so I can't move one on its own. Switch to Fresh to move meals between days.");
+          break;
+        }
+        const a = curPlan.days.find((d) => d.day === op.day)?.meals.find((m) => m.type === op.mealType);
+        const b = curPlan.days.find((d) => d.day === toDay)?.meals.find((m) => m.type === toSlot);
+        if (!a) {
+          notes.push(`${op.day} has no ${op.mealType} to move.`);
+          break;
+        }
+        if (!b) {
+          notes.push(`${toDay} has no ${toSlot} in your plan to move it to.`);
+          break;
+        }
+        // A logged meal or a meal out is a fact about the day it happened on, and a pin is the person's own
+        // "keep this here": neither moves, and the reply says which and why.
+        const held = ([[a, op.day, op.mealType], [b, toDay, toSlot]] as const).find(([m, d, s]) => isRecord(m) || lockedSlotsFor(p, d).has(s));
+        if (held) {
+          const [m, d, s] = held;
+          const kind = recordKind(m);
+          notes.push(
+            kind === "out" ? `${d}'s ${s} is set aside for eating out, so it stays on ${d}.`
+              : kind === "logged" ? `${m.name} is logged as eaten on ${d}, so it stays where it happened.`
+              : `${m.name} is pinned to ${d}'s ${s}. Unpin it first if you'd like it moved.`,
+          );
+          break;
+        }
+        const placed = (day: string, slot: string, meal: Meal) => (d: DayPlan) =>
+          d.day !== day ? d : { ...d, meals: d.meals.map((m) => (m.type === slot ? { ...meal, type: m.type } : m)) };
+        let moved = curPlan.days.map(placed(op.day, op.mealType, b)).map(placed(toDay, toSlot, a));
+        const touched = [...new Set([op.day, toDay])];
+        // scaleToTargets rebuilds a library meal from its recipe, recipe type and all, so each slot's type is put back:
+        // a lunch moved to a dinner slot otherwise left the day with two lunches and no dinner.
+        moved = moved.map((d) => (touched.includes(d.day) ? { ...d, meals: scaleToTargets(d.meals, p).map((m, i) => ({ ...m, type: d.meals[i].type })) } : d));
+        curPlan = { ...curPlan, days: moved };
+        notes.push(
+          `Moved ${a.name} to ${toDay}'s ${toSlot}, and ${b.name} to ${op.day}'s ${op.mealType}.` +
+            touched.map((d) => figuresNote(curPlan, p, d)).filter(Boolean).map((s) => ` ${s}`).join(""),
         );
         break;
       }

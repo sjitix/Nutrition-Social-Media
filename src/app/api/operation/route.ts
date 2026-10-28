@@ -48,6 +48,9 @@ const ALLOWED: ReadonlySet<Operation["tool"]> = new Set([
 
   // The user picked the dish from a list the engine itself produced. `dish` is an exact name.
   "swap_meal",
+  // A plate dragged onto another slot (V1 D9a): both slots come from the drag itself, and the engine exchanges
+  // the two meals exactly as they are. It refuses a logged meal, a meal out and a pin, and says why.
+  "move_meal",
   // A "regenerate this day" button. Any per-day diet/cuisine/cook-time cap comes from a control,
   // not from reading a sentence.
   "regenerate_day",

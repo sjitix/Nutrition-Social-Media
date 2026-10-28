@@ -1855,6 +1855,57 @@ console.log("\n--- LOG_MEAL (real life derails the plan) ---");
     short.length >= 3 && short.every((g) => g.regen >= PROTEIN_MISS) && gains.every((g) => g.rebal < PROTEIN_MISS), JSON.stringify(gains));
 }
 {
+  // V1 D9a: move_meal, the engine operation behind "move Tuesday's dinner to Thursday" and the Week board's drag.
+  // The two meals change places exactly as they are; through two swap_meals by name, an import or a lunch moved to
+  // a dinner slot was looked up in the library and came back as another dish.
+  const wk = withSeed(4, () => freshWeek(BASE));
+  const at = (w: WeekPlan, day: string, slot: string) => w.days.find((d) => d.day === day)!.meals.find((m) => m.type === slot)!;
+  const move = (p: UserProfile, w: WeekPlan, day: string, slot: string, toDay: string, toSlot: string) =>
+    applyOperations(p, w, [op({ tool: "move_meal", day, mealType: slot, toDay, toMealType: toSlot } as never)]);
+  const tueDinner = at(wk, "Tuesday", "dinner").name, thuDinner = at(wk, "Thursday", "dinner").name;
+  const r = move(BASE, wk, "Tuesday", "dinner", "Thursday", "dinner");
+  const near = (w: WeekPlan, day: string) => Math.abs(kcal(w.days.find((d) => d.day === day)!) - 2000) <= 150;
+  check("move_meal: two dinners change days, each day is balanced again, and the note names both and where each day lands",
+    at(r.plan, "Thursday", "dinner").name === tueDinner && at(r.plan, "Tuesday", "dinner").name === thuDinner && r.planChanged &&
+    near(r.plan, "Tuesday") && near(r.plan, "Thursday") && r.notes.some((n) => n.startsWith(`Moved ${tueDinner} to Thursday's dinner, and ${thuDinner} to Tuesday's dinner.`) && /Tuesday now has/.test(n) && /Thursday now has/.test(n)),
+    r.notes[0]?.slice(0, 160));
+
+  // A lunch into a dinner slot keeps its dish (swap_meal looked it up among dinners), and the slot keeps its type.
+  const monLunch = at(wk, "Monday", "lunch").name;
+  const x = move(BASE, wk, "Monday", "lunch", "Wednesday", "dinner");
+  check("move_meal: a lunch moved to another day's dinner slot is the same dish there, under the slot's own type",
+    at(x.plan, "Wednesday", "dinner").name === monLunch && at(x.plan, "Wednesday", "dinner").type === "dinner", at(x.plan, "Wednesday", "dinner").name);
+
+  // An import moves as itself.
+  const imported = importedToMeal({ name: "Imported Feast Bowl", sourceUrl: "https://example.com/feast", servings: 1,
+    ingredients: [{ name: "rice", quantity: "2 cups" }], steps: ["Cook."], calories: 700, proteinGrams: 40, carbsGrams: 80, fatGrams: 20, macrosSource: "site" }, "dinner");
+  const withImport: WeekPlan = { ...wk, days: wk.days.map((d) => d.day !== "Tuesday" ? d : { ...d, meals: d.meals.map((m) => m.type === "dinner" ? imported : m) }) };
+  const im = move(BASE, withImport, "Tuesday", "dinner", "Friday", "dinner");
+  const there = at(im.plan, "Friday", "dinner");
+  check("move_meal: an import moves as itself, its own figures and link kept",
+    there.name === "Imported Feast Bowl" && there.sourceUrl === "https://example.com/feast" && there.calories === 700, `${there.name} ${there.calories}`);
+
+  // A logged meal, a meal out and a pin stay where they are, and the reply says which and why.
+  const logged = applyOperations(BASE, wk, [op({ tool: "log_meal", day: "Monday", mealType: "dinner", dish: "pizza", loggedCalories: 800 } as never)]);
+  const lm = move(BASE, logged.plan, "Monday", "dinner", "Saturday", "dinner");
+  const out = applyOperations(BASE, wk, [op({ tool: "eating_out", day: "Friday", mealType: "dinner" })]);
+  const om = move(BASE, out.plan, "Tuesday", "dinner", "Friday", "dinner");
+  const pinned = applyOperations(BASE, wk, [op({ tool: "lock_meal", day: "Sunday", mealType: "lunch" })]);
+  const pm = move(pinned.profile, pinned.plan, "Sunday", "lunch", "Monday", "lunch");
+  check("move_meal: a logged meal, a meal out and a pinned dish are not moved, and each refusal says why",
+    !lm.planChanged && /logged as eaten on Monday/.test(lm.notes.join(" ")) &&
+    !om.planChanged && /set aside for eating out/.test(om.notes.join(" ")) &&
+    !pm.planChanged && /is pinned to Sunday's lunch/.test(pm.notes.join(" ")),
+    [lm.notes[0], om.notes[0], pm.notes[0]].join(" | "));
+
+  // Nothing to move, or nowhere to put it.
+  const same = move(BASE, wk, "Monday", "lunch", "Monday", "lunch");
+  const noSnack = move(BASE, wk, "Monday", "lunch", "Tuesday", "snack");
+  check("move_meal: a move onto itself, or into a slot the day does not have, changes nothing and says so",
+    !same.planChanged && !noSnack.planChanged && /already Monday's lunch/.test(same.notes.join(" ")) && /no snack/.test(noSnack.notes.join(" ")),
+    `${same.notes[0]} | ${noSnack.notes[0]}`);
+}
+{
   // log_meal on a slot the day doesn't have (BASE is 3 meals — no snack) must ABSORB the eaten meal,
   // not silently drop it and then misreport the day. A plain replace-map used to lose it entirely.
   const wk = freshWeek(BASE);

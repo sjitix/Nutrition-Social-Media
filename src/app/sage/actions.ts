@@ -356,18 +356,16 @@ export async function fixMyWeek(
 /**
  * Move a dish to another slot or day — the drag-and-drop operation.
  *
- * It is a PAIR of swaps, built from the two dish names captured before either is applied, so the
- * order they execute in cannot matter. Sent as one call, which makes it one undo: the user performed
- * one gesture, so pressing Undo once must put both plates back.
+ * One `move_meal`: the two plates change places exactly as they are, and both days are balanced again, as one
+ * undo. It used to be a PAIR of swaps by dish name, and a swap looks its dish up in the library within the
+ * slot's type, so an imported recipe, or a lunch dropped on a dinner slot, came back as some other dish (V1 D9a).
+ * The dish names are kept in the signature for the sheet's title; the engine reads the slots.
  */
 export function movePair(
   from: { day: DayPlan["day"]; mealType: Meal["type"]; dish: string },
   to: { day: DayPlan["day"]; mealType: Meal["type"]; dish: string },
 ): Operation[] {
-  return [
-    { tool: "swap_meal", day: to.day, mealType: to.mealType, dish: from.dish },
-    { tool: "swap_meal", day: from.day, mealType: from.mealType, dish: to.dish },
-  ];
+  return [{ tool: "move_meal", day: from.day, mealType: from.mealType, toDay: to.day, toMealType: to.mealType }];
 }
 
 export const previews = {
