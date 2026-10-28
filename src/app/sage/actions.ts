@@ -288,6 +288,11 @@ export const actions = {
       `Logged ${dish}`,
     ),
 
+  /** "I ate this." Logs the planned dish as eaten, at its planned portion (the engine matches the slot's own
+   *  dish by name), so Today counts it and no re-plan takes it out. */
+  ateIt: (day: DayPlan["day"], mealType: Meal["type"], dish: string) =>
+    runOperation({ tool: "log_meal", day, mealType, dish }, `Logged ${dish} as eaten`),
+
   /** "I'm out for dinner." Reserves the calories and lightens the rest of the day. */
   eatingOut: (day: DayPlan["day"], mealType: Meal["type"], estimatedCalories?: number) =>
     runOperation(

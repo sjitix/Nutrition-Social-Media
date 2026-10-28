@@ -401,13 +401,33 @@ export function MealSheet({
         </div>
       </section>
 
-      {/* ---- the deviation flow: life happened, and the plan should absorb it ---- */}
+      {/* ---- the log: what was actually eaten (V1 D7). Today counts it, and no re-plan takes it out. ---- */}
       <section className="mt-5">
         <h3 className="text-[10px] font-bold uppercase tracking-[0.16em] text-mut">
-          Ate something else?
+          {meal.record === "logged" ? "Eaten" : meal.record === "out" ? "Eating out" : "Ate it, or something else?"}
         </h3>
+        {meal.record === "logged" && (
+          <p className="mt-2 text-[11.5px] leading-relaxed text-plum-mid">
+            You logged this as eaten. It stays in {day} whatever else changes in the week.
+          </p>
+        )}
+        {meal.record === "out" && (
+          <p className="mt-2 text-[11.5px] leading-relaxed text-plum-mid">
+            {meal.calories} kcal set aside for a meal out. Log what you actually had and the rest of {day} is re-solved.
+          </p>
+        )}
         {!ateOpen ? (
           <div className="mt-2 flex flex-wrap gap-2">
+            {!meal.record && (
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => run("ate", () => actions.ateIt(day, meal.type, meal.name))}
+                className="rounded-full bg-vio px-3.5 py-2 text-[12px] font-semibold text-white transition hover:bg-vio-deep disabled:opacity-50"
+              >
+                I ate this
+              </button>
+            )}
             <button
               type="button"
               disabled={disabled}

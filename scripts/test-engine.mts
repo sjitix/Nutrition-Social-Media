@@ -2581,6 +2581,20 @@ console.log("--- RECORDS SURVIVE RE-PLANS (a logged meal, a reservation, an impo
     const s2 = applyOperations(s.profile, s.plan, [op({ tool: "regenerate_week" })]);
     check("D7: a logged snack in a slot the plan does not have survives a new week", slot(s2.plan, "Thursday", "snack")?.calories === 220);
 
+    // "I ate this" on the Week board's sheet: the slot's own dish, named, is logged as planned. Through the library
+    // it came back at the library's portion, and an import as a library dish of a similar name.
+    const thu = wk.days.find((d) => d.day === "Thursday")!;
+    const plannedDinner = thu.meals.find((m) => m.type === "dinner")!;
+    const ate = applyOperations(p, wk, [op({ tool: "log_meal", day: "Thursday", mealType: "dinner", dish: plannedDinner.name })]);
+    const ateDinner = slot(ate.plan, "Thursday", "dinner");
+    check("D7: 'I ate this' logs the planned dish at its planned portion",
+      ateDinner?.name === plannedDinner.name && ateDinner.calories === plannedDinner.calories && ateDinner.record === "logged",
+      `${plannedDinner.calories} -> ${ateDinner?.calories}`);
+    const ateImport = applyOperations(p, wk, [op({ tool: "log_meal", day: "Wednesday", mealType: "dinner", dish: feast.name })]);
+    const wedDinner = slot(ateImport.plan, "Wednesday", "dinner");
+    check("D7: 'I ate this' on an import logs the import itself",
+      wedDinner?.name === feast.name && wedDinner.sourceUrl === feast.sourceUrl && wedDinner.calories === feast.calories && wedDinner.record === "logged");
+
     // A reservation in a slot the day no longer has is lost, and said.
     const p4: UserProfile = { ...p, mealsPerDay: 4 };
     const w4 = applyOperations(p4, freshWeek(p4), [op({ tool: "eating_out", day: "Saturday", mealType: "snack", estimatedCalories: 300 } as Partial<Operation>)]);

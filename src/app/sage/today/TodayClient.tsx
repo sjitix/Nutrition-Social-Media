@@ -16,6 +16,8 @@ export interface DayMeal {
   minutes: number;
   image: string | null;
   cutout: string | null;
+  /** Logged as eaten (`record: "logged"`, V1 D7). */
+  logged: boolean;
 }
 interface Targets {
   calories: number;
@@ -26,10 +28,10 @@ interface Targets {
 /**
  * The hour each slot is assumed to be eaten at.
  *
- * The honest weak point of the screen, and it is stated on the page rather than hidden: nothing
- * writes a meal log yet, so a meal counts as eaten once its slot time has passed. When `log_meal`
- * is wired up this table is replaced by the log and nothing else here changes. Keyed by slot, not
- * by position, so a four-meal day still sorts chronologically.
+ * The FALLBACK, not the truth (V1 D7): once a meal of the day is logged ("I ate this" on the meal, or
+ * telling the assistant), the screen counts the log and nothing else. Only a day with nothing logged
+ * falls back to the clock, and the page says which of the two it is counting. Keyed by slot, not by
+ * position, so a four-meal day still sorts chronologically.
  */
 const SLOT_HOUR: Record<DayMeal["type"], number> = {
   breakfast: 8,
@@ -76,6 +78,7 @@ export function TodayClient({
         name: m.name, type: m.type, description: m.description,
         calories: m.calories, protein: m.proteinGrams, fibre: m.fiberGrams ?? 0,
         minutes: m.timeMinutes, image: imageForMeal(m.name), cutout: cutoutForMeal(m.name),
+        logged: m.record === "logged",
       });
       setDay(d.day);
       setMeals(d.meals.map(toDayMeal));
@@ -95,8 +98,10 @@ export function TodayClient({
   }, []);
 
   const ordered = meals.slice().sort((a, b) => SLOT_HOUR[a.type] - SLOT_HOUR[b.type]);
-  const eaten = ordered.filter((m) => hour >= SLOT_HOUR[m.type]);
-  const ahead = ordered.filter((m) => hour < SLOT_HOUR[m.type]);
+  // The log when there is one; the clock only when nothing on this day is logged.
+  const fromLog = ordered.some((m) => m.logged);
+  const eaten = ordered.filter((m) => (fromLog ? m.logged : hour >= SLOT_HOUR[m.type]));
+  const ahead = ordered.filter((m) => !eaten.includes(m));
 
   /**
    * What goes on the plate.
@@ -229,9 +234,11 @@ export function TodayClient({
           <p className="text-[11.5px]">
             <b className="font-semibold">Already hit today</b>{" "}
             <span className="text-mut">
-              {eaten.length
-                ? `from ${eaten.length} ${eaten.length === 1 ? "meal" : "meals"} behind you`
-                : "nothing yet — the day is still ahead"}
+              {fromLog
+                ? `from ${eaten.length} ${eaten.length === 1 ? "meal" : "meals"} you logged`
+                : eaten.length
+                  ? `from ${eaten.length} ${eaten.length === 1 ? "meal" : "meals"} whose time has passed, assumed eaten`
+                  : "nothing yet — the day is still ahead"}
             </span>
           </p>
 
@@ -255,7 +262,9 @@ export function TodayClient({
               </span>
             </p>
             <p className="mt-2.5 flex items-baseline gap-3 text-[11.5px] text-mut">
-              <span className="shrink-0">Counted from meals whose time has passed</span>
+              <span className="shrink-0">
+                {fromLog ? "Counted from the meals you logged" : "Nothing logged today, so counted by the clock"}
+              </span>
               <span className="h-px flex-1 bg-line" />
               <span className="shrink-0 tabular-nums text-plum">
                 {eaten.length} of {ordered.length}

@@ -1387,7 +1387,14 @@ export function applyOperations(
         const stated = op.loggedCalories && op.loggedCalories > 0 && Number.isFinite(op.loggedCalories) ? op.loggedCalories : null;
         const statedProtein = op.loggedProtein && op.loggedProtein > 0 && Number.isFinite(op.loggedProtein) ? op.loggedProtein : null;
         let eaten: Meal | null = null;
-        if (op.dish) {
+        // "I ate this": the dish named IS the one planned in that slot, so it is logged as it was planned — its
+        // portion, and an import as itself. Matched through the library instead, the planned 1.3x portion came
+        // back at the library's size, and an import could come back as a library dish of a similar name.
+        const planned = origDay.meals.find((m) => m.type === op.mealType);
+        // With a figure of their own it is a different portion, which the library path below scales to.
+        if (op.dish && !stated && planned && !isRecord(planned) && planned.name.trim().toLowerCase() === op.dish.trim().toLowerCase())
+          eaten = { ...planned, description: "Logged by you.", record: "logged" };
+        if (!eaten && op.dish) {
           // Search ALL slots, not just the logged one: pizza is a "dinner" recipe but people
           // eat it at lunch. respectSoft=false because they already ate it — cook time and
           // budget are irrelevant to a meal that is already in the past.

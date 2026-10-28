@@ -447,7 +447,14 @@ export default function WeekBoard({ demo }: { demo: { stats: WeekStats; targets:
                       <span className="text-[8.5px] font-bold uppercase tracking-[0.16em] text-mut">
                         {SLOTS[i]}
                       </span>
-                      {pinned && (
+                      {m.record ? (
+                        <span
+                          className="text-[8.5px] font-bold uppercase tracking-[0.14em] text-vio"
+                          title={m.record === "logged" ? "Logged as eaten — every rebuild keeps it" : "Eating out — the calories are set aside"}
+                        >
+                          {m.record === "logged" ? "Eaten" : "Out"}
+                        </span>
+                      ) : pinned && (
                         <span className="text-[8.5px] font-bold uppercase tracking-[0.14em] text-vio" title="Pinned — every rebuild keeps it">
                           Pinned
                         </span>

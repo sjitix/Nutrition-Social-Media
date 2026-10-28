@@ -43,6 +43,7 @@ export default function SageTodayPage() {
     minutes: m.timeMinutes,
     image: imageForMeal(m.name),
     cutout: cutoutForMeal(m.name),
+    logged: m.record === "logged",
   }));
 
   return (
