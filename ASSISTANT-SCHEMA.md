@@ -69,6 +69,10 @@ a good `reply` with `operations: []`.
 - **`resize`** — more/less food. `{ op, direction: much_smaller|smaller|bigger|much_bigger, scope? }`.
 - **`rate`** — `{ op, rating:1..5, dish? , day?, slot? }`. Loved → planned more; hated → dropped.
 - **`pin` / `unpin`** — `{ op, day, slot }`. Keep a meal fixed across rebuilds / release it.
+- **`move`** — `{ op, day, slot, toDay, toSlot? }` (2026-10-28, V1 D9a). A planned meal goes to another day or slot,
+  and the meal there comes back the other way, both exactly as they are (engine `move_meal`); both days are
+  balanced. No `toSlot` keeps the slot. A logged meal, a meal out and a pinned dish are refused with their reason.
+  The Week board's drag sends the same operation.
 - **`report`** — weekly review (read-only, engine computes averages + gaps).
 - **`explain`** — `{ op, day, slot }` why a meal is there (read-only).
 - **`substitute`** — `{ op, ingredient, day?, slot? }` out-of-an-ingredient advice (read-only).
@@ -268,7 +272,8 @@ reply = composeReply(turn.reply, engine notes)
   off. The loop keeps each engine call's notes as sources and settles them at the end (`runNotes.ts`): an
   allergy fact's sentences are rendered from the final week and allergies, and a figures sentence a later
   call made stale is dropped, with one line from the final week if nothing later states it. Action records
-  ("I swapped …") stay. The **undo label** names only the writes that changed something: in a step of
+  ("I swapped …") stay. Since 2026-10-28 this covers the history allergy's notes (still said first) and the figures
+  a reservation, a log and `balance_day` state, a reservation's protein advice among them. The **undo label** names only the writes that changed something: in a step of
   several, each is also tried alone on a seed of its own (the run's random choices are untouched), so a
   refused swap beside a real one is no longer named. The transcript the model sees is unchanged: each
   step's result still carries that step's own notes.

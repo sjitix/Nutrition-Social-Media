@@ -33,7 +33,7 @@ import { bulkGroceriesFromWeek, formatBulkQuantity, batchEfficiency } from "@/li
 import { haystackBlocked, dietTagConflicts, parseExclusionTokens, expandExclusion, exclusionCovers, mealHaystack, EXCLUSION_CATEGORIES } from "@/lib/nutrition/exclusions";
 import { normalizeMealTypes, jsonObjectsIn, turnIn, opsIn } from "@/lib/providers/turnShape";
 import { bmr, computeTargets, hydrationTarget, CALORIE_FLOOR, DEFAULT_CALORIE_FLOOR, BODY_LIMITS, bodyStatMessage, referenceWeightKg } from "@/lib/nutrition/targets";
-import { composeReply, planWasChanged, describeOperations, READ_ONLY_TOOLS, claimsChange, NOTHING_CHANGED_REPLY, NOTED_NOTHING_CHANGED_REPLY } from "@/lib/assistant/reply";
+import { operationPhrases, composeReply, planWasChanged, describeOperations, READ_ONLY_TOOLS, claimsChange, NOTHING_CHANGED_REPLY, NOTED_NOTHING_CHANGED_REPLY } from "@/lib/assistant/reply";
 import { SUBSTITUTES } from "@/lib/data/substitutions";
 import { NUTRIENT_TABLE } from "@/lib/data/nutrientTable.generated";
 import { UNIT_GRAMS } from "@/lib/nutrition/unitGrams.generated";
@@ -1904,6 +1904,21 @@ console.log("\n--- LOG_MEAL (real life derails the plan) ---");
   check("move_meal: a move onto itself, or into a slot the day does not have, changes nothing and says so",
     !same.planChanged && !noSnack.planChanged && /already Monday's lunch/.test(same.notes.join(" ")) && /no snack/.test(noSnack.notes.join(" ")),
     `${same.notes[0]} | ${noSnack.notes[0]}`);
+}
+{
+  // V1 D9a: the `move` primitive, a thin mapping onto move_meal. The model's words, the engine's change.
+  const wk = withSeed(4, () => freshWeek(BASE));
+  const at = (w: WeekPlan, day: string, slot: string) => w.days.find((d) => d.day === day)!.meals.find((m) => m.type === slot)!;
+  const tue = at(wk, "Tuesday", "dinner").name, thu = at(wk, "Thursday", "dinner").name, wedLunch = at(wk, "Wednesday", "lunch").name;
+  const parsed = AssistantTurnV2Schema.safeParse({ thinking: "", reply: "", operations: [{ op: "move", day: "Tuesday", slot: "dinner", toDay: "Thursday" }] });
+  const r = applyPrimitives(BASE, wk, [{ op: "move", day: "Tuesday", slot: "dinner", toDay: "Thursday" } as PrimitiveOp]);
+  const x = applyPrimitives(BASE, wk, [{ op: "move", day: "Wednesday", slot: "lunch", toDay: "Friday", toSlot: "dinner" } as PrimitiveOp]);
+  check("move primitive: the schema takes it, no toSlot keeps the slot, and a toSlot moves it there, through move_meal",
+    parsed.success && at(r.plan, "Thursday", "dinner").name === tue && at(r.plan, "Tuesday", "dinner").name === thu &&
+    at(x.plan, "Friday", "dinner").name === wedLunch && r.notes.some((n) => n.startsWith(`Moved ${tue} to Thursday's dinner`)),
+    r.notes[0]?.slice(0, 120));
+  check("move primitive: its undo label is 'moved Tuesday's dinner'",
+    operationPhrases(verbToOperations({ op: "move", day: "Tuesday", slot: "dinner", toDay: "Thursday" } as never)).join() === "moved Tuesday's dinner");
 }
 {
   // log_meal on a slot the day doesn't have (BASE is 3 meals — no snack) must ABSORB the eaten meal,
