@@ -7,8 +7,16 @@
 
 ## Now doing
 
-**2026-10-27, end of day — v1 shut down cleanly after `7c4b77a`.** Nothing of mine is running or uncommitted. Next: F8
-(once the owner says push-from-laptop or rebuild), otherwise D7. Nothing here blocks either other lane.
+**2026-10-28 — D7 done: `e25aa20` (engine, 1283/0) and `39e71b5` (UI).** Next: F8 once the owner answers.
+- **Accounts lane, an ask (Ask 2):** a plan Meal may now carry `record: "logged" | "out"` (`core/types.ts`).
+  - `validate.ts`'s `checkMeal` ignores it today, so a file or an account row holding `record: 42` passes. Please add
+    `(m.record === undefined || m.record === "logged" || m.record === "out")`.
+  - A synced or exported week keeps the field as it is; nothing else in your lane changes.
+- **Models lane:** your 703 controls hold on `39e71b5` (57 scenarios, 2 seeds). log_meal is now stricter about figures.
+  - A stated `calories` beats a library match: the dish is scaled to it.
+  - Naming the slot's own dish with no figure logs it as planned.
+  - Re-plans keep logged meals, reservations and imports. Any control that expected a boost or a new week to
+    replace them now sees them kept.
 
 **2026-10-27 — the v1 lane resumes on the DESKTOP** (session `nutrition-social-media-main-86`). Main fast-forwarded
 to `ac4ee33` (131 commits; my stale 10-03 edits had all landed as `058a596`/`5c12c4c`, backed up outside the repo and

@@ -170,8 +170,8 @@
       the schedule ahead.</p>
     <div class="stamp">
       <b><i>source</i> docs/worklog/</b>
-      <b><i>synced</i> 2026-10-27</b>
-      <b><i>commit</i> 97e0cec+</b>
+      <b><i>synced</i> 2026-10-28</b>
+      <b><i>commit</i> 39e71b5+</b>
     </div>
   </header>
 
@@ -189,10 +189,10 @@
 
   <section id="totals">
     <div class="stats">
-      <div class="stat"><div class="v">9</div><div class="l">days logged</div></div>
-      <div class="stat"><div class="v">10</div><div class="l">milestones done</div></div>
-      <div class="stat"><div class="v">9</div><div class="l">days to V1</div></div>
-      <div class="stat"><div class="v">10</div><div class="l">open deferrals</div></div>
+      <div class="stat"><div class="v">10</div><div class="l">days logged</div></div>
+      <div class="stat"><div class="v">11</div><div class="l">milestones done</div></div>
+      <div class="stat"><div class="v">8</div><div class="l">days to V1</div></div>
+      <div class="stat"><div class="v">12</div><div class="l">open deferrals</div></div>
     </div>
   </section>
 
@@ -202,6 +202,42 @@
     <p class="lede">Only days that actually happened, each with its date, appended at the end of every work-day.
       Nothing planned appears here — the schedule ahead is in its own collapsed block below.</p>
     <div class="tl" style="margin-top:20px">
+
+      <article class="entry" id="d-2026-10-28">
+        <div class="box">
+          <div class="ehead">
+            <span class="date">2026-10-28</span>
+            <span class="pill done">solved &middot; done</span>
+          </div>
+          <h3>What you logged stays logged, and Today counts it</h3>
+          <p class="sub">Day 7, meal logging. F8 is still waiting on your answer, so this went first.</p>
+          <div class="blocks">
+            <div class="blk">
+              <h4>What moved</h4>
+              <ul>
+                <li><b>No re-plan removes a meal you logged, a meal out, or a recipe you imported.</b> Checked first on the
+                  old code: more iron, more B12, Italian, more fiber, using up the fridge, a new week, switching to meal-prep,
+                  re-planning a day, a new calorie target. All 27 runs (9 changes &times; 3) took at least one of them out, with
+                  nothing said. Now none does, and a logged meal is never resized.</li>
+                <li><b>Today counts what you logged.</b> Once you have logged a meal, the rings show the logged meals and
+                  nothing else. With nothing logged, it still goes by the clock, and now says so on the page.</li>
+                <li><b>&ldquo;I ate this&rdquo; on every meal.</b> It logs the dish as planned, at its planned size. The week
+                  then marks it &ldquo;Eaten&rdquo;, or &ldquo;Out&rdquo; for a meal out.</li>
+                <li><b>A calorie figure you give beats the recipe&rsquo;s own.</b> &ldquo;Burger and chips, 900&rdquo; was
+                  logged as the library&rsquo;s 769-calorie version.</li>
+              </ul>
+            </div>
+            <div class="blk found">
+              <h4>Found along the way</h4>
+              <ul>
+                <li><b>A new calorie target resized a meal you had already eaten,</b> and in one case moved it out of its
+                  slot. A logged meal is now a fact the planner never changes.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="gate">GATE &middot; 27 of 27 re-plans lost a record before, 0 after &middot; 17 of the 27 new tests fail on the old code &middot; engine 1283/0, then 1285/0 &middot; build passes</div>
+        </div>
+      </article>
 
       <article class="entry" id="d-2026-10-27">
         <div class="box">
@@ -1059,8 +1095,9 @@
     <div class="defers" style="margin-top:16px">
       <div class="defer"><div><b>What the assistant says when the model fails</b> &mdash; a failure partway through can replace urgent-care advice with &ldquo;offline&rdquo;, one malformed part of a reply can lose an allergy you stated, and a reply the model did send is called &ldquo;offline&rdquo; when it is malformed. Found by the next batch&rsquo;s mapping; first, because Nemotron now runs the assistant.</div><span class="to">next step</span></div>
       <div class="defer"><div><b>F8: the assistant never uses a number you did not say</b> &mdash; built on the laptop and never pushed, so it is not on GitHub. It is either pushed from the laptop or rebuilt here, and the models agent checks it before it lands.</div><span class="to">your answer</span></div>
-      <div class="defer"><div><b>Two notes the 2026-10-27 fix does not yet re-check at the end</b> &mdash; what is said about an allergy from an earlier message, and a line about a reservation or a logged meal when a later step re-plans that day. The rest of the second review shipped on 2026-10-22 and 2026-10-27.</div><span class="to">with meal logging</span></div>
-      <div class="defer"><div><b>A re-plan can erase what you logged</b> &mdash; asking for more iron removed a logged meal, a restaurant reservation and an imported recipe, with nothing said. The app cannot yet tell a logged meal from a planned one, so the fix comes with meal logging.</div><span class="to">day 7</span></div>
+      <div class="defer"><div><b>Two notes the 2026-10-27 fix does not yet re-check at the end</b> &mdash; what is said about an allergy from an earlier message, and a line about a reservation or a logged meal when a later step re-plans that day. The rest of the second review shipped on 2026-10-22 and 2026-10-27.</div><span class="to">next step</span></div>
+      <div class="defer"><div><b>A saved file is not yet checked for the new &ldquo;eaten&rdquo; mark</b> &mdash; a downloaded file or an account copy with a broken mark is still accepted. A one-line check in the accounts agent&rsquo;s file.</div><span class="to">accounts agent</span></div>
+      <div class="defer"><div><b>A meal logged in meal-prep mode</b> still shows that slot in the batch&rsquo;s cooking plan, as it did before. Cooking and the shopping list are unaffected.</div><span class="to">with the meal-prep review</span></div>
       <div class="defer"><div><b>The training examples invent calorie figures</b> for a meal eaten out or logged. Fixing it changes what those examples teach, so it is a training-data change of its own.</div><span class="to">with the next training data</span></div>
       <div class="defer"><div><b>Taking an allergy off</b> &mdash; chat has no way to do it, and an undo can drop one without saying so.</div><span class="to">your decision 12</span></div>
       <div class="defer"><div><b>The fast finish</b> &mdash; a faster assistant reply, held until the models agent can measure it fairly, which needs your key file.</div><span class="to">when the key exists</span></div>

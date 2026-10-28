@@ -168,8 +168,8 @@
       gate that has to be green before anything is pushed.</p>
     <div class="stamp">
       <b><i>source</i> docs/v1/01-dimensions-and-milestones.md</b>
-      <b><i>synced</i> 2026-10-22</b>
-      <b><i>commit</i> b1a11df+</b>
+      <b><i>synced</i> 2026-10-28</b>
+      <b><i>commit</i> 39e71b5+</b>
     </div>
   </header>
 
@@ -477,6 +477,13 @@
           logged meal, a restaurant reservation and an imported recipe, with nothing said, in 9 of 9 test runs.
           A logged meal gets a mark of its own, and every re-plan puts logged meals and reservations back, the
           way pinned meals already come back.</p>
+        <div class="callout" style="margin:12px 0 0;border-color:var(--accent-line);background:var(--accent-soft)">
+          <b>Done 2026-10-28</b> &middot; <span class="mono">e25aa20</span>, <span class="mono">39e71b5</span>. Re-checked
+          first: 27 of 27 re-plans took something you logged, set aside or imported out of the week. Now none
+          does, and a logged meal is never resized. Today counts what you logged, and on a day with nothing logged it
+          says it is going by the clock. Every meal has &ldquo;I ate this&rdquo;, and the week marks it
+          &ldquo;Eaten&rdquo;. A calorie figure you give now beats the recipe&rsquo;s own.
+        </div>
         <div class="meta">
           <div><span class="k">Usable when</span>Today shows what you actually logged, and says so honestly when you have logged nothing. No re-plan removes a logged meal or a reservation.</div>
           <div><span class="k">Depends on</span>D3 — the executor is its own module first</div>

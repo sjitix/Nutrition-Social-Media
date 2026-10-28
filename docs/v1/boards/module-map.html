@@ -175,8 +175,8 @@
       that is not in it. Two sides, each bound to their half, which is why the word fits.</p>
     <div class="stamp">
       <b><i>source</i> docs/v1/02-module-map.md</b>
-      <b><i>synced</i> 2026-10-27</b>
-      <b><i>commit</i> 97e0cec</b>
+      <b><i>synced</i> 2026-10-28</b>
+      <b><i>commit</i> e25aa20</b>
       <b><i>method</i> measured, not estimated</b>
     </div>
   </header>
@@ -371,8 +371,8 @@
       <p class="promise">“The only code allowed to change a plan, and to say that it changed.”</p>
       <div class="rows">
         <div class="row2"><span class="k">Public</span><span class="pub mono">applyOperations(profile, plan, operations, previous?)</span></div>
-        <div class="row2"><span class="k">Private</span><span class="priv">every per-tool handler, <span class="mono">reimposeLocks</span>, <span class="mono">guaranteeFridge</span>, <span class="mono">guaranteeBoost</span>, <span class="mono">findRecipeForSwap</span>, the note-writers, the undo snapshot</span></div>
-        <div class="row2"><span class="k">Invariants</span><span>Never mutates what it is handed. A refusal is reported, never faked. <span class="mono">replyOverride</span> on a crisis discards the model's words entirely. <b><span class="mono">planChanged</span> is a deep comparison of before and after</b> — never a guess from which tool ran. <b>&ldquo;Seafood&rdquo; is the fish and shrimp dishes</b> (<span class="mono">wantsSeafood</span>, shared with the agent&rsquo;s <span class="mono">find_recipes</span>, which never offers a dish the person&rsquo;s allergies block).</span></div>
+        <div class="row2"><span class="k">Private</span><span class="priv">every per-tool handler, <span class="mono">reimposeLocks</span>, <span class="mono">reimposeRecords</span>, <span class="mono">guaranteeFridge</span>, <span class="mono">guaranteeBoost</span>, <span class="mono">findRecipeForSwap</span>, the note-writers, the undo snapshot</span></div>
+        <div class="row2"><span class="k">Invariants</span><span>Never mutates what it is handed. A refusal is reported, never faked. <span class="mono">replyOverride</span> on a crisis discards the model's words entirely. <b><span class="mono">planChanged</span> is a deep comparison of before and after</b> — never a guess from which tool ran. <b>&ldquo;Seafood&rdquo; is the fish and shrimp dishes</b> (<span class="mono">wantsSeafood</span>, shared with the agent&rsquo;s <span class="mono">find_recipes</span>, which never offers a dish the person&rsquo;s allergies block). <b>No re-plan removes a record</b> (2026-10-28): a meal logged as eaten or set aside for eating out, and an import that breaks no new rule, goes back in its slot after every rebuild, after the pins, and is never resized.</span></div>
       </div>
     </div>
 

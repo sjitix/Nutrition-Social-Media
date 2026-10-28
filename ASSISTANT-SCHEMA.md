@@ -60,8 +60,12 @@ a good `reply` with `operations: []`.
   Facts feed into every future turn's context and bias/constrain the engine.
 - **`log`** — a meal ALREADY eaten. `{ op, day, slot, dish, calories?, protein? }` → re-solve the rest
   of that day. (past tense)
+  - The person's own `calories` / `protein` win over a library dish of a similar name, which is scaled to them.
+  - The slot's own planned dish, named with no figure, is logged exactly as planned.
+  - The meal is marked `record: "logged"` (V1 D7, 2026-10-28): no later re-plan removes or resizes it, and Today
+    counts it.
 - **`reserve`** — a meal that WILL be eaten out. `{ op, day, slot, calories? }` → lighten the rest of
-  the day, say what to order. (future tense)
+  the day, say what to order. (future tense) Marked `record: "out"`, and kept through every re-plan the same way.
 - **`resize`** — more/less food. `{ op, direction: much_smaller|smaller|bigger|much_bigger, scope? }`.
 - **`rate`** — `{ op, rating:1..5, dish? , day?, slot? }`. Loved → planned more; hated → dropped.
 - **`pin` / `unpin`** — `{ op, day, slot }`. Keep a meal fixed across rebuilds / release it.

@@ -445,12 +445,18 @@ realistic bounds."*
   returning per-day deltas, the dish moves and the engine's notes, **committing nothing**. Seeded, so
   a preview does not disagree with itself between renders; a preview is therefore a prediction and
   the committed figures must be re-read.
-- **Private:** every per-tool handler, `reimposeLocks`, `guaranteeFridge`, `guaranteeBoost`,
+- **Private:** every per-tool handler, `reimposeLocks`, `reimposeRecords`, `guaranteeFridge`, `guaranteeBoost`,
   `findRecipeForSwap`, `achievementNote`, `symptomNote`, `substituteNote`, `explainMealNote`,
   `eatingOut`, `upgradeForNutrient`, and the undo snapshot.
 - **Invariants:** it never mutates the profile or plan it is handed (proved by probe); a refusal is
   reported, never faked; `replyOverride` on a crisis discards the model's words entirely;
   `planChanged` is a **deep comparison of before and after**, never a guess from which tool ran.
+  **No re-plan removes a record (V1 D7, 2026-10-28):** a meal marked `record: "logged" | "out"` (and an
+  import that breaks no rule the change brought) is put back in its slot after every rebuild, after the
+  pins, and its day re-solved around it (not in meal-prep mode, whose servings must stay identical). A
+  record is never resized or upgraded: `plan/library`'s `baseRecipeOf` returns nothing for it, so every
+  rebalance holds it fixed. `isRecord`/`recordKind` (private to `plan/`) also read the two descriptions
+  written before the mark, so an older saved week keeps its free-text logs and reservations.
 
 **`plan/report`** — *"Read-only descriptions of a plan: weekly averages, shortfalls, micro coverage."*
 Public: `weeklyReportNote`, `figuresNote` and `microNote` (a day's, the week's or a nutrient's figures as they

@@ -396,11 +396,28 @@ Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Ro
 - **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`,
   `docs/worklog/*-models.md`, this block, the lane file. Does not edit v1's files; asks v1 first.
 
-### >>> V1 LANE — 2026-10-27: on the DESKTOP now. Ask 1 landed `53c7ce9` (a pull no longer gets overwritten by the chat or undo). F8 is on the laptop only <<<
+### >>> V1 LANE — 2026-10-28: D7 DONE (`e25aa20` engine, `39e71b5` UI): no re-plan removes what you logged, Today counts the log. F8 still on the laptop only <<<
 
-**Shut down cleanly 2026-10-27, after `7c4b77a`:** nothing running, nothing uncommitted, `origin/main..HEAD` empty.
-**Waiting on the owner:** F8 is pushed from the laptop's `../NutriFlow-f8`, or rebuilt here from the description below.
-Without an answer, the next session starts D7. Machine state: §4 of this block.
+**2026-10-28, D7.** Reproduced first: a logged library dish, a logged free-text meal, a reservation and an import,
+then nine re-plans × 3 seeds. 27 of 27 lost a record, with nothing said. The engine half is `e25aa20` (1283/0):
+- a meal carries `record: "logged" | "out"`;
+- `baseRecipeOf` returns nothing for a record, so every rebalance holds it fixed;
+- `reimposeRecords` runs inside `applyLocks` after the pins. It puts records back, with each import that breaks no
+  new rule, and re-solves the day around them (not in meal-prep mode);
+- a stated calorie figure now beats a library match ("burger and chips, 900" had been logged as the library's 769);
+- legacy weeks are recognised by the two descriptions the engine used to write.
+
+The UI half is `39e71b5`:
+- Today counts the logged meals, and with nothing logged falls back to the clock and says so;
+- the meal sheet has "I ate this", which logs the slot's own dish as planned;
+- the Week board labels "Eaten" / "Out".
+
+Open:
+- `validate.ts` (the accounts lane) does not check `record` (asked in the lane file);
+- a record restored over a meal-prep serving leaves the batch placement stale.
+
+**Waiting on the owner: F8** (push it from the laptop's `../NutriFlow-f8`, or rebuild it here). Next without an
+answer: the open items from `97e0cec` (the history allergy's notes, and non-figure notes), or D8. Machine state: §4.
 
 **2026-10-27.** The v1 lane resumed on the desktop (session `nutrition-social-media-main-86`); main fast-forwarded to
 `ac4ee33`. **F8 never reached GitHub**: it is uncommitted in `../NutriFlow-f8` on the laptop, so it is pushed from there
@@ -937,8 +954,9 @@ push. Documented in `CLAUDE.md`.
   lane's). `../NutriFlow-v1fix` is clean and pushed. `../NutriFlow-v1-measure` (detached at `c61cb13`)
   has 15 dirty files, but they are the 10-03 A4 measurement edits (`units.ts`, `feedFilter.ts`, …), all
   on main since. Both v1 worktrees can be removed (remove a junctioned `node_modules` with `rmdir` first).
-- `test:api`'s three `assistant offline` tests expect 503 and got 502 on 10-03 *because the model was
-  down*: re-run them with the provider reachable before concluding anything about them.
+- **`test:api` on this desktop: start the server with `AI_PROVIDER=demo`** (`AI_PROVIDER=demo npx next start -p 3000`).
+  With `.env.local` pointing at NVIDIA, a live model really changes the plan, and "a demo reply never claims the plan
+  changed" fails. In demo mode it was 78/0 on 2026-10-28.
 
 #### 5. MEASUREMENTS TAKEN TODAY — use these, not the older figures
 
