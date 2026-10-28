@@ -27,7 +27,7 @@
  */
 import { runReadTool, isReadTool, type AgentContext } from "./agentTools";
 import { applyPrimitives, earlierAllergyFacts, expandConstrain, type EarlierMessage, noOpConstrain, sameAllergies, verbToOperations, withoutUnchangedClaims, type ConstrainOp, type PrimitiveOp, type VerbOp } from "./primitives";
-import { claimsChange, composeReply, joinPhrases, NOTED_NOTHING_CHANGED_REPLY, NOTHING_CHANGED_REPLY, operationPhrases } from "./reply";
+import { claimsChange, composeReply, joinPhrases, NOTED_NOTHING_CHANGED_REPLY, NOTHING_CHANGED_REPLY, operationPhrases, withoutEmoji } from "./reply";
 import { modelFailureOf, type ModelFailure, type ModelFailureKind } from "./modelFailure";
 import { CRISIS_REPLY } from "../nutrition";
 import { withSeed } from "../plan";
@@ -657,7 +657,8 @@ export async function runAgent(args: {
     engineSpoke,
     notes: [...earlierNotes, ...notes],
     falseClaimRetried,
-    falseClaimCaught: body !== said.trim() && notes.length === 0 && replyOverride === undefined && claimsChange(said),
+    // Compared with the words as the person would read them: an emoji taken out is not a claim caught.
+    falseClaimCaught: body !== withoutEmoji(said) && notes.length === 0 && replyOverride === undefined && claimsChange(said),
     fastFinished,
     unreadableRetried,
   };

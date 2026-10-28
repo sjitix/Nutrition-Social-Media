@@ -195,6 +195,25 @@ export const NOTHING_CHANGED_REPLY =
 export const NOTED_NOTHING_CHANGED_REPLY =
   "I've noted that, but I haven't changed your plan yet. Tell me what you'd like changed and I'll do it.";
 
+// What renders as an emoji, as check:boundaries rule 6 defines it (emoji presentation, or a pictograph forced into it
+// by U+FE0F), with what joins onto one: skin tones, a zero-width-joined sequence, a keycap. "✓" and "→" are not.
+const EMOJI_PART = String.raw`(?:\p{Emoji_Presentation}|\p{Extended_Pictographic}️)(?:\p{Emoji_Modifier}|️)*`;
+const EMOJI = new RegExp(`${EMOJI_PART}(?:\\u200D(?:${EMOJI_PART}|\\p{Extended_Pictographic}))*|\\uFE0F?\\u20E3`, "gu");
+
+/**
+ * The model's text with no emoji in it (the project rule: the app shows none, and they read as AI-generated). The
+ * prompt asks for plain words, and a model does not always do as it is asked; engine notes never carry one, because
+ * check:boundaries fails an emoji anywhere in src/. The gap an emoji leaves is closed up, newlines kept.
+ */
+export function withoutEmoji(text: string): string {
+  return text
+    .replace(EMOJI, "")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/[ \t]+([.,!?;:)])/g, "$1")
+    .replace(/^[ \t]+|[ \t]+$/gm, "")
+    .trim();
+}
+
 export function composeReply(args: {
   /** What the LLM wrote. Untrusted prose. */
   modelReply: string | undefined;
@@ -238,7 +257,7 @@ export function composeReply(args: {
   const clean = [...new Set(notes.map((n) => n.trim()).filter(Boolean))];
   if (clean.length) return clean.join(" ");
 
-  const base = modelReply?.trim();
+  const base = modelReply === undefined ? undefined : withoutEmoji(modelReply);
   if (base) {
     // The engine is silent and nothing changed, so this text is the model's alone. It may not say
     // something changed (the two-layer rule: only the engine may claim a change).

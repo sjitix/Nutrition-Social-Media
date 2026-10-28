@@ -48,6 +48,25 @@ const unmetWords = (dish: string, match: Recipe) => {
   return askedWords(dish).filter((w) => !FILLER.has(w) && !(sea && isSeafoodWord(w) && isSeafood(match)) && !got.includes(w));
 };
 
+/** Words that size or place a meal someone ate without naming the food: "a slice of pizza", "leftover chilli". */
+const PORTION = new Set(["slice", "slices", "bowl", "bowls", "plate", "plates", "piece", "pieces", "portion", "portions", "serving", "servings", "cup", "cups", "half", "big", "small", "large", "huge", "little", "homemade", "leftover", "leftovers", "ate", "had", "just", "bit", "lot", "lots", "our", "my", "was", "then"]);
+/**
+ * Whether a library dish IS the food someone says they ate. A log is a fact, so the swap lookup's best keyword guess
+ * is not good enough: "office birthday cake" was logged as Cottage Cheese Pancakes, its calories and all, on "cake"
+ * inside "pancakes" (D6, the fuzzy match). Two conditions: every word naming the food is a whole word of the dish's
+ * name (or an inflection of one), and one of them is a HEAD of the name, the last word of a part split at "&", "and"
+ * or "with": "pizza" is Pepperoni & Mozzarella Pizza, "chilli" is not Chilli-Lime Prawn Tacos, and "chicken caesar"
+ * is not a Grilled Chicken Caesar Wrap. A food that fails is asked about, or logged at the person's own figure.
+ */
+const foodWords = (said: string) => askedWords(said).filter((w) => !FILLER.has(w) && !PORTION.has(w));
+function namesSameFood(said: string, r: Recipe): boolean {
+  const words = foodWords(said);
+  const same = (w: string, h: string) => wordMatches(w, h) || wordMatches(h, w);
+  const name = r.name.toLowerCase().split(/[^a-z]+/).filter((h) => h.length >= 3);
+  const heads = r.name.toLowerCase().split(/\s*(?:&|\band\b|\bwith\b|,)\s*/).map((part) => part.split(/[^a-z]+/).filter(Boolean).pop() ?? "");
+  return words.length > 0 && words.every((w) => name.some((h) => same(w, h))) && words.some((w) => heads.some((h) => same(w, h)));
+}
+
 /**
  * "I kept shellfish out: it's in your allergies." A request for seafood under an allergy to part of it (shrimp,
  * or fish) is answered with the part that is left, and says what it left out and why (the models lane's
@@ -74,6 +93,8 @@ function findRecipeForSwap(
   type: Recipe["type"] | undefined,
   profile: UserProfile,
   respectSoft = true,
+  // Only dishes this accepts are considered (a log asks for the same food: namesSameFood).
+  accept: (r: Recipe) => boolean = () => true,
 ): Recipe | null {
   const words = askedWords(query);
   const seafood = wantsSeafood(query);
@@ -85,6 +106,7 @@ function findRecipeForSwap(
     passesDiet(r, profile.diet) &&
     !blockedByExclusions(r, tokens) &&
     r.approxCost <= cap &&
+    accept(r) &&
     (!respectSoft || (r.timeMinutes <= profile.maxCookTime + 5 && r.ingredients.length <= profile.maxIngredients + 1));
 
   // An EXACT name match wins outright. "Swap in the Veggie Omelette" must give the Veggie Omelette,
@@ -1398,7 +1420,9 @@ export function applyOperations(
           // Search ALL slots, not just the logged one: pizza is a "dinner" recipe but people
           // eat it at lunch. respectSoft=false because they already ate it — cook time and
           // budget are irrelevant to a meal that is already in the past.
-          const match = findRecipeForSwap(op.dish, undefined, p, false);
+          // Looked up by the food words alone, so "a slice of pizza" is not steered to a dish with "sliced" in it.
+          const said = op.dish;
+          const match = findRecipeForSwap(foodWords(said).join(" ") || said, undefined, p, false, (r) => namesSameFood(said, r));
           // The person's own figures win over the library's portion: "burger and chips, 900 kcal" was logged
           // as the library's 769 (V1 D7). The dish is scaled to what they said, with no 0.6-1.8x clamp, since
           // it is a fact and not a plan; it is marked as a record and described as theirs, where it used to

@@ -1815,6 +1815,28 @@ console.log("\n--- LOG_MEAL (real life derails the plan) ---");
   check("log_meal: accepts user-supplied calories and re-solves", d.meals.some((m) => /lasagna/i.test(m.name)) && Math.abs(kcal(d) - 2000) <= 150, `${kcal(d)} kcal`);
 }
 {
+  // D6, the fuzzy match, on the log path: a log is a fact, so a library dish is used only when it IS the food named.
+  // "office birthday cake" was logged as Cottage Cheese Pancakes on "cake" inside "pancakes" (2026-10-23 day log).
+  const wk = freshWeek(BASE);
+  const logAs = (dish: string, loggedCalories?: number) => {
+    const r = applyOperations(BASE, wk, [op({ tool: "log_meal", day: "Monday", mealType: "lunch", dish, ...(loggedCalories ? { loggedCalories } : {}) } as never)]);
+    const m = r.plan.days.find((x) => x.day === "Monday")!.meals.find((x) => x.type === "lunch")!;
+    return { meal: m.record === "logged" ? m : null, notes: r.notes };
+  };
+  const cake = logAs("office birthday cake");
+  const bare = logAs("cake");
+  const told = logAs("office birthday cake", 450);
+  check("log_meal: a food no dish is (office birthday cake, cake) is asked about, not logged as the pancakes that share 'cake'",
+    !cake.meal && !bare.meal && cake.notes.some((n) => /how many calories/.test(n)) && told.meal?.name === "office birthday cake" && told.meal.calories === 450,
+    `${cake.meal?.name ?? cake.notes[0]} / ${bare.meal?.name ?? bare.notes[0]} / ${told.meal?.name} ${told.meal?.calories}`);
+  const caesar = logAs("chicken caesar");
+  const chilli = logAs("leftover chilli");
+  const slice = logAs("a slice of pizza");
+  check("log_meal: the dish has to be the food named, by its head word: chicken caesar is not a Caesar wrap, leftover chilli is not chilli-lime tacos, a slice of pizza is pizza",
+    caesar.meal?.name === "Chicken Caesar, No Croutons" && /chilli$/i.test(chilli.meal?.name ?? "") && /pizza$/i.test(slice.meal?.name ?? ""),
+    `${caesar.meal?.name} / ${chilli.meal?.name} / ${slice.meal?.name}`);
+}
+{
   // log_meal on a slot the day doesn't have (BASE is 3 meals — no snack) must ABSORB the eaten meal,
   // not silently drop it and then misreport the day. A plain replace-map used to lose it entirely.
   const wk = freshWeek(BASE);
@@ -2440,6 +2462,23 @@ console.log("--- REPLY COMPOSITION (who gets the last word) ---");
     composeReply({ modelReply: "Which day did you mean?", notes: ["", "  "], planChanged: false }) === "Which day did you mean?");
   check("composeReply: all-empty notes with no model reply use the safe fallback",
     composeReply({ modelReply: "", notes: [" "], planChanged: true }) === "Done — I updated your plan.");
+  {
+    // D6: no emoji reaches the person (the project rule). The prompt asks for plain words; a model does not always.
+    const say = (modelReply: string) => composeReply({ modelReply, notes: [], planChanged: false });
+    const cases: [string, string][] = [
+      ["Great choice! \u{1F389} Here's your week.", "Great choice! Here's your week."],
+      ["Family \u{1F468}‍\u{1F469}‍\u{1F467} dinners ❤️ sorted.", "Family dinners sorted."],
+      ["Done \u{1F60A}.", "Done."],
+      ["Flag \u{1F1EC}\u{1F1E7} gone.\nLine two \u{1F957}\nLine three", "Flag gone.\nLine two\nLine three"],
+      ["Step 1️⃣ first.", "Step 1 first."],
+      ["Tick ✓, arrow →, © and 5 × 2 stay.", "Tick ✓, arrow →, © and 5 × 2 stay."],
+    ];
+    const wrong = cases.filter(([inp, want]) => say(inp) !== want);
+    check("composeReply: emoji are taken out of the model's words (sequences, skin tones, flags, keycaps), and a tick, an arrow or a sign is not",
+      wrong.length === 0, wrong.map(([inp]) => JSON.stringify(say(inp))).join(" | "));
+    check("composeReply: a reply that was nothing but emoji falls back as an empty one does",
+      say("\u{1F44D}\u{1F3FD}") === "Happy to help." && composeReply({ modelReply: "\u{1F44D}", notes: [], planChanged: true }) === "Done — I updated your plan.");
+  }
 
   // Read-only tools must not make the UI think the week was rewritten.
   for (const t of ["answer", "weekly_report", "explain_meal", "substitute_ingredient", "symptom_check"])
