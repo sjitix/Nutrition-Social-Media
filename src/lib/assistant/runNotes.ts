@@ -42,21 +42,39 @@ type Day = (typeof DAYS)[number];
 type Subject = Day | "week" | `micro:${MicroKey}`;
 
 const DAY = `(${DAYS.join("|")})`;
-const DAY_FIGURES = new RegExp(`^${DAY} now (?:has|comes to) \\d`);
+// The day's figures, whole: "<Day> now has …", "<Day> still comes to … reserve included" (a reservation), "Heads up:
+// … <Day> lands about N kcal over target" (a reservation too big to absorb), and a log's "That was your last meal of
+// the day — <Day> lands at …".
+const DAY_FIGURES = new RegExp(
+  `^(?:${DAY} (?:now has|now comes to|still comes to) \\d|Heads up: even with everything else as light as I can make it, ${DAY} lands about \\d|That was your last meal of the day — ${DAY} lands at \\d)`,
+);
+const dayOf = (m: RegExpMatchArray | null) => (m ? (m[1] ?? m[2] ?? m[3]) as Day : undefined);
 const WEEK_FIGURES = /^Your week now averages /;
 // A boost's figure (plan/report.ts microNote): the week's average of one nutrient, re-stated with microNote when stale.
 const MICRO_FIGURES = /^Your week now averages about [\d.]+\S* of (.+?) a day\b/;
 const microKeyOf = (label: string) => MICRO_KEYS.find((k) => MICRO_LABEL[k] === label);
 // "I re-solved the rest of Monday: it now lands at …" and "Balanced Monday around … — the day now lands at about …":
 // an action and a figure in one sentence. Stale, the figure half goes and the action half stays.
-const LANDS = new RegExp(`^(.*?\\b${DAY}\\b.*?)(?::| —) (?:it|the day) now lands at [^.]*\\.$`);
-// What achievementNote appends after "<label> N kcal and Mg protein.": each belongs to the figure before it.
-const CONTINUES = /^(?:I couldn't reach \d|That's \d+g? (?:under|kcal)|That's \d+ kcal|Carbs come to \d|Fat comes to \d|Fiber is \d)/;
+// So is balance_day's "Balanced <Day> as far as realistic portions allow: about N kcal, still …".
+const LANDS = new RegExp(`^(.*?\\b${DAY}\\b.*?)(?:(?::| —) (?:it|the day) now lands at [^.]*|: about \\d+ kcal, still [^.]*)\\.$`);
+// What achievementNote appends after "<label> N kcal and Mg protein.", and what a log or a reservation says after its
+// figures: each belongs to the figure before it.
+const CONTINUES = /^(?:I couldn't reach \d|That's \d+g? (?:under|kcal)|That's \d+ kcal|That's still \d|Protein lands at \d|Carbs come to \d|Fat comes to \d|Fiber is \d|I can pull the rest of your week down|Either it'll be a bigger meal)/;
+// A reservation names its day once ("I've set aside N kcal for <Day> <slot>"), and its protein advice after it, in
+// notes of their own, is a figure about that day's other meals.
+const RESERVED = new RegExp(`^I've set aside \\d+ kcal for ${DAY} `);
+const RESERVE_ADVICE = /^(?:Your other meals (?:already )?carry|To finish on \d+g you'd need)/;
 
 /** Sentences, split the way the claim guard splits a reply (reply.ts). */
 const sentencesOf = (text: string) => text.split(/(?<=[.!?…]["”')\]]*)\s+/).filter((s) => s.trim());
 
 export function settleNotes(entries: RunNote[], changes: PhaseChange[], final: Final): string[] {
+  return settleByPhase(entries, changes, final).map((n) => n.text);
+}
+
+/** settleNotes, with each note still tagged with the phase that wrote it, so a caller can keep one phase's notes
+ *  apart (the history allergy's, said first). A line re-stating stale figures belongs to no phase: Infinity. */
+export function settleByPhase(entries: RunNote[], changes: PhaseChange[], final: Final): { text: string; phase: number }[] {
   // Did anything after `phase` change what a figure about `subject` describes?
   const staleAfter = (phase: number, subject: Subject) =>
     changes.some((c) => c.phase > phase && (c.targets || (subject === "week" || subject.startsWith("micro:") ? c.days.size > 0 : c.days.has(subject))));
@@ -66,16 +84,26 @@ export function settleNotes(entries: RunNote[], changes: PhaseChange[], final: F
 
   const dropped = new Set<Subject>();
   const stated = new Set<Subject>(); // subjects some surviving sentence still gives figures for
-  const out: string[] = [];
+  const out: { text: string; phase: number }[] = [];
+  let reserved: { phase: number; day: Day } | null = null;
   for (const { text, phase } of rendered) {
     let subject: Subject | null = null; // the figure the next continuation sentence belongs to
     let stale = false;
     const kept: string[] = [];
     for (const s of sentencesOf(text)) {
-      const day = s.match(DAY_FIGURES)?.[1] as Day | undefined;
+      const day = dayOf(s.match(DAY_FIGURES));
       const micro = microKeyOf(s.match(MICRO_FIGURES)?.[1] ?? "");
       const lands = s.match(LANDS);
-      if (day || micro || WEEK_FIGURES.test(s)) {
+      const reserveDay = s.match(RESERVED)?.[1] as Day | undefined;
+      if (reserveDay) reserved = { phase, day: reserveDay };
+      const advice = reserved?.phase === phase && RESERVE_ADVICE.test(s) ? reserved.day : undefined;
+      if (advice) {
+        // Stale, it goes with what follows it; the day's line from the final week is said instead.
+        subject = advice;
+        stale = staleAfter(phase, advice);
+        if (stale) dropped.add(advice);
+        else kept.push(s);
+      } else if (day || micro || WEEK_FIGURES.test(s)) {
         subject = day ?? (micro ? (`micro:${micro}` as const) : "week");
         stale = staleAfter(phase, subject);
         if (stale) dropped.add(subject);
@@ -92,7 +120,7 @@ export function settleNotes(entries: RunNote[], changes: PhaseChange[], final: F
         kept.push(s);
       }
     }
-    if (kept.length) out.push(kept.join(" "));
+    if (kept.length) out.push({ text: kept.join(" "), phase });
   }
 
   // Say where each day whose figures went stale finally landed, unless a later sentence already does.
@@ -101,7 +129,7 @@ export function settleNotes(entries: RunNote[], changes: PhaseChange[], final: F
     if (!dropped.has(subject) || stated.has(subject)) continue;
     const line = subject.startsWith("micro:") ? microNote(final.plan, subject.slice(6) as MicroKey)
       : figuresNote(final.plan, final.profile, subject === "week" ? undefined : (subject as Day));
-    if (line) out.push(line);
+    if (line) out.push({ text: line, phase: Infinity });
   }
   return out;
 }

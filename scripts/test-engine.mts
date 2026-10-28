@@ -6381,6 +6381,24 @@ if (violations.size === 0) {
       check("history allergy: 'tho' is a contrast to the denial reading as 'though' is: 'not shellfish tho i'm allergic' binds shellfish",
         /shellfish/.test(tho.profile.allergies), `"${tho.profile.allergies}"`);
     }
+    {
+      // Its notes are settled with the run's, against the FINAL week (#14 for the history allergy, open since 97e0cec).
+      // Binding peanuts re-plans Monday and says where Monday lands; the model then swaps Monday's dinner.
+      // Calories are held at the target either way, so the protein figures are what tell a stale sentence from a true one.
+      const protein = (w: WeekPlan, day?: string) => {
+        const days = w.days.filter((d) => !day || d.day === day);
+        return Math.round(days.reduce((s, d) => s + d.meals.reduce((t, m) => t + m.proteinGrams, 0), 0) / days.length);
+      };
+      const swapDinner = scripted([turn("", [op({ op: "swap", dish: "Baked Salmon & Potatoes", slot: "dinner", days: ["Monday"] })]), turn("")]);
+      const r = await run(said("i'm allergic to peanuts"), "put salmon on monday's dinner", { model: swapDinner.fn });
+      const mon = [...r.reply.matchAll(/Monday now (?:has|comes to) \d+ kcal and (\d+)g protein/g)].map((m) => Number(m[1]));
+      const week = [...r.reply.matchAll(/Your week now averages \d+ kcal and (\d+)g protein/g)].map((m) => Number(m[1]));
+      const near = (xs: number[], want: number) => xs.every((x) => Math.abs(x - want) <= 1);
+      check("history allergy: its notes are settled against the final week: no Monday or week figure a later swap made stale is shown",
+        r.reply.startsWith(EARLIER_LEAD) && /peanut/.test(r.profile.allergies) && mon.length <= 1 && week.length <= 1 &&
+        near(mon, protein(r.plan, "Monday")) && near(week, protein(r.plan)),
+        `final Monday ${protein(r.plan, "Monday")}g, week ${protein(r.plan)}g; stated ${JSON.stringify(mon)} / ${JSON.stringify(week)}: ${r.reply.slice(0, 240)}`);
+    }
   }
 
   // MODEL FAILURES (F5a, from F5's mapping, 2026-10-22: MF-1, MF-2). A failure of the model after the engine
@@ -6694,6 +6712,53 @@ if (violations.size === 0) {
     {
       const out = settleNotes([n((f) => [`${f.plan.days.length} days`], 1), n("Kept.", 2)], [ch(1, ["Monday"])], fin);
       check("settleNotes: a note given as a function is rendered from the final week", out[0] === "7 days" && out[1] === "Kept.", out.join(" | "));
+    }
+    {
+      // A reservation's and a log's own figures (plan/execute.ts eatingOut, log_meal, balance_day), in the engine's
+      // words: none was settled, so a later change to the day left them standing beside the final week's.
+      const later = [ch(1, ["Friday"]), ch(2, ["Friday"])];
+      const friday = figuresNote(week, BASE, "Friday")!;
+      const reserve = settleNotes([
+        n("I've set aside 900 kcal for Friday dinner — about 45% of your day — and made the other meals lighter.", 1),
+        n("Your other meals carry 92g of protein, so order something with roughly 58g — a chicken, fish, steak or tofu main rather than a pasta or a pizza — and you'll finish the day on your 150g.", 1),
+        n("Friday still comes to 2000 kcal, reserve included.", 1),
+      ], later, fin).join(" ");
+      const over = settleNotes([
+        n("Heads up: even with everything else as light as I can make it, Friday lands about 400 kcal over target. I can pull the rest of your week down to absorb it — just say the word.", 1),
+      ], later, fin).join(" ");
+      const logged = settleNotes([
+        n("Logged Pizza (1400 kcal) for dinner. That was your last meal of the day — Friday lands at 2600 kcal and 90g protein. That's still 600 kcal over your 2000 kcal target — there isn't enough left in the day to fix it. Protein lands at 90g against your 150g target — what you ate didn't leave room to make it up.", 1),
+      ], later, fin).join(" ");
+      const balanced = settleNotes([
+        n("Balanced Friday as far as realistic portions allow: about 2300 kcal, still 300 over your 2000 target — the fixed meal is too large for the rest of the day to fully offset.", 1),
+      ], later, fin).join(" ");
+      check("settleNotes: a reservation's figures and its protein advice go when a later step changes the day; the reservation itself stays, and the day is re-stated",
+        reserve.startsWith("I've set aside 900 kcal for Friday dinner") && !/92g|still comes to/.test(reserve) && reserve.endsWith(friday), reserve);
+      check("settleNotes: a reservation's 'lands about N kcal over' goes with its offer when the day changed later",
+        !/400 kcal|pull the rest/.test(over) && over === friday, over);
+      check("settleNotes: a log's 'last meal of the day' figures and the sentences after them go; 'Logged …' stays",
+        logged.startsWith("Logged Pizza (1400 kcal) for dinner.") && !/2600|600 kcal|90g/.test(logged) && logged.endsWith(friday), logged);
+      check("settleNotes: 'Balanced <day> as far as realistic portions allow' keeps its action and loses its figures",
+        balanced.startsWith("Balanced Friday as far as realistic portions allow.") && !/2300|300 over/.test(balanced) && balanced.endsWith(friday), balanced);
+      const kept = settleNotes([n("Friday still comes to 2000 kcal, reserve included.", 2)], later, fin);
+      check("settleNotes: ...and with no later change to the day, every one of them stands", kept.length === 1 && kept[0] === "Friday still comes to 2000 kcal, reserve included.", kept.join(" | "));
+    }
+    {
+      // Through the loop: a reservation, then a later step that resizes the same day's lunch.
+      const friday = (w: WeekPlan) => w.days.find((d) => d.day === "Friday")!.meals;
+      const r = await runAgent({ ...base, message: "eating out friday dinner, and make friday lunch much bigger",
+        model: scripted([
+          turn("", [{ op: "reserve", day: "Friday", slot: "dinner", calories: 900 } as PrimitiveOp]),
+          turn("", [{ op: "resize", direction: "much_bigger", day: "Friday", slot: "lunch" } as PrimitiveOp]),
+          turn(""),
+        ]).fn });
+      const total = Math.round(friday(r.plan).reduce((s, m) => s + m.calories, 0));
+      const home = Math.round(friday(r.plan).filter((m) => m.type !== "dinner").reduce((s, m) => s + m.proteinGrams, 0));
+      const still = [...r.reply.matchAll(/Friday still comes to (\d+) kcal/g)].map((m) => Number(m[1]));
+      const carry = [...r.reply.matchAll(/Your other meals carry (\d+)g of protein/g)].map((m) => Number(m[1]));
+      check("loop: a reservation's figures are settled when a later step changes its day: none disagrees with the final Friday",
+        friday(r.plan).some((m) => m.record === "out") && still.every((x) => Math.abs(x - total) <= 1) && carry.every((x) => Math.abs(x - home) <= 1),
+        `final Friday ${total} kcal, home protein ${home}g; stated ${JSON.stringify(still)} / ${JSON.stringify(carry)}: ${r.reply.slice(0, 260)}`);
     }
   }
 

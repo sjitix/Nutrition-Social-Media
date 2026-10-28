@@ -31,7 +31,7 @@ import { claimsChange, composeReply, joinPhrases, NOTED_NOTHING_CHANGED_REPLY, N
 import { modelFailureOf, type ModelFailure, type ModelFailureKind } from "./modelFailure";
 import { CRISIS_REPLY } from "../nutrition";
 import { withSeed } from "../plan";
-import { settleNotes, changedDays, targetsChanged, type RunNote, type PhaseChange } from "./runNotes";
+import { settleByPhase, changedDays, targetsChanged, type RunNote, type PhaseChange } from "./runNotes";
 import type { Operation, PlanSnapshot, UserProfile, WeekPlan } from "../core";
 
 /** A cap, not a target. Reaching it is a bug to investigate, not a normal outcome. */
@@ -335,12 +335,14 @@ export async function runAgent(args: {
   const earlierOps = earlier.bind.map(asRemember);
   const statedOps = [...earlierOps, ...earlier.held.map(asRemember)];
   const start = { profile: args.profile, plan: args.plan };
-  const earlierNotes: string[] = [];
+  // Its notes are phase 0 of the run's, settled with them against the final week: a later step that changed the week
+  // made "Your week now averages …" from the binding false, and it was shown as true (open since 97e0cec).
+  const earlierEntries: RunNote[] = [];
   if (earlierOps.length) {
     const res = applyPrimitives(args.profile, args.plan, earlierOps, args.today);
     start.profile = res.profile;
     start.plan = res.plan;
-    earlierNotes.push(...res.notes.map((n, i) => (i === 0 ? EARLIER_LEAD + n : n)));
+    earlierEntries.push(...(res.noteSources ?? res.notes).map((source) => ({ source, phase: 0 })));
   }
 
   let profile = start.profile;
@@ -602,9 +604,12 @@ export async function runAgent(args: {
   }
 
   // Said before any failure line is added: whether the run has an answer of its own to give.
-  const engineSpoke = earlierNotes.length > 0 || entries.length > 0 || replyOverride !== undefined;
-  // What the person reads: every note, rendered and judged against the week the run ENDS with.
-  const notes = settleNotes(entries, changes, { plan, profile });
+  const engineSpoke = earlierEntries.length > 0 || entries.length > 0 || replyOverride !== undefined;
+  // What the person reads: every note, rendered and judged against the week the run ENDS with. The history
+  // allergy's are kept apart, to be said first; a stale figure of theirs is re-stated among the run's own.
+  const settled = settleByPhase([...earlierEntries, ...entries], changes, { plan, profile });
+  const earlierNotes = settled.filter((n) => n.phase === 0).map((n, i) => (i === 0 ? EARLIER_LEAD + n.text : n.text));
+  const notes = settled.filter((n) => n.phase !== 0).map((n) => n.text);
   if (modelFailed) {
     notes.push(MODEL_FAILED_LINE);
   } else if (gaveUp) {
