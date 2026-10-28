@@ -19,6 +19,7 @@
     "export:recipes": "esbuild scripts/export-recipes.mts --bundle --platform=node --format=esm --tsconfig=tsconfig.json --outfile=.cache/export-recipes.mjs --log-level=error && node .cache/export-recipes.mjs",
     "check:recipes": "esbuild scripts/check-recipes.mts --bundle --platform=node --format=esm --tsconfig=tsconfig.json --outfile=.cache/check-recipes.mjs --log-level=error && node .cache/check-recipes.mjs",
     "check:ingredients": "esbuild scripts/check-ingredients.mts --bundle --platform=node --format=esm --tsconfig=tsconfig.json --outfile=.cache/check-ingredients.mjs --log-level=error && node .cache/check-ingredients.mjs",
+    "check:images": "esbuild scripts/check-images.mts --bundle --platform=node --format=esm --tsconfig=tsconfig.json --outfile=.cache/check-images.mjs --log-level=error && node .cache/check-images.mjs",
     "train:status": "node scripts/train-status.mjs",
     "test:api": "node scripts/test-api.mjs",
     "eval:variance": "node scripts/eval-variance.mjs",

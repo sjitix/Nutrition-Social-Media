@@ -201,6 +201,10 @@ const GATES = [
   // every reference resolves to a curated slug. check:recipes had passed for months while NOTHING ran it.
   { name: "check:recipes", reads: (f) => f.startsWith("src/lib/") || DATA.has(f), cmd: ["npm", ["run", "check:recipes"]], needs: ["scripts/check-recipes.mts"] },
   { name: "check:ingredients", reads: (f) => f.startsWith("src/lib/") || DATA.has(f), cmd: ["npm", ["run", "check:ingredients"]], needs: ["scripts/check-ingredients.mts"] },
+  // The imagery (V1 D10): every photograph mapped to exactly one real recipe, every file used, none twice. A wrong
+  // key fails silently in the app (the card shows a tile), so only a gate can see it. It reads the recipe names too.
+  { name: "check:images", reads: (f) => f.startsWith("public/food/") || f.startsWith("src/lib/") || f === "scripts/check-images.mts", cmd: ["npm", ["run", "check:images"]], needs: ["scripts/check-images.mts"] },
+  { name: "check:images --self-test", reads: (f) => f === "scripts/check-images.mts", cmd: ["npm", ["run", "check:images", "--", "--self-test"]], needs: ["scripts/check-images.mts"] },
   // TYPES, always. The esbuild-bundled suites do not check that an imported TYPE exists, so a narrowed
   // barrel or a removed shim used to pass every gate and fail only at Vercel's `next build` (D5a review,
   // 2026-10-03). tsconfig.scripts.json is src/ plus scripts/, whose .mts the app's tsconfig never sees.

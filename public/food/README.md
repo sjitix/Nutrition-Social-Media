@@ -45,6 +45,11 @@ Two things this turned up that will recur:
    dish with bread in frame, is the failure this guards against. Midjourney does both readily —
    it defaults fish to salmon, adds yoghurt to dahl, and puts pita next to shawarma.
 3. Add one line to `RECIPE_IMAGES`, keyed on the recipe's exact `name`.
+4. **Run `npm run check:images`** (`ship.mjs` and CI run it too). A key that is not exactly a recipe name fails
+   silently in the app, because the card just shows a tile; the gate fails it out loud. It also fails a mapped file
+   that is missing, a file no entry uses, two entries on one file, two files with the same bytes, and a file over
+   400 kB. It cannot tell whether the photograph shows the dish: steps 1 and 2 stay a person looking. Its first run
+   (2026-10-28) found `_tmp.webp`, a byte-for-byte copy of `chicken-egg-poke-plate.webp` left by a cut-out run.
 
 ## Current files
 

@@ -349,6 +349,7 @@ nothing (measured: without it, 3–7 kB per route) — a module that must run on
 npm run test:engine     # THE gate. Scenarios + adversarial + invariants + fuzz. Never push red.
 npm run check:recipes   # every ingredient priced, every dish plausible, Atwater holds
 npm run check:ingredients # every recipe ingredient resolves to a curated slug + USDA food (D5)
+npm run check:images    # every photograph on exactly one real recipe, every file in public/food used once, none oversized (D10; `-- --self-test`)
 npm run check:boundaries # the module map enforced: layers, entry points + old paths, storage keys, client
                          # payload (modules AND zod), cycles, emoji, unresolved imports, import-time effects
                          # (~1.5 s; ship.mjs runs it on any src/ change; `-- --self-test` proves it fails, 45 cases)

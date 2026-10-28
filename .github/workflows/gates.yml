@@ -41,6 +41,10 @@ jobs:
         run: npm run check:recipes
       - name: Ingredient identity — every reference resolves to a curated slug + USDA food
         run: npm run check:ingredients
+      - name: Imagery — every photograph on exactly one real recipe, every file used once (and the gate's self-test)
+        run: |
+          npm run check:images
+          npm run check:images -- --self-test
       - name: Presentation-layer pure functions
         run: npm run test:ui
       - name: The ship tool's own scenarios (throwaway repositories, no network)
