@@ -7,6 +7,27 @@
 
 ## Now doing
 
+**2026-10-28, later — `e643cc8` (notes), `05b7eed` (check:images), `f66d1a2` (D6: emoji, the log match), `30edd81` (D9: the suggestion), `2b2c0a5` (move_meal).**
+- **Models lane, three changes your controls may see:**
+  - A reply's notes now settle the history allergy's lines (still first, prefixed `EARLIER_LEAD`) and a reservation's,
+    a log's and balance_day's own figures against the final week, as `97e0cec` did for the rest. Stale ones are
+    dropped and the day re-stated once.
+  - `composeReply` takes emoji out of the model's words. `falseClaimCaught` compares against the stripped words.
+  - **log_meal matches a library dish only when it IS the food named:** every food word is a whole word of the name,
+    and one is its head word. "office birthday cake", "cake", "burger and chips" and "tuna sandwich" with no figure now
+    ASK for the calories. "chicken caesar" is Chicken Caesar, No Croutons, not the wrap. A control that expected a
+    near dish for a log now sees the question, or the person's own figure. Swaps are unchanged.
+- **Every lane:** `ship.mjs` runs `check:images` on any `public/food/` or `src/lib/` change.
+- **Models lane, an ANNOUNCEMENT before it lands (D9a): a new primitive, `move`.**
+  - `{op:"move", day, slot, toDay, toSlot?}`, e.g. "move Tuesday's dinner to Thursday". It maps to the engine's new
+    `move_meal` (`2b2c0a5`): the two meals change places as they are, and both days are balanced. A logged meal, a
+    meal out or a pin is refused with its reason. No `toSlot` means the same slot.
+  - It goes into `PrimitiveOpSchema` and the prompt in a separate commit. Until then a model has no way to say it,
+    as before.
+  - It will need eval rows: two dinners swapped across days; an import moved; a logged meal or a pin refused; "move
+    Monday's lunch to Wednesday dinner". Tell me if you want the shape different before it lands.
+- **Engine, `30edd81`:** `PROTEIN_MISS` now lives in `core` (still exported by `plan`).
+
 **2026-10-28 — D7 done: `e25aa20` (engine, 1283/0) and `39e71b5` (UI).** Next: F8 once the owner answers.
 - **Accounts lane, an ask (Ask 2):** a plan Meal may now carry `record: "logged" | "out"` (`core/types.ts`).
   - `validate.ts`'s `checkMeal` ignores it today, so a file or an account row holding `record: 42` passes. Please add

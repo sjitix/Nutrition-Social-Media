@@ -209,8 +209,8 @@
             <span class="date">2026-10-28</span>
             <span class="pill done">solved &middot; done</span>
           </div>
-          <h3>What you logged stays logged, and Today counts it</h3>
-          <p class="sub">Day 7, meal logging. F8 is still waiting on your answer, so this went first.</p>
+          <h3>What you logged stays logged, Today counts it, and the app now speaks first</h3>
+          <p class="sub">Day 7, meal logging, then the next items nothing was waiting on. F8 is still waiting on your answer.</p>
           <div class="blocks">
             <div class="blk">
               <h4>What moved</h4>
@@ -225,17 +225,37 @@
                   then marks it &ldquo;Eaten&rdquo;, or &ldquo;Out&rdquo; for a meal out.</li>
                 <li><b>A calorie figure you give beats the recipe&rsquo;s own.</b> &ldquo;Burger and chips, 900&rdquo; was
                   logged as the library&rsquo;s 769-calorie version.</li>
+                <li><b>Every number in the assistant&rsquo;s reply matches the week it finishes with.</b> Two kinds still
+                  could be out of date: the line that opens &ldquo;Going by what you said earlier&rdquo;, and the totals a meal
+                  out or a logged meal states. If a later step in the same answer changed that day, the old figure stayed.</li>
+                <li><b>A photo check runs on every change.</b> Each photograph must sit on exactly one real recipe, and every
+                  photo file must be used. Its first run found a stray duplicate photo, now deleted.</li>
+                <li><b>The assistant&rsquo;s words carry no emoji,</b> even when the model writes some.</li>
+                <li><b>A meal you log is matched to a recipe only when it is that food.</b> &ldquo;Office birthday cake&rdquo;
+                  was logged as cottage cheese pancakes, because &ldquo;pancakes&rdquo; contains &ldquo;cake&rdquo;. Now it
+                  asks how many calories it was.</li>
+                <li><b>Day 6 is done.</b> Its last item, the assistant naming dishes the app does not have, was checked
+                  instead of coded: in all 1,104 replies the chosen model has given in testing, it named none.</li>
+                <li><b>The app now speaks first (Day 9).</b> When a day is short of protein, Week and Today say so in one line,
+                  name the dishes that would change, and fix it in one tap, with Undo. The line only appears once the planner
+                  has checked that the fix works.</li>
+                <li><b>Moving a meal to another day works properly (Day 9a, first step).</b> Dragging a plate moves that exact
+                  dish, including a recipe you imported, which used to turn into a different dish. A meal you logged, a meal out
+                  or a pinned dish stays put, and it says why.</li>
               </ul>
             </div>
             <div class="blk found">
               <h4>Found along the way</h4>
               <ul>
+                <li><b>&ldquo;Fix my week&rdquo; cannot raise protein.</b> It keeps each day&rsquo;s calories and resizes portions,
+                  which moved a short day from 128&nbsp;g to 127&nbsp;g. Re-planning the day reached 144&nbsp;g, so the new line uses
+                  that. The old button is unchanged for now: a question for you on the schedule board, day 9.</li>
                 <li><b>A new calorie target resized a meal you had already eaten,</b> and in one case moved it out of its
                   slot. A logged meal is now a fact the planner never changes.</li>
               </ul>
             </div>
           </div>
-          <div class="gate">GATE &middot; 27 of 27 re-plans lost a record before, 0 after &middot; 17 of the 27 new tests fail on the old code &middot; engine 1283/0, then 1285/0 &middot; build passes</div>
+          <div class="gate">GATE &middot; 27 of 27 re-plans lost a record before, 0 after &middot; 17 of the 27 new tests fail on the old code &middot; engine 1283/0, then 1285, 1292, 1296, 1297, 1302 &middot; build passes &middot; each later fix&rsquo;s new tests fail on the code before it</div>
         </div>
       </article>
 

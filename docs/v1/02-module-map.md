@@ -72,7 +72,7 @@ gate's job is to keep it true, not to fix it.
 
 | Layer | What lives there | May import | Must never import |
 |---|---|---|---|
-| **L0 · Contracts** | `core/` — `types.ts` (the zod schemas and TS types every layer speaks), `slots.ts`, `micros.ts` (the micronutrient vocabulary), `imported.ts` (an imported recipe and its pure converter to a Meal), `defaults.ts` (`DEFAULT_TARGETS`, zod-free so the browser can have it) | zod only | anything in this repo |
+| **L0 · Contracts** | `core/` — `types.ts` (the zod schemas and TS types every layer speaks), `slots.ts`, `micros.ts` (the micronutrient vocabulary), `imported.ts` (an imported recipe and its pure converter to a Meal), `defaults.ts` (`DEFAULT_TARGETS` and `PROTEIN_MISS`, zod-free so the browser can have them) | zod only | anything in this repo |
 | **L1 · Data** | `data/` — the 501 recipe seeds, ingredient identity, `nutrientTable.generated.ts`, `substitutions.ts`, `symptoms.ts`, `conditions.ts` (+ `nutrition/unitGrams.generated.ts`, kept client-safe) | L0 | anything computing over it |
 | **L2 · Pure computation** | `nutrition/` — `units.ts`, `nutrients.ts`, `targets.ts`, `exclusions.ts`, `safety.ts`, `grocery.ts` (+ `presentation/streak.ts`, local-day arithmetic) | L0–L1 | the plan engine, the assistant, any I/O |
 | **L3 · Plan engine** | selection, rebalancing, batch, the executor | L0–L2 | the assistant, providers, UI, `storage` |
@@ -172,7 +172,8 @@ schemas that validate them at every boundary."*
 - **Public:** `WeekPlan`, `DayPlan`, `Meal`, `Ingredient`, `UserProfile`, `UserFact`, `LockedMeal`,
   `MealRating`, `BodyStats`, `PlanSnapshot`, `ChatMessage`, `Batch`, `CookingSession`, `Operation`,
   `AssistantResponse`, `AssistantTurn`, the matching `*Schema`s, `MEAL_TYPES`, `DAYS`,
-  `DEFAULT_TARGETS`.
+  `DEFAULT_TARGETS`, `PROTEIN_MISS` (2026-10-28: the grams a day may fall short before anything says so, read by the
+  engine's notes and by the Week/Today suggestion, so both draw one line; `plan/report` re-exports it).
 - **Private:** nothing. This module is all contract.
 - **Invariants:** a type change here is a breaking change to every layer at once, so it is the one
   module where "just add an optional field" is the only safe edit (which is exactly how `planMode`,
@@ -488,7 +489,7 @@ whose pitch is "edit your week by chat". The gaps, found by comparing `actions.t
 
 | A person can… | by hand (Track E) | by chat today |
 |---|---|---|
-| move a meal to another day | drag, or `M` | no — would need two swaps with exact dish names |
+| move a meal to another day | drag, or `M` (one `move_meal` since 2026-10-28) | no — the engine operation `move_meal` exists (2026-10-28); the primitive is next |
 | fix every short day at once | "Fix my week" | no — one `rebalance_day` per day |
 | skip a meal | — | no engine operation exists |
 | cap tonight's cook time ("20 minutes tonight") | — | only as a standing constraint on every meal |
@@ -536,11 +537,13 @@ back, call again, stop."*
   takes no undo slot, and no undo takes it back. `EARLIER_LEAD` opens its note.
 
 **`assistant/runNotes`** (`runNotes.ts`, 2026-10-27) — *"A run's notes, true of the week it ends with."*
-- **Private to the folder** (the loop calls it): `settleNotes`, `changedDays`, `targetsChanged`, `NoteSource`, `RunNote`,
+- **Private to the folder** (the loop calls it): `settleNotes`, `settleByPhase` (the same, each note still tagged with its phase, so the history allergy's phase-0 notes can be said first), `changedDays`, `targetsChanged`, `NoteSource`, `RunNote`,
   `PhaseChange`. Pure.
 - **Invariants:** a note given as a function of the final week (an allergy fact's sentences) is rendered once, from
   the run's end; a figures sentence ("<Day> now has", "Your week now averages", a nutrient's average, and what
-  `achievementNote` appends) is dropped when a later engine call changed its day, any day for the week, or the
+  `achievementNote` appends; since 2026-10-28 also a reservation's "<Day> still comes to", its "lands about N kcal over" and
+  its protein advice, a log's "last meal of the day — <Day> lands at", and `balance_day`'s "as far as realistic portions
+  allow"; the history allergy's notes are settled with the rest, as phase 0) is dropped when a later engine call changed its day, any day for the week, or the
   targets, and is re-stated from the final week when nothing later states it; every other note is kept as written.
 
 **`assistant/modelFailure`** (`modelFailure.ts`, 2026-10-22) — *"Why a model call failed."*
@@ -557,7 +560,9 @@ Public: `composeReply`, `describeOperations`, `READ_ONLY_TOOLS`, `planWasChanged
 silences the model by **presence, not truthiness**; when the caller knows nothing changed
 (`profileChanged: false` passed) and the engine is silent, model prose that `claimsChange` is
 replaced by `NOTHING_CHANGED_REPLY`. `claimsChange` is the only copy of that detector, and the evals
-import it.
+import it. No emoji reaches the person (2026-10-28): the model's text passes through `withoutEmoji` (private to the
+folder; the loop uses it too), by `check:boundaries` rule 6's own definition, and an all-emoji reply falls back as
+an empty one does.
 
 ### L5 · Adapters
 

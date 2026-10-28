@@ -396,7 +396,7 @@ Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Ro
 - **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`,
   `docs/worklog/*-models.md`, this block, the lane file. Does not edit v1's files; asks v1 first.
 
-### >>> V1 LANE — 2026-10-28: D7 DONE (`e25aa20` engine, `39e71b5` UI): no re-plan removes what you logged, Today counts the log. F8 still on the laptop only <<<
+### >>> V1 LANE — 2026-10-28: D7 DONE (`e25aa20`, `39e71b5`); then notes settled (`e643cc8`), check:images (`05b7eed`), D6 emoji + log match (`f66d1a2`), D9 suggestion (`30edd81`). F8 still on the laptop only <<<
 
 **2026-10-28, D7.** Reproduced first: a logged library dish, a logged free-text meal, a reservation and an import,
 then nine re-plans × 3 seeds. 27 of 27 lost a record, with nothing said. The engine half is `e25aa20` (1283/0):
@@ -414,10 +414,27 @@ The UI half is `39e71b5`:
 
 Open:
 - `validate.ts` (the accounts lane) does not check `record` (asked in the lane file);
-- a record restored over a meal-prep serving leaves the batch placement stale.
+- (closed 2026-10-28: a record over a meal-prep serving shows nothing stale, since nothing outside `batch.ts` reads placements.)
 
-**Waiting on the owner: F8** (push it from the laptop's `../NutriFlow-f8`, or rebuild it here). Next without an
-answer: the open items from `97e0cec` (the history allergy's notes, and non-figure notes), or D8. Machine state: §4.
+**Then `e643cc8`: the two items `97e0cec` left open.** The history allergy's notes are now phase 0 of the run's
+and settled against the final week (a swap after the binding had left "Your week now averages … 151g" over a final
+149g). The settler also knows a reservation's, a log's and `balance_day`'s own figures, and a reservation's
+protein advice; until now none of them were settled. 7 new rows, 6 failing on the parent.
+
+**Waiting on the owner: F8** (push it from the laptop's `../NutriFlow-f8`, or rebuild it here). The owner said "do
+not stop working" (2026-10-28), so the next unblocked item is taken without waiting. **Then `05b7eed`: `check:images` (D10, first half)**, in
+`ship.mjs` and CI; its first run found and removed `public/food/_tmp.webp`, a copy of the poke cut-out. **Then `f66d1a2`: two of D6's three leftovers.** `composeReply` takes emoji out of the model's words; a logged meal
+matches a library dish only when it is that food (`namesSameFood`: every food word in the name, one of them its head
+word), so "office birthday cake" asks for calories instead of being logged as pancakes. D6's third leftover (non-library dish names) is closed by
+measurement: none in 1,104 recorded Nemotron replies, since engine notes are the reply whenever anything changed. **D6 is done.**
+**Then `30edd81`: D9, the assistant speaks first.** Week and Today offer a protein-short day's fix in one line and
+one tap (`src/app/sage/suggest.ts`, `SuggestionBar.tsx`). The line shows only when the engine's preview closes the gap.
+The fix is `regenerate_day`, since `rebalance_day` was measured to barely move protein (128 g to 127 g). **Open from it:**
+"Fix my week" and the per-day protein control run `rebalance_day`, so they cannot close the gap they select days by.
+**Then `2b2c0a5`: D9a started with the engine operation `move_meal`.** Two meals change places as they are,
+both days are balanced, and records and pins are refused with their reasons. The Week board's drag now sends it. As
+two swaps by name, the drag had placed another dish for an import or a lunch dropped on a dinner slot. **Next:** the
+`move` primitive (announce to the models lane first), then the rest of D9a's gap table (`02-module-map.md` §4 L4). D8 needs decision #2; D10's second half (more photographs) needs Midjourney. Machine state: §4.
 
 **2026-10-27.** The v1 lane resumed on the desktop (session `nutrition-social-media-main-86`); main fast-forwarded to
 `ac4ee33`. **F8 never reached GitHub**: it is uncommitted in `../NutriFlow-f8` on the laptop, so it is pushed from there
@@ -1827,7 +1844,7 @@ The card tiles were also hardcoded gradients in JS, two of them brand violet —
 could not be re-skinned while its largest blocks of colour were baked in. They now live in
 `globals.css` as `--tile-1 … --tile-14` and `gradientForMeal` returns `var(--tile-N)`.
 
-**Queued, not built: `npm run check:images`** — a gate in the family of `check:recipes` /
+**BUILT 2026-10-28 (V1 D10, first half): `npm run check:images`** (run by `ship.mjs` and CI; `-- --self-test` 9/9). Its first run found `public/food/_tmp.webp`, a byte-for-byte copy of the poke cut-out, now deleted. The spec it was built to — a gate in the family of `check:recipes` /
 `check:data`. It would catch, with no vision at all: a map key that is not a real recipe name (today
 that fails **silently** — the card just shows a gradient), a mapped file that does not exist, an
 orphan file with no entry, **two recipes pointing at the same file** (the 46-dishes failure, made
@@ -2268,7 +2285,7 @@ $img = [System.Windows.Forms.Clipboard]::GetImage()   # then downscale and save,
    generating new ones — `designs/midjourney-dish-photography.md` §7 has prompts ready for eleven
    more library recipes, plus a **cut-out variant** (`--ar 1:1`, rim left clear) that is the one to
    use for anything destined for a plate slot.
-4. **Build `npm run check:images`** (spec in the Photography section above). It would have caught
+4. **DONE 2026-10-28: `npm run check:images`** (spec in the Photography section above). It would have caught
    the class of bug the page now guards against by hand: Home and Explore count photographed
    recipes by resolving each map key against `RECIPES`, not by taking `Object.keys().length`,
    because a stale key would otherwise inflate a claim while rendering nothing.
