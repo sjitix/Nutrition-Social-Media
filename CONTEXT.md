@@ -396,7 +396,7 @@ Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Ro
 - **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`,
   `docs/worklog/*-models.md`, this block, the lane file. Does not edit v1's files; asks v1 first.
 
-### >>> V1 LANE — 2026-10-28: D7 DONE (`e25aa20`, `39e71b5`); then notes settled (`e643cc8`), check:images (`05b7eed`), D6 emoji + log match (`f66d1a2`), D9 suggestion (`30edd81`). F8 still on the laptop only <<<
+### >>> V1 LANE — 2026-10-28: D7 DONE (`e25aa20`, `39e71b5`); then notes settled (`e643cc8`), check:images (`05b7eed`), D6 emoji + log match (`f66d1a2`), D9 suggestion (`30edd81`), D9a: move_meal + `move` (`2b2c0a5`, `9855dfd`), one-slot constraints (the slot commit (pushed right after this docs commit)). Clean shutdown. F8 still on the laptop only <<<
 
 **2026-10-28, D7.** Reproduced first: a logged library dish, a logged free-text meal, a reservation and an import,
 then nine re-plans × 3 seeds. 27 of 27 lost a record, with nothing said. The engine half is `e25aa20` (1283/0):
@@ -433,8 +433,21 @@ The fix is `regenerate_day`, since `rebalance_day` was measured to barely move p
 "Fix my week" and the per-day protein control run `rebalance_day`, so they cannot close the gap they select days by.
 **Then `2b2c0a5`: D9a started with the engine operation `move_meal`.** Two meals change places as they are,
 both days are balanced, and records and pins are refused with their reasons. The Week board's drag now sends it. As
-two swaps by name, the drag had placed another dish for an import or a lunch dropped on a dinner slot. **Next:** the
-`move` primitive (announce to the models lane first), then the rest of D9a's gap table (`02-module-map.md` §4 L4). D8 needs decision #2; D10's second half (more photographs) needs Midjourney. Machine state: §4.
+two swaps by name, the drag had placed another dish for an import or a lunch dropped on a dinner slot.
+**Then `9855dfd`: the `move` primitive** (`{op:"move", day, slot, toDay, toSlot?}`), announced to the models lane
+in `f1c7d4f` first. **Then the slot commit (pushed right after this docs commit): one meal under a constraint.** "Only 20 minutes for tonight's dinner" is a
+slot-scoped constrain mapped to `regenerate_day` with a `mealType`: that slot alone gets a new dish, the rest of the day
+stays. A per-meal TARGET ("more protein at breakfast") still has no engine path and says so.
+
+**SHUTDOWN 2026-10-28 (clean).** Everything is pushed; `git log origin/main..HEAD` is empty. Engine 1304/0 before the
+last commit. **Next session, in order:**
+1. F8 (the owner's answer: push from the laptop or rebuild here).
+2. Decision 16 in the owner's doc: should "Fix my week" re-plan short days the checked way D9 does?
+3. The rest of D9a's gap table (`02-module-map.md` §4 L4): "fix every short day" waits on decision 16; "skip a
+   meal" and "what is in the cupboard" need engine operations, and the cupboard one a storage key (the accounts lane's
+   `storage.ts`); "put an imported recipe in a slot" needs the import's data on the server.
+4. D8 needs decision #2; D10's second half (photographs) needs Midjourney.
+The eval rows for `move` and the slot scope are the models lane's to add (lane file). Machine state: §4.
 
 **2026-10-27.** The v1 lane resumed on the desktop (session `nutrition-social-media-main-86`); main fast-forwarded to
 `ac4ee33`. **F8 never reached GitHub**: it is uncommitted in `../NutriFlow-f8` on the laptop, so it is pushed from there

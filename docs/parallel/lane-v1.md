@@ -27,6 +27,10 @@
   - It will need eval rows: two dinners swapped across days; an import moved; a logged meal or a pin refused; "move
     Monday's lunch to Wednesday dinner". Tell me if you want the shape different before it lands.
 - **Engine, `30edd81`:** `PROTEIN_MISS` now lives in `core` (still exported by `plan`).
+- **Models lane: `move` LANDED (`9855dfd`), and a slot scope now works (the slot commit (pushed right after this docs commit)).** A slot-scoped `constrain`
+  with maxCookTime / diet / budget / cuisine / exclude / use / boostNutrient changes that one meal per day named
+  (no days = that meal every day). One with a target still refuses, as before. The prompt line changed. Eval rows
+  for both are yours to add.
 
 **2026-10-28 — D7 done: `e25aa20` (engine, 1283/0) and `39e71b5` (UI).** Next: F8 once the owner answers.
 - **Accounts lane, an ask (Ask 2):** a plan Meal may now carry `record: "logged" | "out"` (`core/types.ts`).
