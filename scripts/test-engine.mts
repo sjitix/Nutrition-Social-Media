@@ -994,7 +994,15 @@ console.log("\n--- ALLERGEN REVIEW (the inputs that lost an allergy, or blocked 
     ["spinach (cooked)", "spinach"], ["peppers (green)", "peppers"],
   ];
   let wide = "";
-  for (const [d, max] of OVER) { const n = count(D(d)); if (n > max) wide += ` "${d}" ${n} > ${max} ${JSON.stringify(D(d))}`; }
+  // A dislike may block every dish whose INGREDIENTS hold the food, however many the library grows to; what it must
+  // not do is reach past them through a name or a method ("fries" took 63 stir-fries). So the cap is the larger of
+  // the number set when the row was written and the dishes the same matcher blocks reading the ingredients alone:
+  // a fixed 35 for "olives" broke at 36 real olive dishes (2026-10-29), not because anything leaked.
+  const byIngredients = (tokens: string[]) => RECIPES.filter((r) => haystackBlocked(r.ingredients.map((i) => i.name).join(" | "), tokens)).length;
+  for (const [d, max] of OVER) {
+    const n = count(D(d)), cap = Math.max(max, byIngredients(D(d)));
+    if (n > cap) wide += ` "${d}" ${n} > ${cap} ${JSON.stringify(D(d))}`;
+  }
   for (const [d, food] of QUALIFIED) { const n = count(D(d)), base = count(D(food)); if (n > base) wide += ` "${d}" ${n} > "${food}" ${base} ${JSON.stringify(D(d))}`; }
   check("allergen review: no dislike blocks far more than the food it names", wide === "", wide || `${OVER.length} dislikes`);
   check("allergen review: a dislike of olives keeps olive oil; an olive ALLERGY does not",
@@ -3613,8 +3621,10 @@ console.log("--- LOCK MEAL (a plan you can't pin isn't yours) ---");
     // matcher's call, and pinning a slot can push salmon elsewhere — so assert against where salmon
     // ACTUALLY landed, not where it landed while unpinned. (Asserting the latter flaked: pin the
     // slot, salmon dodges it, the pin correctly survives, and the fixed assumption fails.)
+    // The slot whose dish CHANGED to a salmon dish: Monday may already hold one (2026-10-29: the week's breakfast became
+    // the new "Smoked Salmon & Egg on Rye"), and the first salmon on the day then read as where the swap landed.
     const monSalmonSlot = (r: ReturnType<typeof applyOperations>) =>
-      r.plan.days.find((d) => d.day === "Monday")!.meals.find((m) => /salmon/i.test(m.name))?.type;
+      r.plan.days.find((d) => d.day === "Monday")!.meals.find((m, i) => /salmon/i.test(m.name) && m.name !== monBefore[i]?.name)?.type;
 
     const pinnedThere = applyOperations(BASE, plan, [op({ tool: "lock_meal", day: "Monday", mealType: hitSlot })]).profile;
     const swapNoType = applyOperations(pinnedThere, plan, [op({ tool: "swap_meal", day: "Monday", dish: "salmon" })]);
