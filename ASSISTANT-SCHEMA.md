@@ -45,7 +45,9 @@ a good `reply` with `operations: []`.
   - "make it cheaper + vegetarian, no mushrooms" → one `constrain` (scope week, budget, diet, exclude).
   - "vegetarian Mon–Wed" → one `constrain` (scope days [Mon,Tue,Wed], diet).
   - "lighter on weekends" → `constrain` (scope [Sat,Sun], targets.calories lower).
-  - "more protein at breakfast" → `constrain` (scope slot breakfast, targets.protein higher).
+  - "only 20 minutes for tonight's dinner" → `constrain` (scope slot dinner + days [today], maxCookTime 20).
+  - "more protein at breakfast" → NOT a slot-scoped `constrain`: a per-meal target has no engine path and
+    is refused honestly. Use `swap` to a higher-protein breakfast, or `resize`.
   - "I'm low on iron but keep me vegetarian" → `constrain` (boostNutrient iron, diet vegetarian).
   - "switch me to meal-prep, cook every 3 days" → `constrain` (planMode "batch", cadence "every3days").
     A mode change rebuilds the week from scratch in the new mode (never keep-paths the old dishes). In
@@ -73,6 +75,14 @@ a good `reply` with `operations: []`.
   and the meal there comes back the other way, both exactly as they are (engine `move_meal`); both days are
   balanced. No `toSlot` keeps the slot. A logged meal, a meal out and a pinned dish are refused with their reason.
   The Week board's drag sends the same operation.
+- **`skip`** — `{ op, day, slot }` (2026-10-29, V1 D9a). One meal on one day the person will not eat. The slot
+  becomes a 0 kcal record (`record: "skipped"`, engine `skip_meal`), the rest of the day is re-solved to carry
+  its calories, and every re-plan keeps it, as a logged meal is kept. A logged meal, a meal out, a pin or an
+  already-skipped slot is refused with its reason. "I never eat breakfast" stays a decline: plans run 3 or 4
+  meals a day. The meal sheet's "Skip this meal" and the palette's "skip lunch today" send the same operation.
+- **`constrain` with a slot scope** — since 2026-10-29 `{slot, days?}` carries what CHOOSES a dish
+  (`maxCookTime`, `diet`, `budget`, `cuisine`, `exclude`, `use`, `boostNutrient`): that meal alone is re-planned on
+  each day named, and the rest of the day keeps its dishes. A per-meal target still has no engine path and says so.
 - **`report`** — weekly review (read-only, engine computes averages + gaps).
 - **`explain`** — `{ op, day, slot }` why a meal is there (read-only).
 - **`substitute`** — `{ op, ingredient, day?, slot? }` out-of-an-ingredient advice (read-only).

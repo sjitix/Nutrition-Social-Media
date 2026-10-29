@@ -1985,6 +1985,17 @@ console.log("\n--- LOG_MEAL (real life derails the plan) ---");
     at(snack.plan, "Friday", "snack")?.record === "skipped" && !at(three.plan, "Friday", "snack") && !/no slot left/.test(three.notes.join(" ")), three.notes.join(" ").slice(0, 120));
 }
 {
+  // V1 D9a: the `skip` primitive, a thin mapping onto skip_meal.
+  const wk = withSeed(6, () => freshWeek(BASE));
+  const parsed = AssistantTurnV2Schema.safeParse({ thinking: "", reply: "", operations: [{ op: "skip", day: "Tuesday", slot: "lunch" }] });
+  const r = applyPrimitives(BASE, wk, [{ op: "skip", day: "Tuesday", slot: "lunch" } as PrimitiveOp]);
+  const lunch = r.plan.days.find((d) => d.day === "Tuesday")!.meals.find((m) => m.type === "lunch")!;
+  check("skip primitive: the schema takes it, and it skips through skip_meal",
+    parsed.success && lunch.record === "skipped" && r.notes.some((n) => n.startsWith("I skipped Tuesday's lunch")), r.notes[0]?.slice(0, 100));
+  check("skip primitive: its undo label is 'skipped Tuesday's lunch'",
+    operationPhrases(verbToOperations({ op: "skip", day: "Tuesday", slot: "lunch" } as never)).join() === "skipped Tuesday's lunch");
+}
+{
   // log_meal on a slot the day doesn't have (BASE is 3 meals — no snack) must ABSORB the eaten meal,
   // not silently drop it and then misreport the day. A plain replace-map used to lose it entirely.
   const wk = freshWeek(BASE);

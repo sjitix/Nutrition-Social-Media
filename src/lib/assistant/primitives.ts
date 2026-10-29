@@ -767,6 +767,8 @@ export interface RateOp { op: "rate"; rating: 1 | 2 | 3 | 4 | 5; dish?: string; 
 export interface PinOp { op: "pin" | "unpin"; day: Day; slot: MealType }
 /** "Move Tuesday's dinner to Thursday": the two meals change places as they are (engine: move_meal, V1 D9a). No toSlot
  *  means the same slot. */
+/** "I'm skipping lunch today": a 0 kcal record in that slot, the rest of the day carrying it (engine: skip_meal). */
+export interface SkipOp { op: "skip"; day: Day; slot: MealType }
 export interface MoveOp { op: "move"; day: Day; slot: MealType; toDay: Day; toSlot?: MealType }
 export interface ReportOp { op: "report" }
 export interface ExplainOp { op: "explain"; day: Day; slot: MealType }
@@ -779,7 +781,7 @@ export interface AnswerOp { op: "answer" }
 export interface CrisisOp { op: "crisis" }
 
 export type VerbOp =
-  | SwapOp | LogOp | ReserveOp | ResizeOp | RateOp | PinOp | MoveOp | ReportOp
+  | SwapOp | LogOp | ReserveOp | ResizeOp | RateOp | PinOp | MoveOp | SkipOp | ReportOp
   | ExplainOp | SubstituteOp | SymptomOp | HydrationOp | UndoOp | AnswerOp | CrisisOp;
 
 /**
@@ -814,6 +816,7 @@ function verbToOperation(o: Exclude<VerbOp, SwapOp>): Operation | null {
     case "rate": return { tool: "rate_meal", rating: o.rating, dish: o.dish ?? null, day: o.day ?? null, mealType: o.slot ?? null } as Operation;
     case "pin": return { tool: "lock_meal", day: o.day, mealType: o.slot } as Operation;
     case "unpin": return { tool: "unlock_meal", day: o.day, mealType: o.slot } as Operation;
+    case "skip": return { tool: "skip_meal", day: o.day, mealType: o.slot } as Operation;
     case "move": return { tool: "move_meal", day: o.day, mealType: o.slot, toDay: o.toDay, toMealType: o.toSlot ?? o.slot } as Operation;
     case "report": return { tool: "weekly_report" } as Operation;
     case "explain": return { tool: "explain_meal", day: o.day, mealType: o.slot } as Operation;
@@ -1007,6 +1010,7 @@ export const PrimitiveOpSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("rate"), rating: z.number().int().min(1).max(5), dish: z.string().optional(), day: dayEnum.optional(), slot: slotEnum.optional() }),
   z.object({ op: z.literal("pin"), day: dayEnum, slot: slotEnum }),
   z.object({ op: z.literal("unpin"), day: dayEnum, slot: slotEnum }),
+  z.object({ op: z.literal("skip"), day: dayEnum, slot: slotEnum }),
   z.object({ op: z.literal("move"), day: dayEnum, slot: slotEnum, toDay: dayEnum, toSlot: slotEnum.optional() }),
   z.object({ op: z.literal("report") }),
   z.object({ op: z.literal("explain"), day: dayEnum, slot: slotEnum }),
