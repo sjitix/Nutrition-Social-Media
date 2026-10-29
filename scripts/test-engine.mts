@@ -2198,12 +2198,16 @@ console.log("\n--- ADVERSARIAL / EDGE CASES ---");
       if (time(m.name) > 15 && !r.notes.some((n) => n.includes(`${m.name} (${d.day}'s ${m.type}, ${time(m.name)} min)`))) silent.push(`${seed}: ${d.day} ${m.name} ${time(m.name)} min`);
   }
   check("cook time: '15 minutes or less' for the week holds, or each dish over it is named (3 weeks)", silent.length === 0, `${silent.length} silent: ${silent.slice(0, 2).join(" | ")}`);
-  // No dinner in the library takes 10 minutes or less: the one placed runs over, and is named with its minutes.
+  // A limit no dinner in the library meets: the one placed runs over, and is named with its minutes. The limit is one
+  // minute under the quickest dinner, read from the library, because a fixed 10 broke the day a 10-minute dinner was
+  // added (2026-10-29).
+  const limit = Math.min(...RECIPES.filter((r) => r.type === "dinner" && !r.treatOnly).map((r) => r.timeMinutes)) - 1;
   const w4 = withSeed(4, () => freshWeek(BASE));
-  const ten = withSeed(4, () => applyPrimitives(BASE, w4, [{ op: "constrain", scope: { days: ["Tuesday"] }, maxCookTime: 10 } as unknown as PrimitiveOp]));
+  const ten = withSeed(4, () => applyPrimitives(BASE, w4, [{ op: "constrain", scope: { days: ["Tuesday"] }, maxCookTime: limit } as unknown as PrimitiveOp]));
   const din = ten.plan.days.find((d) => d.day === "Tuesday")!.meals.find((m) => m.type === "dinner")!;
   check("cook time: a dinner over a limit nothing meets is named with its minutes",
-    time(din.name) > 10 && ten.notes.some((n) => n.includes(`${din.name} (Tuesday's dinner, ${time(din.name)} min)`) && /over your 10-min limit/.test(n)), ten.notes.join(" | ").slice(0, 200));
+    limit > 0 && time(din.name) > limit && ten.notes.some((n) => n.includes(`${din.name} (Tuesday's dinner, ${time(din.name)} min)`) && n.includes(`over your ${limit}-min limit`)),
+    `limit ${limit}: ${ten.notes.join(" | ").slice(0, 200)}`);
   // The default 30 minutes: nothing in the library forces a dish over it, so a regenerated week says nothing.
   let noisy = 0;
   for (let seed = 1; seed <= 3; seed++) {
