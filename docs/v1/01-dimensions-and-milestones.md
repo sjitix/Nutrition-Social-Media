@@ -250,8 +250,8 @@ thing that makes "a lot" reachable rather than aspirational. **Built 2026-10-29:
 "name"`.** Each candidate comes with its per-100 g kcal, protein, carbs and fat and a 4/4/9 check (the raw/cooked
 trap shows as a number). It also flags the slug already behind that USDA food, and any candidate that is not the same
 food by name. It prints an entry template, never a pick: its own first run ranked "Tofu yogurt" first for smoked tofu
-and "Salmonberries" for salmon fillet. **Growth since:** 501 to 588 recipes on 2026-10-29: every cell under 14 filled
-(keto lunch and dinner 12/11 to 22/23, each with every cuisine; quick vegan dinners 4 to 14; vegan breakfasts of 25 g protein or more 4 to 11; keto dinners a low budget allows 14 to 22; dinners of 15 minutes or less, vegan 6 to 14, keto 7 to 14, Mediterranean 6 to 16; Mediterranean breakfasts of 25 g protein or more 19 to 27).
+and "Salmonberries" for salmon fillet. **Growth since:** 501 to 618 recipes on 2026-10-29: every cell under 14 filled
+(keto lunch and dinner 12/11 to 22/23, each with every cuisine; quick vegan dinners 4 to 14; vegan breakfasts of 25 g protein or more 4 to 11; keto dinners a low budget allows 14 to 22; dinners of 15 minutes or less, vegan 6 to 14, keto 7 to 14, Mediterranean 6 to 16; Mediterranean breakfasts of 25 g protein or more 19 to 27; every diet x cuisine x slot cell at 3 or more).
 
 **Set a number, or "a lot" has no gate.** Proposed: **180 → 400 ingredients, 501 → 900 recipes**,
 judged by `npm run export:recipes`' Gaps sheet — any diet/slot cell under seven options forces a

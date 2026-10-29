@@ -396,7 +396,7 @@ Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Ro
 - **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`,
   `docs/worklog/*-models.md`, this block, the lane file. Does not edit v1's files; asks v1 first.
 
-### >>> V1 LANE — 2026-10-28: D7 DONE (`e25aa20`, `39e71b5`); then notes settled (`e643cc8`), check:images (`05b7eed`), D6 emoji + log match (`f66d1a2`), D9 suggestion (`30edd81`), D9a: move_meal + `move` (`2b2c0a5`, `9855dfd`), one-slot constraints (`fc01cdf`); 10-29: skip a meal (`1b658d1`), propose:ingredient, check:drafts, 87 recipes (588), and two engine fixes the new dishes exposed (`3244ed1`). F8 still on the laptop only <<<
+### >>> V1 LANE — 2026-10-28: D7 DONE (`e25aa20`, `39e71b5`); then notes settled (`e643cc8`), check:images (`05b7eed`), D6 emoji + log match (`f66d1a2`), D9 suggestion (`30edd81`), D9a: move_meal + `move` (`2b2c0a5`, `9855dfd`), one-slot constraints (`fc01cdf`); 10-29: skip a meal (`1b658d1`), propose:ingredient, check:drafts, 117 recipes (618), the Explore payload cut (`7566794`), and two engine fixes the new dishes exposed (`3244ed1`). F8 still on the laptop only <<<
 
 **2026-10-28, D7.** Reproduced first: a logged library dish, a logged free-text meal, a reservation and an import,
 then nine re-plans × 3 seeds. 27 of 27 lost a record, with nothing said. The engine half is `e25aa20` (1283/0):
@@ -444,7 +444,7 @@ an **unexpected power-off at 11:24** (Kernel-Power 41, no bugcheck, no WHEA erro
 Then **skip a meal**: `1b658d1` (engine `skip_meal`, `record: "skipped"`, the meal sheet, Week, Today, and the
 palette's "skip" and "move"), and the `skip` primitive after it. **B7, `propose:ingredient`**: ranks USDA candidates
 with their per-100 g figures, a 4/4/9 check, "already behind" and "not the same food by name?" flags, and an entry
-template; it never picks. **87 recipes** (501 to 588): every cell under 14 filled, then variety across cuisines, then high-protein vegan breakfasts and lunches (keto lunch 12 / dinner 11; vegan
+template; it never picks. **117 recipes** (501 to 618): every cell under 14 filled, then variety across cuisines, then high-protein vegan breakfasts and lunches (keto lunch 12 / dinner 11; vegan
 dinners of 20 minutes or less: 4). Decision 16 widened: the palette's "protein 180" and the day's protein control use
 the same rebalance.
 
@@ -453,7 +453,7 @@ the same rebalance.
 2. Decision 16 in the owner's doc ("Fix my week" and the protein controls).
 3. D9a's remaining rows: "fix every short day" waits on decision 16; "what is in the cupboard" needs a storage key
    (the accounts lane's `storage.ts`); "an imported recipe in a slot" needs an import flow in `/sage` (D8).
-4. Library growth. Every diet, cuisine and quick-dinner cell is now over 14 (588 recipes). The next step needs
+4. Library growth. Every diet, cuisine and quick-dinner cell is now over 14, and every diet x cuisine x slot cell holds 3 or more (618 recipes). The next step needs
    decision 17 in the owner's doc: 16 new ingredients (lamb, pork loin, sardines, plant milks, coconut milk, grains,
    squash, leeks, celery, cashews, sunflower seeds, silken tofu, pear), each with a recommended USDA row. Add the Yes
    ones to `scripts/ingredient-map.json`, run `npm run build:nutrients -- --emit`, then write recipes with them

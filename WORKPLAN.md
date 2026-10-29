@@ -1689,6 +1689,15 @@ Each of these was discovered by doing the work, and each earned its place.
     held :3000 with the previous build's manifests, and a fresh `next start` failed with EADDRINUSE into a log nobody
     read. **Before trusting a request to localhost, check what owns the port** (`netstat -ano | grep :3000`, then the
     process's command line), and stop the node process itself when finishing.
+83. **A test that pins a number the LIBRARY sets breaks every time the library grows, with nothing wrong.** Growing
+    the library from 501 to 618 recipes on 2026-10-29 failed, one batch at a time: a cap of 50 spinach dishes and 35
+    olive dishes; a 10-minute limit "no dinner meets"; a peanut fixture searched for over 400 seeds; a premise needing
+    3 short days in 8 seeds; a vegan week assumed short of protein; "where the salmon landed" read as the first salmon
+    on the day, once the week's breakfast was a new salmon dish. Each failure was the row, not the engine. **Write
+    such rows against what the library holds now:** a limit of one minute under the quickest dinner, a cap of the
+    dishes whose ingredients hold the food, a fixture PLACED by swaps rather than found by seed, a target no week
+    reaches. Two real defects surfaced among them ("Italian + iron", the unmentioned swap), so read every failure before
+    re-pinning anything.
 
 ---
 
