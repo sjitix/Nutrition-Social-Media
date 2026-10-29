@@ -113,7 +113,8 @@ export function search(foods, query, n = 5) {
     .slice(0, n);
 }
 
-if (process.argv[2]) {
+// Only when run itself: propose-ingredient.mjs imports this file, and its own arguments must not run a search here.
+if (process.argv[2] && process.argv[1] && fileURLToPath(import.meta.url) === join(process.argv[1])) {
   const foods = loadFoods();
   console.error(`loaded ${foods.length} SR Legacy foods\n`);
   for (const q of process.argv.slice(2)) {
