@@ -46,8 +46,9 @@ a good `reply` with `operations: []`.
   - "vegetarian Mon–Wed" → one `constrain` (scope days [Mon,Tue,Wed], diet).
   - "lighter on weekends" → `constrain` (scope [Sat,Sun], targets.calories lower).
   - "only 20 minutes for tonight's dinner" → `constrain` (scope slot dinner + days [today], maxCookTime 20).
-  - "more protein at breakfast" → NOT a slot-scoped `constrain`: a per-meal target has no engine path and
-    is refused honestly. Use `swap` to a higher-protein breakfast, or `resize`.
+  - "at least 35 g of protein at breakfast" → `constrain` (scope slot breakfast, targets.protein 35): that MEAL's
+    floor (2026-10-29). A calorie, carb, fat or fibre target for one meal still has no engine path and is refused
+    honestly; use `resize` for lighter or bigger.
   - "I'm low on iron but keep me vegetarian" → `constrain` (boostNutrient iron, diet vegetarian).
   - "switch me to meal-prep, cook every 3 days" → `constrain` (planMode "batch", cadence "every3days").
     A mode change rebuilds the week from scratch in the new mode (never keep-paths the old dishes). In
@@ -82,7 +83,11 @@ a good `reply` with `operations: []`.
   meals a day. The meal sheet's "Skip this meal" and the palette's "skip lunch today" send the same operation.
 - **`constrain` with a slot scope** — since 2026-10-29 `{slot, days?}` carries what CHOOSES a dish
   (`maxCookTime`, `diet`, `budget`, `cuisine`, `exclude`, `use`, `boostNutrient`): that meal alone is re-planned on
-  each day named, and the rest of the day keeps its dishes. A per-meal target still has no engine path and says so.
+  each day named, and the rest of the day keeps its dishes. `targets.protein` there is that meal's protein FLOOR in
+  grams (`regenerate_day` with `mealProtein`, 2026-10-29): a meal already over it stays; otherwise the best-fitting
+  dish from the swap control's safe pool that reaches it (at its own portion first, then up to 1.8x) takes the slot,
+  held at that portion while the day's other meals are balanced; none reaches it and nothing changes, with the most
+  any dish reaches. Any other target for one meal still has no engine path and says so.
 - **`report`** — weekly review (read-only, engine computes averages + gaps).
 - **`explain`** — `{ op, day, slot }` why a meal is there (read-only).
 - **`substitute`** — `{ op, ingredient, day?, slot? }` out-of-an-ingredient advice (read-only).

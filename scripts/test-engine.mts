@@ -1960,9 +1960,26 @@ console.log("\n--- LOG_MEAL (real life derails the plan) ---");
     `${day}: ${at(wk, day, "dinner").name} (${minutes(at(wk, day, "dinner"))} min) -> ${dinner.name} (${minutes(dinner)} min); ${r.notes[0]?.slice(0, 90)}`);
   check("slot scope: the profile's own cook-time limit is untouched (a per-slot change, not saved)", r.profile.maxCookTime === BASE.maxCookTime);
 
-  const target = applyPrimitives(BASE, wk, [{ op: "constrain", scope: { slot: "breakfast" }, targets: { protein: 40 } } as PrimitiveOp]);
-  check("slot scope: a target for one meal is still not something the engine holds, so nothing changes and the reply says so",
-    !target.planChanged && target.notes.some((n) => /can't change just your breakfast that way/.test(n)), target.notes[0]);
+  // A protein target for one meal is that meal's floor (`mealProtein`): "at least 40 g of protein at breakfast".
+  const floor = 50;
+  const target = applyPrimitives(BASE, wk, [{ op: "constrain", scope: { slot: "breakfast" }, targets: { protein: floor } } as PrimitiveOp]);
+  const short = DAYS.filter((d) => at(wk, d, "breakfast").proteinGrams < floor);
+  check("slot scope, protein: every breakfast under the floor is replaced by one at or over it, and every other meal keeps its dish",
+    short.length > 0 && target.planChanged && DAYS.every((d) => at(target.plan, d, "breakfast").proteinGrams >= floor) &&
+    short.every((d) => target.notes.some((n) => n.startsWith(`${d}'s breakfast is now ${at(target.plan, d, "breakfast").name} (`))) &&
+    target.plan.days.every((d) => d.meals.filter((m) => m.type !== "breakfast").every((m) => at(wk, d.day, m.type).name === m.name)),
+    `${short.length} short; ${DAYS.map((d) => at(target.plan, d, "breakfast").proteinGrams).join(",")}; ${target.notes[0]?.slice(0, 100)}`);
+  check("slot scope, protein: a breakfast already over the floor stays, and the reply says so",
+    DAYS.filter((d) => !short.includes(d)).every((d) => at(target.plan, d, "breakfast").name === at(wk, d, "breakfast").name &&
+      target.notes.some((n) => n.startsWith(`${at(wk, d, "breakfast").name} already has`))) , target.notes.join(" | ").slice(0, 300));
+  check("slot scope, protein: the day's other meals are balanced around the new breakfast, the profile's protein target untouched",
+    target.profile.proteinGrams === BASE.proteinGrams && short.every((d) => target.notes.some((n) => n.startsWith(`${d}'s breakfast`) && n.includes(`${d} now has`))));
+  const far = applyPrimitives(BASE, wk, [{ op: "constrain", scope: { slot: "breakfast", days: ["Monday"] }, targets: { protein: 200 } } as PrimitiveOp]);
+  check("slot scope, protein: a floor no breakfast reaches changes nothing and names the most there is",
+    !far.planChanged && far.notes.some((n) => /^No breakfast that fits your plan reaches 200g protein \(the most is about \d+g, in a large portion\)/.test(n)), far.notes[0]);
+  const kcal = applyPrimitives(BASE, wk, [{ op: "constrain", scope: { slot: "breakfast" }, targets: { calories: 300 } } as PrimitiveOp]);
+  check("slot scope: a calorie target for one meal is still not something the engine holds, so nothing changes and the reply says so",
+    !kcal.planChanged && kcal.notes.some((n) => /can't change just your breakfast that way/.test(n)), kcal.notes[0]);
 
   const logged = applyOperations(BASE, wk, [op({ tool: "log_meal", day, mealType: "dinner", dish: "pizza", loggedCalories: 800 } as never)]);
   const kept = applyPrimitives(BASE, logged.plan, [{ op: "constrain", scope: { slot: "dinner", days: [day] }, maxCookTime: 20 } as PrimitiveOp]);
@@ -5546,8 +5563,9 @@ console.log("\n--- THE ASSISTANT'S WORDS BIND THE ENGINE ---");
     check("remember: restating a stored fact (same kind) leaves the profile exactly as it was",
       restated.profile === known || JSON.stringify(restated.profile) === JSON.stringify(known), JSON.stringify(restated.profile.memory));
   }
-  // (1) A slot-scoped constrain is not built yet — so it must change nothing AND say so.
-  const slot = applyPrimitives(BASE, aw, [{ op: "constrain", scope: { slot: "breakfast" }, targets: { protein: 40 } } as PrimitiveOp]);
+  // (1) A slot-scoped constrain the engine cannot carry out must change nothing AND say so. A protein target for one
+  // meal became one in V1 D9a (2026-10-29, `mealProtein`); a calorie target for one meal is still not.
+  const slot = applyPrimitives(BASE, aw, [{ op: "constrain", scope: { slot: "breakfast" }, targets: { calories: 300 } } as PrimitiveOp]);
   check("slot-scoped constrain: changes nothing", slot.planChanged === false);
   check("slot-scoped constrain: says nothing changed, so the model cannot claim it did",
     slot.notes.some((n) => /breakfast/.test(n) && /nothing changed/.test(n)), slot.notes.join(" | "));

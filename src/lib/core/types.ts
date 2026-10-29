@@ -170,6 +170,8 @@ export const OperationSchema = z.object({
   useIngredients: z.array(z.string()).optional(),
   targetCalories: z.number().nullable().optional(),
   targetProtein: z.number().nullable().optional(), // grams/day; the plan re-solves to hit it
+  // regenerate_day with a mealType: at least this many grams of protein in that ONE meal ("35 g at breakfast", V1 D9a).
+  mealProtein: z.number().nullable().optional(),
   targetCarbs: z.number().nullable().optional(),
   targetFat: z.number().nullable().optional(),
   targetFiber: z.number().nullable().optional(),

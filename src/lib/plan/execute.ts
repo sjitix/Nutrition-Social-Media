@@ -13,11 +13,12 @@ import { type Recipe } from "../data";
 import { CRISIS_REPLY, MICRO_LABEL, exclusionCovers, haystackBlocked, mealHaystack, parseExclusionTokens, wordMatches, type MicroKey } from "../nutrition";
 import { RECIPES, baseRecipeOf, isRecord, recordKind, scaleQuantity, scaleRecipeToTarget, toMeal } from "./library";
 import { bannedForUser, blockedByExclusions, budgetCap, exclusionKey, exclusionTokens, fiberOn, isSeafood, isSeafoodWord, keepMacros, localSplit, mergeDislikes, normalizeCuisine, passesDiet, wantsSeafood } from "./rules";
-import { SCALE_LO, clampScale, dayTargetMacros, macroDistance, rebalanceDay, rebalanceWeek, recipeMacros, scaleRecipeByFactor, scaleToTargets, slotShare, slotTargetMacros, slotsUpTo } from "./rebalance";
+import { SCALE_HI, SCALE_LO, clampScale, dayTargetMacros, macroDistance, rebalanceDay, rebalanceWeek, recipeMacros, scaleRecipeByFactor, scaleToTargets, slotShare, slotTargetMacros, slotsUpTo } from "./rebalance";
 import { brokenImports, importBreaks, importNotes, newReport, reportNotes, selectDay, selectWeekFromDb, withSeed, type ReplacedImport } from "./select";
 import { buildWeek } from "./batch";
 import { PROTEIN_MISS, achievementNote, dayTotals, dayTotalsFull, explainMealNote, figuresNote, listPhrase, microNote, rateMealNote, resolveRatedDish, substituteNote, symptomNote, weekAveragesFull, weeklyReportNote } from "./report";
 import { guaranteeBoost } from "./boost";
+import { swapCandidates } from "./candidates";
 
 // Macro-aware swap: among the recipes that match the requested dish name, pick the
 // one whose macro profile best fits the slot — so "pancakes" on a high-protein plan
@@ -1076,6 +1077,41 @@ export function applyOperations(
             notes.push(recordKind(old) === "out" ? `${op.day}'s ${op.mealType} is set aside for eating out, so I left it.`
               : isRecord(old) ? `${old.name} is logged as eaten on ${op.day}, so I left it.`
               : `${old.name} is pinned to ${op.day}'s ${op.mealType}. Unpin it first if you'd like it changed.`);
+            break;
+          }
+          if (op.mealProtein && op.mealProtein > 0) {
+            // A protein floor for ONE meal ("at least 35 g of protein at breakfast"). The dish comes from swapCandidates,
+            // the same safe pool the swap control offers, under the day's overrides; it is placed at its slot's share and
+            // raised to the floor where a portion can carry it, and held there while the day's other meals are balanced.
+            const floor = Math.round(op.mealProtein);
+            if (old.proteinGrams >= floor) {
+              notes.push(`${old.name} already has ${old.proteinGrams}g protein, so ${op.day}'s ${op.mealType} stays as it is.`);
+              break;
+            }
+            const cuisine = normalizeCuisine(op.cuisine ?? null);
+            // Best fit first; a dish that reaches the floor at its own portion before one that needs a bigger one, and a
+            // dish not already elsewhere in the week before one that is (variety is a preference). A portion goes up to
+            // SCALE_HI, the same ceiling every rebalance holds.
+            const rows = swapCandidates(tp, curPlan, op.day, op.mealType, 1000).rows
+              .filter((r) => !cuisine || RECIPES.find((x) => x.name === r.name)?.cuisine === cuisine);
+            const rank = (r: (typeof rows)[number]) => (r.protein >= floor ? 0 : 2) + (r.elsewhereThisWeek ? 1 : 0);
+            const pick = rows.filter((r) => r.protein * SCALE_HI >= floor)
+              .sort((a, b) => rank(a) - rank(b))
+              .map((r) => RECIPES.find((x) => x.name === r.name))
+              .find((r): r is Recipe => !!r);
+            if (!pick) {
+              const most = Math.round(Math.max(old.proteinGrams, ...rows.map((r) => r.protein * SCALE_HI)));
+              notes.push(`No ${op.mealType} that fits your plan reaches ${floor}g protein (the most is about ${most}g, in a large portion), so ${op.day}'s ${op.mealType} stays as it is.`);
+              break;
+            }
+            let placed = scaleRecipeToTarget(pick, Math.round(tp.targetCalories * slotShare(tp, op.mealType)));
+            if (placed.proteinGrams < floor) placed = scaleRecipeByFactor(pick, clampScale((floor + 0.5) / pick.proteinGrams));
+            const plate = { ...toMeal(placed), type: op.mealType };
+            const hold = new Set([op.mealType, ...lockedSlotsFor(p, op.day)]);
+            const meals = scaleToTargets(cur.meals.map((m) => (m.type === op.mealType ? plate : m)), tp, hold).map((m, i) => ({ ...m, type: cur.meals[i].type }));
+            curPlan = { ...curPlan, days: curPlan.days.map((d) => (d.day === op.day ? { ...d, meals } : d)) };
+            notes.push(`${op.day}'s ${op.mealType} is now ${plate.name} (${plate.proteinGrams}g protein), in place of ${old.name} (${old.proteinGrams}g).` +
+              (figuresNote(curPlan, tp, op.day) ? ` ${figuresNote(curPlan, tp, op.day)}` : ""));
             break;
           }
           if (fresh.name === old.name) {

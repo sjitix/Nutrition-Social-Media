@@ -618,8 +618,9 @@ const isDayScope = (s: Scope): s is { days: Day[] } =>
  *  - scope "week"  → one `update_profile` (persists + rebuilds the week).
  *  - scope {days}  → one `regenerate_day` per day (temporary per-day override, not saved).
  *  - scope {slot}  → one `regenerate_day` per day with `mealType`: that slot alone gets a dish chosen under the
- *    constraints, the day's other dishes stay (V1 D9a). Only for what picks a dish (`slotPicks`); a target for one
- *    meal is not something the engine has, so that still gets `slotScopeNote`'s honest answer.
+ *    constraints, the day's other dishes stay (V1 D9a). Only for what picks a dish (`slotPicks`). A protein target
+ *    there is that meal's floor (`mealProtein`); a calorie, carb, fat or fibre target for one meal is not something
+ *    the engine has, so that still gets `slotScopeNote`'s honest answer.
  */
 export function expandConstrain(c: ConstrainOp): Operation[] {
   const t = c.targets ?? {};
@@ -669,7 +670,7 @@ export function expandConstrain(c: ConstrainOp): Operation[] {
           diet: c.diet ?? null, cuisine: c.cuisine ?? null,
           excludeFoods: c.exclude ?? [], useIngredients: c.use ?? [],
           maxCookTime: c.maxCookTime ?? null, budget: c.budget ?? null,
-          boostNutrient: c.boostNutrient ?? null,
+          boostNutrient: c.boostNutrient ?? null, mealProtein: t.protein ?? null,
         }) as Operation,
     );
   }
@@ -719,11 +720,13 @@ export function emptyConstrainNote(c: ConstrainOp): string {
 }
 
 /** A slot-scoped constrain the engine can carry out: it says what to CHOOSE (cook time, diet, budget, cuisine, a food
- *  to leave out or use, a nutrient) and nothing a single meal cannot hold (a target, the meal count, the plan mode). */
+ *  to leave out or use, a nutrient, a protein floor for that meal) and nothing a single meal cannot hold (a calorie,
+ *  carb, fat or fibre target, the meal count, the plan mode). */
 export function slotPicks(c: ConstrainOp): boolean {
   const t = c.targets ?? {};
-  const target = [t.calories, t.protein, t.carbs, t.fat, t.fiber].some((v) => typeof v === "number" && v > 0);
-  const picks = (c.maxCookTime ?? 0) > 0 || !!c.diet || !!c.budget || !!c.cuisine || !!c.exclude?.length || !!c.use?.length || !!c.boostNutrient;
+  const target = [t.calories, t.carbs, t.fat, t.fiber].some((v) => typeof v === "number" && v > 0);
+  const protein = typeof t.protein === "number" && t.protein > 0;
+  const picks = protein || (c.maxCookTime ?? 0) > 0 || !!c.diet || !!c.budget || !!c.cuisine || !!c.exclude?.length || !!c.use?.length || !!c.boostNutrient;
   return picks && !target && !c.mealsPerDay && !c.planMode && !c.cadence;
 }
 

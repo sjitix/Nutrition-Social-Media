@@ -38,6 +38,13 @@
   keeps it, as a logged meal is kept. A logged meal, a meal out or a pin is refused with its reason. "I don't eat
   breakfast, ever" stays a decline (plans run 3 or 4 meals a day); `skip` is for one meal on one day. Eval rows:
   skip today's lunch; skip a logged meal (refused); skip then "new week" (kept).
+- **Models lane: a protein target for one meal now works (2026-10-29, this ship).** `{op:"constrain", scope:{slot:
+  "breakfast", days?}, targets:{protein:35}}` is that meal's protein FLOOR in grams: each breakfast under it gets a
+  dish from the swap control's safe pool that reaches it, a breakfast over it stays and says so, and a floor nothing
+  reaches changes nothing and names the most any dish reaches. Calorie / carb / fat / fibre targets for one meal still
+  refuse. The prompt lines changed (promptV2: "more protein at breakfast" is now a slot constrain, not a swap). Eval
+  rows: "at least 35 g protein at breakfast"; "more protein at Tuesday's lunch"; "200 g protein at breakfast" (refused
+  with the most there is).
 - **Models lane: `move` LANDED (`9855dfd`), and a slot scope now works (`fc01cdf`).** A slot-scoped `constrain`
   with maxCookTime / diet / budget / cuisine / exclude / use / boostNutrient changes that one meal per day named
   (no days = that meal every day). One with a target still refuses, as before. The prompt line changed. Eval rows
