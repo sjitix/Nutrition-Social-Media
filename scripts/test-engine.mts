@@ -983,12 +983,19 @@ console.log("\n--- ALLERGEN REVIEW (the inputs that lost an allergy, or blocked 
   // Over-blocks: [input, the most recipes it may block]. "fries" used to remove 63 stir-fries (the
   // reverse -ies rule reached the verb "fry"); "onions unless cooked" added the word "cooked" (130).
   const OVER: [string, number][] = [
-    ["fries", 5], ["cherries", 3], ["onions unless cooked", 40], ["tomatoes unless cooked", 140], ["carrots except roasted", 15],
-    ["spinach (cooked)", 50], ["peppers (green)", 45], ["white or brown rice", 45], ["olives", 35], ["goat cheese", 5],
+    ["fries", 5], ["cherries", 3], ["white or brown rice", 45], ["olives", 35], ["goat cheese", 5],
     ["smoked salmon", 10], ["shrimp paste", 3], ["tortilla chips", 3], ["don't like olives", 35], ["hate mushrooms", 10],
+  ];
+  // A qualifier ("unless cooked", "(green)") must add NOTHING to what the plain food blocks: compared with the food's own
+  // count rather than a fixed number, which broke when the library grew to 52 spinach dishes (2026-10-29), not
+  // because the qualifier leaked.
+  const QUALIFIED: [string, string][] = [
+    ["onions unless cooked", "onions"], ["tomatoes unless cooked", "tomatoes"], ["carrots except roasted", "carrots"],
+    ["spinach (cooked)", "spinach"], ["peppers (green)", "peppers"],
   ];
   let wide = "";
   for (const [d, max] of OVER) { const n = count(D(d)); if (n > max) wide += ` "${d}" ${n} > ${max} ${JSON.stringify(D(d))}`; }
+  for (const [d, food] of QUALIFIED) { const n = count(D(d)), base = count(D(food)); if (n > base) wide += ` "${d}" ${n} > "${food}" ${base} ${JSON.stringify(D(d))}`; }
   check("allergen review: no dislike blocks far more than the food it names", wide === "", wide || `${OVER.length} dislikes`);
   check("allergen review: a dislike of olives keeps olive oil; an olive ALLERGY does not",
     !haystackBlocked("olive oil", D("olives")) && haystackBlocked("olive oil", T("olives")) && haystackBlocked("olive oil", T("allergic to olives")));
