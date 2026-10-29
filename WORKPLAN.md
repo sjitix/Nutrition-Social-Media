@@ -1661,6 +1661,22 @@ Each of these was discovered by doing the work, and each earned its place.
     a probe whose seafood lookups returned 0 rows showed it. The same route once turned a `\n` into a real line break.
     **Write any line that holds a backslash with the Edit or Write tool, and after a scripted edit scan the changed
     files for control characters (`/[\x00-\x08\x0B\x0C\x0E-\x1F]/`).**
+78. **Measure what an operation actually moves before building a feature on it.** D9 (2026-10-28) was planned as
+    "Thursday is 40 g short, fix it?" on `rebalance_day`, the operation "Fix my week" already used. A probe first:
+    on a day a swap left at 128 g, `rebalance_day` gave 127 g, with or without a protein target, over 3 seeds. It
+    holds the day's CALORIES and only resizes portions. `regenerate_day` gave 144 g. So "Fix my week" had never been
+    able to close the gap it picks days by, and nobody had checked. **Before a control or a suggestion promises an
+    outcome, run the operation on a realistic case and read the number; and offer it only when the engine's
+    preview shows it.**
+79. **`scaleToTargets` rebuilds a library meal from its recipe, recipe type and all.** Moving a lunch into a dinner
+    slot (`move_meal`, 2026-10-28) left Wednesday with two lunches and no dinner. Any code that puts a dish into a slot
+    of another type and then balances the day must put each slot's type back afterwards
+    (`.map((m, i) => ({ ...m, type: before[i].type }))`).
+80. **A ship that dies with the machine leaves nothing committed, and its log says so only by stopping.** The
+    2026-10-28 shutdown cut a 25-minute gate mid-suite; the task reported exit 4, but `origin/main` did not have the
+    commit and the work sat uncommitted in the tree. **At the start of a session, compare `git status` with the last
+    ship log, not only the exit code, and re-ship what is still dirty.** And start a gated ship only when the
+    machine will stay on for the next half hour.
 
 ---
 

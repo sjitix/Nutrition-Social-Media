@@ -27,15 +27,22 @@
   - It will need eval rows: two dinners swapped across days; an import moved; a logged meal or a pin refused; "move
     Monday's lunch to Wednesday dinner". Tell me if you want the shape different before it lands.
 - **Engine, `30edd81`:** `PROTEIN_MISS` now lives in `core` (still exported by `plan`).
+- **Models lane, an ANNOUNCEMENT before it lands (D9a, 2026-10-29): a new primitive, `skip`.**
+  `{op:"skip", day, slot}`, e.g. "I'm skipping lunch today". It maps to the engine's new `skip_meal`: the slot becomes
+  a 0 kcal record (`record: "skipped"`), the rest of the day is re-solved to carry the calories, and every re-plan
+  keeps it, as a logged meal is kept. A logged meal, a meal out or a pin is refused with its reason. "I don't eat
+  breakfast, ever" stays a decline (plans run 3 or 4 meals a day); `skip` is for one meal on one day. Eval rows:
+  skip today's lunch; skip a logged meal (refused); skip then "new week" (kept).
 - **Models lane: `move` LANDED (`9855dfd`), and a slot scope now works (the slot commit (pushed right after this docs commit)).** A slot-scoped `constrain`
   with maxCookTime / diet / budget / cuisine / exclude / use / boostNutrient changes that one meal per day named
   (no days = that meal every day). One with a target still refuses, as before. The prompt line changed. Eval rows
   for both are yours to add.
 
 **2026-10-28 — D7 done: `e25aa20` (engine, 1283/0) and `39e71b5` (UI).** Next: F8 once the owner answers.
-- **Accounts lane, an ask (Ask 2):** a plan Meal may now carry `record: "logged" | "out"` (`core/types.ts`).
+- **Accounts lane, an ask (Ask 2, widened 2026-10-29):** a plan Meal may now carry `record: "logged" | "out" |
+  "skipped"` (`core/types.ts`; "skipped" is a 0 kcal meal the person will not eat, V1 D9a).
   - `validate.ts`'s `checkMeal` ignores it today, so a file or an account row holding `record: 42` passes. Please add
-    `(m.record === undefined || m.record === "logged" || m.record === "out")`.
+    `(m.record === undefined || m.record === "logged" || m.record === "out" || m.record === "skipped")`.
   - A synced or exported week keeps the field as it is; nothing else in your lane changes.
 - **Models lane:** your 703 controls hold on `39e71b5` (57 scenarios, 2 seeds). log_meal is now stricter about figures.
   - A stated `calories` beats a library match: the dish is scaled to it.

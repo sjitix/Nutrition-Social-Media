@@ -289,9 +289,11 @@ nothing (measured: without it, 3–7 kB per route) — a module that must run on
 - `src/app/api/` — **six** routes: `plan`, `assistant`, `assistant-v2`, `import`, `operation`,
   `candidates`. **`operation` is the NO-MODEL route the direct-manipulation layer runs on** — a
   button press already carries its intent, so routing it through an LLM would be slower, cost a call
-  and risk misreading a precise request. It takes one `operation` or an `operations` list (a move is
-  a pair of swaps, hence one undo), and **`preview: true` simulates against a clone and commits
-  nothing**. Its allowlist is the contract: a tool belongs there only when a CONTROL supplies the
+  and risk misreading a precise request. It takes one `operation` or an `operations` list (several
+  operations sent together are one undo), and **`preview: true` simulates against a clone and commits
+  nothing**. A drag is one `move_meal` (2026-10-28): the two meals change places exactly as they are.
+  It used to be two `swap_meal`s by dish name, which placed another dish for an import or across slot
+  types, because a swap looks its dish up in the library within the slot's type. Its allowlist is the contract: a tool belongs there only when a CONTROL supplies the
   parameters a model would otherwise guess. `candidates` is read-only and returns the dishes that
   could take a slot, each with the delta it would cause, drawn from the engine's own safe pool — so
   **a candidate the executor would refuse is never offered**.
@@ -301,6 +303,13 @@ nothing (measured: without it, 3–7 kB per route) — a module that must run on
   notes are shown rather than summarised. `commands.ts` is the command palette's **pure, model-free**
   parser; `Sheet.tsx` is the dialog shell `MealSheet` / `ReconcileSheet` sit in. Full plan and build
   log: `docs/v1/05-direct-manipulation.md`.
+- **`src/app/sage/suggest.ts` + `SuggestionBar.tsx` — the app speaks first (V1 D9).** Week offers the
+  worst protein-short day and Today its own, as one line naming each dish it would change, with one
+  tap to apply it. A day is short past `PROTEIN_MISS` (`core/defaults.ts`, the same line the engine's
+  notes use). The line appears only when the engine's PREVIEW of the fix closes at least that much
+  of the gap, and the tap commits exactly the previewed operation. The fix is `regenerate_day`, not
+  `rebalance_day`: rebalancing holds calories and was measured to move protein by a gram or two
+  (128 g to 127 g). The same is true of "Fix my week", whose redesign is the owner's decision 16.
 - **`core/slots.ts` holds `DAYS` and `MEAL_TYPES`, and `core/defaults.ts` `DEFAULT_TARGETS`, zod-free;
   `types.ts` re-exports them.** A client component takes them from `@/lib/core/client`, never `@/lib/core`,
   whose `types.ts` builds every zod schema at load. A module is as heavy as its heaviest import, and
