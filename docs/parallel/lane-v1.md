@@ -27,13 +27,13 @@
   - It will need eval rows: two dinners swapped across days; an import moved; a logged meal or a pin refused; "move
     Monday's lunch to Wednesday dinner". Tell me if you want the shape different before it lands.
 - **Engine, `30edd81`:** `PROTEIN_MISS` now lives in `core` (still exported by `plan`).
-- **Models lane, an ANNOUNCEMENT before it lands (D9a, 2026-10-29): a new primitive, `skip`.**
+- **Models lane: `skip` LANDED (`51036bd`; engine `1b658d1`), as announced in `3d67357`.** And the library grew 501 to 523 (`ab3a454`): seeded weeks pick from more dishes, so a control that pinned a dish name may see another.
   `{op:"skip", day, slot}`, e.g. "I'm skipping lunch today". It maps to the engine's new `skip_meal`: the slot becomes
   a 0 kcal record (`record: "skipped"`), the rest of the day is re-solved to carry the calories, and every re-plan
   keeps it, as a logged meal is kept. A logged meal, a meal out or a pin is refused with its reason. "I don't eat
   breakfast, ever" stays a decline (plans run 3 or 4 meals a day); `skip` is for one meal on one day. Eval rows:
   skip today's lunch; skip a logged meal (refused); skip then "new week" (kept).
-- **Models lane: `move` LANDED (`9855dfd`), and a slot scope now works (the slot commit (pushed right after this docs commit)).** A slot-scoped `constrain`
+- **Models lane: `move` LANDED (`9855dfd`), and a slot scope now works (`fc01cdf`).** A slot-scoped `constrain`
   with maxCookTime / diet / budget / cuisine / exclude / use / boostNutrient changes that one meal per day named
   (no days = that meal every day). One with a target still refuses, as before. The prompt line changed. Eval rows
   for both are yours to add.

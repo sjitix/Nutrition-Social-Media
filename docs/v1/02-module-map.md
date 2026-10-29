@@ -457,7 +457,11 @@ realistic bounds."*
   pins, and its day re-solved around it (not in meal-prep mode, whose servings must stay identical). A
   record is never resized or upgraded: `plan/library`'s `baseRecipeOf` returns nothing for it, so every
   rebalance holds it fixed. `isRecord`/`recordKind` (private to `plan/`) also read the two descriptions
-  written before the mark, so an older saved week keeps its free-text logs and reservations.
+  written before the mark, so an older saved week keeps its free-text logs and reservations. A third kind,
+  **`"skipped"` (2026-10-29, `skip_meal`)**, is a 0 kcal meal the person will not eat, held the same way; one whose
+  slot disappears (4 meals a day to 3) is dropped without a note, since nothing was eaten there.
+  **Since D9a it also has `move_meal`** (two meals change places as they are; records and pins refused) and a
+  per-slot `regenerate_day` (`mealType` set: that slot alone is re-picked under the day's overrides).
 
 **`plan/report`** — *"Read-only descriptions of a plan: weekly averages, shortfalls, micro coverage."*
 Public: `weeklyReportNote`, `figuresNote` and `microNote` (a day's, the week's or a nutrient's figures as they
