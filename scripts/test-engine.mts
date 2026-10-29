@@ -1992,6 +1992,13 @@ console.log("\n--- LOG_MEAL (real life derails the plan) ---");
   }
   check("slot scope, protein: raising one meal's protein never lowers the day's (vegan lunches at 50 g, 4 seeds)",
     changedSlots > 4 && lower.length === 0, `${changedSlots} changed; lower: ${lower.join(", ")}`);
+  // "At least 40 g of protein at breakfast, with eggs": the eggs were the one part of the request this path ignored.
+  const eggs = applyPrimitives(BASE, wk, [{ op: "constrain", scope: { slot: "breakfast" }, targets: { protein: floor }, use: ["eggs"] } as PrimitiveOp]);
+  const eggy = (w: WeekPlan, d: string) => RECIPES.find((x) => x.name === at(w, d, "breakfast").name)?.ingredients.some((i) => /\begg/i.test(i.name));
+  const placedEggs = short.filter((d) => at(eggs.plan, d, "breakfast").name !== at(wk, d, "breakfast").name);
+  check("slot scope, protein + use: every breakfast it places uses the asked food, and still reaches the floor",
+    placedEggs.length > 0 && placedEggs.every((d) => eggy(eggs.plan, d) && at(eggs.plan, d, "breakfast").proteinGrams >= floor),
+    placedEggs.map((d) => `${d}: ${at(eggs.plan, d, "breakfast").name} ${at(eggs.plan, d, "breakfast").proteinGrams}g`).join("; "));
   const far = applyPrimitives(BASE, wk, [{ op: "constrain", scope: { slot: "breakfast", days: ["Monday"] }, targets: { protein: 200 } } as PrimitiveOp]);
   check("slot scope, protein: a floor no breakfast reaches changes nothing and names the most there is",
     !far.planChanged && far.notes.some((n) => /^No breakfast that fits your plan reaches 200g protein \(the most is about \d+g, in a large portion\)/.test(n)), far.notes[0]);

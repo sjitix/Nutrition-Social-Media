@@ -1091,10 +1091,16 @@ export function applyOperations(
             const cuisine = normalizeCuisine(op.cuisine ?? null);
             // Best fit first; a dish that reaches the floor at its own portion before one that needs a bigger one, and a
             // dish not already elsewhere in the week before one that is (variety is a preference). A portion goes up to
-            // SCALE_HI, the same ceiling every rebalance holds.
+            // SCALE_HI, the same ceiling every rebalance holds. A food asked to be used ("with eggs") outranks all of
+            // those: it was the only part of the request this path once ignored.
             const rows = swapCandidates(tp, curPlan, op.day, op.mealType, 1000).rows
               .filter((r) => !cuisine || RECIPES.find((x) => x.name === r.name)?.cuisine === cuisine);
-            const rank = (r: (typeof rows)[number]) => (r.protein >= floor ? 0 : 2) + (r.elsewhereThisWeek ? 1 : 0);
+            const useWords = askedWords((op.useIngredients ?? []).join(" "));
+            const usesAsked = (name: string) => {
+              const r = RECIPES.find((x) => x.name === name);
+              return !useWords.length || (!!r && keywordHits(useWords, r) > 0);
+            };
+            const rank = (r: (typeof rows)[number]) => (usesAsked(r.name) ? 0 : 4) + (r.protein >= floor ? 0 : 2) + (r.elsewhereThisWeek ? 1 : 0);
             const picks = rows.filter((r) => r.protein * SCALE_HI >= floor)
               .sort((a, b) => rank(a) - rank(b))
               .map((r) => RECIPES.find((x) => x.name === r.name))
@@ -1119,8 +1125,10 @@ export function applyOperations(
             // lowers it whatever dish goes in, the best dish goes in with the other meals' portions left as they are: the
             // day's figures in the note say where its calories land.
             const before = cur.meals.reduce((a, m) => a + m.proteinGrams, 0);
-            const tries = picks.map((r) => place(r));
-            const { plate, meals } = tries.find((t) => t.protein >= before) ?? place(picks[0], false);
+            // Only dishes using an asked food are tried while any qualifies, so holding the day's protein never trades it away.
+            const pool = picks.some((r) => usesAsked(r.name)) ? picks.filter((r) => usesAsked(r.name)) : picks;
+            const tries = pool.map((r) => place(r));
+            const { plate, meals } = tries.find((t) => t.protein >= before) ?? place(pool[0], false);
             curPlan = { ...curPlan, days: curPlan.days.map((d) => (d.day === op.day ? { ...d, meals } : d)) };
             notes.push(`${op.day}'s ${op.mealType} is now ${plate.name} (${plate.proteinGrams}g protein), in place of ${old.name} (${old.proteinGrams}g).` +
               (figuresNote(curPlan, tp, op.day) ? ` ${figuresNote(curPlan, tp, op.day)}` : ""));
