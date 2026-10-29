@@ -99,6 +99,19 @@ async function main() {
       `status ${skipped.status}: ${slot?.record} ${slot?.calories}; ${(skipped.json?.reply ?? "").slice(0, 80)}`);
   }
 
+  // ---- Explore's recipe details (2026-10-29): the modal's quantities and method, one static file ----
+  {
+    const r = await fetch(`${BASE}/sage/explore/details.json`);
+    const d = r.ok ? await r.json() : {};
+    const entry = d["Shakshuka"];
+    const page = await (await fetch(`${BASE}/sage/explore`)).text();
+    check("explore: details.json serves every recipe's quantities and method, by name",
+      r.ok && Object.keys(d).length > 500 && entry?.steps?.length > 0 && entry.ingredients?.every((i) => i.name && i.quantity),
+      `status ${r.status}, ${Object.keys(d).length} recipes, Shakshuka ${entry?.ingredients?.length} ingredients / ${entry?.steps?.length} steps`);
+    check("explore: the page itself no longer carries the method (it is in details.json)",
+      page.length > 0 && !page.includes((entry?.steps?.[0] ?? "§none§").slice(0, 40)), `${Math.round(page.length / 1024)} kB of HTML`);
+  }
+
   // ---- undo round-trip ----
   const back = await post("/api/operation", {
     profile: rated.json.profile, plan, operation: { tool: "undo" }, previous: rated.json.previous,

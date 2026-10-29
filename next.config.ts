@@ -24,6 +24,9 @@ const nextConfig: NextConfig = process.env.STATIC_EXPORT
       images: { unoptimized: true },
       trailingSlash: true,
       basePath: process.env.BASE_PATH || "",
+      // A client fetch does not get the base path added the way a <Link> does: Explore's recipe modal reads it to
+      // find details.json under /Nutrition-Social-Media on Pages.
+      env: { NEXT_PUBLIC_BASE_PATH: process.env.BASE_PATH || "" },
     }
   : {};
 

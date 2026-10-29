@@ -1,15 +1,30 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FeedItem } from "@/lib/presentation/client";
+
+type Details = Record<string, { ingredients: { name: string; quantity: string }[]; steps: string[] }>;
+// One request for the whole library, made the first time any recipe is opened and kept for the visit. A failed
+// request is forgotten, so the next open tries again.
+let details: Promise<Details> | null = null;
+function loadDetails(): Promise<Details> {
+  details ??= fetch(`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/sage/explore/details.json`)
+    .then((r) => (r.ok ? (r.json() as Promise<Details>) : Promise.reject(new Error(String(r.status)))))
+    .catch((e) => {
+      details = null;
+      throw e;
+    });
+  return details;
+}
 
 /**
  * The full recipe: everything the library holds about one dish.
  *
- * It needs no fetch. `FeedItem.meal` already carries the ingredients, the steps and every macro,
- * because the whole library is bundled for the filtering — so opening a recipe is instant and works
- * on the static export with no server behind it.
+ * The card carries the name, the macros and the ingredient NAMES (Explore's search reads them); the quantities and
+ * the method come from `details.json`, one static file fetched the first time a recipe is opened. They used to ride
+ * in every card, about half of Explore's page weight for a modal most visits never open (2026-10-29). The file is
+ * built with the page, so it also works on the static export with no server behind it.
  *
  * A real `role="dialog"`, not a styled div: Escape closes it, the page behind does not scroll, focus
  * moves in on open and returns to the card on close. The meal drawer in `/plan` was made a proper
@@ -69,6 +84,16 @@ export function RecipeModal({
   }, [onClose]);
 
   const m = item.meal;
+  const [full, setFull] = useState<Details[string] | "loading" | "failed">("loading");
+  useEffect(() => {
+    let live = true;
+    loadDetails()
+      .then((d) => { if (live) setFull(d[m.name] ?? "failed"); })
+      .catch(() => { if (live) setFull("failed"); });
+    return () => { live = false; };
+  }, [m.name]);
+  // Until the details arrive, the names the card already has; their quantities follow.
+  const ingredients = typeof full === "object" ? full.ingredients : m.ingredients;
   const macros = [
     [m.calories.toLocaleString(), "kcal"],
     [`${m.proteinGrams}`, "g protein"],
@@ -150,7 +175,7 @@ export function RecipeModal({
                 What goes in it
               </h3>
               <ul className="mt-3">
-                {m.ingredients.map((ing) => (
+                {ingredients.map((ing) => (
                   <li
                     key={ing.name}
                     className="flex items-baseline justify-between gap-4 border-b border-line py-2.5 text-[13px]"
@@ -166,21 +191,31 @@ export function RecipeModal({
               <h3 className="text-[9.5px] font-bold uppercase tracking-[0.2em] text-mut">
                 How to cook it
               </h3>
-              <ol className="mt-3">
-                {m.steps.map((step, i) => (
-                  <li key={i} className="flex gap-3.5 border-b border-line py-3 text-[13px] leading-[1.6]">
-                    <span className="mt-[1px] grid h-[21px] w-[21px] shrink-0 place-items-center rounded-full bg-tint text-[10.5px] font-bold tabular-nums">
-                      {i + 1}
-                    </span>
-                    <span>{step}</span>
-                  </li>
-                ))}
-              </ol>
-              {m.steps.length === 0 && (
-                <p className="mt-3 text-[13px] text-mut">
-                  No method is recorded for this dish yet — the ingredients and macros are complete,
-                  the steps are not. Saying so beats inventing them.
+              {full === "loading" && <p className="mt-3 text-[13px] text-mut" role="status">Loading the method…</p>}
+              {full === "failed" && (
+                <p className="mt-3 text-[13px] text-mut" role="status">
+                  The quantities and method didn&apos;t load. Check your connection and open the recipe again.
                 </p>
+              )}
+              {typeof full === "object" && (
+                <>
+                  <ol className="mt-3">
+                    {full.steps.map((step, i) => (
+                      <li key={i} className="flex gap-3.5 border-b border-line py-3 text-[13px] leading-[1.6]">
+                        <span className="mt-[1px] grid h-[21px] w-[21px] shrink-0 place-items-center rounded-full bg-tint text-[10.5px] font-bold tabular-nums">
+                          {i + 1}
+                        </span>
+                        <span>{step}</span>
+                      </li>
+                    ))}
+                  </ol>
+                  {full.steps.length === 0 && (
+                    <p className="mt-3 text-[13px] text-mut">
+                      No method is recorded for this dish yet — the ingredients and macros are complete,
+                      the steps are not. Saying so beats inventing them.
+                    </p>
+                  )}
+                </>
               )}
             </div>
           </div>

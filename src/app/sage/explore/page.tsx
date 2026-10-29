@@ -6,6 +6,10 @@ export default function SageExplorePage() {
   // Counted off the feed itself, not off the size of the image map — a map key that no longer
   // matches a recipe would inflate the claim while rendering nothing.
   const photographed = FEED_RECIPES.filter((f) => f.image).length;
+  const cards = FEED_RECIPES.map((c) => ({
+    ...c,
+    meal: { ...c.meal, ingredients: c.meal.ingredients.map(({ name }) => ({ name, quantity: "" })), steps: [] },
+  }));
 
   return (
     <div className="px-6 pt-10 sm:px-10 sm:pt-12 xl:px-14">
@@ -24,8 +28,10 @@ export default function SageExplorePage() {
       </div>
 
       {/* The cards are built HERE, on the server, and handed over as data. ExploreClient used to import
-          them itself, which put the recipe engine and the USDA table in the browser bundle (V1 A4). */}
-      <ExploreClient items={FEED_RECIPES} />
+          them itself, which put the recipe engine and the USDA table in the browser bundle (V1 A4).
+          Each card keeps its ingredient NAMES, which the search reads; the quantities and the method are
+          fetched by the modal from details.json when a recipe is first opened (2026-10-29). */}
+      <ExploreClient items={cards} />
     </div>
   );
 }
