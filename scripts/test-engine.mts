@@ -1974,6 +1974,24 @@ console.log("\n--- LOG_MEAL (real life derails the plan) ---");
       target.notes.some((n) => n.startsWith(`${at(wk, d, "breakfast").name} already has`))) , target.notes.join(" | ").slice(0, 300));
   check("slot scope, protein: the day's other meals are balanced around the new breakfast, the profile's protein target untouched",
     target.profile.proteinGrams === BASE.proteinGrams && short.every((d) => target.notes.some((n) => n.startsWith(`${d}'s breakfast`) && n.includes(`${d} now has`))));
+  // More protein in one meal must not leave the DAY with less: balancing the other meals to hold calories once took a
+  // vegan day from 121 g to 113 g under a 50 g lunch (15 of 121 changed slots, 2026-10-29).
+  const vegan = { ...BASE, diet: "vegan" } as UserProfile;
+  const dayP = (d: DayPlan) => d.meals.reduce((a, m) => a + m.proteinGrams, 0);
+  const lower: string[] = [];
+  let changedSlots = 0;
+  for (let seed = 1; seed <= 4; seed++) {
+    const vw = withSeed(seed, () => freshWeek(vegan));
+    const vr = applyPrimitives(vegan, vw, [{ op: "constrain", scope: { slot: "lunch" }, targets: { protein: 50 } } as PrimitiveOp]);
+    for (const d of vr.plan.days) {
+      const b = vw.days.find((x) => x.day === d.day)!;
+      if (at(vr.plan, d.day, "lunch").name === at(vw, d.day, "lunch").name) continue;
+      changedSlots++;
+      if (dayP(d) < dayP(b)) lower.push(`s${seed} ${d.day} ${dayP(b)}->${dayP(d)}`);
+    }
+  }
+  check("slot scope, protein: raising one meal's protein never lowers the day's (vegan lunches at 50 g, 4 seeds)",
+    changedSlots > 4 && lower.length === 0, `${changedSlots} changed; lower: ${lower.join(", ")}`);
   const far = applyPrimitives(BASE, wk, [{ op: "constrain", scope: { slot: "breakfast", days: ["Monday"] }, targets: { protein: 200 } } as PrimitiveOp]);
   check("slot scope, protein: a floor no breakfast reaches changes nothing and names the most there is",
     !far.planChanged && far.notes.some((n) => /^No breakfast that fits your plan reaches 200g protein \(the most is about \d+g, in a large portion\)/.test(n)), far.notes[0]);

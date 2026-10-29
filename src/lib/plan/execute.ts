@@ -1095,20 +1095,32 @@ export function applyOperations(
             const rows = swapCandidates(tp, curPlan, op.day, op.mealType, 1000).rows
               .filter((r) => !cuisine || RECIPES.find((x) => x.name === r.name)?.cuisine === cuisine);
             const rank = (r: (typeof rows)[number]) => (r.protein >= floor ? 0 : 2) + (r.elsewhereThisWeek ? 1 : 0);
-            const pick = rows.filter((r) => r.protein * SCALE_HI >= floor)
+            const picks = rows.filter((r) => r.protein * SCALE_HI >= floor)
               .sort((a, b) => rank(a) - rank(b))
               .map((r) => RECIPES.find((x) => x.name === r.name))
-              .find((r): r is Recipe => !!r);
-            if (!pick) {
+              .filter((r): r is Recipe => !!r);
+            if (!picks.length) {
               const most = Math.round(Math.max(old.proteinGrams, ...rows.map((r) => r.protein * SCALE_HI)));
               notes.push(`No ${op.mealType} that fits your plan reaches ${floor}g protein (the most is about ${most}g, in a large portion), so ${op.day}'s ${op.mealType} stays as it is.`);
               break;
             }
-            let placed = scaleRecipeToTarget(pick, Math.round(tp.targetCalories * slotShare(tp, op.mealType)));
-            if (placed.proteinGrams < floor) placed = scaleRecipeByFactor(pick, clampScale((floor + 0.5) / pick.proteinGrams));
-            const plate = { ...toMeal(placed), type: op.mealType };
             const hold = new Set([op.mealType, ...lockedSlotsFor(p, op.day)]);
-            const meals = scaleToTargets(cur.meals.map((m) => (m.type === op.mealType ? plate : m)), tp, hold).map((m, i) => ({ ...m, type: cur.meals[i].type }));
+            const place = (pick: Recipe, balance = true) => {
+              let placed = scaleRecipeToTarget(pick, Math.round(tp.targetCalories * slotShare(tp, op.mealType!)));
+              if (placed.proteinGrams < floor) placed = scaleRecipeByFactor(pick, clampScale((floor + 0.5) / pick.proteinGrams));
+              const plate = { ...toMeal(placed), type: op.mealType! };
+              const swapped = cur.meals.map((m) => (m.type === op.mealType ? plate : m));
+              const meals = balance ? scaleToTargets(swapped, tp, hold).map((m, i) => ({ ...m, type: cur.meals[i].type })) : swapped;
+              return { plate, meals, protein: meals.reduce((a, m) => a + m.proteinGrams, 0) };
+            };
+            // The person asked for MORE protein, but a dish that reaches the floor can still leave the DAY lower once its
+            // other meals are balanced around it to hold calories (measured 2026-10-29: 15 of 121 changed slots, a vegan day
+            // 121 g to 113 g). So the first in rank order that keeps the day's protein where it was wins. When balancing
+            // lowers it whatever dish goes in, the best dish goes in with the other meals' portions left as they are: the
+            // day's figures in the note say where its calories land.
+            const before = cur.meals.reduce((a, m) => a + m.proteinGrams, 0);
+            const tries = picks.map((r) => place(r));
+            const { plate, meals } = tries.find((t) => t.protein >= before) ?? place(picks[0], false);
             curPlan = { ...curPlan, days: curPlan.days.map((d) => (d.day === op.day ? { ...d, meals } : d)) };
             notes.push(`${op.day}'s ${op.mealType} is now ${plate.name} (${plate.proteinGrams}g protein), in place of ${old.name} (${old.proteinGrams}g).` +
               (figuresNote(curPlan, tp, op.day) ? ` ${figuresNote(curPlan, tp, op.day)}` : ""));
