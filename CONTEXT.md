@@ -449,6 +449,9 @@ dinners of 20 minutes or less: 4). Decision 16 widened: the palette's "protein 1
 the same rebalance. **Evening: a protein target for one meal.** A slot-scoped constrain with `targets.protein` is
 that meal's protein floor (`regenerate_day` + `mealProtein`), filled from `swapCandidates`' safe pool; calorie,
 carb, fat and fibre targets for one meal still refuse. Announced to the models lane in lane-v1.md.
+Follow-ups, all pushed: `f83aaba` (the day never loses protein), `0a14936` (the command box: "40g protein
+breakfast"), `ff304af` (test:api 83/0), and an asked food kept ("with eggs", `ad17eb0`, engine 1320/0). **Stopped 2026-10-29 ~22:15 for a
+shutdown the owner asked for.** Next: the list below.
 
 **Next, in order:**
 1. F8 (the owner's answer: push from the laptop or rebuild here).
