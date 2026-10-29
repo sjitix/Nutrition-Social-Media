@@ -437,7 +437,7 @@ two swaps by name, the drag had placed another dish for an import or a lunch dro
 **Then `9855dfd`: the `move` primitive** (`{op:"move", day, slot, toDay, toSlot?}`), announced to the models lane
 in `f1c7d4f` first. **Then `fc01cdf`: one meal under a constraint.** "Only 20 minutes for tonight's dinner" is a
 slot-scoped constrain mapped to `regenerate_day` with a `mealType`: that slot alone gets a new dish, the rest of the day
-stays. A per-meal TARGET ("more protein at breakfast") still has no engine path and says so.
+stays. A per-meal TARGET ("more protein at breakfast") still had no engine path then; see 2026-10-29.
 
 **2026-10-29.** `fc01cdf` landed (one slot under a limit). Its first two gates were cut: by the 10-28 shutdown, and by
 an **unexpected power-off at 11:24** (Kernel-Power 41, no bugcheck, no WHEA error, so power or heat under load).
@@ -446,7 +446,9 @@ palette's "skip" and "move"), and the `skip` primitive after it. **B7, `propose:
 with their per-100 g figures, a 4/4/9 check, "already behind" and "not the same food by name?" flags, and an entry
 template; it never picks. **117 recipes** (501 to 618): every cell under 14 filled, then variety across cuisines, then high-protein vegan breakfasts and lunches (keto lunch 12 / dinner 11; vegan
 dinners of 20 minutes or less: 4). Decision 16 widened: the palette's "protein 180" and the day's protein control use
-the same rebalance.
+the same rebalance. **Evening: a protein target for one meal.** A slot-scoped constrain with `targets.protein` is
+that meal's protein floor (`regenerate_day` + `mealProtein`), filled from `swapCandidates`' safe pool; calorie,
+carb, fat and fibre targets for one meal still refuse. Announced to the models lane in lane-v1.md.
 
 **Next, in order:**
 1. F8 (the owner's answer: push from the laptop or rebuild here).

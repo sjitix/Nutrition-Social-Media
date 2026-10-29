@@ -493,12 +493,13 @@ whose pitch is "edit your week by chat". The gaps, found by comparing `actions.t
 
 | A person can… | by hand (Track E) | by chat today |
 |---|---|---|
-| move a meal to another day | drag, or `M` (one `move_meal` since 2026-10-28) | no — the engine operation `move_meal` exists (2026-10-28); the primitive is next |
-| fix every short day at once | "Fix my week" | no — one `rebalance_day` per day |
-| skip a meal | — | no engine operation exists |
-| cap tonight's cook time ("20 minutes tonight") | — | only as a standing constraint on every meal |
-| put a saved or imported recipe in a slot | Explore → add to plan | partly — `swap` needs the exact name |
-| say what is already in the cupboard | — | no engine operation exists |
+| move a meal to another day | drag, or `M` (one `move_meal` since 2026-10-28) | **yes** — `move` (`9855dfd`) |
+| fix every short day at once | "Fix my week" | no — one `rebalance_day` per day; owner decision 16 |
+| skip a meal | "Skip this meal" in the meal sheet; "skip lunch today" in the palette | **yes** — `skip` onto `skip_meal` (`1b658d1`, `51036bd`) |
+| cap tonight's cook time ("20 minutes tonight") | — | **yes** — a slot-scoped `constrain` (`fc01cdf`) |
+| a protein floor for one meal ("35 g at breakfast") | the swap control's protein floor | **yes** — slot-scoped `targets.protein` = `mealProtein` (2026-10-29) |
+| put a saved or imported recipe in a slot | Explore → add to plan | partly — `swap` needs the exact name; `/sage` has no import flow (D8) |
+| say what is already in the cupboard | — | no engine operation exists (needs a storage key: the accounts lane's `storage.ts`) |
 
 **The rule for adding one, so the vocabulary grows without breaking the two-layer split:** a new
 primitive is a *thin mapping onto an engine operation*; if the engine has no such operation, the
