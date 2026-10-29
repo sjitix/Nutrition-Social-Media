@@ -7,17 +7,47 @@
 
 ---
 
-## RESUME HERE (last updated: 2026-09-19)
+## RESUME HERE (last updated: 2026-10-29)
 
 `main` is green and **fully pushed** — `git log origin/main..HEAD` is empty. `npm run test:engine`
-**628 / 0**, 501 recipes, `check:recipes` green. **`CONTEXT.md`'s top block is the live cross-session
-state**; this section is the build record.
+**1314 / 0**, **618 recipes**, `check:recipes` / `check:ingredients` / `check:images` green, `test:api` 82/0.
+**`CONTEXT.md`'s v1 block is the live cross-session state**; this section is the build record, and
+`docs/worklog/` has the day-by-day detail.
 
-**Since 2026-10-03 two agents build in parallel lanes** — v1 (main folder) and accounts (its own
-worktree). Protocol, file ownership and live status: **`docs/parallel/`**. Read it before editing.
+**Three agents build in parallel lanes** — v1 (main folder), accounts and models (their own worktrees).
+Protocol, file ownership and live status: **`docs/parallel/`**. Read it before editing.
 
-**The V1 plan now lives in `docs/v1/`** — the day-by-day milestone schedule, the module map (public
-vs private per module), the Kimi decision, and the daily worklog. Read it before picking up work.
+**The V1 plan lives in `docs/v1/`** — the day-by-day milestone schedule, the module map (public vs private
+per module), the Kimi decision. Read it before picking up work.
+
+### >>> SINCE 2026-10-27: V1 D6, D7, D9 done, D9a mostly done, and the library 501 -> 618 <<<
+
+Recorded in full in `docs/worklog/2026-10-27.md` … `2026-10-29.md`; the headlines, with the reason each was built:
+- **D7, records (`e25aa20`, `39e71b5`).** A logged meal, a meal out and an import were dropped by every re-plan (27 of
+  27). A meal now carries `record`, every rebuild puts records back, Today counts the log, and "I ate this" logs a
+  meal as planned.
+- **Every figure in a reply is true of the final week (`97e0cec`, `e643cc8`).** The loop settles each step's notes
+  against the week the run ends with (`assistant/runNotes.ts`).
+- **D6 done (`f66d1a2`).** Emoji are stripped from the model's words, and a logged meal matches a library dish only
+  when it is that food. Invented dish names measured at 0 of 1,104 replies.
+- **D9, the app speaks first (`30edd81`).** Week and Today offer a protein-short day's fix in one tap, only when the
+  engine's preview closes it. It is `regenerate_day`, because `rebalance_day` holds calories and was measured to move
+  protein by a gram (lesson 78; "Fix my week" has the same limit: owner decision 16).
+- **D9a.**
+  - `move_meal` (`2b2c0a5`): the drag is now exact for imports and across slots.
+  - `move` primitive (`9855dfd`).
+  - One slot under a limit (`fc01cdf`): "only 20 minutes for tonight's dinner".
+  - `skip_meal` and `skip` (`1b658d1`, `51036bd`).
+  - Left: "fix every short day" (decision 16); the cupboard (a storage key); an import into a slot (D8).
+- **Library 501 -> 618.**
+  - Every diet x slot cell over 14, quick dinners for every diet, high-protein vegan and Mediterranean breakfasts, and
+    every diet x cuisine x slot cell at 3 or more. An independent culinary review fixed 13 words (`b9af63a`).
+  - Two tools: `propose:ingredient` (B7) and `check:drafts`.
+  - Growth exposed two engine defects, both fixed (`3244ed1`): "Italian + iron" kept 4 Italian dishes, and a swap
+    could go unmentioned.
+  - Growth also broke a run of rows that pinned library numbers (lesson 83).
+  - The next step needs 16 new ingredients, owner decision 17.
+- **Explore loads recipe details on open (`7566794`):** 92 -> 73 kB gzipped; `check:images` (`05b7eed`).
 
 ### >>> SINCE 2026-09-19: Kimi K3 beta test + eval hardened for hosted endpoints <<<
 
