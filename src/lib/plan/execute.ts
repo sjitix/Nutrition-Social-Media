@@ -378,6 +378,9 @@ function reimposeRecords(
         meals[i] = r;
       } else if (recordKind(r) === "logged") {
         meals.push(r);
+      } else if (recordKind(r) === "skipped") {
+        // A skipped meal whose slot is gone (4 meals a day to 3): there was nothing to eat there, so nothing is lost.
+        continue;
       } else {
         lost.push(`${r.name} on ${d.day}`);
         continue;
@@ -1698,6 +1701,63 @@ export function applyOperations(
           `Moved ${a.name} to ${toDay}'s ${toSlot}, and ${b.name} to ${op.day}'s ${op.mealType}.` +
             touched.map((d) => figuresNote(curPlan, p, d)).filter(Boolean).map((s) => ` ${s}`).join(""),
         );
+        break;
+      }
+      case "skip_meal": {
+        // "I'm skipping lunch today" (V1 D9a). The slot becomes a RECORD of 0 kcal, held like a logged meal (every
+        // re-plan puts it back, no rebalance touches it), and the rest of the day is re-solved to carry the calories,
+        // as a log is. A meal already logged or set aside for eating out is a fact of its own and is not replaced; a
+        // pinned dish is the person's own "keep this", so it needs unpinning first.
+        if (!op.day || !op.mealType) {
+          notes.push("Which meal are you skipping, and on which day?");
+          break;
+        }
+        const origDay = curPlan.days.find((d) => d.day === op.day);
+        const cur = origDay?.meals.find((m) => m.type === op.mealType);
+        if (!origDay || !cur) {
+          notes.push(`${op.day} has no ${op.mealType} in your plan to skip.`);
+          break;
+        }
+        const kind = recordKind(cur);
+        if (kind === "skipped") {
+          notes.push(`${op.day}'s ${op.mealType} is already skipped.`);
+          break;
+        }
+        if (kind) {
+          notes.push(kind === "out" ? `${op.day}'s ${op.mealType} is set aside for eating out. Tell me if you're skipping it instead.`
+            : `${cur.name} is logged as eaten on ${op.day}, so there's nothing left to skip.`);
+          break;
+        }
+        if (lockedSlotsFor(p, op.day).has(op.mealType)) {
+          notes.push(`${cur.name} is pinned to ${op.day}'s ${op.mealType}. Unpin it first if you're skipping it.`);
+          break;
+        }
+        const skipped: Meal = {
+          name: "Skipped", type: op.mealType, description: "Skipped by you.", record: "skipped",
+          calories: 0, proteinGrams: 0, carbsGrams: 0, fatGrams: 0, fiberGrams: 0, timeMinutes: 0, ingredients: [], steps: [],
+        };
+        const withSkip = origDay.meals.map((m) => (m.type === op.mealType ? skipped : m));
+        // Meal-prep: the other meals are servings of batches cooked once, so they are not resized; the serving is
+        // simply not eaten (it stays on the shopping list, as a leftover would).
+        if (p.planMode === "batch") {
+          curPlan = { ...curPlan, days: curPlan.days.map((d) => (d.day === op.day ? { ...d, meals: withSkip } : d)) };
+          notes.push(`Skipped ${op.day}'s ${op.mealType}. In meal-prep mode the other meals are servings you cook ahead, so I left their portions as they are.`);
+          break;
+        }
+        const locked = new Set([op.mealType, ...lockedSlotsFor(p, op.day)]);
+        const newMeals = rebalanceDay(withSkip, p, locked, namesOnOtherDays(curPlan, op.day, p));
+        curPlan = { ...curPlan, days: curPlan.days.map((d) => (d.day === op.day ? { ...d, meals: newMeals } : d)) };
+        const tot = dayTotals({ ...origDay, meals: newMeals });
+        const changed = newMeals.filter((nm) => nm.type !== op.mealType && !origDay.meals.some((om) => om.type === nm.type && om.name === nm.name));
+        let note = `I skipped ${op.day}'s ${op.mealType} and re-solved the rest of the day: it now lands at ${tot.kcal} kcal and ${tot.protein}g protein.`;
+        if (changed.length) note += ` I switched your ${changed.map((c) => `${c.type} to ${c.name}`).join(" and ")}.`;
+        const under = p.targetCalories - tot.kcal;
+        if (under > p.targetCalories * 0.15)
+          note += ` That's still ${under} kcal under your ${p.targetCalories} kcal target: the other meals can only grow so far.`;
+        const pShort = p.proteinGrams - tot.protein;
+        if (pShort > PROTEIN_MISS)
+          note += ` Protein lands at ${tot.protein}g against your ${p.proteinGrams}g target.`;
+        notes.push(note);
         break;
       }
       case "hydration": {

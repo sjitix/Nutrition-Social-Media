@@ -77,6 +77,7 @@ export function operationPhrases(operations: Operation[]): string[] {
         case "scale_portions": return `resized ${where || "your portions"}`;
         case "rebalance_day": return `rebalanced ${where || "that day"}`;
         case "move_meal": return `moved ${where || "that meal"}`;
+        case "skip_meal": return `skipped ${where || "that meal"}`;
         case "lock_meal": return `pinned ${where || "that meal"}`;
         case "unlock_meal": return `unpinned ${where || "that meal"}`;
         case "rate_meal": return `saved your rating`;

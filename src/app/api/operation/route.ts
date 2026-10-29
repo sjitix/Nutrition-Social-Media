@@ -51,6 +51,9 @@ const ALLOWED: ReadonlySet<Operation["tool"]> = new Set([
   // A plate dragged onto another slot (V1 D9a): both slots come from the drag itself, and the engine exchanges
   // the two meals exactly as they are. It refuses a logged meal, a meal out and a pin, and says why.
   "move_meal",
+  // "Skip this meal", on the slot the person tapped (V1 D9a): the slot becomes a 0 kcal record and the rest of the
+  // day is re-solved around it, as a log is.
+  "skip_meal",
   // A "regenerate this day" button. Any per-day diet/cuisine/cook-time cap comes from a control,
   // not from reading a sentence.
   "regenerate_day",

@@ -404,8 +404,13 @@ export function MealSheet({
       {/* ---- the log: what was actually eaten (V1 D7). Today counts it, and no re-plan takes it out. ---- */}
       <section className="mt-5">
         <h3 className="text-[10px] font-bold uppercase tracking-[0.16em] text-mut">
-          {meal.record === "logged" ? "Eaten" : meal.record === "out" ? "Eating out" : "Ate it, or something else?"}
+          {meal.record === "logged" ? "Eaten" : meal.record === "out" ? "Eating out" : meal.record === "skipped" ? "Skipped" : "Ate it, or something else?"}
         </h3>
+        {meal.record === "skipped" && (
+          <p className="mt-2 text-[11.5px] leading-relaxed text-plum-mid">
+            You&apos;re skipping this one, so the rest of {day} carries its calories. Log what you had if that changes.
+          </p>
+        )}
         {meal.record === "logged" && (
           <p className="mt-2 text-[11.5px] leading-relaxed text-plum-mid">
             You logged this as eaten. It stays in {day} whatever else changes in the week.
@@ -450,6 +455,22 @@ export function MealSheet({
             >
               I&apos;m eating out
             </button>
+            {meal.record !== "skipped" && (
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() =>
+                  onReconcile(`Skip ${day} ${SLOT_LABEL[meal.type].toLowerCase()}`, {
+                    tool: "skip_meal",
+                    day,
+                    mealType: meal.type,
+                  })
+                }
+                className="rounded-full border border-line bg-cream px-3.5 py-2 text-[12px] font-semibold transition hover:border-vio disabled:opacity-50"
+              >
+                Skip this meal
+              </button>
+            )}
           </div>
         ) : (
           <div className="mt-2 rounded-[10px] border border-line bg-cream p-3.5">

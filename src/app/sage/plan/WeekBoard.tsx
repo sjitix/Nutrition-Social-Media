@@ -452,9 +452,9 @@ export default function WeekBoard({ demo }: { demo: { stats: WeekStats; targets:
                       {m.record ? (
                         <span
                           className="text-[8.5px] font-bold uppercase tracking-[0.14em] text-vio"
-                          title={m.record === "logged" ? "Logged as eaten — every rebuild keeps it" : "Eating out — the calories are set aside"}
+                          title={m.record === "logged" ? "Logged as eaten — every rebuild keeps it" : m.record === "skipped" ? "Skipped — the rest of the day carries its calories" : "Eating out — the calories are set aside"}
                         >
-                          {m.record === "logged" ? "Eaten" : "Out"}
+                          {m.record === "logged" ? "Eaten" : m.record === "skipped" ? "Skipped" : "Out"}
                         </span>
                       ) : pinned && (
                         <span className="text-[8.5px] font-bold uppercase tracking-[0.14em] text-vio" title="Pinned — every rebuild keeps it">

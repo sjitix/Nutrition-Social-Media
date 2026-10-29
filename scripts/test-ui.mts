@@ -175,6 +175,22 @@ console.log("\n--- canonicalJson (is this still the week I wrote?) ---");
     canonicalJson({ x: 1, y: undefined }) === canonicalJson({ x: 1 }));
 }
 
+// SKIP AND MOVE in the palette (V1 D9a): the same engine operations the meal sheet and the drag send.
+{
+  const first = (line: string) => parseCommand(line)[0]?.operation as Record<string, unknown> | undefined;
+  const skip = first("skip tuesday lunch");
+  const move = first("move tuesday dinner to thursday");
+  const across = first("move mon lunch to wed dinner");
+  check("palette: 'skip tuesday lunch' is a skip_meal on that slot, previewed",
+    skip?.tool === "skip_meal" && skip.day === "Tuesday" && skip.mealType === "lunch" && parseCommand("skip tuesday lunch")[0].preview, JSON.stringify(skip));
+  check("palette: 'skip' with no meal named is refused rather than guessed", !parseCommand("skip tuesday").some((c) => c.operation.tool === "skip_meal"));
+  check("palette: 'move tuesday dinner to thursday' keeps the slot; 'move mon lunch to wed dinner' moves across slots",
+    move?.tool === "move_meal" && move.day === "Tuesday" && move.mealType === "dinner" && move.toDay === "Thursday" && move.toMealType === "dinner" &&
+      across?.tool === "move_meal" && across.day === "Monday" && across.mealType === "lunch" && across.toDay === "Wednesday" && across.toMealType === "dinner",
+    `${JSON.stringify(move)} | ${JSON.stringify(across)}`);
+  check("palette: a move onto itself is refused", !parseCommand("move tuesday dinner").some((c) => c.operation.tool === "move_meal"));
+}
+
 // THE SUGGESTION (V1 D9): which days the bar may speak about, and what it says. The engine half (whether a re-plan
 // closes the gap) is test-engine.mts's; here, the arithmetic and the words.
 {

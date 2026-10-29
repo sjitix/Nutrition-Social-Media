@@ -41,8 +41,9 @@ export const MealSchema = z.object({
   // out (the calories set aside). Neither is the engine's to change: every re-plan puts it back in its
   // slot, the way a pin is put back, and no rebalance resizes it. A logged library dish carried the
   // library's own description, so nothing could tell it from a planned one (review #18): a boost then
-  // replaced it in 9 of 9 runs. Optional: a planned meal carries none.
-  record: z.enum(["logged", "out"]).optional(),
+  // replaced it in 9 of 9 runs. Optional: a planned meal carries none. "skipped" (V1 D9a, 2026-10-29) is a meal the
+  // person will not eat at all: 0 kcal, held like the other two, the rest of its day carrying the calories.
+  record: z.enum(["logged", "out", "skipped"]).optional(),
   ingredients: z.array(IngredientSchema),
   steps: z.array(z.string()),
 });
@@ -143,6 +144,7 @@ export const OperationSchema = z.object({
     "hydration", // "how much water should i drink?" -> engine computes it from body weight
     "scale_portions", // "i'm still hungry" / "that's way too much food" -> resize the servings
     "move_meal", // "move Tuesday's dinner to Thursday" -> the two meals change places as they are (V1 D9a)
+    "skip_meal", // "I'm skipping lunch today" -> a 0 kcal record in that slot, the rest of the day re-solved (V1 D9a)
     "rebalance_day", // "balance my day around this" -> rescale the day's OTHER meals to targets,
     //                   holding anything without a base recipe (an imported meal, a logged meal,
     //                   a restaurant reserve) fixed. Portions only — never swaps the user's dishes.

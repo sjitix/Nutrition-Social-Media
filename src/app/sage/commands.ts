@@ -188,6 +188,33 @@ export function parseCommand(input: string): ParsedCommand[] {
     });
   }
 
+  if (has("skip")) {
+    // "skip lunch today" (V1 D9a): the slot becomes a 0 kcal record and the rest of the day carries it.
+    const d = day ?? todayName();
+    if (slot)
+      out.push({
+        label: `Skip ${d} ${slot} and re-solve the rest of the day`,
+        operation: { tool: "skip_meal", day: d, mealType: slot },
+        preview: true,
+        day: d,
+      });
+  }
+
+  if (has("move", "swap") && slot) {
+    // "move tuesday dinner to thursday" / "... to thursday lunch" (V1 D9a): the first day and slot are where the meal
+    // is, the second where it goes; no second slot keeps the same one. The two meals change places as they are.
+    const days = words.map((w) => (w === "today" ? todayName() : DAY_ALIASES[w])).filter((x): x is DayPlan["day"] => !!x);
+    const slots = words.map((w) => MEAL_TYPES.find((t) => t === w || (w.length > 3 && t.startsWith(w)))).filter((x): x is Meal["type"] => !!x);
+    const [from, to] = days.length >= 2 ? days : [days[0], days[0]];
+    const toSlot = slots[1] ?? slot;
+    if (from && to && !(from === to && toSlot === slot))
+      out.push({
+        label: `Move ${from} ${slot} to ${to} ${toSlot}, and that meal back the other way`,
+        operation: { tool: "move_meal", day: from, mealType: slot, toDay: to, toMealType: toSlot },
+        preview: true,
+      });
+  }
+
   if (has("pin", "lock", "keep") && day && slot) {
     out.push({
       label: `Pin ${day} ${slot} so rebuilds keep it`,
@@ -231,5 +258,7 @@ export const COMMAND_EXAMPLES = [
   "log burger 650",
   "lighter dinner",
   "out friday",
+  "skip lunch today",
+  "move tue dinner to thu",
   "undo",
 ] as const;

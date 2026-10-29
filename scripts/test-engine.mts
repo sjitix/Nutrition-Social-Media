@@ -1951,6 +1951,40 @@ console.log("\n--- LOG_MEAL (real life derails the plan) ---");
     !kept.planChanged && kept.notes.some((n) => /logged as eaten/.test(n)), kept.notes[0]);
 }
 {
+  // V1 D9a: skip_meal. "I'm skipping lunch today": a 0 kcal record in the slot, the rest of the day carrying it, and
+  // every re-plan keeping it, as a logged meal is kept (D7).
+  const wk = withSeed(6, () => freshWeek(BASE));
+  const at = (w: WeekPlan, day: string, slot: string) => w.days.find((d) => d.day === day)!.meals.find((m) => m.type === slot);
+  const skip = (p: UserProfile, w: WeekPlan, day: string, slot: string) => applyOperations(p, w, [op({ tool: "skip_meal", day, mealType: slot } as never)]);
+  const r = skip(BASE, wk, "Tuesday", "lunch");
+  const tue = r.plan.days.find((d) => d.day === "Tuesday")!;
+  const lunch = at(r.plan, "Tuesday", "lunch")!;
+  check("skip_meal: the slot is a 0 kcal record, the rest of the day grows toward the target, and the note says where it lands",
+    lunch.record === "skipped" && lunch.calories === 0 && r.planChanged && kcal(tue) > kcal(wk.days.find((d) => d.day === "Tuesday")!) - lunch.calories - 1 &&
+    kcal(tue) > 1600 && r.notes.some((n) => n.startsWith("I skipped Tuesday's lunch and re-solved the rest of the day: it now lands at")),
+    `${kcal(tue)} kcal: ${r.notes[0]?.slice(0, 120)}`);
+  const replans = [op({ tool: "regenerate_week" }), op({ tool: "update_profile", boostNutrient: "iron" } as never), op({ tool: "update_profile", targetCalories: 1800 })]
+    .map((o) => withSeed(7, () => applyOperations(BASE, r.plan, [o])));
+  check("skip_meal: a new week, a boost and a new target all keep the skipped lunch",
+    replans.every((x) => at(x.plan, "Tuesday", "lunch")?.record === "skipped"), replans.map((x) => at(x.plan, "Tuesday", "lunch")?.name).join(" | "));
+  const again = skip(BASE, r.plan, "Tuesday", "lunch");
+  const logged = applyOperations(BASE, wk, [op({ tool: "log_meal", day: "Monday", mealType: "dinner", dish: "pizza", loggedCalories: 800 } as never)]);
+  const onLogged = skip(BASE, logged.plan, "Monday", "dinner");
+  const pinned = applyOperations(BASE, wk, [op({ tool: "lock_meal", day: "Sunday", mealType: "lunch" })]);
+  const onPin = skip(pinned.profile, pinned.plan, "Sunday", "lunch");
+  check("skip_meal: skipping twice, skipping a logged meal and skipping a pin change nothing and say why",
+    !again.planChanged && /already skipped/.test(again.notes.join(" ")) &&
+    !onLogged.planChanged && /logged as eaten/.test(onLogged.notes.join(" ")) &&
+    !onPin.planChanged && /pinned/.test(onPin.notes.join(" ")), [again.notes[0], onLogged.notes[0], onPin.notes[0]].join(" | "));
+  // A skipped snack whose slot goes (4 meals a day to 3) leaves quietly: there was nothing to eat there.
+  const four = { ...BASE, mealsPerDay: 4 as const };
+  const wk4 = withSeed(6, () => freshWeek(four));
+  const snack = skip(four, wk4, "Friday", "snack");
+  const three = applyOperations(snack.profile, snack.plan, [op({ tool: "update_profile", mealsPerDay: 3 } as never)]);
+  check("skip_meal: a skipped snack whose slot is gone is not announced as lost",
+    at(snack.plan, "Friday", "snack")?.record === "skipped" && !at(three.plan, "Friday", "snack") && !/no slot left/.test(three.notes.join(" ")), three.notes.join(" ").slice(0, 120));
+}
+{
   // log_meal on a slot the day doesn't have (BASE is 3 meals — no snack) must ABSORB the eaten meal,
   // not silently drop it and then misreport the day. A plain replace-map used to lose it entirely.
   const wk = freshWeek(BASE);

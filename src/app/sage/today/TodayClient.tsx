@@ -18,7 +18,7 @@ export interface DayMeal {
   minutes: number;
   image: string | null;
   cutout: string | null;
-  /** Logged as eaten (`record: "logged"`, V1 D7). */
+  /** Accounted for by the person: logged as eaten (`record: "logged"`, V1 D7), or skipped (`"skipped"`, 0 kcal). */
   logged: boolean;
 }
 interface Targets {
@@ -83,7 +83,7 @@ export function TodayClient({
         name: m.name, type: m.type, description: m.description,
         calories: m.calories, protein: m.proteinGrams, fibre: m.fiberGrams ?? 0,
         minutes: m.timeMinutes, image: imageForMeal(m.name), cutout: cutoutForMeal(m.name),
-        logged: m.record === "logged",
+        logged: m.record === "logged" || m.record === "skipped",
       });
       setDay(d.day);
       setMeals(d.meals.map(toDayMeal));
