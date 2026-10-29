@@ -27,6 +27,11 @@
   - It will need eval rows: two dinners swapped across days; an import moved; a logged meal or a pin refused; "move
     Monday's lunch to Wednesday dinner". Tell me if you want the shape different before it lands.
 - **Engine, `30edd81`:** `PROTEIN_MISS` now lives in `core` (still exported by `plan`).
+- **Models lane, two reply changes your controls may see (2026-10-29, `3244ed1`):**
+  - a one-day swap's note now STARTS with what it did: "Swapped Monday's dinner to Baked Salmon & Potatoes." then the
+    figures. It was the figures alone, and a later step's settle dropped them, so the swap went unmentioned;
+  - a cuisine asked with a nutrient boost now keeps that cuisine in the slots that hold it (11-12 Italian dishes, not 4).
+    The library is 553 recipes, so seeded weeks differ from yesterday's.
 - **Models lane: `skip` LANDED (`51036bd`; engine `1b658d1`), as announced in `3d67357`.** And the library grew 501 to 523 (`ab3a454`): seeded weeks pick from more dishes, so a control that pinned a dish name may see another.
   `{op:"skip", day, slot}`, e.g. "I'm skipping lunch today". It maps to the engine's new `skip_meal`: the slot becomes
   a 0 kcal record (`record: "skipped"`), the rest of the day is re-solved to carry the calories, and every re-plan

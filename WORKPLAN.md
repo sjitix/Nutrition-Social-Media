@@ -1677,6 +1677,13 @@ Each of these was discovered by doing the work, and each earned its place.
     commit and the work sat uncommitted in the tree. **At the start of a session, compare `git status` with the last
     ship log, not only the exit code, and re-ship what is still dirty.** And start a gated ship only when the
     machine will stay on for the next half hour.
+81. **A recipe is read whole by the allergen matcher: name, ingredients AND method.** Three gluten_free drafts on
+    2026-10-29 were blocked for gluten by a bare grain word in their own text: "Fill the warm tortillas" (corn
+    tortillas in the list), "Whisk the flour with water" (chickpea flour in the list), and "… without Tortilla" in a
+    dish's NAME. The matcher is right to read it all (a method can add an allergen), so the fix is in the words: name
+    the specific grain ("corn tortillas", "chickpea flour") everywhere it appears. **Write drafts in a file and run
+    `npm run check:drafts` on it before they go in `seeds.ts`:** it catches this, and the other draft mistakes
+    (curated names, floors, keto carbs, 4/4/9), in a second rather than a 25-minute gate.
 
 ---
 

@@ -396,7 +396,7 @@ Data and decisions: `docs/models/` (README "Decisions on record", `survey.md` Ro
 - **Owned by this lane:** `docs/models/**`, `scripts/models/**`, `data/eval-runs/**`,
   `docs/worklog/*-models.md`, this block, the lane file. Does not edit v1's files; asks v1 first.
 
-### >>> V1 LANE — 2026-10-28: D7 DONE (`e25aa20`, `39e71b5`); then notes settled (`e643cc8`), check:images (`05b7eed`), D6 emoji + log match (`f66d1a2`), D9 suggestion (`30edd81`), D9a: move_meal + `move` (`2b2c0a5`, `9855dfd`), one-slot constraints (`fc01cdf`); 10-29: skip a meal (`1b658d1`), propose:ingredient, 22 recipes. F8 still on the laptop only <<<
+### >>> V1 LANE — 2026-10-28: D7 DONE (`e25aa20`, `39e71b5`); then notes settled (`e643cc8`), check:images (`05b7eed`), D6 emoji + log match (`f66d1a2`), D9 suggestion (`30edd81`), D9a: move_meal + `move` (`2b2c0a5`, `9855dfd`), one-slot constraints (`fc01cdf`); 10-29: skip a meal (`1b658d1`), propose:ingredient, check:drafts, 60 recipes (561), and two engine fixes the new dishes exposed (`3244ed1`). F8 still on the laptop only <<<
 
 **2026-10-28, D7.** Reproduced first: a logged library dish, a logged free-text meal, a reservation and an import,
 then nine re-plans × 3 seeds. 27 of 27 lost a record, with nothing said. The engine half is `e25aa20` (1283/0):
@@ -444,7 +444,7 @@ an **unexpected power-off at 11:24** (Kernel-Power 41, no bugcheck, no WHEA erro
 Then **skip a meal**: `1b658d1` (engine `skip_meal`, `record: "skipped"`, the meal sheet, Week, Today, and the
 palette's "skip" and "move"), and the `skip` primitive after it. **B7, `propose:ingredient`**: ranks USDA candidates
 with their per-100 g figures, a 4/4/9 check, "already behind" and "not the same food by name?" flags, and an entry
-template; it never picks. **22 recipes** (501 to 523) for every cell under 14 (keto lunch 12 / dinner 11; vegan
+template; it never picks. **60 recipes** (501 to 561): every cell under 14 filled, then variety across cuisines, then high-protein vegan breakfasts and lunches (keto lunch 12 / dinner 11; vegan
 dinners of 20 minutes or less: 4). Decision 16 widened: the palette's "protein 180" and the day's protein control use
 the same rebalance.
 
