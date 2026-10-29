@@ -59,8 +59,17 @@ for (const r of drafts) {
   }
   if (r.dietTags.includes("gluten_free") && haystackBlocked(mealHaystack(r.name, r.ingredients.map((i) => i.name), r.steps ?? []), gluten))
     issues.push("gluten_free, but a gluten allergy blocks it (its name, ingredients or method)");
-  if (issues.length) bad++;
-  console.log(`${issues.length ? "FIX" : "ok "}  ${r.name.padEnd(46)} ${String(Math.round(cal)).padStart(4)} kcal  P${Math.round(p)} C${Math.round(c)} F${Math.round(f)}  ${r.timeMinutes} min${issues.length ? `\n       ${issues.join("\n       ")}` : ""}`);
+  // A warning, not a failure (a dry pan is sometimes meant): a method that fries or softens with no fat in the list. The
+  // review of 2026-10-29 found three such methods among 117 recipes ("Soften the onion with the curry powder").
+  const fryVerb = /\b(fry|fried|soften|saut[eé]|sear|brown|griddle|stir-fry)\b/i;
+  const fat = /\b(oil|butter|ghee)\b/i;
+  const warnings: string[] = [];
+  if ((r.steps ?? []).some((st) => fryVerb.test(st)) && !r.ingredients.some((i) => fat.test(i.name)) && !(r.steps ?? []).some((st) => /dry pan|in a splash of water/i.test(st)))
+    warnings.push("warning: the method fries or softens, but there is no oil or butter in the list");
+  if (warnings.length) issues.push(...warnings.map((w) => `(${w})`));
+  if (issues.some((i) => !i.startsWith("(warning"))) bad++;
+  const label = issues.some((i) => !i.startsWith("(warning")) ? "FIX" : issues.length ? "warn" : "ok ";
+  console.log(`${label}  ${r.name.padEnd(46)} ${String(Math.round(cal)).padStart(4)} kcal  P${Math.round(p)} C${Math.round(c)} F${Math.round(f)}  ${r.timeMinutes} min${issues.length ? `\n       ${issues.join("\n       ")}` : ""}`);
 }
 console.log(`\n${drafts.length} draft(s), ${bad} to fix.${bad ? "" : " Paste them before the closing ]; of SEED_RECIPES, then run npm run check:recipes and check:ingredients."}`);
 process.exit(bad ? 1 : 0);
