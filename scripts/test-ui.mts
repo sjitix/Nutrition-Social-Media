@@ -189,6 +189,15 @@ console.log("\n--- canonicalJson (is this still the week I wrote?) ---");
       across?.tool === "move_meal" && across.day === "Monday" && across.mealType === "lunch" && across.toDay === "Wednesday" && across.toMealType === "dinner",
     `${JSON.stringify(move)} | ${JSON.stringify(across)}`);
   check("palette: a move onto itself is refused", !parseCommand("move tuesday dinner").some((c) => c.operation.tool === "move_meal"));
+  // A protein figure with a meal named is that meal's floor; without one it is still the day's target.
+  const meal = first("40g protein at tuesday breakfast");
+  const meal2 = first("protein 35 lunch wed");
+  const whole = first("protein 180 tuesday");
+  check("palette: '40g protein at tuesday breakfast' is that meal's floor (regenerate_day + mealProtein); 'protein 180' still the day's",
+    meal?.tool === "regenerate_day" && meal.day === "Tuesday" && meal.mealType === "breakfast" && meal.mealProtein === 40 &&
+      meal2?.mealProtein === 35 && meal2.mealType === "lunch" && meal2.day === "Wednesday" &&
+      whole?.tool === "rebalance_day" && whole.targetProtein === 180 && !parseCommand("protein 180 tuesday").some((c) => c.operation.tool === "regenerate_day"),
+    `${JSON.stringify(meal)} | ${JSON.stringify(meal2)} | ${JSON.stringify(whole)}`);
 }
 
 // THE SUGGESTION (V1 D9): which days the bar may speak about, and what it says. The engine half (whether a re-plan

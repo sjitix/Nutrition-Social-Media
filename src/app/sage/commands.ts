@@ -136,7 +136,20 @@ export function parseCommand(input: string): ParsedCommand[] {
     });
   }
 
-  if (has("protein") && num) {
+  // "40g protein at breakfast" (V1 D9a): with a meal named, the number is THAT meal's protein floor, which findNumber
+  // would drop (it keeps calorie-sized numbers). The engine fills the slot from the swap control's safe pool.
+  const grams = words.map((w) => Number(w.replace(/g$/, ""))).find((n) => Number.isFinite(n) && n >= 5 && n <= 150);
+  if (has("protein") && slot && grams) {
+    const d = day ?? todayName();
+    out.push({
+      label: `At least ${grams} g protein in ${d} ${slot}`,
+      operation: { tool: "regenerate_day", day: d, mealType: slot, mealProtein: grams },
+      preview: true,
+      day: d,
+    });
+  }
+
+  if (has("protein") && num && !slot) {
     const d = day ?? todayName();
     out.push({
       label: `Aim ${d} at ${num} g protein`,
@@ -255,6 +268,7 @@ export const COMMAND_EXAMPLES = [
   "regenerate tuesday",
   "balance today",
   "protein 180",
+  "40g protein breakfast",
   "log burger 650",
   "lighter dinner",
   "out friday",
