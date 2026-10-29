@@ -82,6 +82,23 @@ async function main() {
   const missing = await post("/api/operation", { profile: PROFILE, operation: { tool: "rate_meal", rating: 5 } });
   check("operation: missing plan is a 400, not a crash", missing.status === 400, `status ${missing.status}`);
 
+  // ---- move and skip (V1 D9a): what the Week board's drag and the meal sheet's "Skip this meal" send ----
+  {
+    const day1 = plan.days?.[1]?.day ?? "Tuesday";
+    const from = plan.days?.[0]?.meals?.find((m) => m.type === type0)?.name;
+    const to = plan.days?.[1]?.meals?.find((m) => m.type === type0)?.name;
+    const moved = await post("/api/operation", { profile: PROFILE, plan, operations: [{ tool: "move_meal", day: day0, mealType: type0, toDay: day1, toMealType: type0 }] });
+    const there = moved.json?.plan?.days?.find((d) => d.day === day1)?.meals?.find((m) => m.type === type0)?.name;
+    check("operation: move_meal is allowed, the two meals change days as they are, and it can be undone",
+      moved.status === 200 && there === from && moved.json?.plan?.days?.[0]?.meals?.find((m) => m.type === type0)?.name === to && !!moved.json?.previous,
+      `status ${moved.status}: ${from} -> ${there}; ${(moved.json?.reply ?? "").slice(0, 80)}`);
+    const skipped = await post("/api/operation", { profile: PROFILE, plan, operation: { tool: "skip_meal", day: day0, mealType: type0 } });
+    const slot = skipped.json?.plan?.days?.[0]?.meals?.find((m) => m.type === type0);
+    check("operation: skip_meal is allowed, the slot becomes a 0 kcal record, and the reply says where the day lands",
+      skipped.status === 200 && slot?.record === "skipped" && slot?.calories === 0 && /skipped .* and re-solved the rest of the day/i.test(skipped.json?.reply ?? ""),
+      `status ${skipped.status}: ${slot?.record} ${slot?.calories}; ${(skipped.json?.reply ?? "").slice(0, 80)}`);
+  }
+
   // ---- undo round-trip ----
   const back = await post("/api/operation", {
     profile: rated.json.profile, plan, operation: { tool: "undo" }, previous: rated.json.previous,
