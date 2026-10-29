@@ -1684,6 +1684,11 @@ Each of these was discovered by doing the work, and each earned its place.
     the specific grain ("corn tortillas", "chickpea flour") everywhere it appears. **Write drafts in a file and run
     `npm run check:drafts` on it before they go in `seeds.ts`:** it catches this, and the other draft mistakes
     (curated names, floors, keto carbs, 4/4/9), in a second rather than a 25-minute gate.
+82. **Stopping a background server's shell on Windows can leave `next start` running, serving the OLD build.** On
+    2026-10-29 a new static route answered 404 after a rebuild: TaskStop had ended the shell, but its node child still
+    held :3000 with the previous build's manifests, and a fresh `next start` failed with EADDRINUSE into a log nobody
+    read. **Before trusting a request to localhost, check what owns the port** (`netstat -ano | grep :3000`, then the
+    process's command line), and stop the node process itself when finishing.
 
 ---
 

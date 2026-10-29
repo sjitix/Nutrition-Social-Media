@@ -257,7 +257,7 @@ nothing (measured: without it, 3–7 kB per route) — a module that must run on
   would be a lie the rest of the screen does not tell.
   **`/sage/explore` is interactive**: saves persist through `src/lib/account/savedStore.ts`, clicking a
   recipe opens `RecipeModal` (a real `role="dialog"` — Escape, focus return, scroll lock, focus
-  trap) with the full ingredient list and method, all 582 non-treat recipes render with no paging,
+  trap) with the full ingredient list and method, fetched once from the static `sage/explore/details.json` the first time a recipe is opened (the cards carry only ingredient NAMES, for search: Explore 92 to 73 kB gzipped, 2026-10-29), all 582 non-treat recipes render with no paging,
   and a "Saved" facet filters to them. Three things keep rendering everything cheap and should not
   be undone: the filter+sort `useMemo` excludes `saved` from its deps, `Card` is `memo`'d with
   stable handlers, and the card carries `content-visibility: auto`. One save costs ~5 ms.
