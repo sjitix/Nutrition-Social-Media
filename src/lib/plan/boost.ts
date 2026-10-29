@@ -7,7 +7,7 @@
  * is internal to this folder, and check:boundaries fails anything outside the folder that imports it.
  */
 import { type UserProfile, type WeekPlan } from "../core";
-import { conditionBoosts } from "../data";
+import { conditionBoosts, type Recipe } from "../data";
 import { MICRO_LABEL, parseExclusionTokens, type MicroKey } from "../nutrition";
 import { RECIPES, baseRecipeOf, isRecord, recipeMicros, scaleRecipeToTarget, toMeal } from "./library";
 import { bannedForUser, blockedByExclusions, exclusionTokens, localSplit, passesDiet } from "./rules";
@@ -24,7 +24,7 @@ import { conditionDisclosure, microNote, nutrientReachable, weekMicroAverage } f
  * Variety still matters: a nutritionist doesn't prescribe salmon seven nights running, so no
  * recipe may appear more than twice a week, and never twice in one day.
  */
-function upgradeForNutrient(profile: UserProfile, plan: WeekPlan, key: MicroKey): WeekPlan {
+function upgradeForNutrient(profile: UserProfile, plan: WeekPlan, key: MicroKey, cuisine?: Recipe["cuisine"]): WeekPlan {
   const tokens = exclusionTokens(profile);
   const eligible = RECIPES.filter(
     (r) =>
@@ -47,12 +47,17 @@ function upgradeForNutrient(profile: UserProfile, plan: WeekPlan, key: MicroKey)
       // logged meal, a reservation and an import were the FIRST slots swapped (V1 D7, found 2026-10-21).
       if (cur.sourceUrl || isRecord(cur)) continue;
       const curRecipe = RECIPES.find((r) => r.name === cur.name);
+      // A cuisine asked with the boost: a slot already holding that cuisine is upgraded only within it. The upgrade
+      // took the densest dish in the library, so "Italian, and more iron" came back with 4 Italian dishes where
+      // Italian alone gave 18, under a note saying the other changes were made (2026-10-29).
+      const sameCuisine = !!cuisine && curRecipe?.cuisine === cuisine;
       const curAmount = curRecipe ? recipeMicros(curRecipe).micros[key] : 0;
       const inDay = new Set(d.meals.map((m) => m.name));
       const best = eligible
         .filter(
           (r) =>
             r.type === cur.type &&
+            (!sameCuisine || r.cuisine === cuisine) &&
             !inDay.has(r.name) &&
             (uses.get(r.name) ?? 0) < 2 &&
             (density.get(r.id) ?? 0) > curAmount,
@@ -97,6 +102,8 @@ export function guaranteeBoost(
    *  before it is measured: the boost used to count a gain in a pinned slot, the pin then went back, and
    *  the week ended LOWER with no note (E7: zinc 25.9 -> 25.4 under a pinned low dinner; review, 2026-10-21). */
   finish: (pl: WeekPlan) => WeekPlan = (pl) => pl,
+  /** A cuisine asked in the same request: the upgrade keeps that cuisine in the slots that have it. */
+  cuisine?: Recipe["cuisine"],
 ): { plan: WeekPlan; note?: string } {
   const EPS = 1e-6;
   const level = (pl: WeekPlan) => weekMicroAverage(pl, key).amount;
@@ -111,7 +118,7 @@ export function guaranteeBoost(
   const keptOk = !!kept && fitsHardRules(kept, profile, before);
   // The kept week itself is a candidate too: portion rebalancing can claw back what an upgrade's swaps
   // gained, so the win is verified, never assumed.
-  const candidates = [upgradeForNutrient(profile, built, key), ...(keptOk ? [upgradeForNutrient(profile, kept!, key), kept!] : [])]
+  const candidates = [upgradeForNutrient(profile, built, key, cuisine), ...(keptOk ? [upgradeForNutrient(profile, kept!, key, cuisine), kept!] : [])]
     .map((pl) => (pl === prev ? prev : finish(pl)));
   const best = candidates.reduce((a, b) => (level(b) > level(a) ? b : a));
   if (level(best) > start + EPS) return { plan: best };

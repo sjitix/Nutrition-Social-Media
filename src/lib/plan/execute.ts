@@ -984,7 +984,7 @@ export function applyOperations(
               },
             };
             // Measured with the pins back in place, as the person will see the week (E7).
-            const g = guaranteeBoost(p, prev, curPlan, op.boostNutrient, was, keep, withPinsAndRecords);
+            const g = guaranteeBoost(p, prev, curPlan, op.boostNutrient, was, keep, withPinsAndRecords, normalizeCuisine(op.cuisine ?? null));
             curPlan = g.plan;
             if (g.note) { boostNotes.push({ at: notes.length, key: op.boostNutrient, level: false, op: opIndex }); notes.push(g.note); }
           }
@@ -1024,7 +1024,7 @@ export function applyOperations(
               unchanged: true,
               resolve: () => rebalanceWeek(selectWeekFromDb(p, undefined, false, undefined, undefined, newReport(),
                 { plan: prev, keepIf: (r) => passesDiet(r, p.diet) && !blockedByExclusions(r, tokNow) }), p),
-            }, withPinsAndRecords);
+            }, withPinsAndRecords, normalizeCuisine(op.cuisine ?? null));
             curPlan = g.plan;
             if (g.note) { boostNotes.push({ at: notes.length, key: op.boostNutrient, level: false, op: opIndex }); notes.push(g.note); }
           }
@@ -1330,13 +1330,17 @@ export function applyOperations(
           // dish can push the day off target, and claiming "on target" when it isn't is the exact
           // dishonesty the two-layer design forbids.
           const finalDay = curPlan.days.find((d) => d.day === op.day);
+          // What was done comes first, then the figures. The note used to be the figures alone, so when a later step
+          // in the same reply changed the day and the stale figures were dropped (runNotes), the swap was not
+          // mentioned at all (2026-10-29: a swap then a resize of Monday read only "Made Monday lunch much bigger").
+          const did = `Swapped ${op.day}'s ${match.type} to ${meal.name}. `;
           if (finalDay && scoped) {
             // What replacing another dish WOULD have bought, offered by name rather than done. The
             // same rebalance with lever 2 on, compared against the swap the user actually asked for.
             const offer = rebalanceDay(swapped, p, scopedLocked, avoid).filter(
               (nm) => nm.type !== match.type && !swapped.some((sm) => sm.type === nm.type && sm.name === nm.name),
             );
-            let note = achievementNote(`${op.day} now has`, dayTotalsFull(finalDay), p, { keptByChoice: offer.length > 0 });
+            let note = did + achievementNote(`${op.day} now has`, dayTotalsFull(finalDay), p, { keptByChoice: offer.length > 0 });
             if (offer.length)
               note += ` If you'd like protein closer to target, I could swap your ${offer.map((o) => `${o.type} to ${o.name}`).join(" and your ")} — just say so.`;
             notes.push(note);
@@ -1346,7 +1350,7 @@ export function applyOperations(
             const bumped = newMeals.filter(
               (nm) => nm.type !== match.type && !origDay.meals.some((om) => om.type === nm.type && om.name === nm.name),
             );
-            let note = achievementNote(`${op.day} now has`, dayTotalsFull(finalDay), p);
+            let note = did + achievementNote(`${op.day} now has`, dayTotalsFull(finalDay), p);
             if (bumped.length)
               note += ` I bumped your ${bumped.map((b) => `${b.type} to ${b.name}`).join(" and ")} to make room.`;
             notes.push(note);
