@@ -97,6 +97,19 @@ async function main() {
     check("operation: skip_meal is allowed, the slot becomes a 0 kcal record, and the reply says where the day lands",
       skipped.status === 200 && slot?.record === "skipped" && slot?.calories === 0 && /skipped .* and re-solved the rest of the day/i.test(skipped.json?.reply ?? ""),
       `status ${skipped.status}: ${slot?.record} ${slot?.calories}; ${(skipped.json?.reply ?? "").slice(0, 80)}`);
+    // The command box's "40g protein breakfast": a protein floor for one meal, previewed and then committed.
+    const was = plan.days?.[0]?.meals?.find((m) => m.type === type0);
+    const floor = Math.max(30, (was?.proteinGrams ?? 0) + 5);
+    const floorOp = { tool: "regenerate_day", day: day0, mealType: type0, mealProtein: floor };
+    const pv = await post("/api/operation", { profile: PROFILE, plan, operation: floorOp, preview: true });
+    const raised = await post("/api/operation", { profile: PROFILE, plan, operation: floorOp });
+    const now = raised.json?.plan?.days?.[0]?.meals?.find((m) => m.type === type0);
+    const said = raised.json?.reply ?? "";
+    check("operation: a protein floor for one meal (regenerate_day + mealProtein) reaches the floor or says why not, and the preview matches",
+      pv.status === 200 && raised.status === 200 &&
+        ((now?.proteinGrams >= floor && said.includes(`is now ${now.name}`)) || (!raised.json?.planChanged && /reaches \d+g protein/.test(said))) &&
+        (pv.json?.moves ?? []).some((m) => m.day === day0 && m.slot === type0 && m.to === now?.name) === (now?.name !== was?.name),
+      `status ${raised.status}: ${was?.name} ${was?.proteinGrams}g -> ${now?.name} ${now?.proteinGrams}g (floor ${floor}); ${said.slice(0, 90)}`);
   }
 
   // ---- Explore's recipe details (2026-10-29): the modal's quantities and method, one static file ----
