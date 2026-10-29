@@ -7979,7 +7979,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "bok-choy", name: "Bok choy", quantity: "100 g" },
       { slug: "teriyaki-sauce", name: "Teriyaki sauce", quantity: "2 tbsp" },
     ],
-    steps: ["Slice and pan-fry the tempeh, then glaze it with the teriyaki.", "Wilt the bok choy and serve over rice with the edamame."],
+    steps: ["Slice and pan-fry the tempeh, then glaze it with the teriyaki.", "Boil the edamame 3 minutes, wilt the bok choy, and serve both over rice with the tempeh."],
   },
   {
     id: "d-vegan-red-lentil-dal-rice", name: "Quick Red Lentil Dal with Rice", type: "dinner",
@@ -7994,8 +7994,9 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "onion", name: "Onion", quantity: "60 g" },
       { slug: "curry-powder", name: "Curry powder", quantity: "2 tsp" },
       { slug: "cooked-rice", name: "Cooked rice", quantity: "120 g" },
+      { slug: "olive-oil", name: "Olive oil", quantity: "1 tsp" },
     ],
-    steps: ["Soften the onion with the curry powder, add the lentils, tomatoes and 300 ml water; simmer 15 minutes.", "Stir in the spinach and serve over the rice."],
+    steps: ["Soften the onion with the curry powder in the oil, add the lentils, tomatoes and 300 ml water; simmer 15 minutes.", "Stir in the spinach and serve over the rice."],
   },
   {
     id: "d-vegan-hummus-chickpea-wrap", name: "Spiced Chickpea & Hummus Wrap", type: "dinner",
@@ -8149,7 +8150,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
     steps: ["Dice and stir-fry the chicken in the sesame oil, then add the soy.", "Spoon into lettuce cups with grated carrot, peanuts and lime."],
   },
   {
-    id: "l-keto-pork-carnitas-bowl", name: "Pork Carnitas Lettuce Bowl", type: "lunch",
+    id: "l-keto-pork-carnitas-bowl", name: "Crispy Cumin Pork Lettuce Bowl", type: "lunch",
     cuisine: "mexican", mainProtein: "pork",
     timeMinutes: 20, approxCost: 2,
     dietTags: ["keto", "gluten_free"],
@@ -8385,7 +8386,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "lemon", name: "Lemon", quantity: "1/4 piece" },
       { slug: "olive-oil", name: "Olive oil", quantity: "1 tsp" },
     ],
-    steps: ["Toss the lentils and roasted vegetables with the oil.", "Serve on rocket with tahini thinned with lemon and water."],
+    steps: ["Toss the lentils and leftover or ready-roasted vegetables with the oil.", "Serve on rocket with tahini thinned with lemon and water."],
   },
   {
     id: "l-vegan-tofu-quinoa-power-bowl", name: "Crispy Tofu & Quinoa Power Bowl", type: "lunch",
@@ -8481,7 +8482,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "turmeric", name: "Turmeric", quantity: "1 tsp" },
       { slug: "olive-oil", name: "Olive oil", quantity: "1 tsp" },
     ],
-    steps: ["Whisk the chickpea flour with water and turmeric to a pourable batter.", "Cook it like an omelette in the oil; fill with crumbled tofu, spinach and onion."],
+    steps: ["Whisk the chickpea flour with water and turmeric to a pourable batter.", "Soften the onion and crumbled tofu in the oil, add the spinach, then pour the batter over and cook until set."],
   },
   {
     id: "b-vegan-tempeh-breakfast-hash", name: "Smoky Tempeh Breakfast Hash", type: "breakfast",
@@ -8511,7 +8512,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "soy-sauce", name: "Soy sauce", quantity: "1 tsp" },
       { slug: "sesame-seeds", name: "Sesame seeds", quantity: "1 tsp" },
     ],
-    steps: ["Sear the sliced tofu until golden.", "Serve over the rice with the edamame, soy and sesame."],
+    steps: ["Sear the sliced tofu until golden and cook the edamame 3 minutes in boiling water.", "Serve over the rice with the soy and sesame."],
   },
   {
     id: "b-vegan-protein-berry-bowl", name: "Berry Protein Smoothie Bowl", type: "breakfast",
@@ -8572,7 +8573,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "cucumber", name: "Cucumber", quantity: "60 g" },
       { slug: "soy-ginger-sauce", name: "Soy-ginger sauce", quantity: "1 tbsp" },
     ],
-    steps: ["Simmer the quinoa 15 minutes and sear the tofu.", "Toss with the edamame, cucumber and dressing."],
+    steps: ["Simmer the quinoa 15 minutes, adding the edamame for the last 3, and sear the tofu.", "Toss with the cucumber and dressing."],
   },
   {
     id: "l-vegan-lentil-tofu-dal-bowl", name: "Red Lentil & Tofu Dal Bowl", type: "lunch",
@@ -8828,8 +8829,9 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "onion", name: "Onion", quantity: "50 g" },
       { slug: "curry-powder", name: "Curry powder", quantity: "2 tsp" },
       { slug: "cooked-rice", name: "Cooked rice", quantity: "120 g" },
+      { slug: "olive-oil", name: "Olive oil", quantity: "1 tsp" },
     ],
-    steps: ["Soften the onion with the curry powder, add the chickpeas and tomatoes, and simmer 8 minutes.", "Stir in the spinach and serve over the rice."],
+    steps: ["Soften the onion with the curry powder in the oil, add the chickpeas and tomatoes, and simmer 8 minutes.", "Stir in the spinach and serve over the rice."],
   },
   {
     id: "d-quick-edamame-rice-noodle-salad", name: "Edamame Rice Noodle Salad with Peanut Lime", type: "dinner",
@@ -8995,7 +8997,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
     cuisine: "mediterranean", mainProtein: "turkey",
     timeMinutes: 15, approxCost: 2,
     dietTags: ["keto", "gluten_free", "mediterranean"],
-    description: "Oregano-style turkey with cucumber, tomato, feta and olives.",
+    description: "Browned turkey with cucumber, tomato, feta and olives.",
     ingredients: [
       { slug: "ground-turkey", name: "Ground turkey", quantity: "170 g" },
       { slug: "cucumber", name: "Cucumber", quantity: "80 g" },
@@ -9193,8 +9195,9 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "bell-pepper", name: "Bell pepper", quantity: "60 g" },
       { slug: "smoked-paprika", name: "Smoked paprika", quantity: "1 tsp" },
       { slug: "whole-grain-bread", name: "Whole-grain bread", quantity: "2 slices" },
+      { slug: "olive-oil", name: "Olive oil", quantity: "1 tsp" },
     ],
-    steps: ["Soften the onion and pepper, add the lentils, tomato sauce and paprika, and simmer 10 minutes.", "Spoon over the toasted bread."],
+    steps: ["Soften the onion and pepper in the oil, add the lentils, tomato sauce and paprika, and simmer 10 minutes.", "Spoon over the toasted bread."],
   },
   {
     id: "d-vegan-bbq-tempeh-corn-bowl", name: "Smoky Tempeh, Corn & Greens Bowl", type: "dinner",
@@ -9279,11 +9282,11 @@ export const SEED_RECIPES: RecipeSeed[] = [
     steps: ["Spice and pan-fry the chicken, then slice it.", "Serve over the chopped salad with tahini thinned with water."],
   },
   {
-    id: "l-keto-ginger-beef-lettuce-cups", name: "Garlic Ginger Beef Lettuce Bowl", type: "lunch",
+    id: "l-keto-ginger-beef-lettuce-cups", name: "Garlic Sesame Beef Lettuce Bowl", type: "lunch",
     cuisine: "asian", mainProtein: "beef",
     timeMinutes: 15, approxCost: 2,
     dietTags: ["keto"],
-    description: "Garlic-ginger beef with carrot and sesame in lettuce cups.",
+    description: "Garlic and sesame beef with carrot and peanuts in lettuce leaves.",
     ingredients: [
       { slug: "lean-ground-beef", name: "Lean ground beef", quantity: "150 g" },
       { slug: "lettuce", name: "Lettuce", quantity: "80 g" },
@@ -9394,7 +9397,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
     cuisine: "italian", mainProtein: "legumes",
     timeMinutes: 25, approxCost: 1,
     dietTags: ["vegan", "vegetarian", "gluten_free", "mediterranean"],
-    description: "Sweet-sour eggplant and chickpeas with tomato and olives, over rice.",
+    description: "Eggplant and chickpeas stewed with tomato and olives, over rice.",
     ingredients: [
       { slug: "chickpeas", name: "Chickpeas", quantity: "150 g" },
       { slug: "eggplant", name: "Eggplant", quantity: "150 g" },
@@ -9633,7 +9636,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
     steps: ["Pan-roast the chickpeas in half the oil with the paprika.", "Toss the shredded cabbage and carrot with the rest of the oil and lemon; serve with the rice."],
   },
   {
-    id: "b-vegan-middle-eastern-chickpea-toast", name: "Za'atar-Style Chickpea & Cucumber Toast", type: "breakfast",
+    id: "b-vegan-middle-eastern-chickpea-toast", name: "Spiced Chickpea & Cucumber Toast with Hummus", type: "breakfast",
     cuisine: "middle_eastern", mainProtein: "legumes",
     timeMinutes: 8, approxCost: 1,
     dietTags: ["vegan", "vegetarian", "mediterranean"],
