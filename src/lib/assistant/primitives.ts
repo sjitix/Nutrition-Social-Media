@@ -617,7 +617,9 @@ const isDayScope = (s: Scope): s is { days: Day[] } =>
  * `constrain` → the tested flat Operations.
  *  - scope "week"  → one `update_profile` (persists + rebuilds the week).
  *  - scope {days}  → one `regenerate_day` per day (temporary per-day override, not saved).
- *  - scope {slot}  → per-slot targeting — built in the next step; empty for now so nothing wrong fires.
+ *  - scope {slot}  → one `regenerate_day` per day with `mealType`: that slot alone gets a dish chosen under the
+ *    constraints, the day's other dishes stay (V1 D9a). Only for what picks a dish (`slotPicks`); a target for one
+ *    meal is not something the engine has, so that still gets `slotScopeNote`'s honest answer.
  */
 export function expandConstrain(c: ConstrainOp): Operation[] {
   const t = c.targets ?? {};
@@ -657,9 +659,24 @@ export function expandConstrain(c: ConstrainOp): Operation[] {
     );
   }
 
-  // Slot scope ("more protein at breakfast") is NOT built yet. It used to return nothing at all, so
+  if (isSlotScope(scope) && slotPicks(c)) {
+    // "Only 20 minutes for tonight's dinner": no days means that slot on every day.
+    const days = scope.days?.length ? scope.days : [...DAYS];
+    return days.map(
+      (day) =>
+        ({
+          tool: "regenerate_day", day, mealType: scope.slot,
+          diet: c.diet ?? null, cuisine: c.cuisine ?? null,
+          excludeFoods: c.exclude ?? [], useIngredients: c.use ?? [],
+          maxCookTime: c.maxCookTime ?? null, budget: c.budget ?? null,
+          boostNutrient: c.boostNutrient ?? null,
+        }) as Operation,
+    );
+  }
+
+  // Any other slot scope ("more protein at breakfast") has no engine path. It used to return nothing at all, so
   // the turn changed nothing, the engine said nothing, and the user read the model's "I've bumped your
-  // breakfast protein". `slotScopeNote` (applied in applyPrimitives) now says the truth instead.
+  // breakfast protein". `slotScopeNote` (applied in applyPrimitives) says the truth instead.
   return [];
 }
 
@@ -701,10 +718,19 @@ export function emptyConstrainNote(c: ConstrainOp): string {
   return `That didn't say what to change about ${where}, so nothing changed. Tell me what you'd like: fewer calories (and by how much), more protein, a different diet, quicker meals, or a dish to swap.`;
 }
 
-/** The honest answer to a slot-scoped constrain, until per-slot targeting exists (milestone C4). */
+/** A slot-scoped constrain the engine can carry out: it says what to CHOOSE (cook time, diet, budget, cuisine, a food
+ *  to leave out or use, a nutrient) and nothing a single meal cannot hold (a target, the meal count, the plan mode). */
+export function slotPicks(c: ConstrainOp): boolean {
+  const t = c.targets ?? {};
+  const target = [t.calories, t.protein, t.carbs, t.fat, t.fiber].some((v) => typeof v === "number" && v > 0);
+  const picks = (c.maxCookTime ?? 0) > 0 || !!c.diet || !!c.budget || !!c.cuisine || !!c.exclude?.length || !!c.use?.length || !!c.boostNutrient;
+  return picks && !target && !c.mealsPerDay && !c.planMode && !c.cadence;
+}
+
+/** The honest answer to a slot-scoped constrain the engine cannot carry out (see slotPicks). */
 export function slotScopeNote(c: ConstrainOp): string | null {
   const scope = c.scope ?? "week";
-  if (scope === "week" || isDayScope(scope)) return null;
+  if (scope === "week" || isDayScope(scope) || slotPicks(c)) return null;
   const slot = scope.slot;
   return `I can't change just your ${slot} that way yet, so nothing changed. I can swap your ${slot} for a dish that fits (for example a higher-protein one), or make it bigger or smaller — tell me which.`;
 }

@@ -1058,6 +1058,35 @@ export function applyOperations(
         const rep = newReport();
         const prevWeek = curPlan;
         const newDay = selectDay(tp, op.day, curPlan, normalizeCuisine(op.cuisine ?? null), fiberOn(op), op.useIngredients, op.boostNutrient ?? undefined, rep);
+        if (op.mealType) {
+          // ONE slot under the day's overrides ("only 20 minutes for tonight's dinner", V1 D9a): that slot takes the
+          // dish the selector picked for it under them, and the day's other dishes stay, their portions balanced
+          // around it. A slot-scoped constrain had no engine path, and was answered "I can't change just your dinner".
+          const cur = curPlan.days.find((d) => d.day === op.day);
+          const old = cur?.meals.find((m) => m.type === op.mealType);
+          const fresh = newDay.meals.find((m) => m.type === op.mealType);
+          if (!cur || !old || !fresh) {
+            notes.push(`${op.day} has no ${op.mealType} in your plan.`);
+            break;
+          }
+          if (isRecord(old) || lockedSlotsFor(p, op.day).has(op.mealType)) {
+            notes.push(recordKind(old) === "out" ? `${op.day}'s ${op.mealType} is set aside for eating out, so I left it.`
+              : isRecord(old) ? `${old.name} is logged as eaten on ${op.day}, so I left it.`
+              : `${old.name} is pinned to ${op.day}'s ${op.mealType}. Unpin it first if you'd like it changed.`);
+            break;
+          }
+          if (fresh.name === old.name) {
+            notes.push(`${old.name} already fits that, so ${op.day}'s ${op.mealType} stays as it is.`);
+            break;
+          }
+          const meals = scaleToTargets(cur.meals.map((m) => (m.type === op.mealType ? fresh : m)), tp).map((m, i) => ({ ...m, type: cur.meals[i].type }));
+          curPlan = { ...curPlan, days: curPlan.days.map((d) => (d.day === op.day ? { ...d, meals } : d)) };
+          const minutes = baseRecipeOf(fresh)?.timeMinutes;
+          notes.push(`${op.day}'s ${op.mealType} is now ${fresh.name}${minutes ? ` (${minutes} min)` : ""}, in place of ${old.name}.` +
+            (figuresNote(curPlan, tp, op.day) ? ` ${figuresNote(curPlan, tp, op.day)}` : ""));
+          notes.push(...overLimitNote(prevWeek, curPlan, tp, { limitSet: !!(op.maxCookTime && op.maxCookTime > 0), days: new Set([op.day]), skip: (m) => m.type !== op.mealType }));
+          break;
+        }
         notes.push(...reportNotes(rep, tp));
         const meals = keepMacros(op)
           ? rebalanceDay(newDay.meals, tp, undefined, namesOnOtherDays(curPlan, op.day, tp))

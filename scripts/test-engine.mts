@@ -17,7 +17,7 @@ import { reseed } from "./seeded-random";
 import { selectWeekFromDb, rebalanceWeek, applyOperations, RECIPES, recipeMicros, newReport, reportNotes, selectConditionAwareWeek, buildWeek, selectBatchWeek, rebalanceBatchWeek, withSeed, keepDays, freezesWell, previewOperations, swapCandidates } from "@/lib/recipeDb";
 import { conditionBoosts } from "@/lib/data/conditions";
 import type { UserProfile, Operation, DayPlan, WeekPlan, Meal } from "@/lib/core/types";
-import { MealSchema, WeekPlanSchema, PROTEIN_MISS } from "@/lib/core/types";
+import { MealSchema, WeekPlanSchema, PROTEIN_MISS, DAYS } from "@/lib/core/types";
 import { FEED_RECIPES, filterFeed, sortFeed, HIGH_PROTEIN_G, type FeedFilter } from "@/lib/presentation/feed";
 import { videoPlatform, extractVideoText } from "@/lib/providers/videoImport";
 import { aisleFor, groupByAisle, AISLE_ORDER } from "@/lib/nutrition/grocery";
@@ -1919,6 +1919,36 @@ console.log("\n--- LOG_MEAL (real life derails the plan) ---");
     r.notes[0]?.slice(0, 120));
   check("move primitive: its undo label is 'moved Tuesday's dinner'",
     operationPhrases(verbToOperations({ op: "move", day: "Tuesday", slot: "dinner", toDay: "Thursday" } as never)).join() === "moved Tuesday's dinner");
+}
+{
+  // V1 D9a: one slot under a constraint ("only 20 minutes for tonight's dinner"). regenerate_day with a mealType
+  // changes that slot alone; a slot-scoped constrain maps onto it. Before, the constrain was answered "I can't change
+  // just your dinner that way yet" and nothing changed.
+  const wk = withSeed(5, () => freshWeek({ ...BASE, maxCookTime: 60 }));
+  const at = (w: WeekPlan, day: string, slot: string) => w.days.find((d) => d.day === day)!.meals.find((m) => m.type === slot)!;
+  const minutes = (m: Meal) => RECIPES.find((r) => r.name === m.name)?.timeMinutes ?? 0;
+  // A day whose dinner takes longer than 20 minutes, so the cap has something to do.
+  const day = DAYS.find((d) => minutes(at(wk, d, "dinner")) > 20)!;
+  const before = wk.days.find((d) => d.day === day)!;
+  const r = withSeed(9, () => applyPrimitives(BASE, wk, [{ op: "constrain", scope: { slot: "dinner", days: [day] }, maxCookTime: 20 } as PrimitiveOp]));
+  const after = r.plan.days.find((d) => d.day === day)!;
+  const dinner = at(r.plan, day, "dinner");
+  check("slot scope: '20 minutes for one dinner' changes that dinner alone, to a quicker dish, keeps the day's other dishes and says where the day lands",
+    !!day && r.planChanged && dinner.name !== at(wk, day, "dinner").name && minutes(dinner) <= 20 &&
+    after.meals.filter((m) => m.type !== "dinner").every((m) => before.meals.some((b) => b.type === m.type && b.name === m.name)) &&
+    r.notes.some((n) => n.startsWith(`${day}'s dinner is now ${dinner.name}`) && n.includes(`${day} now has`)) &&
+    r.plan.days.filter((d) => d.day !== day).every((d) => JSON.stringify(d) === JSON.stringify(wk.days.find((x) => x.day === d.day))),
+    `${day}: ${at(wk, day, "dinner").name} (${minutes(at(wk, day, "dinner"))} min) -> ${dinner.name} (${minutes(dinner)} min); ${r.notes[0]?.slice(0, 90)}`);
+  check("slot scope: the profile's own cook-time limit is untouched (a per-slot change, not saved)", r.profile.maxCookTime === BASE.maxCookTime);
+
+  const target = applyPrimitives(BASE, wk, [{ op: "constrain", scope: { slot: "breakfast" }, targets: { protein: 40 } } as PrimitiveOp]);
+  check("slot scope: a target for one meal is still not something the engine holds, so nothing changes and the reply says so",
+    !target.planChanged && target.notes.some((n) => /can't change just your breakfast that way/.test(n)), target.notes[0]);
+
+  const logged = applyOperations(BASE, wk, [op({ tool: "log_meal", day, mealType: "dinner", dish: "pizza", loggedCalories: 800 } as never)]);
+  const kept = applyPrimitives(BASE, logged.plan, [{ op: "constrain", scope: { slot: "dinner", days: [day] }, maxCookTime: 20 } as PrimitiveOp]);
+  check("slot scope: a logged dinner is a fact, so a cap on that dinner leaves it and says why",
+    !kept.planChanged && kept.notes.some((n) => /logged as eaten/.test(n)), kept.notes[0]);
 }
 {
   // log_meal on a slot the day doesn't have (BASE is 3 meals — no snack) must ABSORB the eaten meal,
@@ -5122,8 +5152,14 @@ console.log("\n--- THE ASSISTANT'S WORDS BIND THE ENGINE ---");
     check("constrain scope: {slot, days} keeps its slot through the schema",
       JSON.stringify(scope) === JSON.stringify({ slot: "lunch", days: ["Wednesday"] }), JSON.stringify(scope));
     const r = applyPrimitives(BASE, aw, parsed.operations as PrimitiveOp[]);
-    check("constrain scope: ...so the honest 'can't change just your lunch' note fires and nothing is re-planned",
-      r.planChanged === false && r.notes.some((n) => /can't change just your lunch/.test(n)), r.notes.join(" | "));
+    // Since V1 D9a (2026-10-29) a slot scope that picks a dish is carried out: that lunch alone changes. Before, the
+    // honest "can't change just your lunch" note was the answer; it still is for a per-meal target (D9a's own rows).
+    const lunchOf = (w: WeekPlan, day: string) => w.days.find((d) => d.day === day)!.meals.find((m) => m.type === "lunch")!;
+    const others = (w: WeekPlan) => JSON.stringify(w.days.map((d) => d.day === "Wednesday" ? d.meals.filter((m) => m.type !== "lunch").map((m) => m.name) : d));
+    const veg = RECIPES.find((x) => x.name === lunchOf(r.plan, "Wednesday").name)?.dietTags.includes("vegetarian");
+    check("constrain scope: ...so only Wednesday's lunch is re-planned, to a vegetarian dish, and every other meal keeps its dish",
+      r.planChanged && veg === true && lunchOf(r.plan, "Wednesday").name !== lunchOf(aw, "Wednesday").name && others(r.plan) === others(aw) &&
+      r.notes.some((n) => n.startsWith("Wednesday's lunch is now")), r.notes.join(" | "));
     const dayOnly = AssistantTurnV2Schema.parse({ thinking: "", reply: "",
       operations: [{ op: "constrain", scope: { days: ["Wednesday"] }, diet: "vegetarian" }] });
     check("constrain scope: a plain {days} scope still parses as days",
