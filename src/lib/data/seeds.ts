@@ -358,7 +358,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "rice", name: "Rice", quantity: "70 g dry" },
       { slug: "curry-powder", name: "Curry powder", quantity: "1 tbsp" },
     ],
-    steps: ["Simmer chickpeas, tomato and curry powder 15 min.", "Serve over rice."],
+    steps: ["Simmer the rice in twice its volume of water for 15 minutes.", "Simmer chickpeas, tomato and curry powder 15 min.", "Serve over rice."],
   },
   {
     id: "d-beef-noodles", name: "Beef Stir-Fry Noodles", type: "dinner",
@@ -611,7 +611,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "cucumber", name: "cucumber", quantity: "1/2" },
       { slug: "soy-sauce", name: "soy sauce", quantity: "1 tbsp" },
     ],
-    steps: ["Cook the rice and cool slightly.", "Top with cubed salmon, edamame, cucumber and soy."],
+    steps: ["Use sushi-grade salmon that has been frozen first, or sear it 2 minutes a side before cubing.", "Cook the rice and cool slightly.", "Top with cubed salmon, edamame, cucumber and soy."],
   },
   {
     /**
@@ -711,7 +711,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
   {
     id: "l-tofu-banh-mi", name: "Tofu Banh Mi Rice Bowl", type: "lunch",
     cuisine: "asian", mainProtein: "tofu",
-    timeMinutes: 20, approxCost: 2,
+    timeMinutes: 30, approxCost: 2,
     dietTags: ["vegan", "vegetarian"],
     description: "Glazed tofu with pickled carrot over rice.",
     ingredients: [
@@ -721,7 +721,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "soy-sauce", name: "soy sauce", quantity: "2 tbsp" },
       { slug: "sesame-oil", name: "sesame oil", quantity: "1 tbsp" },
     ],
-    steps: ["Pan-fry tofu and glaze with soy.", "Serve over rice with quick-pickled carrot."],
+    steps: ["Simmer the rice in twice its volume of water for 25 minutes, then drain.", "Pan-fry tofu and glaze with soy.", "Serve over rice with quick-pickled carrot."],
   },
   {
     id: "l-chicken-shawarma", name: "Chicken Shawarma Bowl with Tahini", type: "lunch",
@@ -756,7 +756,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
   {
     id: "l-chickpea-spinach-curry", name: "Chickpea & Spinach Curry with Rice", type: "lunch",
     cuisine: "indian", mainProtein: "legumes",
-    timeMinutes: 25, approxCost: 1,
+    timeMinutes: 30, approxCost: 1,
     dietTags: ["vegan", "vegetarian", "gluten_free"],
     description: "Comforting chickpea and spinach curry over rice.",
     ingredients: [
@@ -766,7 +766,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "brown-rice", name: "brown rice", quantity: "70 g dry" },
       { slug: "curry-powder", name: "curry powder", quantity: "1 tbsp" },
     ],
-    steps: ["Simmer chickpeas, tomato and curry powder 15 min.", "Stir in spinach; serve over rice."],
+    steps: ["Simmer the rice in twice its volume of water for 25 minutes, then drain.", "Simmer chickpeas, tomato and curry powder 15 min.", "Stir in spinach; serve over rice."],
   },
 
   // ---- Dinners ----
@@ -783,7 +783,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "lemon", name: "lemon", quantity: "1/2" },
       { slug: "olive-oil", name: "olive oil", quantity: "1 tbsp" },
     ],
-    steps: ["Bake cod and asparagus at 200°C for 15 min.", "Serve over lemon-dressed quinoa."],
+    steps: ["Simmer the quinoa in twice its volume of water for 15 minutes.", "Bake cod and asparagus at 200°C for 15 min.", "Serve over lemon-dressed quinoa."],
   },
   {
     id: "d-turkey-meatballs", name: "Turkey Meatballs with Whole-Wheat Pasta", type: "dinner",
@@ -798,7 +798,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "parmesan", name: "parmesan", quantity: "15 g" },
       { slug: "olive-oil", name: "olive oil", quantity: "1 tbsp" },
     ],
-    steps: ["Roll and bake turkey meatballs 15 min.", "Simmer in sauce; serve over pasta with parmesan."],
+    steps: ["Boil the pasta 10 to 12 minutes and drain.", "Roll and bake turkey meatballs 15 min.", "Simmer in sauce; serve over pasta with parmesan."],
   },
   {
     id: "d-sheet-fajitas", name: "Sheet-Pan Chicken Fajitas", type: "dinner",
@@ -873,7 +873,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "brown-rice", name: "brown rice", quantity: "70 g dry" },
       { slug: "sesame-oil", name: "sesame oil", quantity: "1 tbsp" },
     ],
-    steps: ["Coat tofu slabs in panko; bake at 210°C for 20 min.", "Serve with slaw and rice."],
+    steps: ["Simmer the rice in twice its volume of water for 25 minutes, then drain.", "Coat tofu slabs in panko; bake at 210°C for 20 min.", "Serve with slaw and rice."],
   },
   {
     id: "d-chickpea-tagine", name: "Moroccan Chickpea & Vegetable Tagine", type: "dinner",
@@ -888,7 +888,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "couscous", name: "couscous", quantity: "60 g dry" },
       { slug: "ras-el-hanout", name: "ras el hanout", quantity: "1 tbsp" },
     ],
-    steps: ["Simmer chickpeas and vegetables with spice 20 min.", "Serve over couscous."],
+    steps: ["Pour boiling water over the couscous, cover 5 minutes, then fluff with a fork.", "Simmer chickpeas and vegetables with spice 20 min.", "Serve over couscous."],
   },
   {
     id: "d-pork-brussels", name: "Pork Tenderloin with Brussels & Rice", type: "dinner",
@@ -1100,7 +1100,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "parsley", name: "parsley", quantity: "30 g" },
       { slug: "tahini", name: "tahini", quantity: "1 tbsp" },
     ],
-    steps: ["Blend chickpeas into patties; bake 20 min.", "Serve with tabbouleh and tahini."],
+    steps: ["Soak the bulgur in boiling water 12 minutes, drain, and toss with the chopped parsley to make the tabbouleh.", "Blend chickpeas into patties; bake 20 min.", "Serve with tabbouleh and tahini."],
   },
   {
     id: "l-stuffed-peppers", name: "Turkey & Quinoa Stuffed Peppers", type: "lunch",
@@ -1174,7 +1174,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "yogurt", name: "yogurt", quantity: "2 tbsp" },
       { slug: "olive-oil", name: "olive oil", quantity: "1 tbsp" },
     ],
-    steps: ["Shape spiced beef into kofta; grill.", "Serve over bulgur with cucumber-yogurt."],
+    steps: ["Soak the bulgur in boiling water for 12 minutes, then drain.", "Shape spiced beef into kofta; grill.", "Serve over bulgur with cucumber-yogurt."],
   },
   {
     id: "l-egg-avocado-salad", name: "Egg & Avocado Protein Salad", type: "lunch",
@@ -1255,7 +1255,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
   {
     id: "d-miso-cod", name: "Miso-Glazed Cod with Bok Choy & Rice", type: "dinner",
     cuisine: "asian", mainProtein: "fish",
-    timeMinutes: 25, approxCost: 3,
+    timeMinutes: 30, approxCost: 3,
     dietTags: [],
     description: "Sweet-savory miso cod with bok choy over rice.",
     ingredients: [
@@ -1265,7 +1265,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "miso-paste", name: "miso paste", quantity: "1 tbsp" },
       { slug: "sesame-oil", name: "sesame oil", quantity: "1 tbsp" },
     ],
-    steps: ["Glaze cod with miso; bake 12 min.", "Serve with steamed bok choy and rice."],
+    steps: ["Simmer the rice in twice its volume of water for 25 minutes, then drain.", "Glaze cod with miso; bake 12 min.", "Serve with steamed bok choy and rice."],
   },
   {
     id: "d-red-lentil-dahl", name: "Red Lentil Dahl with Brown Rice", type: "dinner",
@@ -1522,7 +1522,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
   {
     id: "b-kimchi-tofu", name: "Kimchi Tofu Scramble Bowl", type: "breakfast",
     cuisine: "asian", mainProtein: "tofu",
-    timeMinutes: 12, approxCost: 2,
+    timeMinutes: 30, approxCost: 2,
     dietTags: ["vegan", "vegetarian", "gluten_free"],
     description: "Savory tofu scramble with kimchi over rice.",
     ingredients: [
@@ -1531,7 +1531,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "brown-rice", name: "brown rice", quantity: "60 g dry" },
       { slug: "sesame-oil", name: "sesame oil", quantity: "1 tsp" },
     ],
-    steps: ["Scramble tofu in sesame oil.", "Serve over rice with kimchi (choose a vegan one: traditional kimchi is made with fish sauce)."],
+    steps: ["Simmer the rice in twice its volume of water for 25 minutes, then drain.", "Scramble tofu in sesame oil.", "Serve over rice with kimchi (choose a vegan one: traditional kimchi is made with fish sauce)."],
   },
   {
     id: "b-baked-oatmeal", name: "Baked Oatmeal with Apple & Pecan", type: "breakfast",
@@ -1648,7 +1648,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "avocado", name: "avocado", quantity: "1/2" },
       { slug: "mixed-greens", name: "mixed greens", quantity: "80 g" },
     ],
-    steps: ["Pan-cook the turkey breast in a dry pan 5 to 6 minutes a side until cooked through, then cool and slice thinly.", "Arrange greens; top with sliced turkey, egg and avocado.", "Dress lightly."],
+    steps: ["Pan-cook the turkey breast in a dry pan 5 to 6 minutes a side until cooked through, then cool and slice thinly; boil the egg 8 minutes, cool and halve.", "Arrange greens; top with sliced turkey, egg and avocado.", "Dress lightly."],
   },
   {
     id: "l-spicy-tuna-bowl", name: "Spicy Tuna & Avocado Rice Bowl", type: "lunch",
@@ -1749,7 +1749,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "roasted-peppers", name: "roasted peppers", quantity: "80 g" },
       { slug: "olive-oil", name: "olive oil", quantity: "1 tbsp" },
     ],
-    steps: ["Grill halloumi; warm chickpeas.", "Serve over quinoa with peppers."],
+    steps: ["Simmer the quinoa in twice its volume of water for 15 minutes.", "Grill halloumi; warm chickpeas.", "Serve over quinoa with peppers."],
   },
   {
     id: "l-chicken-tikka-wrap", name: "Chicken Tikka Wrap with Yogurt Slaw", type: "lunch",
@@ -1784,7 +1784,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
   {
     id: "l-ginger-beef-cups", name: "Ginger Beef Lettuce Cups", type: "lunch",
     cuisine: "asian", mainProtein: "beef",
-    timeMinutes: 18, approxCost: 3,
+    timeMinutes: 30, approxCost: 3,
     dietTags: [],
     description: "Ginger-soy beef in lettuce cups with a side of rice.",
     ingredients: [
@@ -1794,7 +1794,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "ginger-soy-sauce", name: "ginger-soy sauce", quantity: "2 tbsp" },
       { slug: "sesame-oil", name: "sesame oil", quantity: "1 tbsp" },
     ],
-    steps: ["Stir-fry beef with ginger-soy.", "Spoon into lettuce cups; serve with rice."],
+    steps: ["Simmer the rice in twice its volume of water for 25 minutes, then drain.", "Stir-fry beef with ginger-soy.", "Spoon into lettuce cups; serve with rice."],
   },
   {
     id: "l-mackerel-beetroot", name: "Smoked Mackerel & Beetroot Salad", type: "lunch",
@@ -1869,7 +1869,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "tomato-sauce", name: "tomato sauce", quantity: "120 g" },
       { slug: "olive-oil", name: "olive oil", quantity: "1 tbsp" },
     ],
-    steps: ["Bake turkey-spinach meatballs 15 min.", "Simmer in sauce; serve over quinoa."],
+    steps: ["Simmer the quinoa in twice its volume of water for 15 minutes.", "Bake turkey-spinach meatballs 15 min.", "Simmer in sauce; serve over quinoa."],
   },
   {
     id: "d-black-bean-enchilada", name: "Black Bean Enchilada Bake", type: "dinner",
@@ -1929,7 +1929,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "couscous", name: "couscous", quantity: "60 g dry" },
       { slug: "olive-oil", name: "olive oil", quantity: "1 tbsp" },
     ],
-    steps: ["Thread beef and veg; grill.", "Serve over fluffed couscous."],
+    steps: ["Pour boiling water over the couscous, cover 5 minutes, then fluff with a fork.", "Thread beef and veg; grill.", "Serve over fluffed couscous."],
   },
   {
     id: "d-chicken-tikka-masala", name: "Chicken Tikka Masala with Brown Rice", type: "dinner",
@@ -1943,7 +1943,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "tikka-masala-sauce", name: "tikka masala sauce", quantity: "150 g" },
       { slug: "peas", name: "peas", quantity: "60 g" },
     ],
-    steps: ["Simmer chicken in masala sauce 15 min.", "Stir in peas; serve over rice."],
+    steps: ["Simmer the rice in twice its volume of water for 25 minutes, then drain.", "Simmer chicken in masala sauce 15 min.", "Stir in peas; serve over rice."],
   },
   {
     id: "d-cod-bean-stew", name: "Cod & Smoky Bean Stew", type: "dinner",
@@ -2000,7 +2000,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "peas", name: "peas", quantity: "80 g" },
       { slug: "pesto", name: "pesto", quantity: "1 tbsp" },
     ],
-    steps: ["Cook penne with peas.", "Toss with sliced pesto chicken."],
+    steps: ["Pan-cook the chicken breast 6 to 7 minutes a side until cooked through, then slice.", "Cook penne with peas.", "Toss with sliced pesto chicken."],
   },
   {
     id: "d-falafel-bowl", name: "Baked Falafel Bowl with Roasted Veg & Tahini", type: "dinner",
@@ -2421,7 +2421,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "cheddar", name: "cheddar", quantity: "30 g" },
       { slug: "butter", name: "butter", quantity: "1 tsp" },
     ],
-    steps: ["Fry the mushrooms in butter.", "Pour over the eggs; fold with the cheddar."],
+    steps: ["Fry the mushrooms in butter.", "Pour the beaten eggs over the mushrooms, cook until nearly set, then fold with the cheddar."],
   },
   {
     id: "l-keto-tuna-avocado", name: "Tuna & Avocado Salad", type: "lunch",
@@ -3054,7 +3054,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
     // "Chicken Tikka Wrap with Yogurt Slaw" already exists — a rice bowl, not a second wrap.
     id: "l-indian-egg-curry-bowl", name: "Egg Curry Rice Bowl", type: "lunch",
     cuisine: "indian", mainProtein: "eggs",
-    timeMinutes: 20, approxCost: 1,
+    timeMinutes: 30, approxCost: 1,
     dietTags: ["vegetarian", "gluten_free"],
     description: "Boiled eggs in a spiced tomato sauce over rice.",
     ingredients: [
@@ -3065,7 +3065,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "onion", name: "onion", quantity: "50 g" },
       { slug: "olive-oil", name: "olive oil", quantity: "1 tsp" },
     ],
-    steps: ["Simmer onion, tomato and spice into a sauce.", "Halve the boiled eggs into it; serve over rice."],
+    steps: ["Simmer the rice in twice its volume of water for 25 minutes; boil the eggs 8 minutes, cool and peel.", "Simmer onion, tomato and spice into a sauce.", "Halve the boiled eggs into it; serve over rice."],
   },
   {
     id: "l-indian-dal-spinach", name: "Spinach Dal", type: "lunch",
@@ -3102,7 +3102,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
   {
     id: "d-indian-tikka-salmon", name: "Tikka Spiced Salmon", type: "dinner",
     cuisine: "indian", mainProtein: "fish",
-    timeMinutes: 22, approxCost: 3,
+    timeMinutes: 30, approxCost: 3,
     dietTags: ["gluten_free"],
     description: "Roasted spiced salmon with rice and greens.",
     ingredients: [
@@ -3111,12 +3111,12 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "brown-rice", name: "brown rice", quantity: "60 g" },
       { slug: "green-beans", name: "green beans", quantity: "100 g" },
     ],
-    steps: ["Rub the salmon with spice and roast.", "Serve with rice and beans."],
+    steps: ["Simmer the rice in twice its volume of water for 25 minutes, then drain.", "Rub the salmon with spice and roast.", "Serve with rice and beans."],
   },
   {
     id: "d-indian-paneer-style-tofu", name: "Tikka Masala Tofu", type: "dinner",
     cuisine: "indian", mainProtein: "tofu",
-    timeMinutes: 25, approxCost: 2,
+    timeMinutes: 30, approxCost: 2,
     dietTags: ["vegetarian"],
     description: "Crisped tofu in a spiced tomato sauce with rice.",
     ingredients: [
@@ -3126,12 +3126,12 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "spinach", name: "spinach", quantity: "60 g" },
       { slug: "olive-oil", name: "olive oil", quantity: "1 tbsp" },
     ],
-    steps: ["Crisp the tofu in oil.", "Simmer in the sauce; wilt in spinach. Serve with rice."],
+    steps: ["Simmer the rice in twice its volume of water for 25 minutes, then drain.", "Crisp the tofu in oil.", "Simmer in the sauce; wilt in spinach. Serve with rice."],
   },
   {
     id: "d-indian-keema-turkey", name: "Turkey Keema with Peas", type: "dinner",
     cuisine: "indian", mainProtein: "turkey",
-    timeMinutes: 25, approxCost: 2,
+    timeMinutes: 30, approxCost: 2,
     dietTags: ["gluten_free"],
     description: "Spiced minced turkey with peas and rice.",
     ingredients: [
@@ -3141,7 +3141,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "onion", name: "onion", quantity: "60 g" },
       { slug: "brown-rice", name: "brown rice", quantity: "55 g" },
     ],
-    steps: ["Brown the turkey with onion and spice.", "Stir in peas; serve over rice."],
+    steps: ["Simmer the rice in twice its volume of water for 25 minutes, then drain.", "Brown the turkey with onion and spice.", "Stir in peas; serve over rice."],
   },
   {
     // A LENTIL dhal, not a third chickpea curry — "Chickpea Curry" and "Chickpea Spinach Curry"
@@ -3362,7 +3362,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
   {
     id: "l-mexican-burrito-bowl", name: "Chicken Burrito Bowl", type: "lunch",
     cuisine: "mexican", mainProtein: "chicken",
-    timeMinutes: 20, approxCost: 2,
+    timeMinutes: 30, approxCost: 2,
     dietTags: ["gluten_free"],
     description: "Spiced chicken with rice, beans, corn and salsa.",
     ingredients: [
@@ -3373,7 +3373,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "salsa", name: "salsa", quantity: "50 g" },
       { slug: "taco-spice", name: "taco spice", quantity: "1 tsp" },
     ],
-    steps: ["Cook the chicken with taco spice.", "Build the bowl with rice, beans, corn, salsa."],
+    steps: ["Simmer the rice in twice its volume of water for 25 minutes, then drain.", "Cook the chicken with taco spice.", "Build the bowl with rice, beans, corn, salsa."],
   },
   {
     id: "l-mexican-black-bean-soup", name: "Black Bean Soup", type: "lunch",
@@ -3440,7 +3440,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
   {
     id: "d-mexican-stuffed-peppers", name: "Bean Stuffed Peppers", type: "dinner",
     cuisine: "mexican", mainProtein: "legumes",
-    timeMinutes: 32, approxCost: 1,
+    timeMinutes: 50, approxCost: 1,
     dietTags: ["vegan", "vegetarian", "gluten_free"],
     description: "Peppers filled with spiced beans, rice and corn.",
     ingredients: [
@@ -3451,7 +3451,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "taco-spice", name: "taco spice", quantity: "1 tbsp" },
       { slug: "olive-oil", name: "olive oil", quantity: "1 tsp" },
     ],
-    steps: ["Mix the filling with spice.", "Stuff the peppers and bake until soft."],
+    steps: ["Simmer the rice in water 20 minutes, drain, and mix with the beans, corn and spice.", "Stuff the peppers and bake until soft."],
   },
 
   // ---- Middle Eastern: breakfast 3, lunch 5, dinner 4 ----
@@ -3514,7 +3514,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "shawarma-spice", name: "shawarma spice", quantity: "1 tbsp" },
       { slug: "cucumber", name: "cucumber", quantity: "70 g" },
     ],
-    steps: ["Crisp the chickpeas with spice.", "Serve over bulgur with tahini and cucumber."],
+    steps: ["Soak the bulgur in boiling water for 12 minutes, then drain.", "Crisp the chickpeas with spice.", "Serve over bulgur with tahini and cucumber."],
   },
   {
     id: "l-me-chicken-shawarma-wrap", name: "Chicken Shawarma Wrap", type: "lunch",
@@ -3560,7 +3560,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "greek-yogurt", name: "greek yogurt", quantity: "70 g" },
       { slug: "parsley", name: "parsley", quantity: "15 g" },
     ],
-    steps: ["Shape the spiced turkey into koftas and grill.", "Serve over bulgur with yogurt."],
+    steps: ["Soak the bulgur in boiling water for 12 minutes, then drain.", "Shape the spiced turkey into koftas and grill.", "Serve over bulgur with yogurt."],
   },
   {
     id: "d-me-harissa-cod", name: "Harissa Baked Cod", type: "dinner",
@@ -3591,7 +3591,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "bulgur", name: "bulgur", quantity: "55 g" },
       { slug: "olive-oil", name: "olive oil", quantity: "1 tbsp" },
     ],
-    steps: ["Brown the aubergine, add spice and tomato.", "Simmer with chickpeas; serve over bulgur."],
+    steps: ["Soak the bulgur in boiling water for 12 minutes, then drain.", "Brown the aubergine, add spice and tomato.", "Simmer with chickpeas; serve over bulgur."],
   },
 
   // ---- Keto: 7 per slot, under two weeks of variety ----
@@ -3764,7 +3764,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "soy-sauce", name: "soy sauce", quantity: "1 tbsp" },
       { slug: "sesame-oil", name: "sesame oil", quantity: "1 tsp" },
     ],
-    steps: ["Glaze and crisp the tempeh.", "Serve over quinoa with wilted greens."],
+    steps: ["Simmer the quinoa in twice its volume of water for 15 minutes.", "Glaze and crisp the tempeh.", "Serve over quinoa with wilted greens."],
   },
   {
     id: "l-vegan-lentil-salad", name: "Lentil & Beetroot Salad", type: "lunch",
@@ -3784,7 +3784,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
   {
     id: "l-vegan-hummus-quinoa-wrap", name: "Hummus & Quinoa Wrap", type: "lunch",
     cuisine: "middle_eastern", mainProtein: "legumes",
-    timeMinutes: 10, approxCost: 1,
+    timeMinutes: 20, approxCost: 1,
     dietTags: ["vegan", "vegetarian"],
     description: "Quinoa, hummus and salad rolled in a wrap.",
     ingredients: [
@@ -3794,7 +3794,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "spinach", name: "spinach", quantity: "40 g" },
       { slug: "roasted-peppers", name: "roasted peppers", quantity: "60 g" },
     ],
-    steps: ["Spread hummus over the wrap.", "Fill with quinoa, spinach and peppers; roll."],
+    steps: ["Simmer the quinoa in twice its volume of water for 15 minutes. Cool slightly.", "Spread hummus over the wrap.", "Fill with quinoa, spinach and peppers; roll."],
   },
   {
     id: "d-vegan-peanut-tofu-noodles", name: "Peanut Tofu Noodles", type: "dinner",
@@ -3809,12 +3809,12 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "mixed-stir-fry-veg", name: "mixed stir-fry veg", quantity: "120 g" },
       { slug: "soy-sauce", name: "soy sauce", quantity: "1 tbsp" },
     ],
-    steps: ["Crisp the tofu.", "Toss noodles and veg through the peanut-soy sauce."],
+    steps: ["Soak the rice noodles in boiling water for 8 minutes, then drain.", "Crisp the tofu.", "Toss noodles and veg through the peanut-soy sauce."],
   },
   {
     id: "d-vegan-chickpea-spinach-curry", name: "Chickpea Spinach Curry", type: "dinner",
     cuisine: "indian", mainProtein: "legumes",
-    timeMinutes: 25, approxCost: 1,
+    timeMinutes: 30, approxCost: 1,
     dietTags: ["vegan", "vegetarian", "gluten_free"],
     description: "Chickpeas and spinach in a spiced tomato sauce.",
     ingredients: [
@@ -3825,7 +3825,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "brown-rice", name: "brown rice", quantity: "55 g" },
       { slug: "olive-oil", name: "olive oil", quantity: "1 tsp" },
     ],
-    steps: ["Simmer chickpeas with tomato and spice.", "Wilt in spinach; serve with rice."],
+    steps: ["Simmer the rice in twice its volume of water for 25 minutes, then drain.", "Simmer chickpeas with tomato and spice.", "Wilt in spinach; serve with rice."],
   },
   {
     id: "d-vegan-lentil-bolognese", name: "Lentil Bolognese", type: "dinner",
@@ -3840,7 +3840,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "carrot", name: "carrot", quantity: "60 g" },
       { slug: "olive-oil", name: "olive oil", quantity: "1 tbsp" },
     ],
-    steps: ["Soften the carrot, add lentils and tomato.", "Simmer to a ragu; serve over pasta."],
+    steps: ["Boil the spaghetti 11 minutes and drain.", "Soften the carrot, add lentils and tomato.", "Simmer to a ragu; serve over pasta."],
   },
 
   // ---- Mediterranean + American depth ----
@@ -3873,7 +3873,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "olive-oil", name: "olive oil", quantity: "1 tbsp" },
       { slug: "lemon", name: "lemon", quantity: "1/4 piece" },
     ],
-    steps: ["Cook the salmon and flake it.", "Toss with quinoa, cucumber, olives and dressing."],
+    steps: ["Simmer the quinoa in twice its volume of water for 15 minutes. Cool slightly.", "Cook the salmon and flake it.", "Toss with quinoa, cucumber, olives and dressing."],
   },
   {
     id: "d-med-baked-cod-potatoes", name: "Baked Cod & Baby Potatoes", type: "dinner",
@@ -3918,7 +3918,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "chili-powder", name: "chili powder", quantity: "1 tbsp" },
       { slug: "brown-rice", name: "brown rice", quantity: "50 g" },
     ],
-    steps: ["Brown the turkey with spice.", "Add beans and tomato; simmer. Serve with rice."],
+    steps: ["Simmer the rice in twice its volume of water for 25 minutes, then drain.", "Brown the turkey with spice.", "Add beans and tomato; simmer. Serve with rice."],
   },
   {
     id: "d-american-sheetpan-chicken", name: "Sheet-Pan Chicken & Veg", type: "dinner",
@@ -3938,7 +3938,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
   {
     id: "l-asian-miso-salmon-rice", name: "Miso Salmon Rice Bowl", type: "lunch",
     cuisine: "asian", mainProtein: "fish",
-    timeMinutes: 22, approxCost: 3,
+    timeMinutes: 30, approxCost: 3,
     dietTags: [],
     description: "Miso-glazed salmon over rice with greens.",
     ingredients: [
@@ -3948,7 +3948,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "pak-choi", name: "pak choi", quantity: "100 g" },
       { slug: "sesame-seeds", name: "sesame seeds", quantity: "1 tsp" },
     ],
-    steps: ["Glaze the salmon with miso and grill.", "Serve over rice with wilted greens."],
+    steps: ["Simmer the rice in twice its volume of water for 25 minutes, then drain.", "Glaze the salmon with miso and grill.", "Serve over rice with wilted greens."],
   },
   {
     id: "b-asian-congee-style-oats", name: "Savoury Sesame Oats", type: "breakfast",
@@ -3963,7 +3963,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "chives", name: "chives", quantity: "10 g" },
       { slug: "soy-sauce", name: "soy sauce", quantity: "1 tsp" },
     ],
-    steps: ["Simmer the oats in water until creamy.", "Top with soft eggs, sesame oil and chives."],
+    steps: ["Simmer the oats in water until creamy; soft-boil the eggs 6 minutes, then peel and halve.", "Top with the eggs, sesame oil and chives."],
   },
   {
     id: "d-asian-tofu-stirfry-noodles", name: "Ginger Tofu Stir-Fry", type: "dinner",
@@ -3978,7 +3978,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "ginger-soy-sauce", name: "ginger-soy sauce", quantity: "2 tbsp" },
       { slug: "sesame-oil", name: "sesame oil", quantity: "1 tsp" },
     ],
-    steps: ["Crisp the tofu; stir-fry the veg.", "Toss with noodles and sauce."],
+    steps: ["Boil the soba 5 minutes, then rinse under cold water.", "Crisp the tofu; stir-fry the veg.", "Toss with noodles and sauce."],
   },
 
   // ---- Batch 2: lift every remaining CRITICAL cell (under 7 = a week is forced
@@ -5002,7 +5002,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
   {
     id: "s-indian-curried-egg-cups", name: "Curried Egg Cups", type: "snack",
     cuisine: "indian", mainProtein: "eggs",
-    timeMinutes: 5, approxCost: 1,
+    timeMinutes: 13, approxCost: 1,
     dietTags: ["vegetarian", "gluten_free", "keto"],
     description: "Boiled eggs folded through curried yogurt with cucumber.",
     ingredients: [
@@ -5011,7 +5011,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "curry-powder", name: "curry powder", quantity: "1 tsp" },
       { slug: "cucumber", name: "cucumber", quantity: "80 g" },
     ],
-    steps: ["Chop the boiled eggs.", "Fold through the yogurt and curry powder, and serve with cucumber."],
+    steps: ["Boil the eggs 8 minutes, cool and peel.", "Chop the boiled eggs.", "Fold through the yogurt and curry powder, and serve with cucumber."],
   },
 
   // -- The 7-floor breakfasts: italian, mexican, middle eastern --
@@ -5244,7 +5244,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
   {
     id: "s-hp-smoked-salmon-egg-cup", name: "Smoked Salmon & Egg Cup", type: "snack",
     cuisine: "american", mainProtein: "fish",
-    timeMinutes: 5, approxCost: 3,
+    timeMinutes: 13, approxCost: 3,
     dietTags: ["keto", "gluten_free"],
     description: "Boiled egg with smoked salmon, soft cheese and chives.",
     ingredients: [
@@ -5253,7 +5253,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "light-cream-cheese", name: "light cream cheese", quantity: "30 g" },
       { slug: "chives", name: "chives", quantity: "1 tbsp" },
     ],
-    steps: ["Quarter the boiled eggs.", "Layer with the salmon and cheese and scatter the chives."],
+    steps: ["Boil the eggs 8 minutes, cool and peel.", "Quarter the boiled eggs.", "Layer with the salmon and cheese and scatter the chives."],
   },
   {
     id: "s-hp-lentil-feta-cup", name: "Lentil & Feta Cup", type: "snack",
@@ -5383,7 +5383,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
   {
     id: "b-asian-soy-egg-rice", name: "Soy Egg & Rice Bowl", type: "breakfast",
     cuisine: "asian", mainProtein: "eggs",
-    timeMinutes: 8, approxCost: 1,
+    timeMinutes: 14, approxCost: 1,
     dietTags: ["vegetarian"],
     description: "Warm rice with a jammy soy egg, spinach and sesame.",
     ingredients: [
@@ -5393,7 +5393,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "soy-sauce", name: "soy sauce", quantity: "1 tbsp" },
       { slug: "sesame-seeds", name: "sesame seeds", quantity: "1 tsp" },
     ],
-    steps: ["Warm the rice and wilt the spinach into it.", "Top with soft-boiled eggs, soy and sesame."],
+    steps: ["Soft-boil the eggs 6 minutes, cool and peel.", "Warm the rice and wilt the spinach into it.", "Top with soft-boiled eggs, soy and sesame."],
   },
   {
     id: "b-asian-edamame-avocado-toast", name: "Edamame & Avocado Toast", type: "breakfast",
@@ -5728,7 +5728,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
   {
     id: "b-me-foul-egg-plate", name: "Spiced Beans & Egg Plate", type: "breakfast",
     cuisine: "middle_eastern", mainProtein: "legumes",
-    timeMinutes: 12, approxCost: 1,
+    timeMinutes: 20, approxCost: 1,
     dietTags: ["vegetarian", "gluten_free", "mediterranean"],
     description: "Cumin-spiced beans with a boiled egg, lemon and olive oil.",
     ingredients: [
@@ -5738,7 +5738,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "lemon", name: "lemon", quantity: "1/4 piece" },
       { slug: "olive-oil", name: "olive oil", quantity: "1 tbsp" },
     ],
-    steps: ["Warm the beans with the cumin and mash lightly.", "Top with the halved boiled egg, lemon and oil."],
+    steps: ["Boil the eggs 8 minutes, cool and peel.", "Warm the beans with the cumin and mash lightly.", "Top with the halved boiled egg, lemon and oil."],
   },
   {
     id: "b-me-halloumi-tomato-plate", name: "Griddled Halloumi & Tomato Plate", type: "breakfast",
@@ -5836,7 +5836,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
   {
     id: "b-indian-lentil-egg-bowl", name: "Dal & Egg Breakfast Bowl", type: "breakfast",
     cuisine: "indian", mainProtein: "legumes",
-    timeMinutes: 12, approxCost: 1,
+    timeMinutes: 20, approxCost: 1,
     dietTags: ["vegetarian", "gluten_free"],
     description: "Cumin dal topped with a boiled egg and spinach.",
     ingredients: [
@@ -5846,7 +5846,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "cumin", name: "cumin", quantity: "1 tsp" },
       { slug: "olive-oil", name: "olive oil", quantity: "1 tsp" },
     ],
-    steps: ["Warm the lentils with the cumin in the oil.", "Wilt the spinach through and top with the halved boiled egg."],
+    steps: ["Boil the eggs 8 minutes, cool and peel.", "Warm the lentils with the cumin in the oil.", "Wilt the spinach through and top with the halved boiled egg."],
   },
 
   // ---- Batch 7: lunch depth, six per cuisine ----
@@ -6846,7 +6846,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "tomato-sauce", name: "tomato sauce", quantity: "150 g" },
       { slug: "parmesan", name: "parmesan", quantity: "20 g" },
     ],
-    steps: ["Roll the turkey into small meatballs and brown.", "Add the sauce and simmer 10 minutes.", "Toss with the penne and parmesan."],
+    steps: ["Roll the turkey into small meatballs and brown.", "Add the sauce and simmer 10 minutes; boil the penne 11 minutes meanwhile and drain.", "Toss with the penne and parmesan."],
   },
   {
     id: "d-italian-zucchini-ricotta-bake", name: "Zucchini & Ricotta Bake", type: "dinner",
@@ -7190,7 +7190,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
   {
     id: "s-med-egg-olive-plate", name: "Egg, Olive & Tomato Plate", type: "snack",
     cuisine: "mediterranean", mainProtein: "eggs",
-    timeMinutes: 5, approxCost: 1,
+    timeMinutes: 13, approxCost: 1,
     dietTags: ["vegetarian", "keto", "gluten_free", "mediterranean"],
     description: "Halved boiled eggs with olives, tomato and olive oil.",
     ingredients: [
@@ -7199,7 +7199,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "cherry-tomatoes", name: "cherry tomatoes", quantity: "80 g" },
       { slug: "olive-oil", name: "olive oil", quantity: "1 tsp" },
     ],
-    steps: ["Halve the boiled eggs.", "Plate with the olives and tomatoes and drizzle with oil."],
+    steps: ["Boil the eggs 8 minutes, cool and peel.", "Halve the boiled eggs.", "Plate with the olives and tomatoes and drizzle with oil."],
   },
   {
     id: "s-med-chickpea-lemon-cup", name: "Lemon & Parsley Chickpea Cup", type: "snack",
@@ -7287,7 +7287,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
   {
     id: "s-asian-egg-soy-cup", name: "Soy Egg & Cucumber Cup", type: "snack",
     cuisine: "asian", mainProtein: "eggs",
-    timeMinutes: 5, approxCost: 1,
+    timeMinutes: 13, approxCost: 1,
     dietTags: ["vegetarian", "keto"],
     description: "Boiled eggs rolled in soy and sesame with cucumber.",
     ingredients: [
@@ -7296,7 +7296,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "sesame-seeds", name: "sesame seeds", quantity: "1 tsp" },
       { slug: "cucumber", name: "cucumber", quantity: "80 g" },
     ],
-    steps: ["Halve the boiled eggs and brush with soy.", "Scatter sesame and serve with cucumber."],
+    steps: ["Boil the eggs 8 minutes, cool and peel.", "Halve the boiled eggs and brush with soy.", "Scatter sesame and serve with cucumber."],
   },
   {
     id: "s-asian-mango-yogurt-sesame", name: "Mango & Sesame Yogurt Cup", type: "snack",
@@ -7425,7 +7425,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
   {
     id: "s-mexican-egg-salsa-cup", name: "Egg & Salsa Cup", type: "snack",
     cuisine: "mexican", mainProtein: "eggs",
-    timeMinutes: 5, approxCost: 1,
+    timeMinutes: 13, approxCost: 1,
     dietTags: ["vegetarian", "keto", "gluten_free"],
     description: "Boiled eggs with salsa and avocado.",
     ingredients: [
@@ -7433,7 +7433,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "salsa", name: "salsa", quantity: "60 g" },
       { slug: "avocado", name: "avocado", quantity: "1/4 piece" },
     ],
-    steps: ["Chop the boiled eggs.", "Fold through the salsa and avocado."],
+    steps: ["Boil the eggs 8 minutes, cool and peel.", "Chop the boiled eggs.", "Fold through the salsa and avocado."],
   },
 
   // -- Italian --
@@ -7521,7 +7521,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
   {
     id: "s-me-hummus-egg-cup", name: "Hummus & Egg Cup", type: "snack",
     cuisine: "middle_eastern", mainProtein: "eggs",
-    timeMinutes: 5, approxCost: 1,
+    timeMinutes: 15, approxCost: 1,
     dietTags: ["vegetarian", "mediterranean"],
     description: "Boiled egg over hummus with cucumber.",
     ingredients: [
@@ -7529,7 +7529,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "eggs", name: "eggs", quantity: "2 pieces" },
       { slug: "cucumber", name: "cucumber", quantity: "80 g" },
     ],
-    steps: ["Spread the hummus into a cup.", "Top with the halved eggs and cucumber."],
+    steps: ["Boil the eggs 8 minutes, cool and peel.", "Spread the hummus into a cup.", "Top with the halved eggs and cucumber."],
   },
   {
     id: "s-me-zaatar-halloumi-cup", name: "Spiced Halloumi & Tomato Cup", type: "snack",
@@ -7641,7 +7641,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
   {
     id: "s-american-tuna-egg-plate", name: "Tuna & Egg Plate", type: "snack",
     cuisine: "american", mainProtein: "fish",
-    timeMinutes: 5, approxCost: 1,
+    timeMinutes: 13, approxCost: 1,
     dietTags: ["keto", "gluten_free"],
     description: "Tuna with boiled egg and cucumber.",
     ingredients: [
@@ -7649,7 +7649,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "eggs", name: "eggs", quantity: "2 pieces" },
       { slug: "cucumber", name: "cucumber", quantity: "80 g" },
     ],
-    steps: ["Halve the boiled eggs.", "Plate with the drained tuna and cucumber."],
+    steps: ["Boil the eggs 8 minutes, cool and peel.", "Halve the boiled eggs.", "Plate with the drained tuna and cucumber."],
   },
   {
     id: "s-american-yogurt-granola-apple", name: "Yogurt, Granola & Apple Cup", type: "snack",
@@ -7680,7 +7680,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
   {
     id: "s-american-egg-cheddar-cup", name: "Egg & Cheddar Cup", type: "snack",
     cuisine: "american", mainProtein: "eggs",
-    timeMinutes: 5, approxCost: 1,
+    timeMinutes: 13, approxCost: 1,
     dietTags: ["vegetarian", "keto", "gluten_free"],
     description: "Boiled eggs with cubed cheddar and tomato.",
     ingredients: [
@@ -7688,7 +7688,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "cheddar", name: "cheddar", quantity: "30 g" },
       { slug: "cherry-tomatoes", name: "cherry tomatoes", quantity: "60 g" },
     ],
-    steps: ["Halve the boiled eggs.", "Plate with the cubed cheddar and tomatoes."],
+    steps: ["Boil the eggs 8 minutes, cool and peel.", "Halve the boiled eggs.", "Plate with the cubed cheddar and tomatoes."],
   },
 
   // -- Indian --
@@ -7721,7 +7721,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
   {
     id: "s-indian-egg-masala-cup", name: "Masala Egg Cup", type: "snack",
     cuisine: "indian", mainProtein: "eggs",
-    timeMinutes: 5, approxCost: 1,
+    timeMinutes: 13, approxCost: 1,
     dietTags: ["vegetarian", "keto", "gluten_free"],
     description: "Boiled eggs with turmeric, tomato and onion.",
     ingredients: [
@@ -7730,7 +7730,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "onion", name: "onion", quantity: "40 g" },
       { slug: "turmeric", name: "turmeric", quantity: "1 tsp" },
     ],
-    steps: ["Chop the boiled eggs.", "Fold through the diced tomato, onion and turmeric."],
+    steps: ["Boil the eggs 8 minutes, cool and peel.", "Chop the boiled eggs.", "Fold through the diced tomato, onion and turmeric."],
   },
   {
     id: "s-indian-cucumber-peanut-salad", name: "Cucumber & Peanut Chaat", type: "snack",
