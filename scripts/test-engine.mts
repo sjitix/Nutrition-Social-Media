@@ -149,7 +149,14 @@ function calorieReachable(d: DayPlan, targetCal: number, lockedTypes?: ReadonlyS
       continue;
     }
     const base = recipeByName.get(m.name.toLowerCase());
-    if (!base) return true; // can't judge; don't flag
+    // No base recipe (a skipped slot, a logged meal, an import): the engine holds it fixed, so it counts as it is.
+    // This used to return true, meaning "reachable", the opposite of its comment ("can't judge; don't flag"), and the
+    // first fuzz with skip_meal flagged a day whose two other meals were both at the 1.8x ceiling (2026-10-30).
+    if (!base) {
+      lo += m.calories;
+      hi += m.calories;
+      continue;
+    }
     lo += base.calories * 0.6;
     hi += base.calories * 1.8;
   }
@@ -5689,6 +5696,12 @@ function randomOp(): Operation {
     });
   if (roll < 0.38)
     return op({ tool: "swap_meal", day: pick(DAYS_L), mealType: pick(MEALS_L), dish: pick(DISHES_L), preserveMacros: Math.random() < 0.3 ? false : null });
+  // V1 D9a's operations (2026-10-30): a move, a skip, and one slot re-planned under a cook-time limit or a protein
+  // floor. Each changes a day's dishes outside the selector, which is where an invariant can slip.
+  if (roll < 0.41) return op({ tool: "move_meal", day: pick(DAYS_L), mealType: pick(MEALS_L), toDay: pick(DAYS_L), toMealType: Math.random() < 0.3 ? pick(MEALS_L) : null });
+  if (roll < 0.43) return op({ tool: "skip_meal", day: pick(DAYS_L), mealType: pick(MEALS_L) });
+  if (roll < 0.48)
+    return op({ tool: "regenerate_day", day: pick(DAYS_L), mealType: pick(MEALS_L), ...(Math.random() < 0.6 ? { mealProtein: pick([25, 35, 45, 60, 90]) } : { maxCookTime: pick([10, 15, 20]) }) });
   if (roll < 0.55) return op({ tool: "regenerate_day", day: pick(DAYS_L), diet: Math.random() < 0.4 ? pick(DIETS_L) : null });
   if (roll < 0.68) return op({ tool: "regenerate_week" });
   return op({
@@ -5727,6 +5740,9 @@ for (let i = 0; i < ROUNDS; i++) {
       if (i >= 0) pinnedDays.splice(i, 1);
     }
     const res = applyOperations(profile, plan, [o]);
+    // A one-slot regenerate_day that changes nothing ("already fits", "already has 45g protein") leaves the day as it
+    // was, a day made bigger on purpose included, so only a change to the day ends its exemption from I5.
+    const dayChanged = !!o.day && JSON.stringify(plan.days.find((d) => d.day === o.day)) !== JSON.stringify(res.plan.days.find((d) => d.day === o.day));
     plan = res.plan;
     profile = res.profile;
     const macrosKept = o.preserveMacros !== false;
@@ -5743,7 +5759,7 @@ for (let i = 0; i < ROUNDS; i++) {
     // treat day must NOT clear the exemption: the day is still off-target by design, and
     // nothing re-solved it. (This was the source of the last two I5 "violations".)
     if (o.tool === "swap_meal" && o.preserveMacros === false && o.day && swapped) treatDays.add(o.day);
-    else if (o.day && o.tool === "regenerate_day") treatDays.delete(o.day);
+    else if (o.day && o.tool === "regenerate_day" && (!o.mealType || dayChanged)) treatDays.delete(o.day);
     else if (o.day && swapped) treatDays.delete(o.day);
     // scale_portions is the one tool whose whole purpose is to leave the calorie target: the user
     // said they were hungry. The day it touched is off-target BY DESIGN, so I5 must not judge it.
@@ -5759,7 +5775,7 @@ for (let i = 0; i < ROUNDS; i++) {
     for (const v of invariants(plan, profile, macrosKept, dayDiet, locked, treatDays)) {
       const key = v.slice(0, 2); // invariant id
       const prev = violations.get(key);
-      violations.set(key, { count: (prev?.count ?? 0) + 1, example: prev?.example ?? `${o.tool}: ${v}` });
+      violations.set(key, { count: (prev?.count ?? 0) + 1, example: prev?.example ?? `${o.tool}: ${v}` }); if (process.env.FUZZ_ALL) console.log(`  ${o.tool} ${JSON.stringify(o).slice(0, 160)}: ${v}`);
     }
     // Once a day carries a per-day diet override, later ops on that day legitimately
     // mix diets (a swap follows the PROFILE diet). Composing further would make the
