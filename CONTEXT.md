@@ -457,13 +457,18 @@ shutdown the owner asked for.** Next: the list below.
 violation; two test-side faults fixed). **B6 on the ask path** (`7d938e5`, 1325/0): a remembered health condition gets
 the engine's offer to favour the nutrient it calls for, and a yes is `constrain(boostNutrient)`. Announced to the
 models lane. Auto-applying it to a first week still needs somewhere to disclose it (`WeekPlan` has no notes).
+**Then 96 recipes, 618 to 714** (`31af5d6`, `4b67ae2`, `edf9cfb`, `5ca14ee`), each batch's gate catching something: a
+"greek salad" refusal that stopped naming the allergy, and a 5-star dish the protein rebalance traded away (both
+fixed in `31af5d6`). An independent review fixed 12 problems in them and 9 older recipes that served raw turkey
+breast as if cooked (`f1da262`); a cooked-turkey row was added to decision 17. 1325/0.
 
 **Next, in order:**
 1. F8 (the owner's answer: push from the laptop or rebuild here).
 2. Decision 16 in the owner's doc ("Fix my week" and the protein controls).
 3. D9a's remaining rows: "fix every short day" waits on decision 16; "what is in the cupboard" needs a storage key
    (the accounts lane's `storage.ts`); "an imported recipe in a slot" needs an import flow in `/sage` (D8).
-4. Library growth. Every diet, cuisine and quick-dinner cell is now over 14, and every diet x cuisine x slot cell holds 3 or more (618 recipes). The next step needs
+4. Library growth. 714 recipes (2026-10-30: 96 more for the thinnest cells, from curated ingredients; reviewed).
+   More from the same ingredients is still possible, but the next real step needs
    decision 17 in the owner's doc: 16 new ingredients (lamb, pork loin, sardines, plant milks, coconut milk, grains,
    squash, leeks, celery, cashews, sunflower seeds, silken tofu, pear), each with a recommended USDA row. Add the Yes
    ones to `scripts/ingredient-map.json`, run `npm run build:nutrients -- --emit`, then write recipes with them
