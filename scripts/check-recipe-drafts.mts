@@ -112,6 +112,11 @@ for (const r of drafts) {
   }
   if (r.dietTags.includes("gluten_free") && haystackBlocked(mealHaystack(r.name, r.ingredients.map((i) => i.name), r.steps ?? []), gluten))
     issues.push("gluten_free, but a gluten allergy blocks it (its name, ingredients or method)");
+  // test:engine's allergen law, for every dish: the METHOD alone may not block a gluten allergy that the ingredients
+  // do not ("crisp the tortilla strips" over corn tortillas, 2026-10-30). Name the corn, or the grain, in the steps.
+  const byList = haystackBlocked(mealHaystack("", r.ingredients.map((i) => i.name), []), gluten);
+  if (!byList && haystackBlocked(mealHaystack("", r.ingredients.map((i) => i.name), r.steps ?? []), gluten))
+    issues.push("its method alone reads as gluten to the allergy matcher (a word in the steps the ingredient list does not have)");
   // A warning, not a failure (a dry pan is sometimes meant): a method that fries or softens with no fat in the list. The
   // review of 2026-10-29 found three such methods among 117 recipes ("Soften the onion with the curry powder").
   const fryVerb = /\b(fry|fried|soften|saut[eé]|sear|brown|griddle|stir-fry)\b/i;
