@@ -453,6 +453,11 @@ Follow-ups, all pushed: `f83aaba` (the day never loses protein), `0a14936` (the 
 breakfast"), `ff304af` (test:api 83/0), and an asked food kept ("with eggs", `ad17eb0`, engine 1320/0). **Stopped 2026-10-29 ~22:15 for a
 shutdown the owner asked for.** Next: the list below.
 
+**2026-10-30.** The engine fuzz now sends move, skip and the one-slot re-plans (`b8b24bf`; 800 sequences, no engine
+violation; two test-side faults fixed). **B6 on the ask path** (`7d938e5`, 1325/0): a remembered health condition gets
+the engine's offer to favour the nutrient it calls for, and a yes is `constrain(boostNutrient)`. Announced to the
+models lane. Auto-applying it to a first week still needs somewhere to disclose it (`WeekPlan` has no notes).
+
 **Next, in order:**
 1. F8 (the owner's answer: push from the laptop or rebuild here).
 2. Decision 16 in the owner's doc ("Fix my week" and the protein controls).

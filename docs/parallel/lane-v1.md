@@ -38,6 +38,12 @@
   keeps it, as a logged meal is kept. A logged meal, a meal out or a pin is refused with its reason. "I don't eat
   breakfast, ever" stays a decline (plans run 3 or 4 meals a day); `skip` is for one meal on one day. Eval rows:
   skip today's lunch; skip a logged meal (refused); skip then "new week" (kept).
+- **Models lane: a remembered health condition now gets the ENGINE's offer (2026-10-30, B6).** "I'm pregnant" /
+  "on my period" / "low on iron", remembered, adds a note offering to favour the nutrient it calls for, with a
+  doctor line; nothing changes. The prompt's remember line changed: remember a condition and change nothing; when
+  the person says yes to the offer, send `{op:"constrain", boostNutrient}`. A turn that already boosts gets no
+  offer, so "I'm low on iron, boost it" still works in one turn. Eval rows: "I'm pregnant" (remember only, offer
+  shown, planChanged false); then "yes please" (boost folate); "I'm on my period, add more iron" (one turn, no offer).
 - **Models lane: a protein target for one meal now works (2026-10-29, this ship).** `{op:"constrain", scope:{slot:
   "breakfast", days?}, targets:{protein:35}}` is that meal's protein FLOOR in grams: each breakfast under it gets a
   dish from the swap control's safe pool that reaches it, a breakfast over it stays and says so, and a floor nothing
