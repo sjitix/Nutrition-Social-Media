@@ -214,7 +214,8 @@ keyed to a real `fdc_id`."*
 **`data/symptoms`, `data/substitutions`, `data/conditions`** — *"Curated lookup tables for the
 symptom, substitution and condition tools."*
 - **Public:** `SYMPTOMS`, `URGENT_FLAGS`, `CRISIS_FLAGS`, `PHRASE_NOISE`; `SUBSTITUTES`,
-  `INGREDIENT_ALIASES`; `CONDITIONS`, `conditionBoosts`.
+  `INGREDIENT_ALIASES`; `CONDITIONS`, `conditionBoosts`, `liveConditions` (the table's conditions a memory states and
+  that are still live; 2026-10-30, for the condition offer).
 - **Invariants:** `CRISIS_FLAGS` is safety data — it may only grow, and anything reading it must
   fail loud, never silently miss.
 
@@ -466,6 +467,8 @@ realistic bounds."*
 **`plan/report`** — *"Read-only descriptions of a plan: weekly averages, shortfalls, micro coverage."*
 Public: `weeklyReportNote`, `figuresNote` and `microNote` (a day's, the week's or a nutrient's figures as they
 stand, in the engine's own words: the agent loop re-states figures a later step made stale, 2026-10-27),
+`conditionOffer(before, after, today?)` (V1 B6, 2026-10-30: the offer a newly stated condition earns, to favour the
+nutrient it calls for, or null; `applyPrimitives` adds it when a `remember` makes one newly called for),
 `keepDays`, `freezesWell`, `reportNotes`, `newReport`. Invariant: it computes, it never writes.
 
 ### L4 · Assistant

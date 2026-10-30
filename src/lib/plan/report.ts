@@ -9,7 +9,7 @@
 import { PROTEIN_MISS, type DayPlan, type Meal, type UserProfile, type WeekPlan } from "../core";
 import { haystackBlocked, dietTagConflicts, wordMatches } from "../nutrition";
 import { SUBSTITUTES, INGREDIENT_ALIASES } from "../data";
-import { SYMPTOMS } from "../data";
+import { SYMPTOMS, conditionBoosts, liveConditions } from "../data";
 import { redFlag } from "../nutrition";
 import { NUTRIENT_TABLE } from "../data";
 import { microsForIngredients, gramsFor, MICRO_KEYS, MICRO_LABEL, MICRO_UNIT, DAILY_REFERENCE, type MicroKey } from "../nutrition";
@@ -392,6 +392,25 @@ export function explainMealNote(plan: WeekPlan, p: UserProfile, day: DayPlan["da
     parts.push(`I can't measure its micronutrients reliably — I don't have full data for its ingredients.`);
   }
   return parts.join(" ");
+}
+
+/**
+ * The offer a newly stated condition earns (V1 B6, the ASK path VISION sets: never adjust for a health condition
+ * unasked). "I'm pregnant", remembered, used to change nothing and say nothing about food; the condition-aware
+ * selector existed but was never wired. Now the engine itself offers, once, when a fact makes a nutrient newly
+ * called for, and only for a nutrient the library can meaningfully supply under the person's diet and exclusions.
+ * A "yes" is the existing constrain(boostNutrient), which holds calories and protein. Null when nothing is new.
+ */
+export function conditionOffer(before: UserProfile, after: UserProfile, today: Date = new Date()): string | null {
+  const had = new Set(conditionBoosts(before, today));
+  const fresh = conditionBoosts(after, today).filter((k) => !had.has(k) && nutrientReachable(after, k));
+  if (!fresh.length) return null;
+  const known = new Set(liveConditions(before, today).map((c) => c.key));
+  const named = liveConditions(after, today).filter((c) => !known.has(c.key)).map((c) => c.label);
+  const list = listPhrase(fresh.map((k) => MICRO_LABEL[k]));
+  const why = named.length ? `You mentioned ${listPhrase(named)}, which calls for more ${list}.` : `You mentioned being low on ${list}.`;
+  return `${why} I can favour meals richer in ${MICRO_LABEL[fresh[0]]} while keeping your calories and protein on target. ` +
+    `Say yes and I'll change your week. This is food guidance, not medical advice: check anything health-related with your doctor.`;
 }
 
 export function listPhrase(items: string[]): string {

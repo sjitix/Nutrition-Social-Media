@@ -9,7 +9,7 @@ export { rebalanceWeek } from "./rebalance";
 export { findRecipe, withSeed, newReport, reportNotes, selectWeekFromDb, selectDay } from "./select";
 export type { SelectionReport } from "./select";
 export { keepDays, freezesWell, selectBatchWeek, rebalanceBatchWeek, buildWeek } from "./batch";
-export { weeklyReportNote, figuresNote, microNote } from "./report";
+export { weeklyReportNote, figuresNote, microNote, conditionOffer } from "./report";
 export { selectConditionAwareWeek } from "./boost";
 export { swapCandidates } from "./candidates";
 export { applyOperations, previewOperations } from "./execute";

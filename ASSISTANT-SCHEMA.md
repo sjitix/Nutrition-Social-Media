@@ -61,6 +61,12 @@ a good `reply` with `operations: []`.
 - **`remember`** — store a durable user fact. `{ op, fact, kind? }` where kind ∈ preference | allergy |
   condition | goal | context. NEW — the memory layer. "I'm lactose intolerant" → remember(allergy).
   Facts feed into every future turn's context and bias/constrain the engine.
+  **A health condition is asked about, never applied unasked** (V1 B6, 2026-10-30; VISION). When a remembered fact
+  makes a nutrient newly called for ("I'm pregnant": folate, iron, calcium; "on my period": iron, magnesium;
+  "low on iron"), the ENGINE adds the offer to the reply (`conditionOffer`): it names the condition and the
+  nutrients, offers to favour the first one the library can supply under the person's diet, and points to a
+  doctor. Nothing changes until a yes, which the model sends as `constrain(boostNutrient)`. No offer when the turn
+  already boosts a nutrient, or for a fact restated.
 - **`log`** — a meal ALREADY eaten. `{ op, day, slot, dish, calories?, protein? }` → re-solve the rest
   of that day. (past tense)
   - The person's own `calories` / `protein` win over a library dish of a similar name, which is scaled to them.

@@ -6,4 +6,4 @@ export { INGREDIENTS, INGREDIENT_SLUGS, resolveIngredient, ingredientName, table
 export { NUTRIENT_TABLE, type Per100g } from "./nutrientTable.generated";
 export { SUBSTITUTES, INGREDIENT_ALIASES } from "./substitutions";
 export { SYMPTOMS, CRISIS_FLAGS, URGENT_FLAGS, PHRASE_NOISE } from "./symptoms";
-export { conditionBoosts } from "./conditions";
+export { conditionBoosts, liveConditions } from "./conditions";

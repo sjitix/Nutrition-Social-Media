@@ -11,7 +11,7 @@
 import { z } from "zod";
 import type { Meal, Operation, UserProfile, UserFact, WeekPlan, PlanSnapshot } from "../core";
 import { DAYS, MEAL_TYPES } from "../core";
-import { applyOperations } from "../recipeDb";
+import { applyOperations, conditionOffer } from "../recipeDb";
 import type { NoteSource } from "./runNotes";
 import { CRISIS_REPLY, parseExclusionTokens, EXCLUSION_CATEGORIES, expandExclusion, exclusionCovers, haystackBlocked, mealHaystack } from "../nutrition";
 import { INGREDIENTS } from "../data";
@@ -939,6 +939,12 @@ export function applyPrimitives(
     } else {
       flat.push(o as Operation); // a raw {tool:…} Operation, passed straight through
     }
+  }
+  // A condition remembered this turn ("I'm pregnant") earns the engine's offer to favour what it calls for (V1 B6:
+  // VISION asks before adjusting). Not when the turn already boosts a nutrient: the person asked, and it is done.
+  if (remembered && !flat.some((f) => f.boostNutrient)) {
+    const offer = conditionOffer(profile, p, today ? new Date(today) : undefined);
+    if (offer) extraNotes.push(offer);
   }
   // `previous` is threaded to the engine so an `undo` verb can restore the prior snapshot, exactly as
   // the live route does — omit it (data pipeline, tests) and undo is simply a no-op.

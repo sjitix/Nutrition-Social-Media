@@ -2203,6 +2203,30 @@ console.log("\n--- CONDITION-AWARE BUILD (capability, unwired) ---");
   check("condition-aware: pregnancy raises weekly folate (primary)", cFol / 6 > bFol / 6, `base=${(bFol / 6).toFixed(0)} cond=${(cFol / 6).toFixed(0)} mcg/day`);
 }
 
+// V1 B6 (2026-10-30): a remembered condition earns the engine's OFFER, never a change unasked (VISION). "I'm
+// pregnant" used to change nothing and say nothing about food; the condition-aware selector was never wired.
+{
+  const wk = withSeed(1, () => freshWeek(BASE));
+  const say = (p: UserProfile, ops: unknown[]) => applyPrimitives(p, wk, ops as PrimitiveOp[], "2026-10-30");
+  const preg = say(BASE, [{ op: "remember", fact: "I'm pregnant", kind: "condition" }]);
+  const offer = preg.notes.find((n) => n.startsWith("You mentioned pregnancy, which calls for more folate, iron and calcium."));
+  check("condition offer: 'I'm pregnant' changes nothing, and the engine offers to favour folate, with the doctor line",
+    !preg.planChanged && JSON.stringify(preg.plan) === JSON.stringify(wk) && !!offer &&
+      /favour meals richer in folate/.test(offer) && /Say yes/.test(offer) && /not medical advice/.test(offer), preg.notes.join(" | "));
+  const again = say(preg.profile, [{ op: "remember", fact: "pregnant", kind: "condition" }]);
+  check("condition offer: a condition already known is not offered again", !again.notes.some((n) => /^You mentioned/.test(n)), again.notes.join(" | "));
+  const period = say(BASE, [{ op: "remember", fact: "on my period" }]);
+  check("condition offer: a period, unlabelled, offers iron (iron and magnesium named)",
+    period.notes.some((n) => n.startsWith("You mentioned your period, which calls for more iron and magnesium.") && /richer in iron/.test(n)), period.notes.join(" | "));
+  const asked = say(BASE, [{ op: "remember", fact: "low on iron" }, { op: "constrain", boostNutrient: "iron" }]);
+  check("condition offer: none when the same turn already boosts (the person asked, and it is done)",
+    asked.planChanged && !asked.notes.some((n) => /^You mentioned/.test(n)), asked.notes.join(" | "));
+  const plain = say(BASE, [{ op: "remember", fact: "hates cilantro", kind: "preference" }]);
+  const denied = say(BASE, [{ op: "remember", fact: "not deficient in iron" }]);
+  check("condition offer: none for a preference, or for a denied deficiency",
+    !plain.notes.some((n) => /^You mentioned/.test(n)) && !denied.notes.some((n) => /^You mentioned/.test(n)), `${plain.notes.join(" | ")} || ${denied.notes.join(" | ")}`);
+}
+
 // ---------------------------------------------------------------- 2. adversarial
 console.log("\n--- ADVERSARIAL / EDGE CASES ---");
 {

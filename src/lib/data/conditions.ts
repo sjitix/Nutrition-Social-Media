@@ -63,6 +63,12 @@ function isLive(f: UserFact, ttlDays: number, today: Date): boolean {
   return (today.getTime() - noted.getTime()) / 86_400_000 <= ttlDays;
 }
 
+/** The table's conditions a profile's memory states and that are still live (a period ages out after 7 days). */
+export function liveConditions(p: UserProfile, today: Date = new Date()): ConditionMap[] {
+  return CONDITIONS.filter((c) =>
+    (p.memory ?? []).some((f) => c.triggers.some((t) => hasWord(f.fact.toLowerCase(), t)) && isLive(f, c.ttlDays, today)));
+}
+
 /**
  * The micronutrients a freshly generated week should be guaranteed to favour, derived purely from
  * durable profile state. Primary first (drives the selection bias); the rest are secured by
