@@ -461,13 +461,16 @@ models lane. Auto-applying it to a first week still needs somewhere to disclose 
 "greek salad" refusal that stopped naming the allergy, and a 5-star dish the protein rebalance traded away (both
 fixed in `31af5d6`). An independent review fixed 12 problems in them and 9 older recipes that served raw turkey
 breast as if cooked (`f1da262`); a cooked-turkey row was added to decision 17. 1325/0.
+**Then batch five, 737** (`0dd8e0e`), **and an audit of every recipe for an ingredient no step cooks:** 52 fixed
+(`e029c20`; most "serve over rice" with raw brown rice), and `check:drafts` now warns on it, `-- --library` over
+the whole library (`1092951`; WORKPLAN lesson 84).
 
 **Next, in order:**
 1. F8 (the owner's answer: push from the laptop or rebuild here).
 2. Decision 16 in the owner's doc ("Fix my week" and the protein controls).
 3. D9a's remaining rows: "fix every short day" waits on decision 16; "what is in the cupboard" needs a storage key
    (the accounts lane's `storage.ts`); "an imported recipe in a slot" needs an import flow in `/sage` (D8).
-4. Library growth. 714 recipes (2026-10-30: 96 more for the thinnest cells, from curated ingredients; reviewed).
+4. Library growth. 737 recipes (2026-10-30: 119 more for the thinnest cells, from curated ingredients; reviewed).
    More from the same ingredients is still possible, but the next real step needs
    decision 17 in the owner's doc: 16 new ingredients (lamb, pork loin, sardines, plant milks, coconut milk, grains,
    squash, leeks, celery, cashews, sunflower seeds, silken tofu, pear), each with a recommended USDA row. Add the Yes
