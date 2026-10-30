@@ -10,7 +10,10 @@
  *   - the slot's calorie floor, keto under 20 g carbs, 4/4/9 within 16%, nutrient coverage over 60% (check:recipes);
  *   - no diet tag its ingredients contradict, and a gluten_free dish is not blocked by a gluten allergy reading its
  *     name, ingredients AND method ("Fill the warm tortillas" read as wheat);
- *   - no name or id already in the library, and a cuisine and mainProtein the library uses.
+ *   - no name or id already in the library, and a cuisine and mainProtein the library uses;
+ *   - a warning for an ingredient the USDA map holds raw or dry (rice, quinoa, pasta, chicken, shrimp, eggs...) that no
+ *     step cooks: 52 recipes had one on 2026-10-30, most "serve over rice" with raw brown rice.
+ * `--library` runs that last rule over every recipe in the library instead of a drafts file.
  * It reads the library and writes nothing.
  */
 import { readFileSync } from "node:fs";
@@ -20,9 +23,54 @@ import { gramsFor, microsForIngredients, dietTagConflicts, mealHaystack, haystac
 
 type Draft = { id: string; name: string; type: string; cuisine?: string; mainProtein?: string; timeMinutes: number; dietTags: string[]; steps?: string[]; ingredients: { slug: string; name: string; quantity: string }[] };
 
+/**
+ * Ingredients the USDA map holds RAW or DRY that a method must cook, each with the words a step names it by. A step
+ * counts as cooked when a step with a cooking verb comes at or after the first step that names it ("mix the batter… /
+ * fry spoonfuls"), or a cooking step covers everything ("toss everything… / roast"). A heuristic: on the library as it
+ * stood before the audit's fixes it flagged 30 of the audit's 39 clear cases, plus the poke bowl and a backwards
+ * omelette. It misses a verb that belongs to something else in the same step ("Simmer in the sauce; serve over quinoa"). Smoked fish, canned beans, cooked rice and cooked
+ * lentils are ready to eat and are not here; oats are left out (soaked, blended or baked, all fine).
+ */
+const MUST_COOK: Record<string, RegExp> = {
+  rice: /\brice\b/, "brown-rice": /\brice\b/, quinoa: /\bquinoa\b/, bulgur: /\bbulgur\b|tabbouleh/, couscous: /\bcouscous\b/,
+  "whole-wheat-pasta": /\bpasta\b/, "whole-wheat-penne": /\bpenne\b|\bpasta\b/, "whole-wheat-spaghetti": /\bspaghetti\b|\bpasta\b/,
+  orzo: /\borzo\b/, "egg-noodles": /\bnoodles?\b/, "soba-noodles": /\bsoba\b|\bnoodles?\b/, "rice-noodles": /\bnoodles?\b/,
+  "chicken-breast": /\bchicken\b/, "chicken-thigh": /\bchicken\b|\bthighs?\b/, "turkey-breast": /\bturkey\b/, "ground-turkey": /\bturkey\b|meatballs?|kofta|keema/,
+  "lean-beef": /\bbeef\b/, "lean-steak": /\bsteak\b|\bbeef\b/, "beef-strips": /\bbeef\b/, "lean-ground-beef": /\bbeef\b|kofta|meatballs?|\bpatty\b|\bburgers?\b/,
+"pork-tenderloin": /\bpork\b/, "lean-pork-sausage": /\bsausages?\b/, "turkey-sausage": /\bsausages?\b/,
+  "salmon-fillet": /\bsalmon\b/, "cod-fillet": /\bcod\b|\bfish\b/, shrimp: /\bshrimp\b|\bprawns?\b/, prawns: /\bprawns?\b|\bshrimp\b/,
+  eggs: /\beggs?\b|omelette|frittata|scramble/, egg: /\beggs?\b|omelette|frittata|scramble/, "egg-whites": /\beggs?\b|\bwhites\b|omelette/,
+  "red-lentils": /\blentils?\b|\bdal\b/, "sweet-potato": /\bsweet potato|\bpotato/, "baby-potatoes": /\bpotato/, "chickpea-flour": /\bbatter\b|\bflour\b|pancake|omelette|chilla/,
+};
+// Stems, not whole words ("Sauté" ends in a letter \b does not see; "finish roasting"), and the phrases that say heat without a
+// verb: "for 3 minutes", "until just set", "until tender".
+const COOKS = /\b(cook|boil|simmer|fry|fried|frie|sear|roast|bak|grill|griddl|poach|scrambl|stir-fr|brown|blanch|steam|microwav|soak|crisp|toast|glaz|char|saut)|\bfor (?:the last )?\d+ min|\bset\b|until (?:just )?(?:set|creamy|tender|golden|pink|cooked)|waffle iron/;
+
+function uncooked(r: { ingredients: { slug: string; name: string }[]; steps?: string[] }): string[] {
+  const steps = (r.steps ?? []).map((st) => st.toLowerCase());
+  // "Toss everything with the oil. / Roast on one tray": a step that takes everything, with a cooking step at or after it.
+  const all = steps.findIndex((st) => /\b(everything|all of it|all ingredients|the batter|the mixture|the filling)\b/.test(st));
+  const covered = (j: number) => all >= 0 && j >= all;
+  return r.ingredients
+    .filter((i) => {
+      const re = MUST_COOK[i.slug];
+      if (!re) return false;
+      const first = steps.findIndex((st) => re.test(st));
+      return !steps.some((st, j) => COOKS.test(st) && ((first >= 0 && j >= first) || covered(j)));
+    })
+    .map((i) => i.name);
+}
+
+if (process.argv[2] === "--library") {
+  const hits = RECIPES.map((r) => ({ r, raw: uncooked(r as never) })).filter((x) => x.raw.length);
+  for (const { r, raw } of hits) console.log(`${r.id.padEnd(40)} ${raw.join(", ")}  |  ${r.steps.join(" / ").slice(0, 140)}`);
+  console.log(`\n${hits.length} of ${RECIPES.length} recipes name a raw or dry ingredient that no step cooks.`);
+  process.exit(0);
+}
+
 const path = process.argv[2];
 if (!path) {
-  console.log("usage: npm run check:drafts -- path/to/drafts.txt");
+  console.log("usage: npm run check:drafts -- path/to/drafts.txt   (or -- --library)");
   process.exit(2);
 }
 const drafts = new Function(`return [${readFileSync(path, "utf8")}];`)() as Draft[];
@@ -71,6 +119,8 @@ for (const r of drafts) {
   const warnings: string[] = [];
   if ((r.steps ?? []).some((st) => fryVerb.test(st)) && !r.ingredients.some((i) => fat.test(i.name)) && !(r.steps ?? []).some((st) => /dry pan|in a splash of water/i.test(st)))
     warnings.push("warning: the method fries or softens, but there is no oil or butter in the list");
+  const raw = uncooked(r);
+  if (raw.length) warnings.push(`warning: no step cooks ${raw.join(", ")} (raw or dry in the USDA map)`);
   if (warnings.length) issues.push(...warnings.map((w) => `(${w})`));
   if (issues.some((i) => !i.startsWith("(warning"))) bad++;
   const label = issues.some((i) => !i.startsWith("(warning")) ? "FIX" : issues.length ? "warn" : "ok ";

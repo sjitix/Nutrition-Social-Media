@@ -374,7 +374,8 @@ node scripts/account-live/mutate-live.mjs [--only "text"]  # accounts: breaks 31
 npm run export:recipes  # library -> NutriFlow-recipes.xls, incl. a coverage/gaps report
 npm run build:nutrients # regenerate the USDA table (needs --emit to write)
 npm run propose:ingredient -- "smoked tofu"  # ranked USDA candidates for a NEW ingredient, with per-100 g figures and flags; never picks (B7)
-npm run check:drafts -- drafts.txt  # draft recipes checked as the library will check them (names, macros, floors, keto, 4/4/9, tags, method), before they go in seeds.ts
+npm run check:drafts -- drafts.txt  # draft recipes checked as the library will check them (names, macros, floors, keto, 4/4/9, tags, cuisine, protein class, method), before they go in seeds.ts; warns on frying with no fat and on a raw or dry ingredient no step cooks
+npm run check:drafts -- --library   # that last rule over every recipe in the library (WORKPLAN lesson 84)
 ```
 
 ## AI provider setup (the local-AI strategy)

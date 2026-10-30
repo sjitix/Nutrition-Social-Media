@@ -1728,6 +1728,15 @@ Each of these was discovered by doing the work, and each earned its place.
     dishes whose ingredients hold the food, a fixture PLACED by swaps rather than found by seed, a target no week
     reaches. Two real defects surfaced among them ("Italian + iron", the unmentioned swap), so read every failure before
     re-pinning anything.
+84. **An ingredient's USDA state is part of what a recipe says, and nothing checked it.** `turkey-breast` is "Turkey,
+    breast, meat only, raw"; `brown-rice` is "Rice, brown, long-grain, raw"; `quinoa`, `bulgur`, `couscous` and the
+    pastas are dry. The macros were right (they are computed from those rows), so every gate passed, while 9 recipes
+    rolled raw turkey into wraps and 52 more never cooked their rice, grain, pasta, chicken or eggs ("serve over
+    rice"). A human reviewer found the turkey on 2026-10-30, and an audit found the rest the same day. **When a recipe
+    names an ingredient, the method must take it from its mapped state to edible;** `check:drafts` now warns when no
+    step cooks one, and `-- --library` runs that over the whole library. The same review round also found the gates'
+    two failures that day were real engine defects (a refusal that stopped naming the allergy; a 5-star dish the
+    protein rebalance traded away), which lesson 83's advice, read every failure first, is for.
 
 ---
 
