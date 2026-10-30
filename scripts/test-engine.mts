@@ -5764,9 +5764,6 @@ for (let i = 0; i < ROUNDS; i++) {
       if (i >= 0) pinnedDays.splice(i, 1);
     }
     const res = applyOperations(profile, plan, [o]);
-    // A one-slot regenerate_day that changes nothing ("already fits", "already has 45g protein") leaves the day as it
-    // was, a day made bigger on purpose included, so only a change to the day ends its exemption from I5.
-    const dayChanged = !!o.day && JSON.stringify(plan.days.find((d) => d.day === o.day)) !== JSON.stringify(res.plan.days.find((d) => d.day === o.day));
     plan = res.plan;
     profile = res.profile;
     const macrosKept = o.preserveMacros !== false;
@@ -5783,7 +5780,11 @@ for (let i = 0; i < ROUNDS; i++) {
     // treat day must NOT clear the exemption: the day is still off-target by design, and
     // nothing re-solved it. (This was the source of the last two I5 "violations".)
     if (o.tool === "swap_meal" && o.preserveMacros === false && o.day && swapped) treatDays.add(o.day);
-    else if (o.day && o.tool === "regenerate_day" && (!o.mealType || dayChanged)) treatDays.delete(o.day);
+    // Only a whole-day re-plan ends a day's exemption from I5. A one-slot one holds the day's other meals as they are,
+    // so a day made bigger on purpose stays bigger: a protein floor whose balanced day would lose protein keeps the
+    // other portions (f83aaba), and a no-op ("already has 45g protein") changes nothing. Across 800 sequences no
+    // ordinary day left its target this way (2026-10-30).
+    else if (o.day && o.tool === "regenerate_day" && !o.mealType) treatDays.delete(o.day);
     else if (o.day && swapped) treatDays.delete(o.day);
     // scale_portions is the one tool whose whole purpose is to leave the calorie target: the user
     // said they were hungry. The day it touched is off-target BY DESIGN, so I5 must not judge it.
