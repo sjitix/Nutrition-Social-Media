@@ -198,8 +198,6 @@ function refusedForExclusions(
     if (!passesDiet(named, p.diet)) return { dish: named, why: `isn't ${p.diet}` };
     return null;
   }
-  const free = findRecipeForSwap(query, type, { ...p, allergies: "", dislikes: "" }, respectSoft);
-  if (!free || free.name === placed?.name) return null;
   // It must match EVERY word asked for, in its NAME: "veggie burger" is not a cheeseburger, even when
   // "burger" is the only word anything in the library matches. Words found only in a dish's ingredients or
   // description used to count, so the note still named a dish nobody asked for (review, 2026-10-21).
@@ -209,6 +207,14 @@ function refusedForExclusions(
     const nameWords = name.split(/[^a-z]+/).filter((h) => h.length >= 3);
     return words.filter((w) => name.includes(w) || nameWords.some((h) => wordMatches(w, h))).length;
   };
+  const cleared = { ...p, allergies: "", dislikes: "" };
+  let free = findRecipeForSwap(query, type, cleared, respectSoft);
+  // The keyword lookup scores ingredients and descriptions too, so a dish with no asked word in its name can win
+  // its tie-break ("greek salad": Pork Souvlaki Couscous Plate, Greek yogurt and "a tomato salad", over Chicken
+  // Souvlaki with Greek Salad), and the allergy that kept the asked-for dish out went unsaid (2026-10-30). So a
+  // dish carrying every asked word in its name is looked for before giving up.
+  if (free && nameHits(free) < words.length) free = findRecipeForSwap(query, type, cleared, respectSoft, (r) => nameHits(r) === words.length) ?? free;
+  if (!free || free.name === placed?.name) return null;
   const hits = nameHits(free);
   if (hits < words.length || hits <= (placed ? nameHits(placed) : 0)) return null;
   const reason = exclusionReason(free, p);

@@ -10,7 +10,7 @@
 import { type Meal, type UserProfile, type WeekPlan } from "../core";
 import { type Recipe } from "../data";
 import { RECIPES, baseRecipeOf, scaleQuantity, scaleRecipeToTarget, toMeal } from "./library";
-import { bannedForUser, blockedByExclusions, budgetCap, exclusionTokens, localSplit, passesDiet } from "./rules";
+import { bannedForUser, blockedByExclusions, budgetCap, exclusionTokens, localSplit, passesDiet, ratingMap } from "./rules";
 
 // --- Macro engine (the nutritionist substrate) -----------------------------
 // The LLM decides WHAT to do (swap this, regenerate that) and WHETHER to stay on
@@ -248,6 +248,11 @@ export function rebalanceDay(
   const split = localSplit(profile.mealsPerDay);
   const cap = budgetCap(profile.budget);
   const tokens = exclusionTokens(profile);
+  // A dish the person rated 4 or 5 is never the one traded away to chase protein: the selector puts a loved dish in
+  // on purpose, and this pass used to replace it like any other (a 5-star dinner missing from 9 of 200 weeks once
+  // the library grew, 2026-10-30). The day's other meals take the upgrade instead.
+  const ratings = ratingMap(profile);
+  const loved = (m: Meal) => (ratings.get(m.name.toLowerCase()) ?? 0) >= 4;
   // At most two upgrades so we change as few meals as needed.
   for (let pass = 0; pass < 2; pass++) {
     const scaled = scaleToTargets(work, profile, locked);
@@ -259,7 +264,7 @@ export function rebalanceDay(
     let best: { i: number; r: Recipe; calTarget: number; gap: number } | null = null;
     for (let i = 0; i < work.length; i++) {
       const cur = work[i];
-      if (locked?.has(cur.type) || !baseRecipeOf(cur)) continue;
+      if (locked?.has(cur.type) || !baseRecipeOf(cur) || loved(cur)) continue;
       const share = split.find((s) => s[0] === cur.type)?.[1] ?? 1 / profile.mealsPerDay;
       const calTarget = Math.round(profile.targetCalories * share);
       const usedElsewhere = new Set([
