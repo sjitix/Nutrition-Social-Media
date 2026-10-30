@@ -10,7 +10,7 @@
  *   - the slot's calorie floor, keto under 20 g carbs, 4/4/9 within 16%, nutrient coverage over 60% (check:recipes);
  *   - no diet tag its ingredients contradict, and a gluten_free dish is not blocked by a gluten allergy reading its
  *     name, ingredients AND method ("Fill the warm tortillas" read as wheat);
- *   - no name or id already in the library.
+ *   - no name or id already in the library, and a cuisine and mainProtein the library uses.
  * It reads the library and writes nothing.
  */
 import { readFileSync } from "node:fs";
@@ -18,7 +18,7 @@ import { RECIPES } from "@/lib/recipeDb";
 import { tableKey, NUTRIENT_TABLE, resolveIngredient } from "@/lib/data";
 import { gramsFor, microsForIngredients, dietTagConflicts, mealHaystack, haystackBlocked, parseExclusionTokens } from "@/lib/nutrition";
 
-type Draft = { id: string; name: string; type: string; timeMinutes: number; dietTags: string[]; steps?: string[]; ingredients: { slug: string; name: string; quantity: string }[] };
+type Draft = { id: string; name: string; type: string; cuisine?: string; mainProtein?: string; timeMinutes: number; dietTags: string[]; steps?: string[]; ingredients: { slug: string; name: string; quantity: string }[] };
 
 const path = process.argv[2];
 if (!path) {
@@ -30,6 +30,9 @@ const drafts = new Function(`return [${readFileSync(path, "utf8")}];`)() as Draf
 const FLOOR: Record<string, number> = { breakfast: 250, lunch: 340, dinner: 380, snack: 90 };
 const CEILING: Record<string, number> = { breakfast: 900, lunch: 1000, dinner: 1100, snack: 550 };
 const names = new Set(RECIPES.map((r) => r.name)), ids = new Set(RECIPES.map((r) => r.id));
+// tsc fails a value outside these unions, but only after the drafts are in seeds.ts ("tempeh" is not a mainProtein;
+// tempeh dishes are "tofu", 2026-10-30), so they are checked here too, against the values the library uses.
+const cuisines = new Set(RECIPES.map((r) => r.cuisine as string)), proteins = new Set(RECIPES.map((r) => r.mainProtein as string));
 const gluten = parseExclusionTokens("gluten", "");
 
 let bad = 0;
@@ -38,6 +41,8 @@ for (const r of drafts) {
   const issues: string[] = [];
   if (names.has(r.name)) issues.push("a recipe of this name exists");
   if (ids.has(r.id)) issues.push("this id exists");
+  if (!cuisines.has(r.cuisine ?? "")) issues.push(`cuisine "${r.cuisine}" is not one of ${[...cuisines].join(", ")}`);
+  if (!proteins.has(r.mainProtein ?? "")) issues.push(`mainProtein "${r.mainProtein}" is not one of ${[...proteins].join(", ")}`);
   for (const i of r.ingredients) {
     if (!resolveIngredient(i.name)) issues.push(`"${i.name}" is not a curated name (it resolves only through its slug, if at all)`);
     const key = tableKey(i as never);
