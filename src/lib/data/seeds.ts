@@ -274,7 +274,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
   {
     id: "l-turkey-wrap", name: "Turkey Avocado Wrap", type: "lunch",
     cuisine: "american", mainProtein: "turkey",
-    timeMinutes: 10, approxCost: 2,
+    timeMinutes: 22, approxCost: 2,
     dietTags: [],
     description: "Turkey, avocado and salad in a wholegrain wrap.",
     ingredients: [
@@ -283,7 +283,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "avocado", name: "Avocado", quantity: "1/2 piece" },
       { slug: "lettuce", name: "Lettuce", quantity: "40 g" },
     ],
-    steps: ["Layer turkey, avocado and lettuce on the wrap.", "Roll tightly and slice."],
+    steps: ["Pan-cook the turkey breast in a dry pan 5 to 6 minutes a side until cooked through, then cool and slice thinly.", "Layer turkey, avocado and lettuce on the wrap.", "Roll tightly and slice."],
   },
   {
     id: "l-shrimp-rice", name: "Shrimp Fried Rice", type: "lunch",
@@ -667,7 +667,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
   {
     id: "l-turkey-power-wrap", name: "Turkey & Hummus Power Wrap", type: "lunch",
     cuisine: "mediterranean", mainProtein: "turkey",
-    timeMinutes: 10, approxCost: 2,
+    timeMinutes: 22, approxCost: 2,
     dietTags: [],
     description: "Turkey, hummus and greens rolled in a whole-wheat wrap.",
     ingredients: [
@@ -676,7 +676,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "hummus", name: "hummus", quantity: "40 g" },
       { slug: "mixed-greens", name: "mixed greens", quantity: "40 g" },
     ],
-    steps: ["Spread hummus on the wrap.", "Layer turkey and greens; roll and slice."],
+    steps: ["Pan-cook the turkey breast in a dry pan 5 to 6 minutes a side until cooked through, then cool and slice thinly.", "Spread hummus on the wrap.", "Layer turkey and greens; roll and slice."],
   },
   {
     id: "l-shrimp-burrito", name: "Shrimp & Black Bean Burrito Bowl", type: "lunch",
@@ -1639,7 +1639,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
   {
     id: "l-turkey-cobb", name: "Turkey Cobb Salad", type: "lunch",
     cuisine: "american", mainProtein: "turkey",
-    timeMinutes: 15, approxCost: 2,
+    timeMinutes: 27, approxCost: 2,
     dietTags: ["keto", "gluten_free"],
     description: "Turkey, egg, avocado and greens with a light dressing.",
     ingredients: [
@@ -1648,7 +1648,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "avocado", name: "avocado", quantity: "1/2" },
       { slug: "mixed-greens", name: "mixed greens", quantity: "80 g" },
     ],
-    steps: ["Arrange greens; top with sliced turkey, egg and avocado.", "Dress lightly."],
+    steps: ["Pan-cook the turkey breast in a dry pan 5 to 6 minutes a side until cooked through, then cool and slice thinly.", "Arrange greens; top with sliced turkey, egg and avocado.", "Dress lightly."],
   },
   {
     id: "l-spicy-tuna-bowl", name: "Spicy Tuna & Avocado Rice Bowl", type: "lunch",
@@ -2873,7 +2873,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
   {
     id: "s-turkey-cheese-rollups", name: "Turkey & Cheese Roll-Ups", type: "snack",
     cuisine: "american", mainProtein: "turkey",
-    timeMinutes: 4, approxCost: 2,
+    timeMinutes: 16, approxCost: 2,
     dietTags: ["keto", "gluten_free"],
     description: "Sliced turkey rolled with cheddar and cucumber.",
     ingredients: [
@@ -2881,7 +2881,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "cheddar", name: "cheddar", quantity: "30 g" },
       { slug: "cucumber", name: "cucumber", quantity: "60 g" },
     ],
-    steps: ["Lay out the turkey slices.", "Roll around cheddar and cucumber batons."],
+    steps: ["Pan-cook the turkey breast in a dry pan 5 to 6 minutes a side until cooked through, then cool and slice thinly.", "Lay out the turkey slices.", "Roll around cheddar and cucumber batons."],
   },
   {
     id: "s-keto-egg-avocado", name: "Egg & Avocado Cups", type: "snack",
@@ -3893,7 +3893,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
   {
     id: "l-american-turkey-club-bowl", name: "Turkey Club Bowl", type: "lunch",
     cuisine: "american", mainProtein: "turkey",
-    timeMinutes: 12, approxCost: 2,
+    timeMinutes: 24, approxCost: 2,
     dietTags: ["gluten_free"],
     description: "Sliced turkey with egg, avocado and leaves.",
     ingredients: [
@@ -3903,7 +3903,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "romaine", name: "romaine", quantity: "70 g" },
       { slug: "cherry-tomatoes", name: "cherry tomatoes", quantity: "80 g" },
     ],
-    steps: ["Boil the egg and halve it.", "Build the bowl and dress lightly."],
+    steps: ["Pan-cook the turkey breast in a dry pan 5 to 6 minutes a side until cooked through, then cool and slice thinly.", "Boil the egg and halve it.", "Build the bowl and dress lightly."],
   },
   {
     id: "d-american-turkey-chili", name: "Turkey & Bean Chilli", type: "dinner",
@@ -4753,7 +4753,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
   {
     id: "s-hp-turkey-hummus-rolls", name: "Turkey & Hummus Roll-Ups", type: "snack",
     cuisine: "middle_eastern", mainProtein: "turkey",
-    timeMinutes: 5, approxCost: 2,
+    timeMinutes: 17, approxCost: 2,
     dietTags: ["gluten_free"],
     description: "Turkey slices rolled around hummus with crisp pepper and lettuce.",
     ingredients: [
@@ -4762,7 +4762,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "bell-pepper", name: "bell pepper", quantity: "100 g" },
       { slug: "lettuce", name: "lettuce", quantity: "4 leaves" },
     ],
-    steps: ["Spread the turkey with hummus.", "Roll around pepper strips and lettuce."],
+    steps: ["Pan-cook the turkey breast in a dry pan 5 to 6 minutes a side until cooked through, then cool and slice thinly.", "Spread the turkey with hummus.", "Roll around pepper strips and lettuce."],
   },
   {
     id: "s-hp-peanut-tofu-bites", name: "Peanut Tofu Bites", type: "snack",
@@ -6202,7 +6202,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
   {
     id: "l-italian-turkey-pesto-wrap", name: "Turkey & Pesto Wrap", type: "lunch",
     cuisine: "italian", mainProtein: "turkey",
-    timeMinutes: 8, approxCost: 2,
+    timeMinutes: 20, approxCost: 2,
     dietTags: ["mediterranean"],
     description: "Turkey, pesto, rocket and tomato rolled in a wholemeal wrap.",
     ingredients: [
@@ -6212,7 +6212,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "rocket", name: "rocket", quantity: "30 g" },
       { slug: "cherry-tomatoes", name: "cherry tomatoes", quantity: "80 g" },
     ],
-    steps: ["Spread the wrap with pesto.", "Layer the turkey, rocket and tomatoes and roll tightly."],
+    steps: ["Pan-cook the turkey breast in a dry pan 5 to 6 minutes a side until cooked through, then cool and slice thinly.", "Spread the wrap with pesto.", "Layer the turkey, rocket and tomatoes and roll tightly."],
   },
   {
     id: "l-italian-shrimp-tomato-pasta", name: "Shrimp & Tomato Spaghetti", type: "lunch",
@@ -7480,7 +7480,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
   {
     id: "s-italian-turkey-parmesan-rolls", name: "Turkey & Parmesan Rolls", type: "snack",
     cuisine: "italian", mainProtein: "turkey",
-    timeMinutes: 4, approxCost: 2,
+    timeMinutes: 16, approxCost: 2,
     dietTags: ["keto", "gluten_free"],
     description: "Turkey slices rolled around parmesan and rocket.",
     ingredients: [
@@ -7488,7 +7488,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "parmesan", name: "parmesan", quantity: "20 g" },
       { slug: "rocket", name: "rocket", quantity: "20 g" },
     ],
-    steps: ["Shave the parmesan.", "Roll the turkey around the parmesan and rocket."],
+    steps: ["Pan-cook the turkey breast in a dry pan 5 to 6 minutes a side until cooked through, then cool and slice thinly.", "Shave the parmesan.", "Roll the turkey around the parmesan and rocket."],
   },
   {
     id: "s-italian-pesto-cottage-cup", name: "Pesto Cottage Cheese Cup", type: "snack",
@@ -7615,7 +7615,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
   {
     id: "s-american-turkey-avocado-cup", name: "Turkey & Avocado Cup", type: "snack",
     cuisine: "american", mainProtein: "turkey",
-    timeMinutes: 4, approxCost: 2,
+    timeMinutes: 16, approxCost: 2,
     dietTags: ["keto", "gluten_free"],
     description: "Sliced turkey with avocado and cherry tomatoes.",
     ingredients: [
@@ -7623,7 +7623,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "avocado", name: "avocado", quantity: "1/2 piece" },
       { slug: "cherry-tomatoes", name: "cherry tomatoes", quantity: "60 g" },
     ],
-    steps: ["Slice the turkey and avocado.", "Plate with the halved tomatoes."],
+    steps: ["Pan-cook the turkey breast in a dry pan 5 to 6 minutes a side until cooked through, then cool and slice thinly.", "Slice the turkey and avocado.", "Plate with the halved tomatoes."],
   },
   {
     id: "s-american-pb-banana-cup", name: "Peanut Butter & Banana Cup", type: "snack",
@@ -9813,7 +9813,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "mozzarella", name: "Mozzarella", quantity: "40 g" },
       { slug: "parmesan", name: "Parmesan", quantity: "10 g" },
     ],
-    steps: ["Boil the penne 2 minutes short of done and drain.", "Stir in the tomato sauce, wilted spinach and spoonfuls of ricotta.", "Top with mozzarella and parmesan and bake at 200C for 15 minutes."],
+    steps: ["Boil the penne 2 minutes short of done and drain.", "Stir in the tomato sauce and the spinach (it wilts in the hot pasta), then dot with spoonfuls of ricotta.", "Top with mozzarella and parmesan and bake at 200C for 15 minutes."],
   },
   {
     id: "d-veg-white-bean-shakshuka", name: "White Bean Shakshuka with Sourdough", type: "dinner",
@@ -9865,7 +9865,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "cheddar", name: "Cheddar", quantity: "40 g" },
       { slug: "greek-yogurt", name: "Greek yogurt", quantity: "40 g" },
     ],
-    steps: ["Mix the beans with the diced pepper and half the cheddar.", "Roll into the corn tortillas, lay in a dish, pour over the sauce and top with the rest of the cheddar.", "Bake at 200C for 15 minutes and serve with yogurt."],
+    steps: ["Mix the beans with the diced pepper and half the cheddar.", "Warm the corn tortillas in a dry pan so they roll without cracking, then roll them around the filling, lay in a dish, pour over the sauce and top with the rest of the cheddar.", "Bake at 200C for 15 minutes and serve with yogurt."],
   },
   {
     id: "d-veg-tofu-egg-soba", name: "Tofu & Egg Soba Stir-Fry", type: "dinner",
@@ -9914,7 +9914,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "olive-oil", name: "Olive oil", quantity: "1 tsp" },
       { slug: "parmesan", name: "Parmesan", quantity: "15 g" },
     ],
-    steps: ["Soften the onion and chopped mushrooms in the oil until browned.", "Add the lentils and tomatoes and simmer 15 minutes.", "Toss with the cooked spaghetti and finish with parmesan."],
+    steps: ["Soften the onion and chopped mushrooms in the oil until browned.", "Add the lentils and tomatoes and simmer 15 minutes.", "Meanwhile boil the spaghetti 10 minutes and drain; toss with the ragu and finish with parmesan."],
   },
   {
     id: "d-pork-apple-sweet-potato", name: "Pork Tenderloin with Apple & Sweet Potato", type: "dinner",
@@ -9964,7 +9964,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "olive-oil", name: "Olive oil", quantity: "1 tsp" },
       { slug: "lemon", name: "Lemon", quantity: "1/2 piece" },
     ],
-    steps: ["Toss the cubed pork with the oil and half the lemon, thread on skewers and grill 10 minutes.", "Soak the couscous in boiling water for 5 minutes; grate the cucumber into the yogurt.", "Serve the pork on the couscous with the tomato and onion salad and the yogurt sauce."],
+    steps: ["Toss the cubed pork with the oil and half the lemon, thread on skewers and grill 10 minutes.", "Soak the couscous in boiling water for 5 minutes; grate the cucumber into the yogurt.", "Serve the pork on the couscous with the tomato and onion salad dressed with the rest of the lemon, and the yogurt sauce."],
   },
   {
     id: "d-pork-sausage-bean-skillet", name: "Pork Sausage & White Bean Skillet", type: "dinner",
@@ -10205,7 +10205,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "garlic", name: "Garlic", quantity: "2 cloves" },
       { slug: "olive-oil", name: "Olive oil", quantity: "1 tsp" },
     ],
-    steps: ["Brown the crumbled tempeh and sliced garlic in the oil.", "Add the tomatoes and olives and simmer 10 minutes.", "Toss with the cooked spaghetti."],
+    steps: ["Brown the crumbled tempeh and sliced garlic in the oil.", "Add the tomatoes and olives and simmer 10 minutes.", "Meanwhile boil the spaghetti 10 minutes, drain and toss with the sauce."],
   },
   {
     id: "d-vegan-bean-sweet-potato-chili", name: "Two-Bean & Sweet Potato Chili with Avocado", type: "dinner",
@@ -10264,7 +10264,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
     cuisine: "american", mainProtein: "legumes",
     timeMinutes: 25, approxCost: 1,
     dietTags: ["vegan", "vegetarian"],
-    description: "Lentils in a smoky tomato and pepper sauce piled into a bun, with a cabbage slaw.",
+    description: "Lentils in a smoky tomato and pepper sauce piled into a bun, with shredded cabbage.",
     ingredients: [
       { slug: "lentils", name: "Lentils", quantity: "150 g" },
       { slug: "tomato-sauce", name: "Tomato sauce", quantity: "100 g" },
@@ -10275,7 +10275,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "burger-bun", name: "Burger bun", quantity: "1" },
       { slug: "cabbage", name: "Cabbage", quantity: "60 g" },
     ],
-    steps: ["Soften the onion and pepper in the oil with the paprika.", "Add the lentils and tomato sauce and simmer 10 minutes until thick.", "Spoon into the bun and serve with shredded cabbage."],
+    steps: ["Soften the onion and pepper in the oil with the paprika.", "Add the lentils and tomato sauce and simmer 10 minutes until thick.", "Spoon into the bun (choose a vegan one: many buns contain milk or egg) and serve with shredded cabbage."],
   },
   {
     id: "d-vegan-mushroom-bean-orzo", name: "Mushroom & White Bean Orzotto", type: "dinner",
@@ -10350,7 +10350,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
     cuisine: "mediterranean", mainProtein: "dairy",
     timeMinutes: 10, approxCost: 2,
     dietTags: ["vegetarian", "keto", "gluten_free", "mediterranean"],
-    description: "Seared halloumi over mixed greens with cucumber, tomatoes and toasted walnuts.",
+    description: "Seared halloumi over mixed greens with cucumber, tomatoes and walnuts.",
     ingredients: [
       { slug: "halloumi", name: "Halloumi", quantity: "100 g" },
       { slug: "mixed-greens", name: "Mixed greens", quantity: "60 g" },
@@ -10527,7 +10527,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
     cuisine: "mediterranean", mainProtein: "dairy",
     timeMinutes: 5, approxCost: 1,
     dietTags: ["vegetarian", "keto", "gluten_free", "mediterranean"],
-    description: "Thick Greek yogurt with chia, raspberries and toasted walnuts.",
+    description: "Thick Greek yogurt with chia, raspberries and walnuts.",
     ingredients: [
       { slug: "greek-yogurt", name: "Greek yogurt", quantity: "200 g" },
       { slug: "walnuts", name: "Walnuts", quantity: "20 g" },
@@ -10548,9 +10548,10 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "tomatoes", name: "Tomatoes", quantity: "40 g" },
       { slug: "onion", name: "Onion", quantity: "20 g" },
       { slug: "turmeric", name: "Turmeric", quantity: "1/2 tsp" },
+      { slug: "cumin", name: "Cumin", quantity: "1/2 tsp" },
       { slug: "butter", name: "Butter", quantity: "10 g" },
     ],
-    steps: ["Soften the onion in the butter with the turmeric, then add the tomato and spinach.", "Add the beaten eggs and scramble until just set."],
+    steps: ["Soften the onion in the butter with the turmeric and cumin, then add the tomato and spinach.", "Add the beaten eggs and scramble until just set."],
   },
   {
     id: "b-keto-cottage-cheese-trout-plate", name: "Cottage Cheese & Smoked Trout Plate", type: "breakfast",
@@ -10844,7 +10845,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "olive-oil", name: "Olive oil", quantity: "1 tsp" },
       { slug: "parsley", name: "Parsley", quantity: "5 g" },
     ],
-    steps: ["Sizzle the garlic in the oil, add the tomatoes and olives and simmer 8 minutes.", "Stir in the tuna and toss with the cooked penne and parsley."],
+    steps: ["Sizzle the garlic in the oil, add the tomatoes and olives and simmer 8 minutes.", "Meanwhile boil the penne 10 minutes and drain; stir the tuna into the sauce and toss with the penne and parsley."],
   },
   {
     id: "b-ind-chickpea-chilla-yogurt", name: "Spiced Chickpea Flour Chilla with Yogurt", type: "breakfast",
@@ -10875,10 +10876,11 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "onion", name: "Onion", quantity: "20 g" },
       { slug: "tomatoes", name: "Tomatoes", quantity: "40 g" },
       { slug: "turmeric", name: "Turmeric", quantity: "1/2 tsp" },
+      { slug: "cumin", name: "Cumin", quantity: "1/2 tsp" },
       { slug: "olive-oil", name: "Olive oil", quantity: "1 tsp" },
       { slug: "eggs", name: "Eggs", quantity: "2 pieces" },
     ],
-    steps: ["Boil the eggs 8 minutes.", "Soften the onion in the oil with the turmeric, add the tomato, peas, oats and 250 ml water and simmer 5 minutes.", "Top with the halved eggs."],
+    steps: ["Boil the eggs 8 minutes.", "Soften the onion in the oil with the turmeric and cumin, add the tomato, peas, oats and 250 ml water and simmer 5 minutes.", "Top with the halved eggs."],
   },
   {
     id: "b-ind-mango-lassi-oats", name: "Mango Lassi Overnight Oats", type: "breakfast",
@@ -11098,7 +11100,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "sesame-oil", name: "Sesame oil", quantity: "1 tsp" },
       { slug: "soy-sauce", name: "Soy sauce", quantity: "1 tsp" },
     ],
-    steps: ["Fry the chopped kimchi in the sesame oil, add the rice and soy and toss until hot.", "Top with the eggs, fried."],
+    steps: ["Fry the chopped kimchi in the sesame oil (choose a vegetarian kimchi: traditional kimchi is made with fish sauce), add the rice and soy and toss until hot.", "Top with the eggs, fried."],
   },
   {
     id: "s-keto-cucumber-salmon-boats", name: "Cucumber Boats with Smoked Salmon & Cream Cheese", type: "snack",
@@ -11143,7 +11145,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
     cuisine: "asian", mainProtein: "eggs",
     timeMinutes: 10, approxCost: 1,
     dietTags: ["vegetarian", "keto", "gluten_free"],
-    description: "Two jammy boiled eggs sprinkled with toasted sesame and chives.",
+    description: "Two jammy boiled eggs sprinkled with sesame and chives.",
     ingredients: [
       { slug: "eggs", name: "Eggs", quantity: "2 pieces" },
       { slug: "sesame-seeds", name: "Sesame seeds", quantity: "5 g" },
@@ -11154,22 +11156,22 @@ export const SEED_RECIPES: RecipeSeed[] = [
   {
     id: "s-keto-turkey-cheddar-rollups", name: "Turkey & Cheddar Roll-Ups", type: "snack",
     cuisine: "american", mainProtein: "turkey",
-    timeMinutes: 5, approxCost: 1,
+    timeMinutes: 10, approxCost: 1,
     dietTags: ["keto", "gluten_free"],
-    description: "Sliced turkey rolled around cheddar and crisp lettuce.",
+    description: "Pan-cooked turkey slices rolled around cheddar and crisp lettuce.",
     ingredients: [
       { slug: "turkey-breast", name: "Turkey breast", quantity: "60 g" },
       { slug: "cheddar", name: "Cheddar", quantity: "20 g" },
       { slug: "lettuce", name: "Lettuce", quantity: "20 g" },
     ],
-    steps: ["Lay the turkey slices flat, add a strip of cheddar and a lettuce leaf, and roll up."],
+    steps: ["Slice the turkey thin and cook in a dry pan 2 minutes a side; cool.", "Lay the slices flat, add a strip of cheddar and a lettuce leaf, and roll up."],
   },
   {
     id: "s-keto-avocado-pumpkin-seed-cup", name: "Avocado, Lime & Pumpkin Seed Cup", type: "snack",
     cuisine: "mexican", mainProtein: "legumes",
     timeMinutes: 5, approxCost: 1,
     dietTags: ["vegan", "vegetarian", "keto", "gluten_free"],
-    description: "Half an avocado with lime, a pinch of chili and toasted pumpkin seeds.",
+    description: "Half an avocado with lime, a pinch of chili and pumpkin seeds.",
     ingredients: [
       { slug: "avocado", name: "Avocado", quantity: "1/2 piece" },
       { slug: "pumpkin-seeds", name: "Pumpkin seeds", quantity: "10 g" },
