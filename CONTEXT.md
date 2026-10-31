@@ -468,6 +468,12 @@ the whole library (`1092951`; WORKPLAN lesson 84).
 **2026-10-31.** Batches six to eight (761, 785, 809: `cc0ec54`, `d8bd319`, `6d9912a`), each gate catching something
 (a method that read as gluten, a row that judged a treat by its name). Then 7 near-copies removed, 809 to 802
 (`fe44e57`). The owner said they will take decisions 16 and 17, F8 and D8 later; keep going meanwhile.
+Then 802 to **900** (`eac9818`, `898b5bc`, `d7b897d`, `01de9ae`, `d3ab349`), a review of 87 (`50731b6`), and the
+**501 older recipes reviewed: 124 fixes** (`ec0d2c9`; two chicken snacks had served raw chicken). The fuzz caught a
+real defect on the way: a one-meal protein floor could leave a day 35% over its calories (fixed in `eac9818`).
+**Open, for a deliberate call:** 32 recipes have a `mainProtein` no ingredient matches, mostly nut, seed and tahini
+snacks labelled "legumes" because `MainProtein` has no nuts/seeds class. Adding one changes a core type the
+selector's variety rule reads (`proteinDays`), so it is not a data fix; probe: `.cache/probe/protein.mts`.
 
 **Next, in order:**
 1. F8 (the owner's answer: push from the laptop or rebuild here).
