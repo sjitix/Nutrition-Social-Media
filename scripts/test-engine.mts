@@ -3799,10 +3799,12 @@ console.log("--- UNDO (put it back, and put back exactly what changed) ---");
 
   // planChanged is MEASURED, not inferred from which tools were named. A swap for a dish we don't
   // stock is a no-op, and it used to answer "Done — I updated your plan."
+  // A dish with NO word the library has: "unicorn stew" stopped being one when a breakfast stew joined (2026-10-31),
+  // and a partial match is allowed and disclosed (the "unicorn stew" row above). Hence "moonpie".
   {
-    const noop = applyOperations(BASE, plan, [op({ tool: "swap_meal", day: "Monday", mealType: "breakfast", dish: "unicorn stew" })]);
+    const noop = applyOperations(BASE, plan, [op({ tool: "swap_meal", day: "Monday", mealType: "breakfast", dish: "unicorn moonpie" })]);
     check("a swap for a dish we don't have reports the plan as UNCHANGED", !noop.planChanged, noop.notes.join(" ").slice(0, 70));
-    check("...even though planWasChanged(ops) would have said otherwise", planWasChanged([op({ tool: "swap_meal", dish: "unicorn stew" })]));
+    check("...even though planWasChanged(ops) would have said otherwise", planWasChanged([op({ tool: "swap_meal", dish: "unicorn moonpie" })]));
   }
   check("a real swap reports the plan as changed", (() => {
     const real = applyOperations(BASE, plan, [op({ tool: "swap_meal", day: "Monday", mealType: "breakfast", dish: RECIPES.find((r) => r.type === "breakfast")!.name })]);
@@ -6260,7 +6262,7 @@ if (violations.size === 0) {
       check("undo slot: an explanation after a change leaves that change undoable", r.previous === prior, r.previous?.label);
     }
     {
-      const p = scripted([turn("", [{ op: "swap", dish: "unicorn stew", slot: "breakfast", days: ["Monday"] } as unknown as PrimitiveOp]), turn("I couldn't find that.")]);
+      const p = scripted([turn("", [{ op: "swap", dish: "unicorn moonpie", slot: "breakfast", days: ["Monday"] } as unknown as PrimitiveOp]), turn("I couldn't find that.")]);
       const r = await runAgent({ ...base, previous: prior, model: p.fn });
       check("undo slot: a refused change leaves the last real change undoable", r.planChanged === false && r.previous === prior, `${r.planChanged} ${r.previous?.label}`);
     }
