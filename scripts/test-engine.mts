@@ -3096,7 +3096,10 @@ console.log("--- FEED (browse the library, filtered) ---");
   const all: FeedFilter = { mealType: "all", diet: "all", highProtein: false, maxTime: null, query: "" };
   check("feed: has a substantial number of recipes", FEED_RECIPES.length >= 20, String(FEED_RECIPES.length));
   // A discovery feed must NOT surface treat-only dishes (pizza, burgers) — same rule as the planner.
-  check("feed: excludes treat-only dishes", FEED_RECIPES.every((it) => !/pizza|burger/i.test(it.meal.name)));
+  // Judged by the recipe's own flag, not its name: "burger" in a name once stood in for "a treat", and failed the
+  // day a Black Bean & Oat Burger, an ordinary dinner, joined the library (2026-10-31).
+  const treats = new Set(RECIPES.filter((r) => r.treatOnly).map((r) => r.name));
+  check("feed: excludes treat-only dishes", treats.size > 0 && FEED_RECIPES.every((it) => !treats.has(it.meal.name)), `${treats.size} treats`);
   check("feed: every card is a valid Meal", FEED_RECIPES.every((it) => MealSchema.safeParse(it.meal).success));
   check("feed: no filter returns everything", filterFeed(FEED_RECIPES, all).length === FEED_RECIPES.length);
 

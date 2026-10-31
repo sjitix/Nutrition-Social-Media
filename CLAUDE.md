@@ -27,7 +27,7 @@ Phased build order (one phase at a time, each usable on its own):
 5. Workout vertical (same mechanic for gym content) — *not started*
 
 Also shipped beyond the phase list: a **deterministic recipe database and selection engine**
-(`recipeDb.ts`, 761 recipes with USDA-derived macros), a **micronutrient engine**, and a
+(`recipeDb.ts`, 785 recipes with USDA-derived macros), a **micronutrient engine**, and a
 **product-wide UX overhaul** (mobile, WCAG AA, PWA, OG cards). See WORKPLAN.md.
 
 ## Tech stack
@@ -105,7 +105,7 @@ nothing (measured: without it, 3–7 kB per route) — a module that must run on
   re-exported there is private to the folder, and `check:boundaries` enforces it.
 - `src/lib/recipeDb.ts` — a 10-line barrel over `plan/` + the recipe types, kept so every
   `@/lib/recipeDb` import works unchanged. **Add engine code in `plan/`, not here.**
-- `src/lib/data/seeds.ts` — **the 761 recipes as authored**, and the recipe types (`Recipe`,
+- `src/lib/data/seeds.ts` — **the 785 recipes as authored**, and the recipe types (`Recipe`,
   `DietTag`, `Cuisine`, `MainProtein`). Moved out of `recipeDb.ts` in V1 milestone A2. Add a recipe
   HERE. `recipeDb` re-exports the types, so `@/lib/recipeDb` imports still work. **Every ingredient
   carries a `slug`** (`{ slug: "greek-yogurt", name: "Greek yogurt", quantity: "200 g" }`): `tsc`
@@ -235,12 +235,12 @@ nothing (measured: without it, 3–7 kB per route) — a module that must run on
   starting week is the same engine week every other screen shows. It reads `planChanged` off the
   response and never infers it, and shows `steps`/`gaveUp` because a run that hit the step cap
   stopped without finishing. **The derived figures come from `src/app/sage/weekStats.ts`, which
-  imports only a type** — importing `demo.ts` into the client would ship all 761 recipes to the
+  imports only a type** — importing `demo.ts` into the client would ship all 785 recipes to the
   browser, and `weekStats` is also the single copy of that arithmetic, which `demo.ts` now shares.
   `/sage/today` reproduces ONE board, `sage-04`, and only the panel of it that was referenced: a
   serif headline and a huge round plate on the left, three rings and a column of outlined rows on
   the right. The rings are the macros already hit and the rows are the meals still to come. **The
-  plate is not simply "the next meal":** with five recipes of 761 photographed, that would usually
+  plate is not simply "the next meal":** with five recipes of 785 photographed, that would usually
   be a dish with no picture on a screen that is entirely a picture, so it prefers the first
   UPCOMING meal that HAS a photograph, then the next meal, then a photographed meal already eaten —
   and labels each case honestly (`Up next` / `Later today` / `Earlier today`). It never claims to
@@ -257,7 +257,7 @@ nothing (measured: without it, 3–7 kB per route) — a module that must run on
   would be a lie the rest of the screen does not tell.
   **`/sage/explore` is interactive**: saves persist through `src/lib/account/savedStore.ts`, clicking a
   recipe opens `RecipeModal` (a real `role="dialog"` — Escape, focus return, scroll lock, focus
-  trap) with the full ingredient list and method, fetched once from the static `sage/explore/details.json` the first time a recipe is opened (the cards carry only ingredient NAMES, for search: Explore 92 to 73 kB gzipped, 2026-10-29), all 755 non-treat recipes render with no paging,
+  trap) with the full ingredient list and method, fetched once from the static `sage/explore/details.json` the first time a recipe is opened (the cards carry only ingredient NAMES, for search: Explore 92 to 73 kB gzipped, 2026-10-29), all 779 non-treat recipes render with no paging,
   and a "Saved" facet filters to them. Three things keep rendering everything cheap and should not
   be undone: the filter+sort `useMemo` excludes `saved` from its deps, `Card` is `memo`'d with
   stable handlers, and the card carries `content-visibility: auto`. One save costs ~5 ms.
@@ -345,7 +345,7 @@ nothing (measured: without it, 3–7 kB per route) — a module that must run on
   changed: `imageForMeal` is an **exact recipe-name map** (`RECIPE_IMAGES` in `lib/recipes.ts`), a
   miss returns `null` and falls back to a typographic tile, and **an image appears only on the dish
   it depicts, never as a stand-in**. Look at every image and check it against the recipe's
-  `dietTags` before mapping it. **Five dishes** are photographed today; the other 756 fall back to
+  `dietTags` before mapping it. **Five dishes** are photographed today; the other 780 fall back to
   a typographic tile, which is honest rather than misleading. `RECIPE_CUTOUTS` is a second, equally
   exact map holding background-removed versions, so a plate can sit on the page as an object rather
   than in a frame — made by `scripts/make-plate-cutout.mjs`. **If a photograph arrives before a
