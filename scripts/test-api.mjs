@@ -42,7 +42,10 @@ async function main() {
     `status ${planRes.status}`);
   const plan = planRes.json?.plan ?? { days: [] };
   const firstMeal = plan.days?.[0]?.meals?.[0];
-  const dishName = firstMeal?.name ?? "Veggie Omelette";
+  // A rating attaches to a LIBRARY dish, by its exact name. In demo mode the first meal is the sample week's
+  // "Greek Yogurt Bowl", which only a loose match once resolved; once the library had several yogurt bowls the engine
+  // rightly asked which (2026-10-31). So the test rates a dish the library has, by name.
+  const dishName = "Greek Yogurt & Berry Bowl";
 
   // ---- SAFETY PRE-SCAN (C2): a red flag is answered BEFORE any model, on both assistant routes ----
   // These must pass with the model DOWN, in demo mode, and with a paraphrasing model — which is the
