@@ -12234,7 +12234,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
     dietTags: ["vegetarian", "keto", "gluten_free"],
     description: "Avocado halves baked with an egg in each, topped with cheddar and chives.",
     ingredients: [
-      { slug: "avocado", name: "Avocado", quantity: "1/2 piece" },
+      { slug: "avocado", name: "Avocado", quantity: "1 piece" },
       { slug: "eggs", name: "Eggs", quantity: "2 pieces" },
       { slug: "cheddar", name: "Cheddar", quantity: "15 g" },
       { slug: "chives", name: "Chives", quantity: "3 g" },
@@ -12454,7 +12454,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
     cuisine: "american", mainProtein: "fish",
     timeMinutes: 10, approxCost: 2,
     dietTags: ["keto", "gluten_free"],
-    description: "Avocado halves filled with creamy tuna and grilled under melted cheddar, with cucumber.",
+    description: "An avocado half filled with creamy tuna and grilled under melted cheddar, with cucumber.",
     ingredients: [
       { slug: "canned-tuna", name: "Canned tuna", quantity: "100 g" },
       { slug: "avocado", name: "Avocado", quantity: "1/2 piece" },
@@ -12462,7 +12462,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "greek-yogurt", name: "Greek yogurt", quantity: "20 g" },
       { slug: "cucumber", name: "Cucumber", quantity: "40 g" },
     ],
-    steps: ["Mix the tuna with the yogurt and pile into the avocado halves.", "Top with the cheddar and grill 3 minutes until melted; serve with the cucumber."],
+    steps: ["Mix the tuna with the yogurt and pile onto and around the avocado half.", "Top with the cheddar and grill 3 minutes until melted; serve with the cucumber."],
   },
   {
     id: "l-keto-turkey-feta-zucchini-boats", name: "Turkey & Feta Zucchini Boats", type: "lunch",
@@ -12731,7 +12731,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
   {
     id: "s-vegan-choc-peanut-oat-bites", name: "Chocolate Peanut Oat Bites", type: "snack",
     cuisine: "american", mainProtein: "legumes",
-    timeMinutes: 10, approxCost: 1,
+    timeMinutes: 15, approxCost: 1,
     dietTags: ["vegan", "vegetarian"],
     description: "No-bake bites of oats, peanut butter, cocoa, chia and banana.",
     ingredients: [
@@ -12780,12 +12780,12 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "smoked-paprika", name: "Smoked paprika", quantity: "1/2 tsp" },
       { slug: "olive-oil", name: "Olive oil", quantity: "1/2 tsp" },
     ],
-    steps: ["Toss the dried chickpeas with the oil and paprika and roast at 210C for 15 minutes, add the almonds and roast 5 more."],
+    steps: ["Pat the chickpeas dry, toss with the oil and paprika and roast at 210C for 15 minutes, add the almonds and roast 5 more."],
   },
   {
     id: "s-vegan-mango-chia-cup", name: "Mango Chia Cup", type: "snack",
     cuisine: "asian", mainProtein: "legumes",
-    timeMinutes: 5, approxCost: 1,
+    timeMinutes: 20, approxCost: 1,
     dietTags: ["vegan", "vegetarian", "gluten_free"],
     description: "Chia soaked in water and lime, layered with fresh mango.",
     ingredients: [
@@ -12878,7 +12878,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
     steps: ["Pan-cook the chicken in the oil 6 minutes a side until cooked through, then slice; boil the orzo 9 minutes and drain.", "Toss the hot orzo with the pesto and spinach until it wilts, then the tomatoes and chicken."],
   },
   {
-    id: "l-ita-caprese-chicken-panzanella", name: "Caprese Chicken Panzanella", type: "lunch",
+    id: "l-ita-caprese-chicken-panzanella", name: "Tomato, Mozzarella & Chicken Panzanella", type: "lunch",
     cuisine: "italian", mainProtein: "chicken",
     timeMinutes: 20, approxCost: 2,
     dietTags: [],
@@ -13054,7 +13054,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
     cuisine: "indian", mainProtein: "eggs",
     timeMinutes: 10, approxCost: 1,
     dietTags: ["vegetarian"],
-    description: "A wrap cooked with a thin layer of cumin-spiced egg and spinach, rolled with yogurt.",
+    description: "A wrap cooked with a thin layer of turmeric-spiced egg and spinach, rolled with yogurt.",
     ingredients: [
       { slug: "whole-wheat-wrap", name: "Whole-wheat wrap", quantity: "1 piece" },
       { slug: "eggs", name: "Eggs", quantity: "2 pieces" },
@@ -13401,7 +13401,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "olive-oil", name: "Olive oil", quantity: "1 tsp" },
       { slug: "cooked-rice", name: "Cooked rice", quantity: "130 g" },
     ],
-    steps: ["Brown the cubed beef in the oil, then soften the onion with the curry and chili powders.", "Add the tomatoes and 100 ml water, cover and simmer 25 minutes until the beef is tender.", "Serve over the warmed rice."],
+    steps: ["Brown the cubed beef in the oil and set aside; soften the onion with the curry and chili powders.", "Add the tomatoes and 100 ml water and simmer 15 minutes to thicken, then return the beef for 5 minutes.", "Serve over the warmed rice."],
   },
   {
     id: "d-ind-egg-potato-curry", name: "Egg & Potato Curry with Spinach", type: "dinner",
@@ -13539,7 +13539,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
       { slug: "cumin", name: "Cumin", quantity: "1 tsp" },
       { slug: "olive-oil", name: "Olive oil", quantity: "2 tsp" },
     ],
-    steps: ["Toss the cauliflower and chickpeas with the oil and cumin and roast at 220C for 25 minutes.", "Simmer the quinoa 15 minutes meanwhile.", "Serve the roast over the quinoa, drizzled with the tahini thinned with water."],
+    steps: ["Toss the cauliflower and chickpeas with the oil and cumin and roast at 220C for 25 minutes.", "Meanwhile simmer the quinoa in 120 ml water for 15 minutes until absorbed.", "Serve the roast over the quinoa, drizzled with the tahini thinned with water."],
   },
   {
     id: "l-vegan-italian-lentil-spinach-soup", name: "Italian Lentil & Spinach Soup", type: "lunch",
@@ -13563,7 +13563,7 @@ export const SEED_RECIPES: RecipeSeed[] = [
     cuisine: "mexican", mainProtein: "legumes",
     timeMinutes: 25, approxCost: 1,
     dietTags: ["vegan", "vegetarian", "gluten_free"],
-    description: "A smoky black bean and corn soup with tomato and chili, topped with avocado.",
+    description: "A spiced black bean and corn soup with tomato and chili, topped with avocado.",
     ingredients: [
       { slug: "black-beans", name: "Black beans", quantity: "120 g" },
       { slug: "corn", name: "Corn", quantity: "60 g" },
