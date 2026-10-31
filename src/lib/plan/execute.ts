@@ -56,7 +56,7 @@ const PORTION = new Set(["slice", "slices", "bowl", "bowls", "plate", "plates", 
  * is not good enough: "office birthday cake" was logged as Cottage Cheese Pancakes, its calories and all, on "cake"
  * inside "pancakes" (D6, the fuzzy match). Two conditions: every word naming the food is a whole word of the dish's
  * name (or an inflection of one), and one of them is a HEAD of the name, the last word of a part split at "&", "and"
- * or "with": "pizza" is Pepperoni & Mozzarella Pizza, "chilli" is not Chilli-Lime Prawn Tacos, and "chicken caesar"
+ * or "with": "pizza" is Mozzarella & Tomato Pizza, "chilli" is not Chilli-Lime Prawn Tacos, and "chicken caesar"
  * is not a Grilled Chicken Caesar Wrap. A food that fails is asked about, or logged at the person's own figure.
  */
 const foodWords = (said: string) => askedWords(said).filter((w) => !FILLER.has(w) && !PORTION.has(w));

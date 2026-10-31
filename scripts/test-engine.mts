@@ -1864,7 +1864,7 @@ console.log("\n--- LOG_MEAL (real life derails the plan) ---");
   // If the engine changes so that either is no longer true, the suggestion (src/app/sage/suggest.ts) must change too.
   const gains = Array.from({ length: 30 }, (_, i) => i + 1).map((seed) => withSeed(seed, () => {
     const wk = freshWeek(BASE);
-    const short = applyOperations(BASE, wk, [op({ tool: "swap_meal", day: "Tuesday", mealType: "dinner", dish: "Pepperoni & Mozzarella Pizza", preserveMacros: false } as never)]).plan;
+    const short = applyOperations(BASE, wk, [op({ tool: "swap_meal", day: "Tuesday", mealType: "dinner", dish: "Mozzarella & Tomato Pizza", preserveMacros: false } as never)]).plan;
     const tue = (w: WeekPlan) => prot(w.days.find((d) => d.day === "Tuesday")!);
     const regen = applyOperations(BASE, short, [op({ tool: "regenerate_day", day: "Tuesday" })]).plan;
     const rebal = applyOperations(BASE, short, [op({ tool: "rebalance_day", day: "Tuesday" } as never)]).plan;
@@ -3354,7 +3354,7 @@ console.log("--- ALLERGEN LAWS (D5b: properties, swept over the whole library) -
   // L10 — compound and prepared foods carry the allergens their usual recipe does (the pesto/Caesar
   // precedent). Whey protein powder passed a milk allergy 27 times in 10 weeks; a pizza base passed a coeliac.
   const compounds: [string, string][] = [
-    ["gluten", "pizza base"], ["gluten", "Pepperoni & Mozzarella Pizza"], ["dairy", "protein powder"], ["milk", "protein powder"],
+    ["gluten", "pizza base"], ["gluten", "Mozzarella & Tomato Pizza"], ["dairy", "protein powder"], ["milk", "protein powder"],
     ["lactose", "protein powder"], ["dairy", "tikka masala sauce"], ["nuts", "tikka masala sauce"], ["fish", "kimchi"],
     ["shellfish", "kimchi"], ["nuts", "granola"], ["nuts", "muesli"], ["tree nuts", "granola"], ["dairy", "buffalo sauce"],
     ["gluten", "enchilada sauce"], ["gluten", "turkey sausage"], ["wheat", "lean pork sausage"], ["pork", "pepperoni"],
@@ -4879,9 +4879,9 @@ console.log("\n--- THE ASSISTANT'S WORDS BIND THE ENGINE ---");
         r.notes.filter((n) => /shrimp/.test(n)).join(" | "));
     }
     {
-      const r = applyOperations(P("", "mushrooms"), aw, [{ tool: "swap_meal", mealType: "dinner", dish: "Mushroom Barley Risotto" }]);
+      const r = applyOperations(P("", "mushrooms"), aw, [{ tool: "swap_meal", mealType: "dinner", dish: "Mushroom Bulgur Risotto" }]);
       check("swap refused for a dislike: it says which food the person avoids",
-        /^Mushroom Barley Risotto contains mushrooms, which you avoid, so I/.test(r.notes[0] ?? "") &&
+        /^Mushroom Bulgur Risotto contains mushrooms, which you avoid, so I/.test(r.notes[0] ?? "") &&
         // The dinners the swap placed (a dinner swap with no day is every day's): the week it started from was built
         // with no dislike, so a breakfast may name mushrooms (2026-10-29: "Miso Eggs with Spinach & Mushrooms").
         r.plan.days.every((d) => d.meals.every((m) => m.type !== "dinner" || !/mushroom/i.test(m.name))), r.notes[0]);

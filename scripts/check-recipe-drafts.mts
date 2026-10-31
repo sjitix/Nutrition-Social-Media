@@ -47,7 +47,9 @@ const MUST_COOK: Record<string, RegExp> = {
 const COOKS = /\b(cook|boil|simmer|fry|fried|frie|sear|roast|bak|grill|griddl|poach|scrambl|stir-fr|brown|blanch|steam|microwav|soak|crisp|toast|glaz|char|saut)|\bfor (?:the last )?\d+ min|\bset\b|until (?:just )?(?:set|creamy|tender|golden|pink|cooked)|waffle iron/;
 
 function uncooked(r: { ingredients: { slug: string; name: string }[]; steps?: string[] }): string[] {
-  const steps = (r.steps ?? []).map((st) => st.toLowerCase());
+  // "the cooked chicken" describes the food, it does not cook it: "Shred the cooked chicken." over raw chicken breast
+  // passed this rule in two snacks until a review found them (2026-10-31).
+  const steps = (r.steps ?? []).map((st) => st.toLowerCase().replace(/\b(?:the|your|leftover|already) cooked\b/g, ""));
   // "Toss everything with the oil. / Roast on one tray": a step that takes everything, with a cooking step at or after it.
   const all = steps.findIndex((st) => /\b(everything|all of it|all ingredients|the batter|the mixture|the filling)\b/.test(st));
   const covered = (j: number) => all >= 0 && j >= all;
