@@ -61,6 +61,23 @@ function uncooked(r: { ingredients: { slug: string; name: string }[]; steps?: st
     .map((i) => i.name);
 }
 
+/** The library dish in the same slot whose ingredients are closest to this one's (Jaccard over slugs, oil and garnish set
+ *  aside), skipping the draft itself if it is already in the library. */
+const GARNISH = new Set(["olive-oil", "lemon", "lime", "parsley", "chives", "cumin"]);
+const slugSet = (r: { ingredients: { slug: string; name: string }[] }) => new Set(r.ingredients.map((i) => i.slug).filter((s) => !GARNISH.has(s)));
+function nearestCopy(r: { id: string; type: string; ingredients: { slug: string; name: string }[] }): { name: string; type: string; score: number } | null {
+  const B = slugSet(r);
+  let best: { name: string; type: string; score: number } | null = null;
+  for (const a of RECIPES) {
+    if (a.type !== r.type || a.id === r.id || a.treatOnly) continue;
+    const A = slugSet(a as never);
+    const inter = [...A].filter((x) => B.has(x)).length;
+    const score = inter / (A.size + B.size - inter || 1);
+    if (!best || score > best.score) best = { name: a.name, type: a.type, score };
+  }
+  return best;
+}
+
 if (process.argv[2] === "--library") {
   const hits = RECIPES.map((r) => ({ r, raw: uncooked(r as never) })).filter((x) => x.raw.length);
   for (const { r, raw } of hits) console.log(`${r.id.padEnd(40)} ${raw.join(", ")}  |  ${r.steps.join(" / ").slice(0, 140)}`);
@@ -87,8 +104,15 @@ let bad = 0;
 for (const r of drafts) {
   let cal = 0, p = 0, c = 0, f = 0;
   const issues: string[] = [];
+  const warnings: string[] = [];
   if (names.has(r.name)) issues.push("a recipe of this name exists");
   if (ids.has(r.id)) issues.push("this id exists");
+  // A new name over the same dish is not variety. Same slot, the ingredient lists compared with oil and garnish set
+  // aside: identical is a FIX, 80% or more a warning (2026-10-31: 19 of 191 recent additions were near-copies, four
+  // of them identical, e.g. "Cumin Cucumber Raita Cup" beside "Cumin Yogurt & Cucumber").
+  const near = nearestCopy(r);
+  if (near && near.score >= 0.999) issues.push(`the same ingredients as "${near.name}" (${near.type}): a new name, not a new dish`);
+  else if (near && near.score >= 0.8) warnings.push(`warning: ${Math.round(near.score * 100)}% of its ingredients are "${near.name}"'s; make sure it is a different dish`);
   if (!cuisines.has(r.cuisine ?? "")) issues.push(`cuisine "${r.cuisine}" is not one of ${[...cuisines].join(", ")}`);
   if (!proteins.has(r.mainProtein ?? "")) issues.push(`mainProtein "${r.mainProtein}" is not one of ${[...proteins].join(", ")}`);
   for (const i of r.ingredients) {
@@ -121,7 +145,6 @@ for (const r of drafts) {
   // review of 2026-10-29 found three such methods among 117 recipes ("Soften the onion with the curry powder").
   const fryVerb = /\b(fry|fried|soften|saut[eé]|sear|brown|griddle|stir-fry)\b/i;
   const fat = /\b(oil|butter|ghee)\b/i;
-  const warnings: string[] = [];
   if ((r.steps ?? []).some((st) => fryVerb.test(st)) && !r.ingredients.some((i) => fat.test(i.name)) && !(r.steps ?? []).some((st) => /dry pan|in a splash of water/i.test(st)))
     warnings.push("warning: the method fries or softens, but there is no oil or butter in the list");
   const raw = uncooked(r);
