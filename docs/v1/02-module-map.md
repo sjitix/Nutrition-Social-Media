@@ -219,8 +219,8 @@ symptom, substitution and condition tools."*
 - **Invariants:** `CRISIS_FLAGS` is safety data — it may only grow, and anything reading it must
   fail loud, never silently miss.
 
-**L1 is built to grow — "expand by a lot"** *(owner, 2026-09-19, said twice).* Today: **180
-ingredients, 501 recipes.** Target recorded in the schedule's owner-gated table: **400 ingredients /
+**L1 is built to grow — "expand by a lot"** *(owner, 2026-09-19, said twice).* Today (2026-10-31): **180
+ingredients, 900 recipes** (the recipe target reached; the ingredients wait on decision 17). Target recorded in the schedule's owner-gated table: **400 ingredients /
 900 recipes** (a default until the owner names a number). The order is deliberate, because growing
 the library on today's shape would multiply today's weakness:
 
