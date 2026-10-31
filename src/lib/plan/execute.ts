@@ -1134,7 +1134,15 @@ export function applyOperations(
             // Only dishes using an asked food are tried while any qualifies, so holding the day's protein never trades it away.
             const pool = picks.some((r) => usesAsked(r.name)) ? picks.filter((r) => usesAsked(r.name)) : picks;
             const tries = pool.map((r) => place(r));
-            const { plate, meals } = tries.find((t) => t.protein >= before) ?? place(pool[0], false);
+            // The portions-as-they-are fallback holds only while the day stays within 15% of its calories (I5): a 90 g
+            // floor at dinner once scaled the dinner to 1.77x and left the day at 2704 kcal of 2000 (fuzz, 2026-10-31).
+            // Past that, the balanced dish that keeps the most protein.
+            const kcal = (ms: Meal[]) => ms.reduce((a, m) => a + m.calories, 0);
+            const loose = place(pool[0], false);
+            const fallback = Math.abs(kcal(loose.meals) - tp.targetCalories) <= tp.targetCalories * 0.15
+              ? loose
+              : tries.reduce((a, b) => (b.protein > a.protein ? b : a));
+            const { plate, meals } = tries.find((t) => t.protein >= before) ?? fallback;
             curPlan = { ...curPlan, days: curPlan.days.map((d) => (d.day === op.day ? { ...d, meals } : d)) };
             notes.push(`${op.day}'s ${op.mealType} is now ${plate.name} (${plate.proteinGrams}g protein), in place of ${old.name} (${old.proteinGrams}g).` +
               (figuresNote(curPlan, tp, op.day) ? ` ${figuresNote(curPlan, tp, op.day)}` : ""));

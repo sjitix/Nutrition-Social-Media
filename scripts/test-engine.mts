@@ -1981,8 +1981,10 @@ console.log("\n--- LOG_MEAL (real life derails the plan) ---");
       target.notes.some((n) => n.startsWith(`${at(wk, d, "breakfast").name} already has`))) , target.notes.join(" | ").slice(0, 300));
   check("slot scope, protein: the day's other meals are balanced around the new breakfast, the profile's protein target untouched",
     target.profile.proteinGrams === BASE.proteinGrams && short.every((d) => target.notes.some((n) => n.startsWith(`${d}'s breakfast`) && n.includes(`${d} now has`))));
-  // More protein in one meal must not leave the DAY with less: balancing the other meals to hold calories once took a
-  // vegan day from 121 g to 113 g under a 50 g lunch (15 of 121 changed slots, 2026-10-29).
+  // More protein in one meal must not cost the DAY much protein, and must not cost it its calories. Balancing the other
+  // meals once took a vegan day from 121 g to 113 g under a 50 g lunch (15 of 121 changed slots, 2026-10-29); the fix
+  // kept the other portions instead, which once left a day at 2704 kcal of 2000 (fuzz, 2026-10-31). Both now hold: the
+  // day keeps its calories within I5's 15%, and loses at most 5 g of protein (a few grams, measured: 141 to 138).
   const vegan = { ...BASE, diet: "vegan" } as UserProfile;
   const dayP = (d: DayPlan) => d.meals.reduce((a, m) => a + m.proteinGrams, 0);
   const lower: string[] = [];
@@ -1994,10 +1996,12 @@ console.log("\n--- LOG_MEAL (real life derails the plan) ---");
       const b = vw.days.find((x) => x.day === d.day)!;
       if (at(vr.plan, d.day, "lunch").name === at(vw, d.day, "lunch").name) continue;
       changedSlots++;
-      if (dayP(d) < dayP(b)) lower.push(`s${seed} ${d.day} ${dayP(b)}->${dayP(d)}`);
+      const kc = d.meals.reduce((a, m) => a + m.calories, 0);
+      if (dayP(d) < dayP(b) - 5 || Math.abs(kc - vegan.targetCalories) > vegan.targetCalories * 0.15)
+        lower.push(`s${seed} ${d.day} ${dayP(b)}->${dayP(d)} g, ${kc} kcal`);
     }
   }
-  check("slot scope, protein: raising one meal's protein never lowers the day's (vegan lunches at 50 g, 4 seeds)",
+  check("slot scope, protein: raising one meal's protein costs the day at most 5 g of protein and none of its calories (vegan lunches at 50 g, 4 seeds)",
     changedSlots > 4 && lower.length === 0, `${changedSlots} changed; lower: ${lower.join(", ")}`);
   // "At least 40 g of protein at breakfast, with eggs": the eggs were the one part of the request this path ignored.
   const eggs = applyPrimitives(BASE, wk, [{ op: "constrain", scope: { slot: "breakfast" }, targets: { protein: floor }, use: ["eggs"] } as PrimitiveOp]);
