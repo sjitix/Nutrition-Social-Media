@@ -38,6 +38,15 @@
   keeps it, as a logged meal is kept. A logged meal, a meal out or a pin is refused with its reason. "I don't eat
   breakfast, ever" stays a decline (plans run 3 or 4 meals a day); `skip` is for one meal on one day. Eval rows:
   skip today's lunch; skip a logged meal (refused); skip then "new week" (kept).
+- **Models lane: library renames from the 2026-10-31 review of the older recipes.** Dish names that promised what the
+  list lacked were renamed. Two your fixtures swap in by name kept their names (the recipes changed instead):
+  "Garlic Butter Shrimp with Rice & Asparagus" now has butter, "Chilli Shrimp Rice Bowl" its chili. One fixture
+  names a renamed dish: `scripts/models/controls/convo/log-then-tonight/fail-1-swap.json` swaps in "Pepperoni &
+  Mozzarella Pizza", now "Mozzarella & Tomato Pizza" (no pepperoni was in it); the swap still finds it by "pizza", but
+  an exact-name assertion would need the new name. Others renamed: "Lentil Soup & Bread" to "Red Lentil Soup",
+  "Mushroom Barley Risotto" to "Mushroom Bulgur Risotto", "Cajun Salmon with Dirty Rice" to "Cajun Salmon with Rice &
+  Beans", "Lemon-Herb Chicken…" to "Lemon Chicken with Green Beans & Potatoes", "Three-Bean Chili Bowl" to "Kidney Bean
+  & Corn Chili Bowl", "Turkish Eggs over Garlic Yogurt" to "Turkish Eggs over Yogurt".
 - **Models lane: a remembered health condition now gets the ENGINE's offer (2026-10-30, B6).** "I'm pregnant" /
   "on my period" / "low on iron", remembered, adds a note offering to favour the nutrient it calls for, with a
   doctor line; nothing changes. The prompt's remember line changed: remember a condition and change nothing; when
