@@ -170,7 +170,7 @@
       the schedule ahead.</p>
     <div class="stamp">
       <b><i>source</i> docs/worklog/</b>
-      <b><i>synced</i> 2026-10-30</b>
+      <b><i>synced</i> 2026-10-31</b>
       <b><i>commit</i> 39e71b5+</b>
     </div>
   </header>
@@ -189,7 +189,7 @@
 
   <section id="totals">
     <div class="stats">
-      <div class="stat"><div class="v">11</div><div class="l">days logged</div></div>
+      <div class="stat"><div class="v">12</div><div class="l">days logged</div></div>
       <div class="stat"><div class="v">11</div><div class="l">milestones done</div></div>
       <div class="stat"><div class="v">8</div><div class="l">days to V1</div></div>
       <div class="stat"><div class="v">12</div><div class="l">open deferrals</div></div>
@@ -202,6 +202,39 @@
     <p class="lede">Only days that actually happened, each with its date, appended at the end of every work-day.
       Nothing planned appears here — the schedule ahead is in its own collapsed block below.</p>
     <div class="tl" style="margin-top:20px">
+
+      <article class="entry" id="d-2026-10-31">
+        <div class="box">
+          <div class="ehead">
+            <span class="date">2026-10-31</span>
+            <span class="pill done">solved &middot; done</span>
+          </div>
+          <h3>The library passes 800 recipes, and copies are weeded out</h3>
+          <p class="sub">More variety where it was thinnest, with every new recipe checked before it goes in.</p>
+          <div class="blocks">
+            <div class="blk">
+              <h4>What moved</h4>
+              <ul>
+                <li><b>737 to 809 recipes</b> in three batches: Mediterranean breakfasts and snacks, Indian and Mexican lunches,
+                  keto breakfasts, lunches and dinners, vegan meals, and more beef and pork.</li>
+                <li><b>Seven new recipes turned out to be copies</b> of dishes the library already had, under a new name (two
+                  yogurt bowls with the same ingredients, a second spinach dal). They were removed, so the library is now
+                  <b>802</b>, and the recipe checker now refuses a copy before it goes in.</li>
+              </ul>
+            </div>
+            <div class="blk found">
+              <h4>Found along the way</h4>
+              <ul>
+                <li><b>About eleven older pairs</b> of recipes have identical ingredient lists. Some are the same dish, some only
+                  look alike. Removing a recipe can affect saved recipes, so these wait for your call.</li>
+                <li><b>A test treated any dish named &ldquo;burger&rdquo; as a treat</b>, so a new bean burger tripped it. The test now
+                  reads the recipe&rsquo;s own treat flag.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="gate">GATE &middot; engine 1325, every commit green before it was pushed</div>
+        </div>
+      </article>
 
       <article class="entry" id="d-2026-10-30">
         <div class="box">

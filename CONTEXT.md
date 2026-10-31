@@ -465,12 +465,18 @@ breast as if cooked (`f1da262`); a cooked-turkey row was added to decision 17. 1
 (`e029c20`; most "serve over rice" with raw brown rice), and `check:drafts` now warns on it, `-- --library` over
 the whole library (`1092951`; WORKPLAN lesson 84).
 
+**2026-10-31.** Batches six to eight (761, 785, 809: `cc0ec54`, `d8bd319`, `6d9912a`), each gate catching something
+(a method that read as gluten, a row that judged a treat by its name). Then 7 near-copies removed, 809 to 802
+(`fe44e57`). The owner said they will take decisions 16 and 17, F8 and D8 later; keep going meanwhile.
+
 **Next, in order:**
 1. F8 (the owner's answer: push from the laptop or rebuild here).
 2. Decision 16 in the owner's doc ("Fix my week" and the protein controls).
 3. D9a's remaining rows: "fix every short day" waits on decision 16; "what is in the cupboard" needs a storage key
    (the accounts lane's `storage.ts`); "an imported recipe in a slot" needs an import flow in `/sage` (D8).
-4. Library growth. 737 recipes (2026-10-30: 119 more for the thinnest cells, from curated ingredients; reviewed).
+4. Library growth. 802 recipes (2026-10-29 to 31: 184 more for the thinnest cells, from curated ingredients,
+   reviewed; 7 near-copies removed and `check:drafts` now flags one). About eleven older pairs with identical
+   ingredient lists are left for the owner (worklog 2026-10-31).
    More from the same ingredients is still possible, but the next real step needs
    decision 17 in the owner's doc: 16 new ingredients (lamb, pork loin, sardines, plant milks, coconut milk, grains,
    squash, leeks, celery, cashews, sunflower seeds, silken tofu, pear), each with a recommended USDA row. Add the Yes
